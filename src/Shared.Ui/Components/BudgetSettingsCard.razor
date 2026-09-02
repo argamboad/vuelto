@@ -1,0 +1,186 @@
+@using System.Globalization
+@using System.Net.Http.Json
+@using System.Text.Json.Serialization
+@inject HttpClient Http
+@inject IStringLocalizer<AppStrings> Localizer
+
+@* The household's budget structure (BUDGET-1, ADR-V003): week start, month anchor, income defaults. *@
+<div class="card shadow-sm mt-4" data-testid="budget-settings-card">
+    <div class="card-body">
+        <h2 class="h6 fw-bold mb-1">@Localizer["BudgetSettings_Title"]</h2>
+        <p class="small text-muted mb-3">@Localizer["BudgetSettings_Subtitle"]</p>
+
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <div class="alert alert-danger py-2" data-testid="budget-error">@_error</div>
+        }
+        @if (_saved)
+        {
+            <div class="alert alert-success py-2" data-testid="budget-saved">@Localizer["BudgetSettings_Saved"]</div>
+        }
+
+        @if (_loading)
+        {
+            <div class="text-muted"><span class="spinner-border spinner-border-sm me-2"></span>@Localizer["Common_Loading"]</div>
+        }
+        else
+        {
+            <div class="row g-3">
+                <div class="col-12 col-sm-6">
+                    <label class="form-label small fw-medium mb-1" for="budget-weekday">@Localizer["BudgetSettings_WeekStartDay"]</label>
+                    <select class="form-select" id="budget-weekday" data-testid="budget-weekday" disabled="@_busy" @bind="_weekday">
+                        @for (var d = 0; d <= 6; d++)
+                        {
+                            <option value="@d">@DayName(d)</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-12 col-sm-6">
+                    <label class="form-label small fw-medium mb-1" for="budget-anchor">@Localizer["BudgetSettings_MonthAnchor"]</label>
+                    <select class="form-select" id="budget-anchor" data-testid="budget-anchor" disabled="@_busy" @bind="_anchor">
+                        <option value="last_weekday_prev">@Localizer["BudgetSettings_Anchor_LastWeekdayPrev", DayName(_weekday)]</option>
+                        <option value="first_weekday_current">@Localizer["BudgetSettings_Anchor_FirstWeekdayCurrent", DayName(_weekday)]</option>
+                        <option value="first_of_month">@Localizer["BudgetSettings_Anchor_FirstOfMonth"]</option>
+                    </select>
+                    <div class="form-text">@Localizer["BudgetSettings_MonthAnchorHint"]</div>
+                </div>
+            </div>
+            <p class="small text-muted mt-2 mb-3">@Localizer["BudgetSettings_ChangeNote"]</p>
+
+            <h3 class="h6 fw-bold mb-1 mt-2">@Localizer["BudgetSettings_IncomeTitle"]</h3>
+            <p class="small text-muted mb-2">@Localizer["BudgetSettings_IncomeHint"]</p>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-3" data-testid="budget-income">
+                    <thead>
+                        <tr>
+                            <th scope="col"></th>
+                            <th scope="col">@Localizer["BudgetSettings_Amount4w"]</th>
+                            <th scope="col">@Localizer["BudgetSettings_Amount5w"]</th>
+                            <th scope="col">@Localizer["BudgetSettings_Currency"]</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <th scope="row" class="fw-medium">@Localizer["BudgetSettings_Primary"]</th>
+                            <td><input class="form-control form-control-sm" type="number" min="0" step="0.01" data-testid="budget-p4w" disabled="@_busy" @bind="_primary4w" /></td>
+                            <td><input class="form-control form-control-sm" type="number" min="0" step="0.01" data-testid="budget-p5w" disabled="@_busy" @bind="_primary5w" /></td>
+                            <td>
+                                <select class="form-select form-select-sm" data-testid="budget-pcur" disabled="@_busy" @bind="_primaryCurrency">
+                                    <option value="USD">USD ($)</option>
+                                    <option value="CRC">CRC (₡)</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row" class="fw-medium">@Localizer["BudgetSettings_Secondary"]</th>
+                            <td><input class="form-control form-control-sm" type="number" min="0" step="0.01" data-testid="budget-s4w" disabled="@_busy" @bind="_secondary4w" /></td>
+                            <td><input class="form-control form-control-sm" type="number" min="0" step="0.01" data-testid="budget-s5w" disabled="@_busy" @bind="_secondary5w" /></td>
+                            <td>
+                                <select class="form-select form-select-sm" data-testid="budget-scur" disabled="@_busy" @bind="_secondaryCurrency">
+                                    <option value="USD">USD ($)</option>
+                                    <option value="CRC">CRC (₡)</option>
+                                </select>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <button class="btn btn-primary" data-testid="budget-save" disabled="@_busy" @onclick="Save">
+                @if (_busy) { <span class="spinner-border spinner-border-sm me-2"></span> }
+                @Localizer["BudgetSettings_Save"]
+            </button>
+        }
+    </div>
+</div>
+
+@code {
+    private bool _loading = true;
+    private bool _busy;
+    private bool _saved;
+    private string? _error;
+
+    private int _weekday = 4;
+    private string _anchor = "last_weekday_prev";
+    private decimal _primary4w;
+    private decimal _primary5w;
+    private string _primaryCurrency = "USD";
+    private decimal _secondary4w;
+    private decimal _secondary5w;
+    private string _secondaryCurrency = "USD";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var dto = await Http.GetFromJsonAsync<SettingsDto>("/api/budget-settings");
+            if (dto is not null) Apply(dto);
+        }
+        catch { _error = Localizer["BudgetSettings_ErrLoad"]; }
+        finally { _loading = false; }
+    }
+
+    private async Task Save()
+    {
+        _error = null; _saved = false; _busy = true;
+        try
+        {
+            var res = await Http.PutAsJsonAsync("/api/budget-settings", new
+            {
+                week_start_weekday = _weekday,
+                month_anchor = _anchor,
+                primary_income_4w = _primary4w,
+                primary_income_5w = _primary5w,
+                primary_income_currency = _primaryCurrency,
+                secondary_income_4w = _secondary4w,
+                secondary_income_5w = _secondary5w,
+                secondary_income_currency = _secondaryCurrency,
+            });
+            if (res.IsSuccessStatusCode)
+            {
+                var dto = await res.Content.ReadFromJsonAsync<SettingsDto>();
+                if (dto is not null) Apply(dto);
+                _saved = true;
+            }
+            else
+            {
+                _error = res.StatusCode == System.Net.HttpStatusCode.BadRequest
+                    ? Localizer["BudgetSettings_ErrInvalid"]
+                    : Localizer["BudgetSettings_ErrSave"];
+            }
+        }
+        catch { _error = Localizer["BudgetSettings_ErrSave"]; }
+        finally { _busy = false; }
+    }
+
+    private void Apply(SettingsDto dto)
+    {
+        _weekday = dto.WeekStartWeekday;
+        _anchor = dto.MonthAnchor;
+        _primary4w = dto.PrimaryIncome4w;
+        _primary5w = dto.PrimaryIncome5w;
+        _primaryCurrency = dto.PrimaryIncomeCurrency;
+        _secondary4w = dto.SecondaryIncome4w;
+        _secondary5w = dto.SecondaryIncome5w;
+        _secondaryCurrency = dto.SecondaryIncomeCurrency;
+    }
+
+    // Localized weekday name from the active UI culture (0 = Sunday … 6 = Saturday), capitalized —
+    // Spanish day names are lower-case in .NET's culture data.
+    private static string DayName(int weekday)
+    {
+        var name = CultureInfo.CurrentUICulture.DateTimeFormat.GetDayName((DayOfWeek)weekday);
+        return name.Length == 0 ? name : char.ToUpper(name[0], CultureInfo.CurrentUICulture) + name[1..];
+    }
+
+    private sealed record SettingsDto(
+        [property: JsonPropertyName("week_start_weekday")] int WeekStartWeekday,
+        [property: JsonPropertyName("month_anchor")] string MonthAnchor,
+        [property: JsonPropertyName("primary_income_4w")] decimal PrimaryIncome4w,
+        [property: JsonPropertyName("primary_income_5w")] decimal PrimaryIncome5w,
+        [property: JsonPropertyName("primary_income_currency")] string PrimaryIncomeCurrency,
+        [property: JsonPropertyName("secondary_income_4w")] decimal SecondaryIncome4w,
+        [property: JsonPropertyName("secondary_income_5w")] decimal SecondaryIncome5w,
+        [property: JsonPropertyName("secondary_income_currency")] string SecondaryIncomeCurrency,
+        [property: JsonPropertyName("is_default")] bool IsDefault);
+}
