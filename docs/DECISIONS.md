@@ -1283,3 +1283,190 @@ ready-made release workflow to inherit. Accepted because an unverifiable workflo
 not an asset; the checklist and scoping notes transfer the knowledge instead. This supersedes
 ADR-018's "honest counterweight" (store distribution as a platform commitment) in the downstream
 direction the 2026-07-06 amendment anticipated.
+
+---
+
+## App decisions — ¿Y el vuelto? (`ADR-V…`)
+
+> **Numbering.** ADR-001–024 above are the platform's own decisions and are inherited verbatim
+> (treat them as constant here — they are re-decided upstream, never in this repo). This app's
+> decisions use the **`ADR-V`** prefix so they can never collide with a future upstream ADR-025.
+> Donor decisions are cited as `donor ADR-00NN` (`vuelto/docs/decisions.md`).
+>
+> **Donor decisions absorbed by the platform (not re-recorded):** donor ADR-0001/0002/0003
+> (OAuth middleware, in-memory JWT + hashed rotating refresh cookie, verified-email account merge)
+> → platform ADR-002; donor ADR-0004 (repository-layer tenant isolation) → platform ADR-003/020;
+> donor ADR-0016's membership/invitation/departure mechanics + ADR-0023 (hash-at-rest invitation
+> tokens, accept moves membership) → platform ADR-003/009/011 + `HouseholdInvitationsController`;
+> donor ADR-0025 (I/O in Infrastructure, Api = composition) → platform ADR-004; donor ADR-0026
+> (transactional email) → platform `IEmailSender` + outbox + `BrandedEmail`; donor ADR-0022
+> (removed Flutter stack) — historical, moot.
+
+**ADR-V001 — Entry mode: this app is a continuation port of `vuelto/phase2`; the donor is frozen, its tests are the spec, and the platform is extended, never modified. (2026-09-02)**
+`y-el-vuelto` was cloned from `perezosoft-platform@d09c60f` (commit `0f7d1dc`) and carries the
+**entire** platform (billing, jobs, notifications, files, GDPR, admin, MAUI shells) even where
+Vuelto has no immediate use for a subsystem. The donor repo `vuelto` (branch `develop`, 2026-09-02)
+is **frozen as a read-only reference**; no product work continues there. The donor's shipped
+behavior (Slices 1–6, 8 and the two audit-remediation tracks) is re-homed as vertical slices in the
+order P0–P11 of the port plan; only then does the donor's unfinished roadmap resume here (data-driven
+bank definitions first). **Rules:** (1) the donor's ~330 domain unit tests + 6 integration classes
+port as the specification; its ~40 foundational-behavior tests (invitations, membership lifecycle,
+concurrency) are run once against the platform as acceptance checks, then discarded; (2) the
+platform is **extended through its seams** (`IRepository<T>`, `ITenantDataContributor`,
+`IUserDataContributor`, `IScheduledJob`, `IEmailSender`, `ITenantContext.EnterTenant`, DI) — never
+modified in this repo; a genuinely generic gap goes upstream as a `perezosoft-platform` PR first,
+and anything Vuelto-specific is solved here; (3) stories live one file per epic in `docs/stories/`,
+each scenario citing the donor story it ports (`from US-015`), and new work continues the donor's
+numbering from **US-057**.
+*Rationale:* the donor is an unfinished project, not a finished product to migrate — the goal is to
+stop paying twice for auth/tenancy/email/jobs and to inherit the platform's hardening. Freezing the
+donor prevents divergence; porting behind its tests is the only honest parity proof.
+
+**ADR-V002 — Household is the tenant; platform roles owner/admin/member apply; budget data is shared; an email connection is user-keyed. (2026-09-02; from donor ADR-0016, port decision D7)**
+The platform `Tenant` is labelled **Household**. All budget data (settings, catalogs, expense lines,
+months, weeks, transactions, refunds, envelopes, merchant mappings, pending/ingested vouchers) is
+`ITenantScoped`. The platform's three roles apply unchanged: **any member** reads and edits budget
+data (no new `Permission` — that is the member baseline); management capabilities (rename, invite,
+remove, roles, transfer, dissolve, billing, export) follow `RolePermissions`. The donor's
+owner-only matrix is a strict subset, so nothing is lost; `admin` is a gain. **`EmailConnection`
+is user-keyed** (not `ITenantScoped`): it is a member's mailbox credential, it survives leave /
+remove / dissolve, it is erased with the account (`IUserDataContributor`, R12), and the vouchers it
+produces land in the household the member is in **at poll time** (the poll job resolves the
+membership and `EnterTenant`s it). A member who switches households therefore re-routes their
+inbox — documented, accepted.
+*Rationale:* a household genuinely runs one budget from several identities; the credential is the
+person's, the data is the household's. The platform's per-user carve-out (ADR-C2) exists for
+exactly this shape.
+
+**ADR-V003 — Budget structure settings (week start, month anchor, income defaults) are per household, in their own `BudgetSettings` row. (2026-09-02; port decision D2)**
+The donor kept six budget columns on `User`; months and transactions were household-scoped, so a
+two-member household could tile months by *whoever entered the transaction*. The port introduces a
+tenant-scoped `BudgetSettings` entity (one row per household, created with the donor's defaults on
+first use) and `TransactionService`/`MonthService` read it from the ambient tenant instead of
+taking a `User`. `User` stays a pure platform entity (locale, theme only).
+*Rationale:* budget structure is not a preference (ADR-C2); it fixes a latent donor bug and removes
+the largest foundational↔domain coupling in the donor code.
+
+**ADR-V004 — Domain money is dual-currency fixed-point decimal; Stripe remains the source of truth for billing money only. (2026-09-02)**
+The platform models no money (its `Subscription` is a projection). This app does: amounts are
+`decimal` mapped to `NUMERIC(12,2)`; the per-transaction rate `NUMERIC(10,4)`; refund percentage
+`NUMERIC(5,2)`; rounding is half-away-from-zero to 2 dp in `CurrencyMath.Round2`; every stored
+amount carries its currency (`CRC` | `USD`) and its CRC/USD pair. Billing (plans, seats, Stripe)
+is untouched by this — the two never mix.
+*Rationale:* the platform's "no decimals" is a billing statement, not a domain rule; a finance app
+needs precise, currency-tagged money. Recorded so the platform's ADR-006 is not misread as a ban.
+
+**ADR-V005 — Pay-cycle months: anchor-window resolution, weeks materialized at creation, months auto-created from transactions and auto-deleted when empty, two incomes per month. (2026-09-02; from donor ADR-0006, 0007, 0012, 0013)**
+A date belongs to the month whose anchor window contains it (may be a neighboring calendar month —
+never resolve by calendar). `week_count` (4|5) and the weeks are computed once and **stored** so a
+later settings change never re-slices history. Months exist only through transactions: created on
+the first transaction in an uncovered window (income snapshotted from `BudgetSettings` by week
+count), deleted with their weeks when the last transaction goes; there is **no manual month path**.
+Month income is two incomes, each amount + currency, editable per month.
+*Rationale:* budget periods follow pay cycles; auto-lifecycle removes an entire class of "empty
+month" and "forgot to create the month" bugs; stored weeks give historical stability.
+
+**ADR-V006 — The live exchange rate is the source of truth for projections; each transaction freezes its rate forever. (2026-09-02; from donor ADR-0011)**
+Months store no rate. Projections resolve: live quote (cached < 1 h counts as live — quota) →
+stale cache flagged "as of …" → most recent transaction's rate → block (`exchange_rate_unavailable`).
+`exchange_rate_used` is set at creation and never recalculated on edit. No transaction is created
+without a rate; a provider rate ≤ 0 is unavailable. The provider (exchangerate-api, free tier) is
+an `HttpClient` against a fixed host, allowlisted for the platform's outbound-URL guard (R76).
+*Rationale:* actual spend must reflect the rate at purchase; projections must reflect today.
+
+**ADR-V007 — Five transaction classes; payment method and a required bank live on the transaction; category required; refunds are derived from unplanned essentials and realize as inflows; envelopes are transactional. (2026-09-02; from donor ADR-0009, 0010, 0014, 0018, 0019, 0020)**
+Classes: `budgeted`, `extraordinary` (label "Discretionary"), `unplanned_essential` (label
+"Unplanned"), `inflow` (money in, folded into income), `envelope_contribution` (requires an
+envelope and `bank_account`; carved out of expenses/balance). The first three count as expenses.
+Every transaction has a `payment_method` (`credit_card` default | `bank_account`) and a **required**
+`bank_id` (Cash is a bank) and `category_id`. A `Refund` is derived from an `unplanned_essential`
+transaction's refund-expected % (amounts = % × frozen amounts), re-synced on every edit, and only
+its `status` is edited directly; `pending → received` creates a linked derived `inflow`
+(`source = refund_realization`, read-only), symmetric on flip-back, guarded by a conditional update
+so concurrent flips yield exactly one inflow. Envelopes have an annual target + reminder cadence
+(`monthly` | `five_week_months`) and no static contribution.
+*Rationale:* matches how the household models spend; a refund is a fraction of one transaction; a
+realized refund is a real inflow; a bank-less transaction is meaningless for reconciliation.
+
+**ADR-V008 — Catalogs are soft-deleted with the 409 reactivation offer; cross-tenant rows are uniformly invisible (404). (2026-09-02; from donor ADR-0008; port decision D6)**
+Categories, banks and envelopes use `is_active`, never hard delete; names are unique per household
+case-insensitively; a clash returns 409 `*_exists` (active) or `*_exists_inactive` + id (so the UI
+offers Reactivate). Inactive names still render on historical rows. With the platform's global
+filter + RLS, a row from another household **does not exist** from the caller's side: every
+missing-or-foreign lookup is **404**. This retires the donor's 404-missing / 403-foreign split
+(donor ADR-0004 as-built, US-062) — the platform bans the `…UnscopedAsync` reads that produced it (R5).
+*Rationale:* deleting a catalog entry must never blank history; uniform 404 kills the existence
+oracle the donor had already closed for opaque ids (US-037).
+
+**ADR-V009 — Localization: localize chrome, never translate user data, seed once in the user's locale; English is the stored-value baseline. (2026-09-02; from donor ADR-0017 + 0021; port decision D4)**
+UI chrome comes from the platform's `AppStrings` resx (EN base + ES, feature-prefixed keys,
+parity-tested). User-entered names are never translated. Starter categories/banks are seeded
+**once**, in the locale carried by the caller's JWT, and then are ordinary user data. The donor's
+post-hoc `SeedRetranslationService` (rename untouched seeds on language switch) is **dropped** —
+the platform owns the locale write and a slice cannot hook it without a cross-feature reference.
+Stored values and column names are English (donor ADR-0021); the two deliberate value/label
+mismatches (`extraordinary` → "Discretionary", `unplanned_essential` → "Unplanned") move from the
+donor's `EnumLabels` into resx keys.
+*Rationale:* translating user data corrupts intent; seed-then-freeze avoids silent rewrites of
+history; retranslation was a nicety with a real coupling cost.
+
+**ADR-V010 — Email ingestion: read-only mailbox scopes, user-keyed connections, staged review drafts with per-household dedup, confirm through the ordinary transaction path, polled by a platform scheduled job. (2026-09-02; from donor design D1–D6, ADR-0024, US-025–038, WU-3/WU-5)**
+Consent uses the platform's Microsoft/Google OAuth client credentials with **read-only** mail
+scopes (`Mail.Read` / `gmail.readonly`, `offline_access`, `openid email`) and an HMAC-signed state;
+the pipeline **never marks mail read**. Tokens are encrypted with Data Protection (replacing the
+donor's AES key). Readers (Graph, Gmail) push every filter into the provider query, **page** until
+exhausted, refresh once on 401 then flip to `needs_reconsent`, and skip the poll on 429/5xx.
+Parsing is data-routed (`BankVoucherMap`: `(sender, subject) → extractor`), fail-soft, and pure.
+Vouchers stage as inert `PendingVoucher` drafts with a per-household `IngestedVoucher` tombstone
+(SHA-256 of bank + auth|ref + amount + date, else message id; never silently dropped); tombstones
+outlive confirm/discard. Suggestions are copied from merchant mappings (longest pattern wins),
+never auto-applied. **Confirm is the only draft→transaction path**: it calls the same
+`TransactionService.CreateAsync` as manual entry (`source = email`) inside one transaction with a
+conditional `pending → confirmed` flip (donor ADR-0024 — the platform's `EfUnitOfWork` provides the
+same savepoint nesting). The poller is an `IScheduledJob` (1-minute tick, connections due by their
+own interval, "Sync now" on demand) running in **system context**: per connection it resolves the
+owner's membership and `EnterTenant`s it, so staging writes get the same structural isolation as a
+request. Outbound `HttpClient`s to Graph/Gmail/token endpoints are fixed hosts, allowlisted (R76).
+*Rationale:* the user's mail is never mutated; idempotency comes from data; a misparse is a fixable
+blank in a queue, never corrupt budget data; the platform already provides the scheduler,
+encryption, isolation and unit-of-work this needs.
+
+**ADR-V011 — UI is rebuilt in the platform's Bootstrap RCL; MudBlazor is not brought over; brand tokens are indigo + gold. (2026-09-02; port decision D1)**
+The donor's 6,382 razor lines (MudBlazor 9) are rewritten page by page, in slice order, as
+Bootstrap 5.3 components in `Shared.Ui` — the platform deliberately carries no component library,
+its shell/theme/MAUI hosts are Bootstrap, and the R68 "identical script set" gate makes a second
+UI framework a permanent tax. The rewrite also retires the donor's client debt (43 duplicated inline
+DTOs, 1,000-line pages) by decomposing pages into components. Brand: primary indigo `#5A67D8`, the
+colón ₡ in gold `#F2CB6E` (**brand only — never a data/state color**), Nunito 800 wordmark, semantic
+green/red for under/over budget, CRC/USD tints (`brand/BRAND-SPEC.md` in the donor is the source).
+*Rationale:* one design system across web + native; no theme bridging; consistency with the platform
+the app is now part of. Costs roughly a third more UI effort than keeping MudBlazor — accepted.
+
+**ADR-V012 — API conventions follow the platform: minimal-API slices under `/api/<feature>`, camelCase JSON records, the shared `ErrorResponse`. (2026-09-02; port decision D5 — supersedes donor ADR-0005 snake_case)**
+Every feature is a `MapTenantFeatureGroup` slice with a handler and co-located DTOs; no controllers,
+no `[JsonPropertyName]`, no `api/v1` prefix. Error bodies are the platform's
+`ErrorResponse(code, message)` — the same shape as the donor's `ApiError`, so the donor's error
+codes (`exchange_rate_unavailable`, `refund_status_conflict`, `not_pending`, `*_exists_inactive`, …)
+carry over unchanged. The Postman collection is the canonical API doc (ADR-023).
+*Rationale:* the client is rewritten anyway, so the snake_case contract has no consumer left;
+one convention across platform and app.
+
+**ADR-V013 — Hosting follows the platform runbook: Render (single origin) + Neon + Brevo via SMTP; the donor's Railway + Supabase + Vercel topology and Brevo HTTP sender are retired. (2026-09-02; port decision D3 — supersedes donor ADR-0027 and the ADR-0026 amendment)**
+Email leaves through the platform's outbox → MailKit SMTP sender (Brevo as the relay). Railway
+blocked outbound SMTP, which is why the donor grew a Brevo HTTP sender; Render does not, and the
+platform's `render.yaml` + CI deploy hooks + version-gated smoke are proven. The single-origin
+deployment also removes the donor's cross-origin cookie topology (SameSite=None, CORS from
+`CLIENT_URL`). Donor ADR-0027's Supabase pooler / Railway builder gotchas are kept as history only.
+*Rationale:* the platform's deploy story is the tested one; fewer moving parts than the donor's
+three-host split. If a host that blocks SMTP is ever preferred, an HTTP email provider is a
+**platform** feature (upstream), not an app fork.
+
+**ADR-V014 — Critical state transitions use conditional updates + savepoint-nested transactions (inherited). (2026-09-02; from donor ADR-0024)**
+Voucher confirm, refund status flips, month get-or-create retry and membership transitions gate
+on a conditional `ExecuteUpdateAsync (… WHERE status = current)` and nest unit-of-work scopes; the
+platform's `EfUnitOfWork` creates a savepoint when a transaction is already open and rolls back to
+it on failure — identical semantics to the donor's. The donor's real-Postgres proofs
+(`PendingVoucherConfirmIntegrationTests`, `RefundConcurrencyIntegrationTests`,
+`EfTransactionScopeRollbackTests`) port unchanged and now run with RLS enforced.
+*Rationale:* the in-memory value read earlier in a request is never the authority; only the
+conditional write is.

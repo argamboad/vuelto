@@ -4,8 +4,18 @@
 > Constant rules are pre-filled; fill the app-specific placeholders during conceptualization.
 
 ## What this project is
-<!-- One-paragraph summary: what the app is and its core loop. -->
-_TODO_ — full context in `docs/PROJECT_BRIEF.md`.
+**¿Y el vuelto?** (code name `Vuelto`) — a personal-finance app for Costa Rican **households that
+live in two currencies** (₡ CRC + $ USD). Money spent (typed in, or parsed from bank voucher
+emails) is captured in both currencies at that day's rate, lands in the **pay-cycle budget month**
+containing its date (weeks anchored on a chosen weekday, not the calendar), and the dashboard shows
+budgeted vs actual per line / week / bank×method plus income, unplanned essentials, expected
+refunds and savings envelopes. Full context in `docs/PROJECT_BRIEF.md`.
+
+**This app is a continuation port** (ADR-V001) of the donor repo `vuelto/phase2`
+(`C:\Users\argam\source\repos\Personal\vuelto`, frozen, read-only reference) onto this platform.
+Until parity: work the port plan slice by slice (P0–P11 — see the plan linked from ADR-V001), port
+the donor's tests as the spec, and **never modify platform code in this repo** — extend it through
+its seams; a generic gap goes upstream to `perezosoft-platform` first.
 
 ## Read before you act
 - **Writing or modifying ANY code → `docs/audits/v3-2026-07/FOUNDATION_RULES_v2.md` (v2.0: R1–R35
@@ -63,9 +73,31 @@ _TODO_ — full context in `docs/PROJECT_BRIEF.md`.
    template. Don't build sprawling multi-epic chunks — propose a split.
 
 ## Golden rules — app-specific
-<!-- Add the domain rules that must never be violated (e.g. the cocktail app's "makeable is
-     always derived"). These come out of DATA_MODEL.md's derived rules. -->
-_TODO_
+1. **The rate is frozen at creation, never recomputed.** `exchange_rate_used` is set once from the
+   resolution chain (live → stale-flagged → last transaction → block); edits re-derive amounts from
+   *that* rate. No transaction exists without a rate (ADR-V006).
+2. **Resolve the budget month by anchor window, never by calendar month.** A date can belong to
+   a neighboring month. Always `WeekBoundaryService` / `GET /api/months/resolve` (ADR-V005).
+3. **Months exist only through transactions.** No manual create; auto-delete when emptied; validate
+   + resolve the rate *before* get-or-create so a rejected request never leaves an empty month.
+   Weeks are materialized at creation and never re-sliced.
+4. **Every transaction has a bank and a category; class semantics are fixed.** Five classes
+   (`budgeted`, `extraordinary`, `unplanned_essential`, `inflow`, `envelope_contribution`);
+   `envelope_contribution` needs an envelope + `bank_account`; inflow/envelope are carved out of
+   expenses; refunds are derived, only their status is edited; `received` ⇔ a linked inflow (ADR-V007).
+5. **Money is dual-currency fixed-point decimal** — `CurrencyMath`, 2 dp, both currencies stored
+   (ADR-V004). Billing money stays Stripe's; the two never mix.
+6. **Never mutate the user's mail.** Read-only scopes; idempotency = per-household fingerprint +
+   cursor; vouchers stage as inert drafts; **confirm is the only draft→transaction path** and it
+   goes through `TransactionService.CreateAsync` (ADR-V010).
+7. **`EmailConnection` is user-keyed — the one deliberate exception to "tenant-scoped".** It needs
+   an `IUserDataContributor`; the poll job `EnterTenant`s the owner's household per connection
+   (ADR-V002). Every other budget entity is `ITenantScoped` with a contributor.
+8. **Catalogs soft-delete; names are unique per household case-insensitively; clash = 409
+   reactivation offer.** Inactive names still render on history. Cross-household = 404 (ADR-V008).
+9. **Localize chrome, never user data; seed once in the caller's locale.** Stored values are
+   English; display labels come from resx (ADR-V009).
+10. **Brand gold `#F2CB6E` is never a data/state color.** Green/red mean under/over budget.
 
 ## Tech stack (see `docs/TECH_STACK.md`)
 - **Versions:** latest stable on the current .NET line — **.NET SDK 10.0.400 (pinned in `global.json`, the single source of truth, with `rollForward: disable` — the 2026-08 drift showed `latestPatch` let runners outrun both the lockfiles and the MCR image catalog), ASP.NET Core / EF Core packages 10.0.11, Npgsql.EF 10.0.3, PostgreSQL 17.** The SDK is **pinned, not floating** (v3 audit DEP-4): CI's `setup-dotnet` reads `global-json-file: global.json`, and both Dockerfile image tags (`sdk:10.0.400` build, `aspnet:10.0.11` runtime) match it — so a runner-image SDK patch can't outrun the committed `packages.lock.json` (the WASM SDK injects patch-sensitive implicit packages → NU1004 in locked-mode restore).
@@ -118,10 +150,34 @@ deferred items without an explicit decision.
 ## Conventions
 - Code term for the tenant is **tenant**; the reference implementation's app-facing label is
   **Household** (`/api/household`, `HouseholdController`). Rename per app — see `docs/REBRANDING.md`.
-- _TODO: app-specific conventions (naming, lookup tables, etc.)_
+- **Tenant label is "Household"** in the UI, routes (`/household`), and docs; "budget" data =
+  everything a household owns. The display brand is *"¿Y el vuelto?"*; code, namespaces and DB keep
+  `Vuelto` — this split is intentional, do not reconcile it.
+- **Stored-value constants live in Core** (`TransactionTypes`, `TransactionSources`,
+  `PaymentMethods`, `Currencies`, `RefundStatuses`, `EnvelopeReminderCadences`,
+  `SuggestibleClasses`, `PendingVoucherStatuses`, `EmailProviders`, `MonthAnchors`) with `.All`
+  whitelists — never string literals in handlers. Labels are resx keys (`Tx_Class_*`, …).
+- **Feature route prefixes** (unique per slice, R35): `/api/budget-settings`, `/api/categories`,
+  `/api/banks`, `/api/envelopes`, `/api/expenses`, `/api/months`, `/api/transactions`,
+  `/api/refunds`, `/api/exchange-rate`, `/api/reports`, `/api/email`, `/api/pending-vouchers`,
+  `/api/merchant-mappings`.
+- **Error codes carry over from the donor** unchanged (`exchange_rate_unavailable`,
+  `refund_status_conflict`, `not_pending`, `*_exists` / `*_exists_inactive`, `invalid_request`,
+  `needs_reconsent`) via the platform `ErrorResponse`.
+- **Donor cross-references:** stories cite the donor story they port (`from US-015`); new stories
+  continue from **US-057**; ADRs cite `donor ADR-00NN`.
+- **Pure domain services** (`WeekBoundaryService`, `CurrencyMath`, `DashboardSummaryService`, the
+  voucher parsing library) live in `src/Core` with no I/O and are tested in `Core.Tests`.
+- **Course material is platform-only.** `docs/tutorial/**` (the Perezosoft course, its lessons,
+  diagrams, PDF and generators) is **excluded from downstream apps** and was removed in the first
+  docs PR; `AUDIT_SUITE.md` Phase 7 ("course currency") therefore does not apply here. Do not
+  re-add it when syncing from the platform.
 
 ## Status / not yet decided
-- Seed data (if any) — _TODO_.
+- Seed data — **minimal by design** (donor owner decision): `SeedCatalog` holds ~7 example
+  categories and Cash + 8 Costa Rican banks (en/es, stable keys), seeded lazily on the first
+  catalog read in the caller's locale; **no** default expense lines. The owner's personal data
+  loads from a gitignored SQL script after a local DB reset (to be re-authored for this schema).
 - Concrete schema (EF Core migrations) — generated from `docs/DATA_MODEL.md`.
 - **User stories: generated per-epic at build time**, under `docs/stories/` (one file per epic).
 - Non-web framework: **decided and built** — MAUI Blazor Hybrid ships all four native shells

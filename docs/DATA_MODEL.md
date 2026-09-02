@@ -24,7 +24,8 @@
 The household/org/team. Owns all tenant-scoped data.
 - `id` (UUIDv7)
 - `name`
-- _TODO: tenant-level fields specific to this app_
+- No app fields on `Tenant` itself — the household's budget configuration lives in its own
+  tenant-scoped `BudgetSettings` row (below), so the platform entity stays untouched (ADR-V003).
 
 ### User
 A person (identity). A user belongs to exactly one tenant **via `TenantMembership`** — there is
@@ -104,9 +105,116 @@ stored.
 - `is_valid` → `status == pending AND !is_expired`
 
 ## App entities
-<!-- Design fresh per app. For each entity: fields, relationships, and tenant_id where it holds
-     tenant data. Do NOT copy entity designs from other projects. -->
-_TODO_
+
+> Ported from the donor's schema (TDD v2.0 §3, 30 migrations collapsed) with the platform's
+> conventions applied: UUIDv7 ids, `DateTimeOffset` timestamps, **PascalCase** table/column names
+> in EF (the snake_case below is prose), `ITenantScoped` on every household-owned table, and one
+> `ITenantDataContributor` per slice. Money columns are `NUMERIC(12,2)`; the per-transaction rate
+> `NUMERIC(10,4)`; the refund percentage `NUMERIC(5,2)` (ADR-V004). Dates that are calendar days
+> (`transaction_date`, week bounds) are `date` (`DateOnly`), not timestamps.
+>
+> All entities below implement `ITenantScoped` **except `EmailConnection`** (user-keyed — see it).
+
+### BudgetSettings *(ADR-V003 — new in the port; replaces six columns on the donor's `User`)*
+The household's budget structure. Exactly one row per tenant, created with defaults on first use.
+- `id`, `tenant_id` (**unique**)
+- `week_start_weekday` (int, 0 = Sunday … 6 = Saturday; default 4 = Thursday)
+- `month_anchor` — `last_weekday_prev` (default) | `first_weekday_current` | `first_of_month`
+- `primary_income_4w`, `primary_income_5w`, `primary_income_currency` (`CRC` | `USD`, default USD)
+- `secondary_income_4w`, `secondary_income_5w`, `secondary_income_currency`
+
+### Category
+A spend bucket. Soft-deleted; names are case-insensitively unique per household.
+- `id`, `tenant_id`, `name`, `is_active`
+- unique on (`tenant_id`, `lower(name)`)
+
+### Bank
+A money source (a bank or **Cash**). Soft-deleted; unique per household.
+- `id`, `tenant_id`, `name`, `is_active`
+- unique on (`tenant_id`, `name`)
+
+### Envelope
+A savings bucket with an annual target and a reminder cadence.
+- `id`, `tenant_id`, `name`, `annual_target_crc`, `annual_target_usd`
+- `reminder_cadence` — `monthly` | `five_week_months`
+- `is_active`
+
+### FixedExpense / VariableExpense *(two tables, one shape — `IExpenseLine`)*
+A budget line the dashboard compares actuals against.
+- `id`, `tenant_id`, `name`, `budget_crc`, `budget_usd`
+- `payment_method` — `credit_card` | `bank_account`
+- `category_id` (FK → Category, **required**, no cascade — categories are soft-deleted)
+- `bank_id` (FK → Bank, **nullable** = "Unassigned", no cascade)
+- `is_active`, `sort_order`
+
+### Month
+A budget period. Exists **only** through transactions (auto-created, auto-deleted — ADR-V005).
+- `id`, `tenant_id`, `year`, `month_number`, `week_count` (4 | 5), `week1_start_date`
+- `primary_income_amount`, `primary_income_currency`, `secondary_income_amount`,
+  `secondary_income_currency` — snapshotted from `BudgetSettings` at creation, editable per month
+- unique on (`tenant_id`, `year`, `month_number`)
+
+### Week
+A materialized week of a month (stored at creation, never recomputed — ADR-V005).
+- `id`, `tenant_id`, `month_id` (FK → Month, cascade), `week_number`, `start_date`, `end_date`
+
+### Transaction
+Money movement, captured in both currencies at a frozen rate.
+- `id`, `tenant_id`, `month_id` (FK → Month, cascade)
+- `bank_id` (FK → Bank, **required**, no cascade), `category_id` (FK → Category, **required**, no cascade)
+- `payment_method` — `credit_card` (default) | `bank_account`
+- `payee`, `original_amount`, `currency` (`CRC` | `USD`), `transaction_date` (date)
+- `amount_crc`, `amount_usd`, `exchange_rate_used` — **frozen at creation, never edited**
+- `transaction_type` — `budgeted` | `extraordinary` | `unplanned_essential` | `inflow` |
+  `envelope_contribution`
+- `envelope_id` (FK → Envelope, nullable, no cascade; **required when** `envelope_contribution`)
+- `source` — `manual` | `email` | `refund_realization`
+- indexes: (`tenant_id`, `month_id`), (`tenant_id`, `transaction_date`)
+
+### Refund
+An expected refund **derived** from an `unplanned_essential` transaction; only `status` is edited directly.
+- `id`, `tenant_id`, `month_id` (FK → Month, cascade), `transaction_id` (FK → Transaction, cascade, **unique**)
+- `payee`, `transaction_date`, `percentage`, `amount_crc`, `amount_usd`
+- `status` — `pending` | `received`
+- `inflow_transaction_id` (FK → Transaction, nullable, set-null) — the realized inflow, present ⇔ `received`
+
+### MerchantCategoryMapping
+A user-maintained "merchant pattern → category (+ class)" suggestion rule.
+- `id`, `tenant_id`, `merchant_pattern`, `category_id` (FK → Category, no cascade)
+- `suggested_class` (nullable) — `budgeted` | `extraordinary` | `unplanned_essential`
+- unique on (`tenant_id`, `lower(merchant_pattern)`) — a functional index, added by raw SQL in the migration
+
+### PendingVoucher
+An inert review-queue draft parsed from an email. Nothing touches the budget until it is confirmed.
+- `id`, `tenant_id`, `email_connection_id` (Guid, no FK — the connection is user-keyed), `provider_message_id`
+- `fingerprint`, `parsed_bank`, `bank_id` (FK → Bank, nullable, no cascade)
+- `merchant`, `amount`, `currency`, `date`, `card_number`, `authorization`, `reference`,
+  `transaction_type`, `missing_fields[]`
+- `suggested_category_id` (nullable), `suggested_class` (nullable) — copied from a mapping at staging
+- `status` — `pending` | `confirmed` | `discarded`
+- `confirmed_transaction_id` (nullable), `received_at`
+- index on (`tenant_id`, `status`)
+
+### IngestedVoucher
+A dedup **tombstone**: "this household has already seen this voucher". Outlives the draft.
+- `id`, `tenant_id`, `fingerprint`, `pending_voucher_id`
+- unique on (`tenant_id`, `fingerprint`)
+
+### EmailConnection *(user-keyed — the deliberate exception to "tenant-scoped"; ADR-V002)*
+A member's read-only mailbox credential + polling configuration. **Not `ITenantScoped`.** Keyed by
+`user_id`; erased with the account via an `IUserDataContributor`; survives the user leaving a
+household (vouchers it produces land in whatever household the user is in at poll time).
+- `id`, `user_id`, `provider` (`microsoft` | `google`), `account_email`
+- `access_token`, `refresh_token` — **encrypted at rest** via Data Protection; never returned or logged
+- `token_expires_at`, `folders[]`, `sender_filters[]`, `subject_filters[]`
+- `unread_only` (default true), `import_from` (nullable), `polling_interval_minutes` (5–1440, default 15)
+- `ignore_cursor` (fetch all unread regardless of date), `last_polled_at` (nullable)
+- `status` — `active` | `needs_reconsent`
+- unique on (`user_id`, `provider`)
+
+### Pinned for the next epic (not built): BankDefinition
+Data-driven voucher extraction (donor Slice 7): `{match rules} + {field → (selector, transform)}`
+rows that replace the hand-written BAC/BN extractors. Designed when that epic starts.
 
 ## Relationship summary
 - Tenant 1 — N TenantMembership N — 1 User *(constant; unique on `user_id` = one tenant per user)*
@@ -114,7 +222,104 @@ _TODO_
 - User 1 — N RefreshToken *(constant)*
 - Tenant 1 — N TenantInvitation *(constant)*
 - LoginToken is keyed by email (no FK — the account is resolved at redemption) *(constant)*
-- _TODO: app-specific relationships_
+- Tenant 1 — 1 BudgetSettings
+- Tenant 1 — N Category / Bank / Envelope / FixedExpense / VariableExpense / MerchantCategoryMapping
+- Tenant 1 — N Month 1 — N Week; Month 1 — N Transaction; Month 1 — N Refund
+- Transaction N — 1 Category, N — 1 Bank, N — 0..1 Envelope; Transaction 1 — 0..1 Refund
+- Refund 0..1 — 0..1 Transaction (the realized inflow, set-null)
+- FixedExpense / VariableExpense N — 1 Category, N — 0..1 Bank
+- User 1 — N EmailConnection *(user-keyed)*; EmailConnection 1 — N PendingVoucher *(logical, cross-axis — no FK)*
+- Tenant 1 — N PendingVoucher / IngestedVoucher; PendingVoucher 0..1 — 0..1 Transaction (confirmed)
+
+### ER diagram — budget domain (planned)
+
+Solid lines are FK constraints (cascade where the child cannot outlive the parent); dotted lines
+are application-enforced references. Catalog parents (Category, Bank, Envelope) are **never**
+cascaded — they are soft-deleted and must keep naming historical rows.
+
+```mermaid
+erDiagram
+    TENANT ||--|| BUDGET_SETTINGS : "one per household"
+    TENANT ||--o{ CATEGORY : ""
+    TENANT ||--o{ BANK : ""
+    TENANT ||--o{ ENVELOPE : ""
+    TENANT ||--o{ FIXED_EXPENSE : ""
+    TENANT ||--o{ VARIABLE_EXPENSE : ""
+    TENANT ||--o{ MONTH : "auto-created from transactions"
+    MONTH ||--|{ WEEK : "FK cascade - materialized at creation"
+    MONTH ||--o{ TRANSACTION : "FK cascade"
+    MONTH ||--o{ REFUND : "FK cascade"
+    TRANSACTION ||--o| REFUND : "FK cascade - unique transaction_id"
+    REFUND }o..o| TRANSACTION : "inflow_transaction_id - set null"
+    CATEGORY ||--o{ TRANSACTION : "required - no cascade"
+    BANK ||--o{ TRANSACTION : "required - no cascade"
+    ENVELOPE ||--o{ TRANSACTION : "nullable - required for envelope_contribution"
+    CATEGORY ||--o{ FIXED_EXPENSE : "required"
+    CATEGORY ||--o{ VARIABLE_EXPENSE : "required"
+    BANK |o--o{ FIXED_EXPENSE : "optional"
+    BANK |o--o{ VARIABLE_EXPENSE : "optional"
+    CATEGORY ||--o{ MERCHANT_CATEGORY_MAPPING : ""
+    TENANT ||--o{ PENDING_VOUCHER : ""
+    TENANT ||--o{ INGESTED_VOUCHER : "dedup tombstones"
+    USER ||--o{ EMAIL_CONNECTION : "user-keyed - NOT tenant-scoped"
+    EMAIL_CONNECTION ||..o{ PENDING_VOUCHER : "email_connection_id - no FK (cross-axis)"
+    PENDING_VOUCHER |o..o| TRANSACTION : "confirmed_transaction_id"
+
+    BUDGET_SETTINGS {
+        guid tenant_id UK
+        int week_start_weekday "default 4 = Thursday"
+        string month_anchor "last_weekday_prev | first_weekday_current | first_of_month"
+        decimal primary_income_4w
+        decimal primary_income_5w
+        string primary_income_currency
+    }
+    MONTH {
+        guid tenant_id
+        int year
+        int month_number "unique with tenant + year"
+        int week_count "4 | 5 - derived once, stored"
+        date week1_start_date
+        decimal primary_income_amount "snapshot, editable"
+    }
+    TRANSACTION {
+        guid tenant_id
+        guid month_id FK
+        guid bank_id FK "required"
+        guid category_id FK "required"
+        string transaction_type "budgeted | extraordinary | unplanned_essential | inflow | envelope_contribution"
+        string payment_method "credit_card | bank_account"
+        decimal original_amount
+        string currency "CRC | USD"
+        decimal amount_crc "derived at creation"
+        decimal amount_usd "derived at creation"
+        decimal exchange_rate_used "frozen - never edited"
+        string source "manual | email | refund_realization"
+    }
+    REFUND {
+        guid transaction_id FK,UK
+        decimal percentage
+        string status "pending | received"
+        guid inflow_transaction_id "present iff received"
+    }
+    PENDING_VOUCHER {
+        guid tenant_id
+        guid email_connection_id "no FK"
+        string fingerprint
+        string status "pending | confirmed | discarded"
+        guid suggested_category_id "copied from a mapping"
+    }
+    INGESTED_VOUCHER {
+        guid tenant_id
+        string fingerprint UK "unique with tenant - outlives the draft"
+    }
+    EMAIL_CONNECTION {
+        guid user_id "unique with provider"
+        string provider "microsoft | google"
+        string access_token "Data Protection encrypted"
+        string status "active | needs_reconsent"
+        datetimeoffset last_polled_at "the staging cursor"
+    }
+```
 
 ### ER diagram — identity & auth foundation
 
@@ -203,8 +408,72 @@ erDiagram
 ```
 
 ## Derived rules (computed, never stored)
-<!-- The domain logic specific to this app. TenantInvitation rules are defined above. -->
-_TODO_
+
+The budget domain's logic lives in **pure Core services** (no I/O): `WeekBoundaryService`,
+`CurrencyMath`, `DashboardSummaryService`, and the voucher parsing library
+(`VoucherText`, `SpanishDateParser`, `VoucherFingerprint`, `BankVoucherMap`). Each ships with its
+donor test suite (`Core.Tests`).
+
+| Rule | Definition | Where |
+|------|------------|-------|
+| **Month anchor** | For (year, month, settings): `last_weekday_prev` → last occurrence of the weekday in the previous calendar month; `first_weekday_current` → first occurrence in the month; `first_of_month` → the 1st. | `WeekBoundaryService.GetWeek1StartDate` |
+| **Budget month of a date** | The month whose anchor window `[anchor, next anchor)` contains the date — may differ from the calendar month. Always resolve this way, never by calendar month. | `WeekBoundaryService.GetBudgetMonthForDate` |
+| **Week count** | Number of whole 7-day weeks that fit before the next anchor: 4 or 5. Stored on `Month` for queries; **weeks are materialized** at creation and never recomputed (a settings change must not re-slice history). | `WeekBoundaryService.GenerateWeeks` |
+| **Dual-currency amounts** | `amount_crc` / `amount_usd` = `original_amount` converted by `exchange_rate_used`, rounded to 2 dp with fixed-point arithmetic. Derived **once** at creation with the frozen rate; re-derived on edit only from that same rate. | `CurrencyMath.DeriveAmounts` |
+| **Rate resolution** | live quote (cached < 1 h counts as live) → stale cache flagged "as of" → most recent transaction's rate → unavailable. A provider rate ≤ 0 is unavailable. | `IExchangeRateResolver` |
+| **Month existence** | A month exists ⇔ it has ≥ 1 transaction. Created on the first transaction in its window (income snapshotted from `BudgetSettings` 4w/5w by `week_count`); deleted with its weeks when the last transaction goes. Refunds never keep a month alive. | `TransactionService` |
+| **Refund** | Exists ⇔ its `unplanned_essential` transaction was flagged with a percentage. `amount_* = percentage × transaction.amount_*` (inherits the frozen rate). Re-derived on transaction edit; removed when the flag or the transaction goes. | `TransactionService.SyncRefundAsync` |
+| **Refund realization** | `status = received` ⇔ a linked `inflow` transaction exists (same amounts/rate, the source's bank, `source = refund_realization`). Flipping is a conditional update; the inflow is created/removed symmetrically. | `TransactionService.ApplyRefundStatusAsync` |
+| **Envelope contribution** | A transaction of class `envelope_contribution` requires an `envelope_id` and `payment_method = bank_account`. Contributed-this-month = sum of such transactions per envelope; remaining = annual target − contributed. | `TransactionService`, `DashboardSummaryService` |
+| **Dashboard summary** | Income (two incomes + inflows), expense summary (card/account/total/remainder), budgeted-vs-actual per expense line + "other spending", weekly totals, unplanned subtotal, refunds, envelope reminders (by cadence and week count), bank × payment-method cells, balance figures — every one a CRC/USD pair. Actuals use frozen rates; projections use the resolved live rate. | `DashboardSummaryService.Calculate` |
+| **Catalog uniqueness** | Names unique per household, case-insensitively; a clash with an inactive row is a reactivation offer, not an error. `is_active = false` ≠ deleted — inactive names still render on history. | catalog handlers |
+| **Voucher completeness** | A parsed voucher is complete ⇔ merchant, amount > 0, currency ∈ {CRC, USD}, date are all present; otherwise `missing_fields` names the blanks and the draft stages incomplete. | `VoucherParser` |
+| **Voucher fingerprint** | SHA-256 of `bank + (authorization ?? reference) + amount + date`; when both ids are absent, the provider message id; when that is absent too, no dedup (stage anyway — never silently drop). Dedup is **per household**. | `VoucherFingerprint.Compute` |
+| **Merchant suggestion** | Among the household's mappings whose `merchant_pattern` is contained (case-insensitively) in the voucher's merchant, the **longest** pattern wins; its category and class are *copied* onto the draft. Never auto-applied. | `MerchantMappingResolver` |
+| **Staging cursor** | Next poll starts at `last_polled_at − 5 min` (overlap; dedup absorbs re-fetches); `import_from` lowers it; `ignore_cursor` bypasses it. Advances only past successfully processed messages. | `VoucherStagingService` |
+
+## Lifecycles — budget domain (planned, from the donor's service code)
+
+### Month — ADR-V005
+```mermaid
+stateDiagram-v2
+    [*] --> Exists : first transaction in the anchor window - weeks materialized, income snapshotted
+    Exists --> Exists : transactions added / edited / removed; income edited per month
+    Exists --> [*] : last transaction deleted - month + weeks deleted
+```
+
+### Refund — ADR-V007
+```mermaid
+stateDiagram-v2
+    [*] --> pending : unplanned_essential transaction flagged with a percentage
+    pending --> pending : source transaction edited - amounts re-derived
+    pending --> received : status flip (conditional update) - derived inflow created
+    received --> pending : status flip back - inflow removed
+    pending --> [*] : flag removed or transaction deleted
+    received --> [*] : transaction deleted (inflow removed too)
+```
+
+### PendingVoucher — ADR-V010
+```mermaid
+stateDiagram-v2
+    [*] --> pending : staged by the poll job or Sync now - IngestedVoucher tombstone written
+    pending --> confirmed : confirm - conditional flip + TransactionService.CreateAsync in one transaction
+    pending --> discarded : discard (conditional - cannot revert a concurrent confirm)
+    note right of confirmed
+        Tombstone persists through confirm AND discard -
+        a still-unread email never re-stages
+    end note
+```
+
+### EmailConnection — ADR-V010
+```mermaid
+stateDiagram-v2
+    [*] --> active : consent callback stores encrypted tokens
+    active --> active : poll (401 -> refresh once -> retry)
+    active --> needs_reconsent : refresh fails - polling stops, UI offers Reconnect
+    needs_reconsent --> active : re-consent
+    active --> [*] : disconnect, or account erasure (IUserDataContributor)
+```
 
 ## Platform entities (built — ADRs 006–016)
 
@@ -437,4 +706,6 @@ stateDiagram-v2
 - New app/domain tables — implement `ITenantScoped` so the global tenant filter covers them, and
   register an `ITenantDataContributor` (`ExportKey` + `ExportAsync` + `HasDataAsync`/`WipeAsync`) so
   they participate in tenant export + dissolve (there is no central wipe method to edit).
-- _TODO_
+- **`BankDefinition`** (+ routing rules) — data-driven voucher extraction, the first post-parity epic.
+- **`created_by_user_id`** on transactions — provenance inside a multi-member household; the donor
+  deliberately omitted it (ADR-0016 as-built); add additively if attribution is ever needed.
