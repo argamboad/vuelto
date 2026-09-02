@@ -157,4 +157,17 @@ Production reads the same keys from real environment variables, never a committe
   with AWS S3, MinIO, R2, DO Spaces). Selected only when `Storage:S3:*` is configured; else local disk.
 - **`Swashbuckle.AspNetCore` 7.2.0** — the leak-free public OpenAPI document at
   `GET /api/public/openapi.json` (PUBAPI-2 / ADR-015), emitted only when `PublicApi:Enabled`.
-- _TODO_
+- **`HtmlAgilityPack`** (MIT) — HTML parsing for the bank voucher extractors (BAC, BN); confined to
+  `src/Infrastructure/Email/Vouchers/`. Core keeps only the pure text/date/money helpers (ADR-V010).
+- **exchangerate-api.com** (free tier, 1,500 req/mo) via a plain `HttpClient` + `IMemoryCache`
+  (1 h freshness window counts as live) — `ExchangeRate:ApiKey` (ADR-V006). Fixed host, allowlisted
+  for the outbound-URL guard (R76).
+- **Microsoft Graph + Gmail REST** via plain `HttpClient` (no SDKs) for read-only voucher ingestion:
+  mail-scope consent reuses the platform's `Authentication:{Microsoft,Google}` client credentials;
+  mailbox tokens encrypted with **Data Protection** (no extra key). Polling is an `IScheduledJob`
+  on the platform's scheduler (ADR-V010).
+- **No component library** — the UI is the platform's Bootstrap 5.3 RCL; the donor's MudBlazor is
+  not brought over (ADR-V011).
+- **Retired from the donor:** `System.Net.Mail`/Brevo HTTP senders (platform outbox + MailKit),
+  `AesEmailTokenEncryptor` (Data Protection), Serilog + Sentry (platform OpenTelemetry), Swashbuckle
+  for the private API (Postman is canonical), `railway.json`/`vercel.json` (Render).
