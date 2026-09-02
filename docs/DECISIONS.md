@@ -1499,7 +1499,7 @@ row in the RLS backstop, feature folder, tests, arch-test/doc-sync entries, Post
 model snapshot was edited by hand and the drift gate proves it. **Docker:** compose project
 `vuelto`, host ports **5434 / 1026 / 8026** (Postgres / Mailpit SMTP / UI) so the platform's
 own stack (5433 / 1025 / 8025) and the donor's Postgres (5432) can run alongside; `.env.example`,
-`appsettings.Development.json` and the E2E/mobile docs follow. Render service renamed
+the E2E/mobile docs follow; `appsettings.Development.json` keeps the platform default `1025` (CI maps Mailpit there) and `.env` carries the local `Email__Smtp__Port=1026` override â the first CI run of this PR failed all 31 OTP-based E2E tests when the port was checked in. Render service renamed
 `vuelto-staging` **before** any deploy (the name is the public URL). Verification for this
 repo: `git grep -i perezosoft` is clean outside `docs/DECISIONS.md`, `docs/REBRANDING.md`,
 `docs/QA_TEST_PLAN.md`, `docs/audits/**`, `docs/stories/**` (platform history, left verbatim) and
