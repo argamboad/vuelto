@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Options;
-using Perezosoft.Core.Abstractions;
+using Vuelto.Core.Abstractions;
 
-namespace Perezosoft.Infrastructure.Files;
+namespace Vuelto.Infrastructure.Files;
 
 /// <summary>
 /// Local-filesystem <see cref="IFileStorage"/> — the dev/test default (ADR-010). Objects live under

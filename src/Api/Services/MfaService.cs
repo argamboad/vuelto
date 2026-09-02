@@ -2,10 +2,10 @@ using System.Security.Cryptography;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using OtpNet;
-using Perezosoft.Core.Entities;
-using Perezosoft.Core.Repositories;
+using Vuelto.Core.Entities;
+using Vuelto.Core.Repositories;
 
-namespace Perezosoft.Api.Services;
+namespace Vuelto.Api.Services;
 
 /// <summary>The provisioning URI + secret returned once when enrollment begins (MFA-1, ADR-012).</summary>
 public sealed record MfaEnrollment(string ProvisioningUri, string Secret);
@@ -54,7 +54,7 @@ public sealed class MfaService(
     Configuration.IMfaSettings mfaSettings,
     TimeProvider clock) : IMfaService
 {
-    private const string Issuer = "Perezosoft"; // rebrandable — appears in the authenticator app
+    private const string Issuer = "Vuelto"; // rebrandable — appears in the authenticator app
     private const int RecoveryCodeCount = 10;
     // Recovery codes are HUMAN-entered fallbacks, so they use a short, unambiguous alphabet (no
     // 0/O/1/I/L) formatted as two 5-char groups (e.g. "k7m2q-9xr4t"). NOT the 88-char opaque token
@@ -65,7 +65,7 @@ public sealed class MfaService(
     private const int RecoveryCodeLength = 10; // ~49 bits/code; single-use, hashed, and rate-limited
     private static readonly VerificationWindow Window = new(previous: 1, future: 1); // ±1 step for clock skew
     // Purpose string feeds DataProtection key derivation — renaming it makes MFA secrets already
-    // encrypted at rest undecryptable. Kept through the Perezosoft rename; bump only with a re-encrypt migration.
+    // encrypted at rest undecryptable. Kept through the Vuelto rename; bump only with a re-encrypt migration.
     private readonly IDataProtector _protector = dataProtection.CreateProtector("Template.Mfa.Secret.v1");
 
     public async Task<bool> IsEnabledAsync(Guid userId, CancellationToken cancellationToken = default) =>

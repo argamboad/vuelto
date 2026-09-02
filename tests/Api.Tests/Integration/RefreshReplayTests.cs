@@ -2,10 +2,10 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
-using Perezosoft.Api.Services;
-using Perezosoft.Api.Tests.Infrastructure;
+using Vuelto.Api.Services;
+using Vuelto.Api.Tests.Infrastructure;
 
-namespace Perezosoft.Api.Tests.Integration;
+namespace Vuelto.Api.Tests.Integration;
 
 /// <summary>
 /// v3 audit TB-AUTH-1 (T44): the refresh-token theft response, proven at the wire. The service-level

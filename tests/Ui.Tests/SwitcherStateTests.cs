@@ -1,10 +1,10 @@
 using System.Net;
 using Bunit;
-using Perezosoft.Shared.Ui.Components;
-using Perezosoft.Ui.Tests.Infrastructure;
+using Vuelto.Shared.Ui.Components;
+using Vuelto.Ui.Tests.Infrastructure;
 using Xunit;
 
-namespace Perezosoft.Ui.Tests;
+namespace Vuelto.Ui.Tests;
 
 /// <summary>
 /// v3 audit UX-3 + UX-4 (T41), the theme/language switchers. UX-3: a pick whose best-effort PUT fails is

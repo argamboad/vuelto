@@ -30,7 +30,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Shared.Ui\Perezosoft.Shared.Ui.csproj" />
+    <ProjectReference Include="..\Shared.Ui\Vuelto.Shared.Ui.csproj" />
   </ItemGroup>
 
 </Project>

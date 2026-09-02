@@ -1,11 +1,11 @@
 using System.Globalization;
 using Bunit;
 using Microsoft.Extensions.DependencyInjection;
-using Perezosoft.Shared.Ui.Layout;
-using Perezosoft.Ui.Tests.Infrastructure;
+using Vuelto.Shared.Ui.Layout;
+using Vuelto.Ui.Tests.Infrastructure;
 using Xunit;
 
-namespace Perezosoft.Ui.Tests;
+namespace Vuelto.Ui.Tests;
 
 /// <summary>
 /// v3 audit TB-UI-5 (T45c) — the reconcile state machine as a [Theory] matrix. MainLayout's

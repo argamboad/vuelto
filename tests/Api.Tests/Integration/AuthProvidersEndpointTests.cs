@@ -1,9 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
-using Perezosoft.Api.Tests.Infrastructure;
+using Vuelto.Api.Tests.Infrastructure;
 
-namespace Perezosoft.Api.Tests.Integration;
+namespace Vuelto.Api.Tests.Integration;
 
 /// <summary>
 /// The anonymous <c>GET /api/auth/providers</c> discovery endpoint the login page reads to decide which

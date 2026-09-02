@@ -1,12 +1,12 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
-using Perezosoft.Api.Services;
-using Perezosoft.Api.Tests.Infrastructure;
-using Perezosoft.Core.Authorization;
-using Perezosoft.Core.Entities;
-using Perezosoft.Infrastructure.Repositories;
+using Vuelto.Api.Services;
+using Vuelto.Api.Tests.Infrastructure;
+using Vuelto.Core.Authorization;
+using Vuelto.Core.Entities;
+using Vuelto.Infrastructure.Repositories;
 
-namespace Perezosoft.Api.Tests.Rbac;
+namespace Vuelto.Api.Tests.Rbac;
 
 /// <summary>
 /// RBAC-1 (ADR-009): <see cref="PermissionService"/> resolves the authenticated caller's membership

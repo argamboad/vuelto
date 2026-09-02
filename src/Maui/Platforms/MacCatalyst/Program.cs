@@ -1,7 +1,7 @@
 ﻿using ObjCRuntime;
 using UIKit;
 
-namespace Perezosoft.Maui;
+namespace Vuelto.Maui;
 
 public class Program
 {

@@ -1,8 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
-using Perezosoft.Infrastructure.Persistence;
+using Vuelto.Infrastructure.Persistence;
 
-namespace Perezosoft.Api.Observability;
+namespace Vuelto.Api.Observability;
 
 /// <summary>
 /// Readiness check (OBS-3, ADR-008): reports Healthy only when the database is reachable, so an

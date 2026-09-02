@@ -1,4 +1,4 @@
-namespace Perezosoft.Api.Services;
+namespace Vuelto.Api.Services;
 
 /// <summary>
 /// Hashes tokens for secure storage.

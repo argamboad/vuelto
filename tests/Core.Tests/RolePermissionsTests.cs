@@ -1,7 +1,7 @@
-using Perezosoft.Core.Authorization;
-using Perezosoft.Core.Entities;
+using Vuelto.Core.Authorization;
+using Vuelto.Core.Entities;
 
-namespace Perezosoft.Core.Tests;
+namespace Vuelto.Core.Tests;
 
 /// <summary>
 /// RBAC-1 (ADR-009): the <see cref="RolePermissions"/> matrix is the single source of truth mapping a

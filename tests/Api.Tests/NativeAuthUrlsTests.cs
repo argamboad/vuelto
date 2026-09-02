@@ -1,6 +1,6 @@
-using Perezosoft.Api.Services;
+using Vuelto.Api.Services;
 
-namespace Perezosoft.Api.Tests;
+namespace Vuelto.Api.Tests;
 
 /// <summary>
 /// The native OAuth flow round-trips a client-generated CSRF <c>state</c> nonce (v3 NAT-9): the loopback

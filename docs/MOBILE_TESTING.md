@@ -14,7 +14,7 @@ reject raw IPs. The app's Android base URL is already set to `http://localhost:5
 Start the backing services and the API:
 
 ```bash
-docker compose up -d                                   # Postgres (5433) + Mailpit (1025/8025)
+docker compose up -d                                   # Postgres (5434) + Mailpit (1026/8026) — the vuelto stack
 dotnet run --project src/Api --launch-profile https    # serves https:7160 AND http:5238
 ```
 
@@ -46,13 +46,13 @@ From Visual Studio: select the Android target + your emulator, F5. Or CLI (emula
 running):
 
 ```bash
-dotnet build src/Maui/Perezosoft.Maui.csproj -t:Run -f net10.0-android
+dotnet build src/Maui/Vuelto.Maui.csproj -t:Run -f net10.0-android
 ```
 
 ## 4. Test email OTP (no extra setup)
 
 1. On the login screen, enter an email and tap **Email me a 6-digit code**.
-2. Open Mailpit on the host: <http://localhost:8025>, copy the code.
+2. Open Mailpit on the host: <http://localhost:8026>, copy the code.
 3. Enter it in the app → you're signed in.
 
 ## 5. Test Google / Microsoft OAuth
@@ -85,9 +85,9 @@ the Android Keystore and silently exchanged on startup).
   returns `401` (not a connection error).
 - **OAuth: "redirect_uri_mismatch" / "reply URL does not match"** → the
   `http://localhost:5238/signin-{provider}` URI isn't registered for that provider (step 5).
-- **OAuth tab opens but never returns to the app** → the `perezosoft://auth` intent filter
+- **OAuth tab opens but never returns to the app** → the `vuelto://auth` intent filter
   didn't match; confirm `MauiProgram.CallbackScheme`, the API's `Auth:Native:CallbackScheme`,
-  and `WebAuthenticatorCallbackActivity`'s scheme are all `perezosoft`.
+  and `WebAuthenticatorCallbackActivity`'s scheme are all `vuelto`.
 - **Cleartext blocked** → the app talks HTTP to `localhost`, permitted by
   `Platforms/Android/Resources/xml/network_security_config.xml`. If you change the host,
   add it there.
@@ -104,6 +104,6 @@ the Android Keystore and silently exchanged on startup).
   If you re-add `inspectUri` to debug WASM C#, silence the break via Debug → Windows →
   Exception Settings (Ctrl+Alt+E) → uncheck the **JavaScript Exceptions** category.
 - **Physical device** → `adb reverse` works over USB too; no other change needed.
-- **Pointing the app somewhere else** → set `PEREZOSOFT_API_BASE_URL` before launching (any
+- **Pointing the app somewhere else** → set `VUELTO_API_BASE_URL` before launching (any
   platform): overrides the compiled per-platform API base — e.g. a LAN address for a device that
   can't use `adb reverse`, or plain HTTP for the CI native smoke (`native-smoke-windows`).

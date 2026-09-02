@@ -1,7 +1,7 @@
 using System.Net.Http.Json;
 using System.Text.RegularExpressions;
 
-namespace Perezosoft.E2E.Tests;
+namespace Vuelto.E2E.Tests;
 
 /// <summary>
 /// Minimal client for the dev Mailpit REST API (http://localhost:8025) so E2E tests can read

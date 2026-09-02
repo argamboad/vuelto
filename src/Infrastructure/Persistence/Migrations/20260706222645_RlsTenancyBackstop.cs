@@ -2,7 +2,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace Perezosoft.Infrastructure.Persistence.Migrations
+namespace Vuelto.Infrastructure.Persistence.Migrations
 {
     /// <summary>
     /// ADR-020: row-level security as the DB-level second tenancy wall. Enables + FORCEs RLS and
@@ -26,7 +26,6 @@ namespace Perezosoft.Infrastructure.Persistence.Migrations
         [
             "ApiKeys",
             "AuditEvents",
-            "Notes",
             "Subscriptions",
             "TenantInvitations",
             "UsageCounters",

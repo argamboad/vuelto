@@ -1,8 +1,8 @@
 using Microsoft.EntityFrameworkCore;
-using Perezosoft.Api;
-using Perezosoft.Core.Entities;
+using Vuelto.Api;
+using Vuelto.Core.Entities;
 
-namespace Perezosoft.Api.Tests;
+namespace Vuelto.Api.Tests;
 
 /// <summary>
 /// Guards the design-time DbContext factory that EF tooling uses for migrations /

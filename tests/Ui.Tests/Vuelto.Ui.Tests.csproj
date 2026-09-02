@@ -26,7 +26,7 @@
     <ItemGroup>
         <!-- The system under test: the shared RCL. Its ProjectReferences (JWT handler, localization,
              logging abstractions) come transitively, so the doubles need no extra packages. -->
-        <ProjectReference Include="..\..\src\Shared.Ui\Perezosoft.Shared.Ui.csproj" />
+        <ProjectReference Include="..\..\src\Shared.Ui\Vuelto.Shared.Ui.csproj" />
     </ItemGroup>
 
 </Project>

@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Configuration;
-using Perezosoft.Api.Services;
+using Vuelto.Api.Services;
 
-namespace Perezosoft.Api.Tests;
+namespace Vuelto.Api.Tests;
 
 /// <summary>
 /// The per-provider email-trust policy layered on the fail-closed claim check. It must trust

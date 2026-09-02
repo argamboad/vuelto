@@ -1,11 +1,11 @@
 using System.Text.Json.Serialization;
-using Perezosoft.Api.Authentication;
-using Perezosoft.Api.Configuration;
-using Perezosoft.Api.Services;
-using Perezosoft.Core.Authorization;
-using Perezosoft.Core.Entities;
+using Vuelto.Api.Authentication;
+using Vuelto.Api.Configuration;
+using Vuelto.Api.Services;
+using Vuelto.Core.Authorization;
+using Vuelto.Core.Entities;
 
-namespace Perezosoft.Api.Endpoints;
+namespace Vuelto.Api.Endpoints;
 
 /// <summary>
 /// Outbound webhook management (HOOKS, ADR-016): owner-only routes to register/list/remove subscriptions

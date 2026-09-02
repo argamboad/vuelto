@@ -5,9 +5,9 @@ using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Extensions.Logging;
 using Microsoft.Maui.ApplicationModel;
-using Perezosoft.Shared.Ui.Auth;
+using Vuelto.Shared.Ui.Auth;
 
-namespace Perezosoft.Maui.Auth;
+namespace Vuelto.Maui.Auth;
 
 /// <summary>
 /// Desktop OAuth via the loopback-redirect pattern for native apps (RFC 8252 §7.3):
@@ -111,7 +111,7 @@ public sealed class LoopbackOAuthInitiator(string apiBaseUrl, ILogger<LoopbackOA
         var message = string.IsNullOrEmpty(error)
             ? "Signed in. You can close this tab and return to the app."
             : "Sign-in didn't complete. You can close this tab and return to the app.";
-        var html = $"<!doctype html><html><head><meta charset=\"utf-8\"><title>Perezosoft</title></head>" +
+        var html = $"<!doctype html><html><head><meta charset=\"utf-8\"><title>¿Y el vuelto?</title></head>" +
                    $"<body style=\"font-family:sans-serif;text-align:center;padding:3rem\"><p>{message}</p></body></html>";
         var buffer = Encoding.UTF8.GetBytes(html);
         response.ContentType = "text/html; charset=utf-8";

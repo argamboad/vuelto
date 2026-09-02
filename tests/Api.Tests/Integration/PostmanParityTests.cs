@@ -2,9 +2,9 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
-using Perezosoft.Api.Tests.Infrastructure;
+using Vuelto.Api.Tests.Infrastructure;
 
-namespace Perezosoft.Api.Tests.Integration;
+namespace Vuelto.Api.Tests.Integration;
 
 /// <summary>
 /// v3 audit TR-6 (T55, R74): the Postman collection is the CANONICAL API documentation (CLAUDE.md
@@ -62,7 +62,7 @@ public class PostmanParityTests(IntegrationTestFactory factory)
         }
 
         Assert.True(missing.Count == 0,
-            "API endpoints mapped by the app but absent from docs/postman/Perezosoft.postman_collection.json "
+            "API endpoints mapped by the app but absent from docs/postman/Vuelto.postman_collection.json "
             + "— the collection is canonical (CLAUDE.md): add a request (doc-only for browser redirects) or an "
             + $"exclusion rationale above:\n - {string.Join("\n - ", missing)}");
     }
@@ -72,7 +72,7 @@ public class PostmanParityTests(IntegrationTestFactory factory)
     {
         var root = RepoRoot();
         using var doc = JsonDocument.Parse(File.ReadAllText(
-            Path.Combine(root, "docs", "postman", "Perezosoft.postman_collection.json")));
+            Path.Combine(root, "docs", "postman", "Vuelto.postman_collection.json")));
 
         var requests = new List<(string, string)>();
         void Walk(JsonElement items)

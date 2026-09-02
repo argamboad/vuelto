@@ -1,4 +1,4 @@
-namespace Perezosoft.Infrastructure.Email;
+namespace Vuelto.Infrastructure.Email;
 
 public class SmtpSettings
 {

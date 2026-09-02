@@ -1,6 +1,6 @@
-using Perezosoft.Core.Entities;
+using Vuelto.Core.Entities;
 
-namespace Perezosoft.Api.Services;
+namespace Vuelto.Api.Services;
 
 /// <summary>A completed step-up: the issued session + whether the login was native (drives cookie vs body).</summary>
 public sealed record MfaVerifyOutcome(AccessSession Session, bool Native);

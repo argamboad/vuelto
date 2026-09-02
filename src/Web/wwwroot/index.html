@@ -4,22 +4,27 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Perezosoft</title>
+    <title>¿Y el vuelto?</title>
     <base href="/" />
     <link rel="preload" id="webassembly" />
     <!-- Theme bootstrap BEFORE the stylesheets: applies the saved data-bs-theme pre-paint (no flash). -->
-    <script src="_content/Perezosoft.Shared.Ui/js/theme.js"></script>
+    <script src="_content/Vuelto.Shared.Ui/js/theme.js"></script>
+    <!-- Brand typeface (BRAND-SPEC: Nunito); app.css falls back to the system stack when offline. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" />
     <link rel="stylesheet" href="lib/bootstrap/dist/css/bootstrap.min.css" />
-    <link rel="stylesheet" href="_content/Perezosoft.Shared.Ui/css/app.css" />
+    <link rel="stylesheet" href="_content/Vuelto.Shared.Ui/css/app.css" />
     <link rel="icon" href="favicon.ico" sizes="any" />
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="apple_touch_180.png" />
     <!-- Social/Open Graph preview -->
-    <meta property="og:title" content="Perezosoft" />
+    <meta property="og:title" content="¿Y el vuelto?" />
+    <meta property="og:description" content="Finanzas personales en colones y dólares." />
     <meta property="og:type" content="website" />
     <meta property="og:image" content="og_image_1200x630.png" />
     <meta name="twitter:card" content="summary_large_image" />
-    <link href="Perezosoft.Web.styles.css" rel="stylesheet" />
+    <link href="Vuelto.Web.styles.css" rel="stylesheet" />
     <script type="importmap"></script>
 </head>
 
@@ -38,10 +43,10 @@
         <span class="dismiss">🗙</span>
     </div>
     <!-- MFA enrollment QR (vendored qrcode-generator, MIT) — client-side only -->
-    <script src="_content/Perezosoft.Shared.Ui/js/qrcode-generator.min.js"></script>
-    <script src="_content/Perezosoft.Shared.Ui/js/mfa-qr.js"></script>
+    <script src="_content/Vuelto.Shared.Ui/js/qrcode-generator.min.js"></script>
+    <script src="_content/Vuelto.Shared.Ui/js/mfa-qr.js"></script>
     <!-- Reload bfcache restores so Back after sign-out can't show a stale authenticated view (QA-SEC-03). -->
-    <script src="_content/Perezosoft.Shared.Ui/js/bfcache-guard.js"></script>
+    <script src="_content/Vuelto.Shared.Ui/js/bfcache-guard.js"></script>
     <script src="_framework/blazor.webassembly#[.{fingerprint}].js"></script>
 </body>
 

@@ -1,7 +1,7 @@
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 
-namespace Perezosoft.Api.Tests.Infrastructure;
+namespace Vuelto.Api.Tests.Infrastructure;
 
 /// <summary>Minimal <see cref="IHostEnvironment"/> test double — only the environment name matters.</summary>
 public sealed class FakeHostEnvironment(string environmentName) : IHostEnvironment

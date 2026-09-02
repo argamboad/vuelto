@@ -1,10 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using Perezosoft.Core.Abstractions;
-using Perezosoft.Core.Entities;
-using Perezosoft.Infrastructure.Persistence;
+using Vuelto.Core.Abstractions;
+using Vuelto.Core.Entities;
+using Vuelto.Infrastructure.Persistence;
 
-namespace Perezosoft.Infrastructure.Outbox;
+namespace Vuelto.Infrastructure.Outbox;
 
 /// <summary>
 /// The testable core of the dispatcher: claims due outbox messages and records each outcome —

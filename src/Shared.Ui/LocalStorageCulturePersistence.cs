@@ -1,6 +1,6 @@
 using Microsoft.JSInterop;
 
-namespace Perezosoft.Shared.Ui;
+namespace Vuelto.Shared.Ui;
 
 /// <summary>Web implementation: the same <c>localStorage["app_culture"]</c> key the WASM
 /// bootstrap (<c>Web/Program.cs</c>) reads before first render.</summary>

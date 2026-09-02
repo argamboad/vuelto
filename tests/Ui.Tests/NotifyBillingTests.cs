@@ -1,10 +1,10 @@
 using Bunit;
-using Perezosoft.Shared.Ui.Components;
-using Perezosoft.Shared.Ui.Pages;
-using Perezosoft.Ui.Tests.Infrastructure;
+using Vuelto.Shared.Ui.Components;
+using Vuelto.Shared.Ui.Pages;
+using Vuelto.Ui.Tests.Infrastructure;
 using Xunit;
 
-namespace Perezosoft.Ui.Tests;
+namespace Vuelto.Ui.Tests;
 
 /// <summary>
 /// v3 audit LB-UI-9 (bell double-decrement) + UX-5 (raw billing tokens), T42.

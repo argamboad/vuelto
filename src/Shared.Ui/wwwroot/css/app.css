@@ -1,29 +1,31 @@
 :root {
     /* Brand palette — THE single place to re-theme the app (web + all native shells).
-       Single-sourced in the RCL; both hosts load it via _content/Perezosoft.Shared.Ui/css/app.css.
-       Rebranding: derive these from the new logo and see docs/REBRANDING.md §4
-       (the email templates in Infrastructure/Email/BrandedEmail.cs carry their own copies).
-       Current values: Perezosoft sage/forest greens, harmonized with the logo. */
-    --bs-primary: #465d4d;          /* primary — buttons, header, accents */
-    --bs-primary-rgb: 70, 93, 77;
-    --brand-accent: #6b8a72;        /* accent — logo body, loading spinner */
-    --brand-dark: #2f3d33;          /* darkest shade — hover / active */
-    --brand-accent-light: #9bb6a1;  /* light accent */
-    --bs-link-color: #4f6b58;
-    --bs-link-hover-color: #2f3d33;
+       Single-sourced in the RCL; both hosts load it via _content/Vuelto.Shared.Ui/css/app.css.
+       Derived from the ¿Y el vuelto? logo (vuelto/brand/BRAND-SPEC.md): indigo primary, light-indigo
+       ring accent, dark-indigo wordmark ink. Gold #F2CB6E is the colón ₡ in the logo ONLY — it is a
+       brand token, never a UI data/state color (green/red mean under/over budget).
+       The email templates in Infrastructure/Email/BrandedEmail.cs carry their own copies. */
+    --bs-primary: #5A67D8;          /* primary — buttons, header, accents (coin disc) */
+    --bs-primary-rgb: 90, 103, 216;
+    --brand-accent: #8B95F0;        /* accent — coin ring, loading spinner */
+    --brand-dark: #3A4178;          /* darkest shade — hover / active (wordmark ink) */
+    --brand-accent-light: #C5CBF7;  /* light accent */
+    --brand-gold: #F2CB6E;          /* the ₡ — brand mark only */
+    --bs-link-color: #4C57C4;
+    --bs-link-hover-color: #3A4178;
     --header-height: 60px;
-    --app-bg: #F5F7F4;              /* page background surface */
-    --app-border: #DCE5DD;
+    --app-bg: #F7F7FC;              /* page background surface — near-white tinted toward indigo */
+    --app-border: #E1E3F2;
 }
 
 /* Dark theme (THEME-1). data-bs-theme is set on <html> pre-paint by js/theme.js; Bootstrap 5.3
    re-derives its own --bs-* tokens from the attribute, so only the app's surface tokens and the
-   few hardcoded light values below need dark counterparts. The brand greens stay. */
+   few hardcoded light values below need dark counterparts. The brand indigo stays. */
 [data-bs-theme="dark"] {
-    --app-bg: #171c19;              /* sage-tinted dark surface */
-    --app-border: #2e3a33;
-    --bs-link-color: #9bb6a1;
-    --bs-link-hover-color: #c3d5c8;
+    --app-bg: #14162A;              /* indigo-tinted dark surface */
+    --app-border: #2C3050;
+    --bs-link-color: #9AA4F5;
+    --bs-link-hover-color: #C5CBF7;
 }
 
 [data-bs-theme="dark"] a,
@@ -43,7 +45,7 @@
 }
 
 [data-bs-theme="dark"] .loading-progress circle {
-    stroke: #3a453e;
+    stroke: #3E4368;
 }
 
 /* Compact enough to sit inline in the header next to the buttons. */
@@ -52,7 +54,9 @@
 }
 
 html, body {
-    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    /* Nunito is the brand typeface (loaded from Google Fonts by both hosts' index.html);
+       the system stack is the offline / native-WebView fallback. */
+    font-family: 'Nunito', 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif;
     background-color: var(--app-bg);
 }
 

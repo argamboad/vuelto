@@ -1,12 +1,12 @@
 using Microsoft.Extensions.Options;
-using Perezosoft.Api.Configuration;
-using Perezosoft.Api.Services;
-using Perezosoft.Api.Tests.Infrastructure;
-using Perezosoft.Core.Entities;
-using Perezosoft.Infrastructure.Persistence;
-using Perezosoft.Infrastructure.Repositories;
+using Vuelto.Api.Configuration;
+using Vuelto.Api.Services;
+using Vuelto.Api.Tests.Infrastructure;
+using Vuelto.Core.Entities;
+using Vuelto.Infrastructure.Persistence;
+using Vuelto.Infrastructure.Repositories;
 
-namespace Perezosoft.Api.Tests.Admin;
+namespace Vuelto.Api.Tests.Admin;
 
 /// <summary>
 /// ADMIN-1 (ADR-014): platform-staff membership is an out-of-band config email allowlist, checked

@@ -1,11 +1,11 @@
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
-using Perezosoft.Core.Abstractions;
-using Perezosoft.Core.Billing;
-using Perezosoft.Core.Entities;
-using Perezosoft.Core.Repositories;
+using Vuelto.Core.Abstractions;
+using Vuelto.Core.Billing;
+using Vuelto.Core.Entities;
+using Vuelto.Core.Repositories;
 
-namespace Perezosoft.Api.Services;
+namespace Vuelto.Api.Services;
 
 /// <summary>
 /// Resolves and enforces plan quotas for the current tenant (BILLING-5). The plan is resolved from the

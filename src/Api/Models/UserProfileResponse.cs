@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace Perezosoft.Api.Models;
+namespace Vuelto.Api.Models;
 
 /// <summary>
 /// Current user profile (GET /api/auth/me) — surfaced to the client top bar.

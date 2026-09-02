@@ -1,6 +1,6 @@
 using Microsoft.Playwright;
 
-namespace Perezosoft.E2E.Tests.Pages;
+namespace Vuelto.E2E.Tests.Pages;
 
 /// <summary>Page object for the invitation-accept page (/join?token=… or manual code entry).</summary>
 public class JoinPage(IPage page) : BasePage(page)

@@ -1,6 +1,6 @@
 using Microsoft.JSInterop;
 
-namespace Perezosoft.Shared.Ui;
+namespace Vuelto.Shared.Ui;
 
 /// <summary>
 /// Browser <c>confirm()</c> helper that FAILS CLOSED. If the JS-interop call throws — prerender,

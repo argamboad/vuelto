@@ -1,8 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
-using Perezosoft.Api.Authentication;
-using Perezosoft.Api.Services;
+using Vuelto.Api.Authentication;
+using Vuelto.Api.Services;
 
-namespace Perezosoft.Api.Controllers;
+namespace Vuelto.Api.Controllers;
 
 /// <summary>
 /// Shared base for the auth controllers — holds request-scoped helpers common to the

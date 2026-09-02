@@ -1,9 +1,9 @@
 using System.Net;
 using System.Net.Sockets;
 using Microsoft.Extensions.Hosting;
-using Perezosoft.Core.Abstractions;
+using Vuelto.Core.Abstractions;
 
-namespace Perezosoft.Infrastructure.Http;
+namespace Vuelto.Infrastructure.Http;
 
 /// <summary>
 /// Default <see cref="IOutboundUrlGuard"/>. In Development it is permissive (any http/https URL, so

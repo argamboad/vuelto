@@ -19,10 +19,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Core\Perezosoft.Core.csproj" />
+    <ProjectReference Include="..\..\src\Core\Vuelto.Core.csproj" />
     <!-- Shared.Ui is a self-contained RCL (no ProjectReference of its own), so this pulls in the
          client auth helpers (AuthErrorCopy, AuthService) for unit testing without dragging in Api. -->
-    <ProjectReference Include="..\..\src\Shared.Ui\Perezosoft.Shared.Ui.csproj" />
+    <ProjectReference Include="..\..\src\Shared.Ui\Vuelto.Shared.Ui.csproj" />
   </ItemGroup>
 
 </Project>

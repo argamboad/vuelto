@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace Perezosoft.Api.Models;
+namespace Vuelto.Api.Models;
 
 public record EmailRequest(string Email, string? Culture = null);
 

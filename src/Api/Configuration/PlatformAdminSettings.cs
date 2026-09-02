@@ -1,4 +1,4 @@
-namespace Perezosoft.Api.Configuration;
+namespace Vuelto.Api.Configuration;
 
 /// <summary>
 /// Platform-staff allowlist (ADR-014), bound from <c>Admin</c>. Staff are configured <b>out-of-band</b>

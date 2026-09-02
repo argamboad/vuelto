@@ -3,15 +3,14 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Extensions;
 using Microsoft.OpenApi.Models;
-using Perezosoft.Api.Authentication;
-using Perezosoft.Api.Configuration;
-using Perezosoft.Api.Endpoints;
-using Perezosoft.Api.Features.Notes;
-using Perezosoft.Api.Observability;
-using Perezosoft.Api.Services;
-using Perezosoft.Core.Abstractions;
-using Perezosoft.Infrastructure;
-using Perezosoft.Infrastructure.Persistence;
+using Vuelto.Api.Authentication;
+using Vuelto.Api.Configuration;
+using Vuelto.Api.Endpoints;
+using Vuelto.Api.Observability;
+using Vuelto.Api.Services;
+using Vuelto.Core.Abstractions;
+using Vuelto.Infrastructure;
+using Vuelto.Infrastructure.Persistence;
 
 // Local dev: load secrets/config from the repo-root .env (the single local source of truth —
 // see docs/DECISIONS.md). TraversePath walks up to find it regardless of the working dir; the
@@ -36,7 +35,7 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(o =>
 {
-    o.SwaggerDoc("v1", new OpenApiInfo { Title = "Perezosoft API", Version = "v1" });
+    o.SwaggerDoc("v1", new OpenApiInfo { Title = "Vuelto API", Version = "v1" });
     // A curated "public" document with ONLY the /api/public routes (PUBAPI-2) — the customer-facing
     // contract, served leak-free at /api/public/openapi.json when PUBAPI is enabled (see below).
     o.SwaggerDoc("public", new OpenApiInfo
@@ -99,11 +98,8 @@ builder.Services.AddPlatformAdminServices(builder.Configuration);
 builder.Services.AddRbacServices();
 builder.Services.AddBillingServices();
 
-// 🗑️ DELETE-ME: sample feature slice (Features/Notes) — the reference for how a vertical
-// slice wires up: a handler + a tenant-data contributor, with endpoints mapped below. Kept inline
-// here (not in ServiceRegistrationExtensions) because only Program.cs may reference Features.* (R8).
-builder.Services.AddScoped<NotesHandler>();
-builder.Services.AddScoped<ITenantDataContributor, NotesDataContributor>();
+// App feature slices (src/Api/Features/<Feature>) register their handler + ITenantDataContributor
+// here and map their group below — only Program.cs may reference Features.* (R8).
 
 // Caches + session (LinkTokenService uses IMemoryCache; session backed by distributed cache).
 builder.Services.AddMemoryCache();
@@ -259,7 +255,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI(c =>
     {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Perezosoft API v1");
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Vuelto API v1");
         if (publicApiSettings.Enabled)
             c.SwaggerEndpoint("/swagger/public/swagger.json", "Public API"); // PUBAPI-2
         c.RoutePrefix = string.Empty; // serve the UI at the API root (/)
@@ -306,8 +302,7 @@ app.MapGet("/api/version", () => Results.Ok(new
              ?? "unknown",
 })).AllowAnonymous().WithTags("Platform");
 
-// 🗑️ DELETE-ME: sample feature slice endpoints (remove with Features/Notes).
-app.MapNotes();
+// App feature slice endpoints are mapped here (app.Map<Feature>()), one call per slice.
 // Billing is a platform controller (BillingController) — auto-mapped by MapControllers above.
 
 // PUBAPI (ADR-015): map key management + the public routes only when enabled — off ⇒ they don't exist.

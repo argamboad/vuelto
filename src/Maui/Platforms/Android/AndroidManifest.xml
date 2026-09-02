@@ -6,7 +6,7 @@
     <!-- Android 11+ package visibility: without these, WebAuthenticator can't see any browser
          (logcat shows "AppsFilter: interaction ... BLOCKED") and falls back from a Custom Tab to
          a full external browser. In a full browser the app is backgrounded and Android may kill
-         the process mid-OAuth; the perezosoft:// callback then cold-starts a process with no
+         the process mid-OAuth; the vuelto:// callback then cold-starts a process with no
          pending auth operation and the app just closes. Custom Tabs keep the app task foreground
          for the whole round trip. -->
     <queries>

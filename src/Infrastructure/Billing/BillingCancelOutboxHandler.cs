@@ -1,8 +1,8 @@
 using System.Text.Json;
-using Perezosoft.Core.Abstractions;
-using Perezosoft.Core.Entities;
+using Vuelto.Core.Abstractions;
+using Vuelto.Core.Entities;
 
-namespace Perezosoft.Infrastructure.Billing;
+namespace Vuelto.Infrastructure.Billing;
 
 /// <summary>The outbox payload for canceling a subscription at the provider (BILLING-7).</summary>
 public sealed record BillingCancelPayload(string StripeSubscriptionId);

@@ -41,7 +41,7 @@
     <!-- The Web project pins the WASM SDK's implicit build-time packs (ILLink & co.) via
          VersionOverride in its own csproj, NOT as PackageVersion entries here: the MAUI SDK also
          injects ILLink.Tasks implicitly, and a central version for an SDK-implicit package fails
-         its restore with NU1009. See the note in src/Web/Perezosoft.Web.csproj. -->
+         its restore with NU1009. See the note in src/Web/Vuelto.Web.csproj. -->
     <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.11" />
     <!-- Api hosts the published WASM bundle single-origin (DEPLOY-1, ADR-017). -->
     <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="10.0.11" />

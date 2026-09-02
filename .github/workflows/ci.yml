@@ -29,12 +29,12 @@ jobs:
       # shells are excluded (not built in CI, no committed lockfile).
       - name: Restore (locked mode)
         run: |
-          dotnet restore src/Api/Perezosoft.Api.csproj --locked-mode
-          dotnet restore src/Web/Perezosoft.Web.csproj --locked-mode
-          dotnet restore tests/E2E.Tests/Perezosoft.E2E.Tests.csproj --locked-mode
-          dotnet restore tests/Core.Tests/Perezosoft.Core.Tests.csproj --locked-mode
-          dotnet restore tests/Api.Tests/Perezosoft.Api.Tests.csproj --locked-mode
-          dotnet restore tests/Ui.Tests/Perezosoft.Ui.Tests.csproj --locked-mode
+          dotnet restore src/Api/Vuelto.Api.csproj --locked-mode
+          dotnet restore src/Web/Vuelto.Web.csproj --locked-mode
+          dotnet restore tests/E2E.Tests/Vuelto.E2E.Tests.csproj --locked-mode
+          dotnet restore tests/Core.Tests/Vuelto.Core.Tests.csproj --locked-mode
+          dotnet restore tests/Api.Tests/Vuelto.Api.Tests.csproj --locked-mode
+          dotnet restore tests/Ui.Tests/Vuelto.Ui.Tests.csproj --locked-mode
 
       # Build the Linux-buildable graph with warnings-as-errors (Directory.Build.props).
       # The MAUI shells target net10.0-windows / -android and are excluded here; they're
@@ -42,9 +42,9 @@ jobs:
       # --no-restore: reuse the locked-mode restore above (don't let the build re-restore loosely).
       - name: Build (warnings-as-errors)
         run: |
-          dotnet build src/Api/Perezosoft.Api.csproj -c Release --no-restore
-          dotnet build src/Web/Perezosoft.Web.csproj -c Release --no-restore
-          dotnet build tests/E2E.Tests/Perezosoft.E2E.Tests.csproj -c Release --no-restore
+          dotnet build src/Api/Vuelto.Api.csproj -c Release --no-restore
+          dotnet build src/Web/Vuelto.Web.csproj -c Release --no-restore
+          dotnet build tests/E2E.Tests/Vuelto.E2E.Tests.csproj -c Release --no-restore
 
       # Unit + integration tests. Api.Tests includes the architecture invariants (B9-1) and the
       # migration-drift guard (B6-2); both spin up Postgres via Testcontainers (Docker is
@@ -52,9 +52,9 @@ jobs:
       # --no-restore: the locked-mode restore already ran.
       - name: Test (Core + Api + Ui)
         run: |
-          dotnet test tests/Core.Tests/Perezosoft.Core.Tests.csproj -c Release --no-restore
-          dotnet test tests/Api.Tests/Perezosoft.Api.Tests.csproj -c Release --no-restore
-          dotnet test tests/Ui.Tests/Perezosoft.Ui.Tests.csproj -c Release --no-restore
+          dotnet test tests/Core.Tests/Vuelto.Core.Tests.csproj -c Release --no-restore
+          dotnet test tests/Api.Tests/Vuelto.Api.Tests.csproj -c Release --no-restore
+          dotnet test tests/Ui.Tests/Vuelto.Ui.Tests.csproj -c Release --no-restore
 
       # Fail the build if the EF model has drifted from the latest migration/snapshot.
       - name: No pending EF model changes
@@ -70,8 +70,8 @@ jobs:
           # PackageVersions in Directory.Packages.props.
           dotnet tool restore
           dotnet tool run dotnet-ef migrations has-pending-model-changes \
-            --project src/Infrastructure/Perezosoft.Infrastructure.csproj \
-            --startup-project src/Api/Perezosoft.Api.csproj
+            --project src/Infrastructure/Vuelto.Infrastructure.csproj \
+            --startup-project src/Api/Vuelto.Api.csproj
 
   # Secret scan (v2 audit B11-5). Runs the gitleaks OSS binary directly (no marketplace action, so no
   # org-license requirement) over the full history + working tree. Config + allowlist in .gitleaks.toml;
@@ -163,7 +163,7 @@ jobs:
           # pinned because a new release could change the license table or the forbidden-list
           # semantics and flip this gate's verdict on an untouched dependency graph (DEP-9).
           dotnet tool restore
-          for proj in src/Api/Perezosoft.Api.csproj src/Web/Perezosoft.Web.csproj; do
+          for proj in src/Api/Vuelto.Api.csproj src/Web/Vuelto.Web.csproj; do
             dotnet restore "$proj"
             dotnet tool run dotnet-project-licenses \
               --input "$proj" \
@@ -182,7 +182,7 @@ jobs:
       - uses: actions/checkout@v5
 
       - name: Build the production image
-        run: docker build -t perezosoft-app:ci .
+        run: docker build -t vuelto-app:ci .
 
   # Native (MAUI) build gate — NATIVE-1 (ADR-018). Compile-only (no emulator, no signing): a change that
   # breaks the native build fails the PR instead of rotting until a manual run. Android + Windows run on
@@ -219,10 +219,10 @@ jobs:
       # when building just one (-f), so each runner needs the workloads for all TFMs its OS exposes —
       # e.g. macOS needs android too (NETSDK1147 otherwise). restore resolves that per-host, forever.
       - name: Install the MAUI workloads (host-aware)
-        run: dotnet workload restore src/Maui/Perezosoft.Maui.csproj --version 10.0.400.1
+        run: dotnet workload restore src/Maui/Vuelto.Maui.csproj --version 10.0.400.1
 
       - name: Build (compile-only gate)
-        run: dotnet build src/Maui/Perezosoft.Maui.csproj -f ${{ matrix.tfm }} -c Debug -p:AcceptAndroidSDKLicenses=true
+        run: dotnet build src/Maui/Vuelto.Maui.csproj -f ${{ matrix.tfm }} -c Debug -p:AcceptAndroidSDKLicenses=true
 
       # The Maui half of the license gate (v3 audit TOOL-1, T46): the license-scan job can't restore
       # this project (needs the MAUI workloads), so scan it here where the build above already
@@ -235,7 +235,7 @@ jobs:
         run: |
           dotnet tool restore  # version from .config/dotnet-tools.json (v3 audit T51/R63)
           dotnet tool run dotnet-project-licenses \
-            --input src/Maui/Perezosoft.Maui.csproj \
+            --input src/Maui/Vuelto.Maui.csproj \
             --include-transitive \
             --use-project-assets-json \
             --forbidden-license-types .github/forbidden-licenses.json
@@ -310,10 +310,10 @@ jobs:
       - name: Install the MAUI workloads (host-aware, workload set pinned to the image's Xcode)
         run: |
           xcodebuild -version
-          dotnet workload restore src/Maui/Perezosoft.Maui.csproj --version 10.0.400.1
+          dotnet workload restore src/Maui/Vuelto.Maui.csproj --version 10.0.400.1
 
       - name: Build (compile-only gate)
-        run: dotnet build src/Maui/Perezosoft.Maui.csproj -f ${{ matrix.tfm }} -c Debug
+        run: dotnet build src/Maui/Vuelto.Maui.csproj -f ${{ matrix.tfm }} -c Debug
 
   # Native smoke — Apple (iOS simulator + Mac Catalyst; the legs the 2026-07-06 Apple QA pass
   # unpinned; ADR-018 cost pattern). ONE job for both targets: the expensive setup (workload
@@ -324,7 +324,7 @@ jobs:
   # WebView and reached the network. Deliberately shallower than the Windows/Android legs:
   # WKWebView exposes no CDP, so DRIVING the UI needs XCUITest/Appium — not worth the flake budget
   # for a canary; sign-in flows stay manual (§13b/§13c). The apps are pointed at the plain-HTTP API
-  # via PEREZOSOFT_API_BASE_URL (SIMCTL_CHILD_-prefixed for the simulator; ATS exempts loopback, so
+  # via VUELTO_API_BASE_URL (SIMCTL_CHILD_-prefixed for the simulator; ATS exempts loopback, so
   # the login page fully renders over http — verified 2026-07-06; only real OAuth needs the
   # https/cert ceremony). Catalyst runs the Debug entitlements path (unsandboxed +
   # DebugFileSessionStore — ad-hoc builds can't reach the keychain, see PR #125). No Mailpit: no
@@ -349,14 +349,14 @@ jobs:
       - name: Install the MAUI workloads (host-aware, workload set pinned to the image's Xcode)
         run: |
           xcodebuild -version
-          dotnet workload restore src/Maui/Perezosoft.Maui.csproj --version 10.0.400.1
+          dotnet workload restore src/Maui/Vuelto.Maui.csproj --version 10.0.400.1
 
       - name: Build the apps (Catalyst + iOS simulator) + API
         run: |
-          dotnet build src/Maui/Perezosoft.Maui.csproj -f net10.0-maccatalyst -c Debug
-          dotnet build src/Maui/Perezosoft.Maui.csproj -f net10.0-ios -c Debug
-          dotnet restore src/Api/Perezosoft.Api.csproj --locked-mode
-          dotnet build src/Api/Perezosoft.Api.csproj -c Debug --no-restore
+          dotnet build src/Maui/Vuelto.Maui.csproj -f net10.0-maccatalyst -c Debug
+          dotnet build src/Maui/Vuelto.Maui.csproj -f net10.0-ios -c Debug
+          dotnet restore src/Api/Vuelto.Api.csproj --locked-mode
+          dotnet build src/Api/Vuelto.Api.csproj -c Debug --no-restore
 
       - name: Start Postgres (Homebrew)
         # macOS runners can't host Linux service containers; brew's postgresql@17 fills in.
@@ -401,7 +401,7 @@ jobs:
           # The dotted logging key can't be a shell export (invalid identifier) — env(1) sets it.
           # It raises AspNetCore request logging so the provider probe is grep-able below.
           env 'Logging__LogLevel__Microsoft.AspNetCore=Information' \
-            dotnet run --project src/Api/Perezosoft.Api.csproj -c Debug --no-build --urls http://localhost:5238 > api.log 2>&1 &
+            dotnet run --project src/Api/Vuelto.Api.csproj -c Debug --no-build --urls http://localhost:5238 > api.log 2>&1 &
 
           echo "Waiting for the API…"
           for i in $(seq 1 60); do
@@ -415,7 +415,7 @@ jobs:
 
           echo "=== Mac Catalyst: launch + boot-to-login ==="
           CAT_BIN=$(ls src/Maui/bin/Debug/net10.0-maccatalyst/maccatalyst-*/*.app/Contents/MacOS/* | head -1)
-          PEREZOSOFT_API_BASE_URL=http://localhost:5238 "$CAT_BIN" > catalyst-app.log 2>&1 &
+          VUELTO_API_BASE_URL=http://localhost:5238 "$CAT_BIN" > catalyst-app.log 2>&1 &
           CAT_PID=$!
           ok=0
           for i in $(seq 1 40); do   # up to 2 min
@@ -429,10 +429,10 @@ jobs:
           CAT_PROBES=$(probes)
 
           echo "=== iOS simulator: install + launch + boot-to-login ==="
-          APP=$(ls -d src/Maui/bin/Debug/net10.0-ios/iossimulator-*/Perezosoft.Maui.app | head -1)
+          APP=$(ls -d src/Maui/bin/Debug/net10.0-ios/iossimulator-*/Vuelto.Maui.app | head -1)
           xcrun simctl install "$UDID" "$APP"
-          SIMCTL_CHILD_PEREZOSOFT_API_BASE_URL=http://localhost:5238 \
-            xcrun simctl launch "$UDID" com.perezosoft.platform | tee launch.out
+          SIMCTL_CHILD_VUELTO_API_BASE_URL=http://localhost:5238 \
+            xcrun simctl launch "$UDID" com.perezosoft.vuelto | tee launch.out
           APP_PID=$(grep -Eo '[0-9]+$' launch.out)
 
           echo "Waiting for the login page's provider probe (app pid $APP_PID, past $CAT_PROBES Catalyst probes)…"
@@ -463,7 +463,7 @@ jobs:
         run: |
           tail -n 60 api.log || true
           tail -n 30 catalyst-app.log || true
-          xcrun simctl spawn "$UDID" log show --last 5m --predicate 'process == "Perezosoft.Maui"' --style compact 2>/dev/null | tail -n 40 || true
+          xcrun simctl spawn "$UDID" log show --last 5m --predicate 'process == "Vuelto.Maui"' --style compact 2>/dev/null | tail -n 40 || true
 
   # Native smoke — Windows (NATIVE-7, ADR-018). Runs the REAL MAUI Windows app against a real API +
   # Postgres and asserts BOOT-TO-LOGIN: the app process stays up and its Blazor login page reaches the
@@ -488,15 +488,15 @@ jobs:
           global-json-file: global.json
 
       - name: Install the MAUI workloads (host-aware)
-        run: dotnet workload restore src/Maui/Perezosoft.Maui.csproj --version 10.0.400.1
+        run: dotnet workload restore src/Maui/Vuelto.Maui.csproj --version 10.0.400.1
 
       - name: Build the app + API
         # The boot-probe drives no CDP/Playwright, so E2E.Tests isn't built here (the Linux `e2e` job
         # already compiles it). API + the Windows MAUI app are all this leg needs.
         run: |
-          dotnet restore src/Api/Perezosoft.Api.csproj --locked-mode
-          dotnet build src/Api/Perezosoft.Api.csproj -c Debug --no-restore
-          dotnet build src/Maui/Perezosoft.Maui.csproj -f net10.0-windows10.0.19041.0 -c Debug
+          dotnet restore src/Api/Vuelto.Api.csproj --locked-mode
+          dotnet build src/Api/Vuelto.Api.csproj -c Debug --no-restore
+          dotnet build src/Maui/Vuelto.Maui.csproj -f net10.0-windows10.0.19041.0 -c Debug
 
       - name: Start Postgres (preinstalled)
         # The Windows runner image ships PostgreSQL with its service disabled (creds
@@ -512,20 +512,20 @@ jobs:
 
       - name: Boot API + app, assert boot-to-login
         # Everything process-bound lives in ONE step (the runner tears down a step's process tree).
-        # The app is pointed at the plain-HTTP API via PEREZOSOFT_API_BASE_URL (no dev-cert hoops).
+        # The app is pointed at the plain-HTTP API via VUELTO_API_BASE_URL (no dev-cert hoops).
         # No CDP: we assert the app stays up AND its login page's provider probe reaches the API
         # (grep-able because request logging is raised), exactly like the Apple leg.
         env:
           ASPNETCORE_ENVIRONMENT: Development
           ConnectionStrings__DefaultConnection: "Host=localhost;Port=5432;Database=smoke;Username=postgres;Password=root"
           Jwt__Secret: "ci-native-smoke-jwt-signing-key-0123"
-          PEREZOSOFT_API_BASE_URL: "http://localhost:5238"
+          VUELTO_API_BASE_URL: "http://localhost:5238"
         run: |
           # Raise AspNetCore request logging so the provider probe is grep-able in api.log (the dotted
           # key can't be a PowerShell $env: assignment — the '.' parses as member access — so set it
           # via the environment API; Start-Process inherits it).
           [Environment]::SetEnvironmentVariable('Logging__LogLevel__Microsoft.AspNetCore', 'Information')
-          $api = Start-Process dotnet -ArgumentList "run --project src/Api/Perezosoft.Api.csproj -c Debug --no-build --urls http://localhost:5238" -PassThru -RedirectStandardOutput api.log -RedirectStandardError api.err.log
+          $api = Start-Process dotnet -ArgumentList "run --project src/Api/Vuelto.Api.csproj -c Debug --no-build --urls http://localhost:5238" -PassThru -RedirectStandardOutput api.log -RedirectStandardError api.err.log
 
           Write-Host "Waiting for the API..."
           $ready = $false
@@ -535,8 +535,8 @@ jobs:
           }
           if (-not $ready) { Write-Host "::error::API did not become ready"; Get-Content api.log -Tail 60; exit 1 }
 
-          $exe = "src/Maui/bin/Debug/net10.0-windows10.0.19041.0/win-x64/Perezosoft.Maui.exe"
-          if (-not (Test-Path $exe)) { $exe = Get-ChildItem -Recurse -Path src/Maui/bin -Filter Perezosoft.Maui.exe | Select-Object -First 1 -ExpandProperty FullName }
+          $exe = "src/Maui/bin/Debug/net10.0-windows10.0.19041.0/win-x64/Vuelto.Maui.exe"
+          if (-not (Test-Path $exe)) { $exe = Get-ChildItem -Recurse -Path src/Maui/bin -Filter Vuelto.Maui.exe | Select-Object -First 1 -ExpandProperty FullName }
           $app = Start-Process -FilePath $exe -PassThru
           Write-Host "Waiting for the login page's provider probe (app pid $($app.Id))..."
 
@@ -612,14 +612,14 @@ jobs:
           df -h / | tail -1
 
       - name: Install the MAUI workloads (host-aware)
-        run: dotnet workload restore src/Maui/Perezosoft.Maui.csproj --version 10.0.400.1
+        run: dotnet workload restore src/Maui/Vuelto.Maui.csproj --version 10.0.400.1
 
       - name: Build the app (self-contained APK) + API + smoke deps
         run: |
-          dotnet build src/Maui/Perezosoft.Maui.csproj -f net10.0-android -c Debug \
+          dotnet build src/Maui/Vuelto.Maui.csproj -f net10.0-android -c Debug \
             -p:AcceptAndroidSDKLicenses=true -p:EmbedAssembliesIntoApk=true
-          dotnet restore src/Api/Perezosoft.Api.csproj --locked-mode
-          dotnet build src/Api/Perezosoft.Api.csproj -c Debug --no-restore
+          dotnet restore src/Api/Vuelto.Api.csproj --locked-mode
+          dotnet build src/Api/Vuelto.Api.csproj -c Debug --no-restore
           npm ci --prefix tests/native-smoke-android
 
       - name: Enable KVM (hardware-accelerated emulator)
@@ -681,7 +681,7 @@ jobs:
           # platform-tools was installed by sdkmanager this job — it is NOT on the runner's PATH
           # (run 4 died with `adb: command not found`); the Node smoke needs adb reachable too.
           export PATH="$ANDROID_HOME/platform-tools:$PATH"
-          dotnet run --project src/Api/Perezosoft.Api.csproj -c Debug --no-build --urls http://localhost:5238 > api.log 2>&1 &
+          dotnet run --project src/Api/Vuelto.Api.csproj -c Debug --no-build --urls http://localhost:5238 > api.log 2>&1 &
 
           echo "Waiting for the API…"
           for i in $(seq 1 60); do
@@ -691,19 +691,19 @@ jobs:
           done
           [ "$api" = "200" ] || { echo "::error::API did not become ready"; tail -60 api.log; exit 1; }
 
-          adb install -r src/Maui/bin/Debug/net10.0-android/com.perezosoft.platform-Signed.apk
+          adb install -r src/Maui/bin/Debug/net10.0-android/com.perezosoft.vuelto-Signed.apk
           # The app's compiled Android base URL is http://localhost:5238 — adb reverse maps the
           # emulator's localhost:5238 back to this runner (same trick as local dev).
           adb reverse tcp:5238 tcp:5238
-          adb shell monkey -p com.perezosoft.platform -c android.intent.category.LAUNCHER 1
+          adb shell monkey -p com.perezosoft.vuelto -c android.intent.category.LAUNCHER 1
 
           echo "Waiting for the app process…"
           for i in $(seq 1 20); do
-            pid=$(adb shell pidof com.perezosoft.platform | tr -d '\r')
+            pid=$(adb shell pidof com.perezosoft.vuelto | tr -d '\r')
             [ -n "$pid" ] && { echo "app pid $pid"; break; }
             sleep 3
           done
-          [ -n "$pid" ] || { echo "::error::the app never started (fast-deployment APK? startup crash?)"; timeout 60 adb logcat -d | grep -iE "perezosoft|FATAL" | tail -40; exit 1; }
+          [ -n "$pid" ] || { echo "::error::the app never started (fast-deployment APK? startup crash?)"; timeout 60 adb logcat -d | grep -iE "vuelto|FATAL" | tail -40; exit 1; }
 
           node tests/native-smoke-android/smoke.js
 
@@ -721,7 +721,7 @@ jobs:
           # timeout: with a half-dead emulator, adb logcat can block forever — the boot step's
           # "nothing here may block without a deadline" rule applies to diagnostics too (a hung
           # diagnostics step sat 30+ min on 2026-08-24 until it was cancelled by hand).
-          timeout 60 adb logcat -d 2>/dev/null | grep -iE "perezosoft|FATAL|blazor|chromium" | tail -n 120 || true
+          timeout 60 adb logcat -d 2>/dev/null | grep -iE "vuelto|FATAL|blazor|chromium" | tail -n 120 || true
 
   # End-to-end tests (v2 audit B8-5). Boots the REAL stack — Postgres + Mailpit (service containers) +
   # the API + the Blazor WASM Web app — and drives a headless Chromium through the QA smoke journeys,
@@ -758,15 +758,15 @@ jobs:
 
       - name: Restore (locked mode)
         run: |
-          dotnet restore src/Api/Perezosoft.Api.csproj --locked-mode
-          dotnet restore src/Web/Perezosoft.Web.csproj --locked-mode
-          dotnet restore tests/E2E.Tests/Perezosoft.E2E.Tests.csproj --locked-mode
+          dotnet restore src/Api/Vuelto.Api.csproj --locked-mode
+          dotnet restore src/Web/Vuelto.Web.csproj --locked-mode
+          dotnet restore tests/E2E.Tests/Vuelto.E2E.Tests.csproj --locked-mode
 
       - name: Build API + Web + E2E
         run: |
-          dotnet build src/Api/Perezosoft.Api.csproj -c Debug --no-restore
-          dotnet build src/Web/Perezosoft.Web.csproj -c Debug --no-restore
-          dotnet build tests/E2E.Tests/Perezosoft.E2E.Tests.csproj -c Debug --no-restore
+          dotnet build src/Api/Vuelto.Api.csproj -c Debug --no-restore
+          dotnet build src/Web/Vuelto.Web.csproj -c Debug --no-restore
+          dotnet build tests/E2E.Tests/Vuelto.E2E.Tests.csproj -c Debug --no-restore
 
       - name: Install Chromium (Playwright)
         run: pwsh tests/E2E.Tests/bin/Debug/net10.0/playwright.ps1 install --with-deps chromium
@@ -791,8 +791,8 @@ jobs:
           Auth__AppBaseUrl: "http://localhost:5169"
         run: |
           set -e
-          dotnet run --project src/Api/Perezosoft.Api.csproj -c Debug --no-build --urls http://localhost:5238 > api.log 2>&1 &
-          dotnet run --project src/Web/Perezosoft.Web.csproj -c Debug --no-build --urls http://localhost:5169 > web.log 2>&1 &
+          dotnet run --project src/Api/Vuelto.Api.csproj -c Debug --no-build --urls http://localhost:5238 > api.log 2>&1 &
+          dotnet run --project src/Web/Vuelto.Web.csproj -c Debug --no-build --urls http://localhost:5169 > web.log 2>&1 &
 
           echo "Waiting for API + Web…"
           for i in $(seq 1 60); do
@@ -805,7 +805,7 @@ jobs:
 
           PLAYWRIGHT_BASE_URL=http://localhost:5169 MAILPIT_BASE_URL=http://localhost:8025 \
             E2E_API_BASE_URL=http://localhost:5238 \
-            dotnet test tests/E2E.Tests/Perezosoft.E2E.Tests.csproj -c Debug --no-build
+            dotnet test tests/E2E.Tests/Vuelto.E2E.Tests.csproj -c Debug --no-build
 
       - name: Server logs (on failure)
         if: failure()

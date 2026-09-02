@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Configuration;
 
-namespace Perezosoft.Api.Configuration;
+namespace Vuelto.Api.Configuration;
 
 /// <summary>
 /// Provides typed configuration settings from IConfiguration.
@@ -16,7 +16,7 @@ public class JwtSettings : IJwtSettings
     {
         SecretKey = config["Jwt:Secret"]
             ?? throw new InvalidOperationException("Jwt:Secret not configured (set Jwt__Secret in .env for dev)");
-        Issuer = config["Jwt:Issuer"] ?? "Perezosoft";
+        Issuer = config["Jwt:Issuer"] ?? "Vuelto";
         ExpiryMinutes = config.GetValue("Jwt:ExpiryMinutes", 60);
 
         const int MinSecretKeyLength = 32;

@@ -1,4 +1,4 @@
-namespace Perezosoft.Core.Entities;
+namespace Vuelto.Core.Entities;
 
 /// <summary>
 /// A dedup ledger entry for an inbound at-least-once delivery (e.g. a Stripe webhook). Recording a

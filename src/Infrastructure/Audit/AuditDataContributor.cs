@@ -1,9 +1,9 @@
 using Microsoft.EntityFrameworkCore;
-using Perezosoft.Core.Abstractions;
-using Perezosoft.Core.Entities;
-using Perezosoft.Core.Repositories;
+using Vuelto.Core.Abstractions;
+using Vuelto.Core.Entities;
+using Vuelto.Core.Repositories;
 
-namespace Perezosoft.Infrastructure.Audit;
+namespace Vuelto.Infrastructure.Audit;
 
 /// <summary>
 /// Tenant-data hook so the audit trail participates in tenant dissolve (OBS-4, ADR-008). Uses the

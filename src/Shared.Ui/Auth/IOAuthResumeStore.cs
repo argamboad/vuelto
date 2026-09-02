@@ -1,4 +1,4 @@
-namespace Perezosoft.Shared.Ui.Auth;
+namespace Vuelto.Shared.Ui.Auth;
 
 /// <summary>
 /// A persisted "OAuth browser round-trip in flight" marker (NATIVE-12). Written just

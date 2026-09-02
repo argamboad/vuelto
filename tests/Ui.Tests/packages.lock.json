@@ -421,7 +421,7 @@
           "xunit.extensibility.core": "[2.9.3]"
         }
       },
-      "perezosoft.shared.ui": {
+      "vuelto.shared.ui": {
         "type": "Project",
         "dependencies": {
           "Microsoft.AspNetCore.Components.Authorization": "[10.0.11, )",

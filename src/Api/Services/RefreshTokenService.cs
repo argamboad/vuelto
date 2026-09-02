@@ -1,8 +1,8 @@
-using Perezosoft.Api.Configuration;
-using Perezosoft.Core.Entities;
-using Perezosoft.Core.Repositories;
+using Vuelto.Api.Configuration;
+using Vuelto.Core.Entities;
+using Vuelto.Core.Repositories;
 
-namespace Perezosoft.Api.Services;
+namespace Vuelto.Api.Services;
 
 /// <summary>
 /// Result of issuing a refresh token. The raw token goes to the client cookie;

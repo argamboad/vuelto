@@ -1,6 +1,6 @@
-using Perezosoft.Core.Entities;
+using Vuelto.Core.Entities;
 
-namespace Perezosoft.Core.Repositories;
+namespace Vuelto.Core.Repositories;
 
 /// <summary>
 /// Persists single-use passwordless credentials (magic-link tokens and OTP codes).

@@ -1,4 +1,4 @@
-namespace Perezosoft.Core.Entities;
+namespace Vuelto.Core.Entities;
 
 /// <summary>
 /// A tenant's outbound webhook subscription (HOOKS, ADR-016): "POST me at <see cref="Url"/> when one of

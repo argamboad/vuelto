@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Components.WebAssembly.Http;
 
-namespace Perezosoft.Web.Http;
+namespace Vuelto.Web.Http;
 
 // Attaches credentials (cookies) to every API request so the auth cookie is sent.
 // Required for cross-origin fetch in Blazor WASM — the browser won't include cookies

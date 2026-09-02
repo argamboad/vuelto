@@ -1,6 +1,6 @@
-using Perezosoft.Api.Services;
+using Vuelto.Api.Services;
 
-namespace Perezosoft.Api.Tests;
+namespace Vuelto.Api.Tests;
 
 /// <summary>
 /// v3 audit TB-AUTH-8 (T44): direct coverage for <see cref="TokenHasher"/> — the hash every refresh

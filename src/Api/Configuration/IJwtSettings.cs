@@ -1,4 +1,4 @@
-namespace Perezosoft.Api.Configuration;
+namespace Vuelto.Api.Configuration;
 
 /// <summary>
 /// JWT token configuration settings.
@@ -28,7 +28,7 @@ public interface IApplicationSettings
 
     /// <summary>
     /// Custom URL scheme a native (mobile) client registers for the OAuth callback,
-    /// e.g. "perezosoft". Empty when unused. Desktop uses loopback HTTP instead, so
+    /// e.g. "vuelto". Empty when unused. Desktop uses loopback HTTP instead, so
     /// this stays empty until the Android slice. Validated as an allowed native
     /// redirect target alongside loopback addresses.
     /// </summary>

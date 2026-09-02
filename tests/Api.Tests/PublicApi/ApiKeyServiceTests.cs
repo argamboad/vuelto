@@ -1,11 +1,11 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Time.Testing;
-using Perezosoft.Api.Services;
-using Perezosoft.Api.Tests.Infrastructure;
-using Perezosoft.Core.Entities;
-using Perezosoft.Infrastructure.Repositories;
+using Vuelto.Api.Services;
+using Vuelto.Api.Tests.Infrastructure;
+using Vuelto.Core.Entities;
+using Vuelto.Infrastructure.Repositories;
 
-namespace Perezosoft.Api.Tests.PublicApi;
+namespace Vuelto.Api.Tests.PublicApi;
 
 /// <summary>
 /// Drives PUBAPI (ADR-015): tenant API keys. Create returns the raw key once and stores only its hash;
@@ -161,6 +161,6 @@ public class ApiKeyServiceTests(PostgresFixture fixture) : PostgresTestBase(fixt
         Assert.Equal("mine", keys[0].Name);
     }
 
-    private static ApiKeyService Build(Perezosoft.Infrastructure.Persistence.AppDbContext db, TimeProvider? clock = null) =>
+    private static ApiKeyService Build(Vuelto.Infrastructure.Persistence.AppDbContext db, TimeProvider? clock = null) =>
         new(new EfRepository<ApiKey>(db), new TokenGenerator(), new TokenHasher(), new TestCurrentTenant(), clock ?? TimeProvider.System);
 }

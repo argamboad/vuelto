@@ -3,9 +3,9 @@ using Amazon.Runtime;
 using Amazon.S3;
 using Amazon.S3.Model;
 using Microsoft.Extensions.Options;
-using Perezosoft.Core.Abstractions;
+using Vuelto.Core.Abstractions;
 
-namespace Perezosoft.Infrastructure.Files;
+namespace Vuelto.Infrastructure.Files;
 
 /// <summary>
 /// S3-compatible <see cref="IFileStorage"/> (ADR-010) — the production backend, selected when

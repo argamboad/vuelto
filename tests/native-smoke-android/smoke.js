@@ -9,7 +9,7 @@
 // http://localhost:5238, Mailpit on MAILPIT_BASE_URL (default http://localhost:8025).
 const { _android } = require('playwright-core');
 
-const PKG = process.env.NATIVE_SMOKE_PKG || 'com.perezosoft.platform';
+const PKG = process.env.NATIVE_SMOKE_PKG || 'com.perezosoft.vuelto';
 const MAILPIT = process.env.MAILPIT_BASE_URL || 'http://localhost:8025';
 
 async function mailpit(path, init) {

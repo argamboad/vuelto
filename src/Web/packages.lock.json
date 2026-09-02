@@ -313,7 +313,7 @@
           "Microsoft.JSInterop": "10.0.11"
         }
       },
-      "perezosoft.shared.ui": {
+      "vuelto.shared.ui": {
         "type": "Project",
         "dependencies": {
           "Microsoft.AspNetCore.Components.Authorization": "[10.0.11, )",

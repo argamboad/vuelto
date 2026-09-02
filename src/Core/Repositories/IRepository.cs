@@ -1,4 +1,4 @@
-namespace Perezosoft.Core.Repositories;
+namespace Vuelto.Core.Repositories;
 
 /// <summary>
 /// A thin generic repository for FEATURE/domain entities, so a vertical slice can read and

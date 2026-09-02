@@ -1,4 +1,4 @@
-namespace Perezosoft.Shared.Ui.Auth;
+namespace Vuelto.Shared.Ui.Auth;
 
 public static class AppClaims
 {
@@ -7,7 +7,7 @@ public static class AppClaims
     public const string Theme = "theme";
 
     // Server-issued; read API-side to scope tenant queries. Listed here so the claim
-    // names stay in one inventory (see Perezosoft.Api.Services.JwtTokenService).
+    // names stay in one inventory (see Vuelto.Api.Services.JwtTokenService).
     public const string TenantId = "tenant_id";
 
     // Present only on an admin "sign in as" token (ADR-014): the staff user id behind

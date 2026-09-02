@@ -1,4 +1,4 @@
-namespace Perezosoft.Core.Entities;
+namespace Vuelto.Core.Entities;
 
 /// <summary>
 /// A per-user in-app notification (NOTIFY-1, ADR-013). Keyed by <see cref="UserId"/> — the ADR-C2

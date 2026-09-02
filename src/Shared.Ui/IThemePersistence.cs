@@ -1,4 +1,4 @@
-namespace Perezosoft.Shared.Ui;
+namespace Vuelto.Shared.Ui;
 
 /// <summary>
 /// Persists the user's chosen UI theme so the next cold start can re-apply it before first

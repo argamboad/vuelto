@@ -3,14 +3,14 @@ using System.Text.Json;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
-using Perezosoft.Api.Services;
-using Perezosoft.Api.Tests.Infrastructure;
-using Perezosoft.Core.Entities;
-using Perezosoft.Infrastructure.Outbox;
-using Perezosoft.Infrastructure.Repositories;
-using Perezosoft.Infrastructure.Webhooks;
+using Vuelto.Api.Services;
+using Vuelto.Api.Tests.Infrastructure;
+using Vuelto.Core.Entities;
+using Vuelto.Infrastructure.Outbox;
+using Vuelto.Infrastructure.Repositories;
+using Vuelto.Infrastructure.Webhooks;
 
-namespace Perezosoft.Api.Tests.Webhooks;
+namespace Vuelto.Api.Tests.Webhooks;
 
 /// <summary>
 /// Drives HOOKS-2 (ADR-016): the delivery log + replay. The outbox handler records one
@@ -263,7 +263,7 @@ public class WebhookDeliveryLogTests(PostgresFixture fixture) : PostgresTestBase
     };
 
     private static WebhookSubscriptionService BuildService(
-        Perezosoft.Infrastructure.Persistence.AppDbContext db, Guid tenant,
+        Vuelto.Infrastructure.Persistence.AppDbContext db, Guid tenant,
         WebhookSecretProtector? protector = null, IWebhookSender? sender = null) =>
         new(new EfRepository<WebhookSubscription>(db), new EfRepository<WebhookDelivery>(db),
             new EfOutbox(db, TimeProvider.System), new TestCurrentTenant { TenantId = tenant },

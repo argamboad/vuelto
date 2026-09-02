@@ -1,7 +1,7 @@
 using System.Net.Http.Headers;
-using Perezosoft.Shared.Ui.Auth;
+using Vuelto.Shared.Ui.Auth;
 
-namespace Perezosoft.Web.Http;
+namespace Vuelto.Web.Http;
 
 // Attaches the in-memory JWT access token as a Bearer header on every API request.
 public class AuthHeaderHandler(AuthService auth) : DelegatingHandler

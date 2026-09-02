@@ -1,8 +1,8 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
-using Perezosoft.Core.Abstractions;
+using Vuelto.Core.Abstractions;
 
-namespace Perezosoft.Infrastructure.Billing;
+namespace Vuelto.Infrastructure.Billing;
 
 /// <summary>
 /// In-memory <see cref="IBillingProvider"/> for tests and for dev when no Stripe key is configured

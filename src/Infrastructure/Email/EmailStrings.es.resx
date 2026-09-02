@@ -51,19 +51,19 @@
   <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
   <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
   <data name="Otp_Subject" xml:space="preserve"><value>Tu código de verificación</value></data>
-  <data name="Otp_Preheader" xml:space="preserve"><value>Tu código de Perezosoft: {0}</value></data>
+  <data name="Otp_Preheader" xml:space="preserve"><value>Tu código de ¿Y el vuelto?: {0}</value></data>
   <data name="Otp_Heading" xml:space="preserve"><value>Tu código de verificación</value></data>
   <data name="Otp_Body" xml:space="preserve"><value>Introduce este código para terminar de iniciar sesión. Caduca en {0} minutos.</value></data>
   <data name="MagicLink_Subject" xml:space="preserve"><value>Tu enlace de acceso</value></data>
-  <data name="MagicLink_Preheader" xml:space="preserve"><value>Tu enlace de acceso a Perezosoft</value></data>
-  <data name="MagicLink_Heading" xml:space="preserve"><value>Inicia sesión en Perezosoft</value></data>
+  <data name="MagicLink_Preheader" xml:space="preserve"><value>Tu enlace de acceso a ¿Y el vuelto?</value></data>
+  <data name="MagicLink_Heading" xml:space="preserve"><value>Inicia sesión en ¿Y el vuelto?</value></data>
   <data name="MagicLink_Body" xml:space="preserve"><value>Haz clic en el botón de abajo para iniciar sesión. Este enlace caduca en {0} minutos.</value></data>
   <data name="MagicLink_Button" xml:space="preserve"><value>Iniciar sesión</value></data>
   <data name="MagicLink_OrPaste" xml:space="preserve"><value>O pega este enlace en tu navegador:</value></data>
   <data name="Invitation_Subject" xml:space="preserve"><value>Te han invitado a un hogar</value></data>
-  <data name="Invitation_Preheader" xml:space="preserve"><value>Te han invitado a un hogar en Perezosoft</value></data>
+  <data name="Invitation_Preheader" xml:space="preserve"><value>Te han invitado a un hogar en ¿Y el vuelto?</value></data>
   <data name="Invitation_Heading" xml:space="preserve"><value>Te han invitado</value></data>
-  <data name="Invitation_Body" xml:space="preserve"><value>Alguien te ha invitado a unirte a su hogar en Perezosoft. Acepta abajo para empezar.</value></data>
+  <data name="Invitation_Body" xml:space="preserve"><value>Alguien te ha invitado a unirte a su hogar en ¿Y el vuelto? Acepta abajo para empezar.</value></data>
   <data name="Invitation_Button" xml:space="preserve"><value>Aceptar invitación</value></data>
   <data name="Invitation_OrToken" xml:space="preserve"><value>O usa este token para unirte manualmente:</value></data>
   <data name="Common_IgnoreNote" xml:space="preserve"><value>Si no solicitaste esto, puedes ignorar este correo de forma segura.</value></data>

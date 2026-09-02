@@ -7,7 +7,7 @@
 # Postgres (Neon) + SMTP (Brevo); see docs/DEPLOYMENT.md.
 services:
   - type: web
-    name: template-staging
+    name: vuelto-staging
     runtime: docker
     dockerfilePath: ./Dockerfile
     plan: free
@@ -40,7 +40,7 @@ services:
       - key: Email__Smtp__FromAddress
         sync: false                 # REQUIRED — a Brevo-VERIFIED sender address, else sends are rejected
       - key: Email__Smtp__FromName
-        value: Perezosoft           # display name on outgoing mail — rename per your brand
+        value: "¿Y el vuelto?"           # display name on outgoing mail — rename per your brand
       # ── Optional — uncomment/set to enable ──
       # - key: Authentication__Google__ClientId
       #   sync: false

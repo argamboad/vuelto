@@ -1,10 +1,10 @@
-namespace Perezosoft.Core.Entities;
+namespace Vuelto.Core.Entities;
 
 /// <summary>
 /// A durable record of a side effect to perform out-of-band (email, a webhook call, …). It is
 /// written in the SAME transaction as the business change that produced it, so the effect is
 /// atomic with the data — no "saved the row but lost the email" (ADR-007). The
-/// <c>OutboxDispatcher</c> then delivers it via the matching <see cref="Perezosoft.Core.Abstractions.IOutboxHandler"/>.
+/// <c>OutboxDispatcher</c> then delivers it via the matching <see cref="Vuelto.Core.Abstractions.IOutboxHandler"/>.
 /// <para>
 /// Deliberately NOT <c>ITenantScoped</c>: the outbox is platform infrastructure and may carry
 /// system (tenant-less) effects, so it is outside the global tenant query filter. The optional

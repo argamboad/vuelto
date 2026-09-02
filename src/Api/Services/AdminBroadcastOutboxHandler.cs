@@ -1,9 +1,9 @@
 using System.Text.Json;
-using Perezosoft.Core.Abstractions;
-using Perezosoft.Core.Entities;
-using Perezosoft.Core.Repositories;
+using Vuelto.Core.Abstractions;
+using Vuelto.Core.Entities;
+using Vuelto.Core.Repositories;
 
-namespace Perezosoft.Api.Services;
+namespace Vuelto.Api.Services;
 
 /// <summary>The outbox payload for a platform-wide staff broadcast (ADMIN-3): the announcement copy plus
 /// the acting staff id, fanned out to every user by <see cref="AdminBroadcastOutboxHandler"/>. The
