@@ -1,14 +1,14 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Time.Testing;
 using Npgsql;
-using Perezosoft.Api.Services;
-using Perezosoft.Api.Tests.Infrastructure;
-using Perezosoft.Core.Billing;
-using Perezosoft.Core.Entities;
-using Perezosoft.Core.Repositories;
-using Perezosoft.Infrastructure.Repositories;
+using Vuelto.Api.Services;
+using Vuelto.Api.Tests.Infrastructure;
+using Vuelto.Core.Billing;
+using Vuelto.Core.Entities;
+using Vuelto.Core.Repositories;
+using Vuelto.Infrastructure.Repositories;
 
-namespace Perezosoft.Api.Tests.Billing;
+namespace Vuelto.Api.Tests.Billing;
 
 /// <summary>
 /// Drives BILLING-5 (ADR-006): plan **quotas** — seats (members + pending invites vs the plan's seat
@@ -258,7 +258,7 @@ public class QuotaServiceTests(PostgresFixture fixture) : PostgresTestBase(fixtu
 
     // --- helpers ---
 
-    private static QuotaService BuildQuota(Perezosoft.Infrastructure.Persistence.AppDbContext db, Guid tenant, TimeProvider? clock = null) =>
+    private static QuotaService BuildQuota(Vuelto.Infrastructure.Persistence.AppDbContext db, Guid tenant, TimeProvider? clock = null) =>
         new(new EfRepository<Subscription>(db), new TenantRepository(db), new TenantInvitationRepository(db),
             new EfRepository<UsageCounter>(db), new TestCurrentTenant { TenantId = tenant }, clock ?? TimeProvider.System);
 

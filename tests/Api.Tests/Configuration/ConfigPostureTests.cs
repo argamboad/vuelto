@@ -1,8 +1,8 @@
 using Microsoft.Extensions.Configuration;
-using Perezosoft.Api.Configuration;
-using Perezosoft.Infrastructure.Files;
+using Vuelto.Api.Configuration;
+using Vuelto.Infrastructure.Files;
 
-namespace Perezosoft.Api.Tests.Configuration;
+namespace Vuelto.Api.Tests.Configuration;
 
 /// <summary>
 /// v3 audit S0-G3: every config-gated feature must be CLOSED under empty configuration — the "opt-in

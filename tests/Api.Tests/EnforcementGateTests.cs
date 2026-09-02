@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
-namespace Perezosoft.Api.Tests;
+namespace Vuelto.Api.Tests;
 
 /// <summary>
 /// v3 audit T60 (Group L): the last three [machine] rules from FOUNDATION_RULES_v2 that had no

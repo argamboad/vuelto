@@ -1,4 +1,4 @@
-namespace Perezosoft.Infrastructure.Outbox;
+namespace Vuelto.Infrastructure.Outbox;
 
 /// <summary>
 /// Tuning for the outbox dispatcher. Defaults are sensible for the in-process baseline; bind from

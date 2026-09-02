@@ -1,10 +1,10 @@
 using System.Reflection;
 using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
-using Perezosoft.Core.Abstractions;
-using Perezosoft.Core.Entities;
+using Vuelto.Core.Abstractions;
+using Vuelto.Core.Entities;
 
-namespace Perezosoft.Infrastructure.Persistence;
+namespace Vuelto.Infrastructure.Persistence;
 
 public class AppDbContext : DbContext, IDataProtectionKeyContext
 {
@@ -80,9 +80,6 @@ public class AppDbContext : DbContext, IDataProtectionKeyContext
     // Append-only tenant audit trail (ADR-008). ITenantScoped (auto-filtered per tenant); writes are
     // append-only via AuditAppendOnlyInterceptor.
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
-
-    // 🗑️ DELETE-ME: sample feature set (remove with the Features/Notes slice).
-    public DbSet<Note> Notes => Set<Note>();
 
     // Tenant isolation is structural in BOTH directions: the global query filter (below)
     // scopes reads, and this interceptor scopes writes — stamping the current tenant onto

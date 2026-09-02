@@ -1,7 +1,7 @@
 using Microsoft.Playwright;
 using NUnit.Framework;
 
-namespace Perezosoft.E2E.Tests;
+namespace Vuelto.E2E.Tests;
 
 /// <summary>
 /// Native smoke (NATIVE-7, ADR-018): drives the REAL MAUI app over the Chrome DevTools Protocol —

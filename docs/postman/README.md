@@ -1,4 +1,4 @@
-# Postman collection — Perezosoft Platform API
+# Postman collection — Vuelto API
 
 Complete, chained collection covering **every HTTP surface** of the platform: health/meta,
 passwordless sign-in (+ MFA step-up), account/sessions, MFA management, household (members,
@@ -18,9 +18,9 @@ Postman; everything else is executable and chained.
 
 | File | Becomes in Postman |
 |------|-----------|
-| `Perezosoft.postman_collection.json` | Collection (v2.1) — one collection for **all** environments |
-| `Perezosoft.local.postman_environment.json` | Environment "Perezosoft — local dev" |
-| `Perezosoft.staging.postman_environment.json` | Environment "Perezosoft — staging (Render)" |
+| `Vuelto.postman_collection.json` | Collection (v2.1) — one collection for **all** environments |
+| `Vuelto.local.postman_environment.json` | Environment "Vuelto — local dev" |
+| `Vuelto.staging.postman_environment.json` | Environment "Vuelto — staging (Render)" |
 
 ## Workspace sync — git → Postman, automatic (no export/import)
 
@@ -70,7 +70,7 @@ instead). **Admin** requires your email in that environment's `Admin__StaffEmail
 
 1. `docker compose up -d` (Postgres + Mailpit) and run the API with the **https** profile
    (`dotnet run --project src/Api --launch-profile https` → `https://localhost:7160`).
-2. Import the collection + both environments, select **Perezosoft — local dev**.
+2. Import the collection + both environments, select **Vuelto — local dev**.
 3. **SMTP must point at Mailpit** (`localhost:1025`). If your local `.env` overrides SMTP to a
    real provider (e.g. Brevo), switch it back — the OTP auto-fetch reads Mailpit's API.
 4. For `https://localhost` allow self-signed certs: Postman → Settings → General → **SSL

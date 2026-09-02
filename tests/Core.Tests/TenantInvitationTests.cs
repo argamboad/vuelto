@@ -1,6 +1,6 @@
-using Perezosoft.Core.Entities;
+using Vuelto.Core.Entities;
 
-namespace Perezosoft.Core.Tests;
+namespace Vuelto.Core.Tests;
 
 /// <summary>
 /// Boundary tests for <see cref="TenantInvitation"/>'s derived rules, evaluated against an explicit

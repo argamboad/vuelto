@@ -1,4 +1,4 @@
-namespace Perezosoft.Shared.Ui.Auth;
+namespace Vuelto.Shared.Ui.Auth;
 
 /// <summary>What became of an OAuth flow resumed after process death (NATIVE-12).</summary>
 public enum OAuthResumeOutcome

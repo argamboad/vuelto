@@ -1,9 +1,9 @@
 using Microsoft.EntityFrameworkCore;
-using Perezosoft.Core.Entities;
-using Perezosoft.Core.Repositories;
-using Perezosoft.Infrastructure.Persistence;
+using Vuelto.Core.Entities;
+using Vuelto.Core.Repositories;
+using Vuelto.Infrastructure.Persistence;
 
-namespace Perezosoft.Infrastructure.Repositories;
+namespace Vuelto.Infrastructure.Repositories;
 
 /// <summary>
 /// EF Core implementation of <see cref="IUserRepository"/>.

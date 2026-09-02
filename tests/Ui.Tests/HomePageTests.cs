@@ -1,9 +1,9 @@
 using Bunit;
 using Xunit;
-using Perezosoft.Shared.Ui.Pages;
-using Perezosoft.Ui.Tests.Infrastructure;
+using Vuelto.Shared.Ui.Pages;
+using Vuelto.Ui.Tests.Infrastructure;
 
-namespace Perezosoft.Ui.Tests;
+namespace Vuelto.Ui.Tests;
 
 /// <summary>
 /// Proves the component-test chassis (v3 TOOL-2): renders the REAL <see cref="Home"/> page against the

@@ -1,6 +1,6 @@
-using Perezosoft.Core.Entities;
+using Vuelto.Core.Entities;
 
-namespace Perezosoft.Core.Repositories;
+namespace Vuelto.Core.Repositories;
 
 /// <summary>
 /// Repository abstraction for user data access.

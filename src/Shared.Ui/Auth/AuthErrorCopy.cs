@@ -1,4 +1,4 @@
-namespace Perezosoft.Shared.Ui.Auth;
+namespace Vuelto.Shared.Ui.Auth;
 
 /// <summary>
 /// Maps a server auth error code to the resource key for the message to show. Shared by every

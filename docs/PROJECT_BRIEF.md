@@ -3,7 +3,7 @@
 > The lean PRD. Why this exists, what it is, what it is *not* (yet). The structure and the
 > multi-tenant framing are constant; the content is the app.
 >
-> **Provenance.** This app is a **continuation port** of `vuelto/phase2` (the donor repo,
+> **Provenance.** This app is a **continuation port** of `vuelto-legacy/phase2` (the donor repo,
 > frozen at its 2026-09-02 state) onto the Perezosoft platform. The donor's PRD v2.0, TDD v2.0,
 > ADR-0001–0027 and 56 shipped stories are the source of truth for *what* the product does;
 > this doc set is their translation into the platform's shape. See ADR-V001.
@@ -108,7 +108,7 @@ Everything the donor shipped (Slices 1–6 and 8 + hardening), re-homed as platf
 - **Nothing partial.** A rejected transaction never leaves an empty month; a failed voucher confirm
   never leaves an orphan; a refund flip creates exactly one inflow (conditional updates + savepoints).
 - **Extend the platform, never modify it.** Anything the platform lacks that is *generic* goes
-  upstream as a `perezosoft-platform` PR first; anything Vuelto-specific is solved here by extension.
+  upstream as a `perezosoft-platform` PR first; anything vuelto-specific is solved here by extension.
 
 ## Related docs
 - `FEATURES.md` — concrete user flows and behavior.
@@ -116,5 +116,5 @@ Everything the donor shipped (Slices 1–6 and 8 + hardening), re-homed as platf
 - `TECH_STACK.md` — stack & architecture (mostly constant).
 - `DECISIONS.md` — ADR log (platform ADRs + the app's `ADR-V…` series).
 - `../CLAUDE.md` — operating manual for Claude Code (repo root).
-- Donor repo (`vuelto`, read-only reference): `docs/Vuelto_PRD_v2.0.md`, `docs/Vuelto_TDD_v2.0.md`,
+- Donor repo (`vuelto-legacy`, read-only reference): `docs/Vuelto_PRD_v2.0.md`, `docs/Vuelto_TDD_v2.0.md`,
   `docs/decisions.md`, `docs/stories/US-001…056.md`, `docs/qa/manual-qa-guide.md`.

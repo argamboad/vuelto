@@ -1,6 +1,6 @@
-using Perezosoft.Core.Authorization;
+using Vuelto.Core.Authorization;
 
-namespace Perezosoft.Core.Abstractions;
+namespace Vuelto.Core.Abstractions;
 
 /// <summary>
 /// Answers "does the current caller's tenant role grant this <see cref="Permission"/>?" for the

@@ -1,10 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
-using Perezosoft.Api.Tests.Infrastructure;
-using Perezosoft.Infrastructure.Persistence;
+using Vuelto.Api.Tests.Infrastructure;
+using Vuelto.Infrastructure.Persistence;
 using Testcontainers.PostgreSql;
 
-namespace Perezosoft.Api.Tests.Rls;
+namespace Vuelto.Api.Tests.Rls;
 
 /// <summary>
 /// Proves the RLS migration-parity gate (<see cref="RlsMigrationGateTests"/>) actually FAILS for a missing

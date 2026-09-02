@@ -1,8 +1,8 @@
 using System.Security.Cryptography;
 using Microsoft.AspNetCore.DataProtection;
-using Perezosoft.Core.Abstractions;
+using Vuelto.Core.Abstractions;
 
-namespace Perezosoft.Infrastructure.Files;
+namespace Vuelto.Infrastructure.Files;
 
 /// <summary>
 /// Signs local-disk download tokens with the Data Protection stack's

@@ -1,8 +1,8 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.DependencyInjection;
-using Perezosoft.Api.Authentication;
+using Vuelto.Api.Authentication;
 
-namespace Perezosoft.Api.Configuration;
+namespace Vuelto.Api.Configuration;
 
 /// <summary>
 /// The named authorization policies. <see cref="TenantApi"/> is the JWT-authenticated tenant policy shared

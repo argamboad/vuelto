@@ -1,13 +1,13 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Time.Testing;
-using Perezosoft.Api.Tests.Infrastructure;
-using Perezosoft.Core.Entities;
+using Vuelto.Api.Tests.Infrastructure;
+using Vuelto.Core.Entities;
 
-namespace Perezosoft.Api.Tests;
+namespace Vuelto.Api.Tests;
 
 /// <summary>
 /// Proves the test harness itself works: a real Postgres round-trip through the
-/// production <see cref="Perezosoft.Infrastructure.Persistence.AppDbContext"/>, and a
+/// production <see cref="Vuelto.Infrastructure.Persistence.AppDbContext"/>, and a
 /// controllable clock. These are the two primitives the Phase 2 service tests build on.
 /// </summary>
 [Collection(PostgresCollection.Name)]

@@ -1,4 +1,4 @@
-namespace Perezosoft.Api.Services;
+namespace Vuelto.Api.Services;
 
 /// <summary>
 /// Generates cryptographically secure tokens.

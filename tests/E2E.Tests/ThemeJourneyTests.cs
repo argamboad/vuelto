@@ -1,6 +1,6 @@
 using Microsoft.Playwright;
 
-namespace Perezosoft.E2E.Tests;
+namespace Vuelto.E2E.Tests;
 
 /// <summary>
 /// Dark-mode journey (THEME-1 + PREFS-1, ADR-022): the header switcher flips

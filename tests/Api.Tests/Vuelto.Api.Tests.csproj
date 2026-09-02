@@ -38,12 +38,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Core\Perezosoft.Core.csproj" />
-    <ProjectReference Include="..\..\src\Api\Perezosoft.Api.csproj" />
-    <ProjectReference Include="..\..\src\Infrastructure\Perezosoft.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Core\Vuelto.Core.csproj" />
+    <ProjectReference Include="..\..\src\Api\Vuelto.Api.csproj" />
+    <ProjectReference Include="..\..\src\Infrastructure\Vuelto.Infrastructure.csproj" />
     <!-- Client-side auth logic (AuthService OAuth resume, NATIVE-12) — the RCL has no test
          project of its own; its plain-C# services are unit-tested here. -->
-    <ProjectReference Include="..\..\src\Shared.Ui\Perezosoft.Shared.Ui.csproj" />
+    <ProjectReference Include="..\..\src\Shared.Ui\Vuelto.Shared.Ui.csproj" />
   </ItemGroup>
 
 </Project>

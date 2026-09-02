@@ -1,8 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
-using Perezosoft.Core.Entities;
+using Vuelto.Core.Entities;
 
-namespace Perezosoft.Infrastructure.Persistence;
+namespace Vuelto.Infrastructure.Persistence;
 
 /// <summary>
 /// Write-side half of tenant isolation. The global query filter scopes <em>reads</em>; this

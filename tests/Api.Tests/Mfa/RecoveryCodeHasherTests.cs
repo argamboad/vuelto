@@ -1,7 +1,7 @@
-using Perezosoft.Api.Services;
-using Perezosoft.Api.Tests.Infrastructure;
+using Vuelto.Api.Services;
+using Vuelto.Api.Tests.Infrastructure;
 
-namespace Perezosoft.Api.Tests.Mfa;
+namespace Vuelto.Api.Tests.Mfa;
 
 /// <summary>
 /// v3 audit ADM-4: recovery codes are low-entropy (~49.5 bits), so a leaked hash of a plain unsalted digest

@@ -125,7 +125,7 @@ toolchain instead.
    ```
 6. **MAUI workloads** (from the repo root):
    ```bash
-   sudo dotnet workload restore src/Maui/Perezosoft.Maui.csproj
+   sudo dotnet workload restore src/Maui/Vuelto.Maui.csproj
    ```
 
 ### Phase 2 — bring up the local stack (15 min)
@@ -177,7 +177,7 @@ restart persistence).
    no `adb reverse` equivalent needed.
 4. Run **QA-IOS-01** (boots to login — the G7 validation), **QA-IOS-02** (OTP sign-in),
    **QA-IOS-03** (core-flows spot-check incl. share sheet + language persistence),
-   **QA-IOS-04** (Google OAuth via `ASWebAuthenticationSession` → returns on `perezosoft://auth` —
+   **QA-IOS-04** (Google OAuth via `ASWebAuthenticationSession` → returns on `vuelto://auth` —
    this path has never been exercised anywhere).
 
 ### Phase 5 — record & report
@@ -196,7 +196,7 @@ app that ships, not by the platform.)
 | App loads but sign-in spins / TLS errors (iOS) | Redo Phase 4 step 2 with the simulator **booted**; restart the app |
 | OTP email never arrives | Mailpit running? `docker compose ps`; UI at :8025 |
 | App can't reach the API | API must be on the **https** profile (port 7160); check `/health` in Safari on the Mac |
-| Want to test on a physical iPhone | Different setup (LAN-bound API + `PEREZOSOFT_API_BASE_URL` + free-provisioning signing) — not needed for §13b; ask Claude when ready |
+| Want to test on a physical iPhone | Different setup (LAN-bound API + `VUELTO_API_BASE_URL` + free-provisioning signing) — not needed for §13b; ask Claude when ready |
 
 ## 5. Guide — activate production (~10 min) — ⤵ downstream-app work (ADR-017 amendment, 2026-07-14)
 

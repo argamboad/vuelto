@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace Perezosoft.Api.Models;
+namespace Vuelto.Api.Models;
 
 /// <summary>
 /// OAuth-style token response returned by the token and refresh endpoints.

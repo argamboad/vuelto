@@ -1,13 +1,13 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Perezosoft.Api.Authentication;
-using Perezosoft.Api.Models;
-using Perezosoft.Api.Services;
-using Perezosoft.Core.Abstractions;
-using Perezosoft.Core.Repositories;
+using Vuelto.Api.Authentication;
+using Vuelto.Api.Models;
+using Vuelto.Api.Services;
+using Vuelto.Core.Abstractions;
+using Vuelto.Core.Repositories;
 
-namespace Perezosoft.Api.Controllers;
+namespace Vuelto.Api.Controllers;
 
 /// <summary>
 /// Signed-in account surface: profile, erasure, locale/theme preferences, and OAuth login links.

@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace Perezosoft.Api.Tests;
+namespace Vuelto.Api.Tests;
 
 /// <summary>
 /// v3 audit TR-8 (T56, R75): the DataProtection identity strings are FROZEN. The application name and

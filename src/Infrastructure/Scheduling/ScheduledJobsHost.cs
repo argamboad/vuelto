@@ -1,9 +1,9 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Perezosoft.Core.Abstractions;
+using Vuelto.Core.Abstractions;
 
-namespace Perezosoft.Infrastructure.Scheduling;
+namespace Vuelto.Infrastructure.Scheduling;
 
 /// <summary>
 /// Runs registered <see cref="IScheduledJob"/>s on their own intervals (ADR-007). Wakes every

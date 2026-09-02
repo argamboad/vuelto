@@ -1,7 +1,7 @@
 using Npgsql;
-using Perezosoft.Infrastructure.Persistence;
+using Vuelto.Infrastructure.Persistence;
 
-namespace Perezosoft.Api.Tests.Rls;
+namespace Vuelto.Api.Tests.Rls;
 
 /// <summary>
 /// Inspects a live database's <c>pg_class</c>/<c>pg_policies</c> catalogs and reports every tenant-scoped

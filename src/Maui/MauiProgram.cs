@@ -1,10 +1,10 @@
 ﻿using System.Globalization;
 using Microsoft.Extensions.Logging;
-using Perezosoft.Maui.Auth;
-using Perezosoft.Shared.Ui;
-using Perezosoft.Shared.Ui.Auth;
+using Vuelto.Maui.Auth;
+using Vuelto.Shared.Ui;
+using Vuelto.Shared.Ui.Auth;
 
-namespace Perezosoft.Maui;
+namespace Vuelto.Maui;
 
 public static class MauiProgram
 {
@@ -15,7 +15,7 @@ public static class MauiProgram
 	//    OAuth work: Google/Microsoft accept localhost as a redirect host but reject raw IPs,
 	//    so the provider redirect_uri http://localhost:5238/signin-google is valid (and is
 	//    the same one already registered for the desktop/web flow). See docs/MOBILE_TESTING.md.
-	//  - PEREZOSOFT_API_BASE_URL overrides both (dev builds): the CI native smoke (NATIVE-7)
+	//  - VUELTO_API_BASE_URL overrides both (dev builds): the CI native smoke (NATIVE-7)
 	//    points the app at its plain-HTTP stack, and a physical device can target a LAN API
 	//    without recompiling.
 	//
@@ -25,7 +25,7 @@ public static class MauiProgram
 	// the csproj fails the build if it's unset — surfaced here via AssemblyMetadata.
 	private static string ApiBaseUrl =>
 #if DEBUG
-		Environment.GetEnvironmentVariable("PEREZOSOFT_API_BASE_URL") is { Length: > 0 } o ? o :
+		Environment.GetEnvironmentVariable("VUELTO_API_BASE_URL") is { Length: > 0 } o ? o :
 #if ANDROID
 		"http://localhost:5238";
 #else
@@ -53,9 +53,9 @@ public static class MauiProgram
 	}
 #endif
 
-	// Custom URL scheme the Android app registers for the OAuth callback (perezosoft://auth).
+	// Custom URL scheme the Android app registers for the OAuth callback (vuelto://auth).
 	// Must match the API's Auth:Native:CallbackScheme and the manifest intent filter.
-	private const string CallbackScheme = "perezosoft";
+	private const string CallbackScheme = "vuelto";
 
 	public static MauiApp CreateMauiApp()
 	{

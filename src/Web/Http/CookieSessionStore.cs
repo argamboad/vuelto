@@ -1,6 +1,6 @@
-using Perezosoft.Shared.Ui.Auth;
+using Vuelto.Shared.Ui.Auth;
 
-namespace Perezosoft.Web.Http;
+namespace Vuelto.Web.Http;
 
 /// <summary>
 /// Web <see cref="ISessionStore"/>: the refresh token is an HttpOnly cookie the browser

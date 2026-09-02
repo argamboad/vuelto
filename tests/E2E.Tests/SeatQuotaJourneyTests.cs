@@ -1,8 +1,8 @@
 using System.Text.RegularExpressions;
 using Microsoft.Playwright;
-using Perezosoft.E2E.Tests.Pages;
+using Vuelto.E2E.Tests.Pages;
 
-namespace Perezosoft.E2E.Tests;
+namespace Vuelto.E2E.Tests;
 
 /// <summary>
 /// Billing seat-quota journey (E2E-2): the free plan's seat limit is reachable entirely from the

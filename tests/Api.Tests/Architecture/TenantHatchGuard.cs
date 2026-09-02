@@ -1,6 +1,6 @@
-using Perezosoft.Infrastructure.Persistence;
+using Vuelto.Infrastructure.Persistence;
 
-namespace Perezosoft.Api.Tests.Architecture;
+namespace Vuelto.Api.Tests.Architecture;
 
 /// <summary>
 /// Pure tenant-hatch scanner shared by the ban gate (<c>FeatureSlices_DoNotBypassTheTenantFilter</c>) and

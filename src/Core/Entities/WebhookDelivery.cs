@@ -1,4 +1,4 @@
-namespace Perezosoft.Core.Entities;
+namespace Vuelto.Core.Entities;
 
 /// <summary>
 /// A record of one outbound webhook delivery attempt (HOOKS-2, ADR-016) — the tenant-facing debug trail:

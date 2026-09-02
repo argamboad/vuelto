@@ -8,13 +8,13 @@ smoke path that doesn't need an external OAuth provider.
 
 1. **Backing services** — `docker compose up -d` (Postgres + Mailpit).
 2. **API — must send email to Mailpit, not a real provider.** The dev default
-   (`appsettings.Development.json`) already points at Mailpit (`localhost:1025`). **If your
+   (`appsettings.Development.json`) already points at Mailpit (`localhost:1026` — the vuelto compose stack; the Playwright tests default to Mailpit on `8025`, so set `MAILPIT_BASE_URL=http://localhost:8026` locally). **If your
    repo-root `.env` overrides `Email__Smtp__*` to a real SMTP provider (e.g. Brevo), override
    it back for the test run** via command-line args (command-line config beats `.env`, and
    leaves `.env` untouched):
    ```sh
    dotnet run --project src/Api --launch-profile https -- \
-     --Email:Smtp:Host=localhost --Email:Smtp:Port=1025 --Email:Smtp:Username= --Email:Smtp:Password= \
+     --Email:Smtp:Host=localhost --Email:Smtp:Port=1026 --Email:Smtp:Username= --Email:Smtp:Password= \
      --Auth:RateLimit:PasswordlessPermitLimit=1000 \
      --Admin:StaffEmails:0=e2e-staff@example.com \
      --Billing:Stripe:SecretKey=

@@ -1,6 +1,6 @@
-using Perezosoft.Api.Configuration;
+using Vuelto.Api.Configuration;
 
-namespace Perezosoft.Api.Endpoints;
+namespace Vuelto.Api.Endpoints;
 
 /// <summary>
 /// Shared scaffolding for vertical-slice feature endpoints. <see cref="MapTenantFeatureGroup"/> is

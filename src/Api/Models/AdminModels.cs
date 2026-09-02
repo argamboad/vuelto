@@ -1,7 +1,7 @@
 using System.Text.Json.Serialization;
-using Perezosoft.Core.Repositories;
+using Vuelto.Core.Repositories;
 
-namespace Perezosoft.Api.Models;
+namespace Vuelto.Api.Models;
 
 public record AdminTenantSummaryResponse
 {

@@ -1,4 +1,4 @@
-namespace Perezosoft.Shared.Ui.Resources;
+namespace Vuelto.Shared.Ui.Resources;
 
 /// <summary>
 /// Marker type for the app's shared UI strings. Inject <c>IStringLocalizer&lt;AppStrings&gt;</c>

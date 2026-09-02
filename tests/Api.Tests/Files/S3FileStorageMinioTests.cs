@@ -1,11 +1,11 @@
 using System.Text;
 using Microsoft.Extensions.Options;
-using Perezosoft.Api.Tests.Infrastructure;
-using Perezosoft.Core.Abstractions;
-using Perezosoft.Infrastructure.Files;
+using Vuelto.Api.Tests.Infrastructure;
+using Vuelto.Core.Abstractions;
+using Vuelto.Infrastructure.Files;
 using Testcontainers.Minio;
 
-namespace Perezosoft.Api.Tests.Files;
+namespace Vuelto.Api.Tests.Files;
 
 /// <summary>
 /// Starts one MinIO (S3-compatible) container for the class and creates the test bucket. Proves the
@@ -14,7 +14,7 @@ namespace Perezosoft.Api.Tests.Files;
 /// </summary>
 public sealed class MinioFixture : IAsyncLifetime
 {
-    public const string Bucket = "perezosoft-test";
+    public const string Bucket = "vuelto-test";
     private readonly MinioContainer _minio = new MinioBuilder("minio/minio:latest").Build();
 
     public S3StorageSettings Settings { get; private set; } = default!;

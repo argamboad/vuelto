@@ -1,9 +1,9 @@
 using Microsoft.EntityFrameworkCore;
-using Perezosoft.Core.Abstractions;
-using Perezosoft.Infrastructure.Persistence;
+using Vuelto.Core.Abstractions;
+using Vuelto.Infrastructure.Persistence;
 using Testcontainers.PostgreSql;
 
-namespace Perezosoft.Api.Tests.Infrastructure;
+namespace Vuelto.Api.Tests.Infrastructure;
 
 /// <summary>Test double for the request's current tenant. Settable so a test can run
 /// "as" a given tenant and exercise the global query filter. Also implements

@@ -1,4 +1,4 @@
-namespace Perezosoft.Core.Billing;
+namespace Vuelto.Core.Billing;
 
 /// <summary>
 /// A plan tier: the entitlement keys it grants (feature on/off) plus its **quotas** — countable limits

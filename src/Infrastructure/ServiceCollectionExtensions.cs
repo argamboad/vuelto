@@ -8,21 +8,21 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
-using Perezosoft.Core.Abstractions;
-using Perezosoft.Core.Repositories;
-using Perezosoft.Infrastructure.Audit;
-using Perezosoft.Infrastructure.Billing;
-using Perezosoft.Infrastructure.Email;
-using Perezosoft.Infrastructure.Files;
-using Perezosoft.Infrastructure.Http;
-using Perezosoft.Infrastructure.Inbox;
-using Perezosoft.Infrastructure.Outbox;
-using Perezosoft.Infrastructure.Scheduling;
-using Perezosoft.Infrastructure.Persistence;
-using Perezosoft.Infrastructure.Repositories;
-using Perezosoft.Infrastructure.Webhooks;
+using Vuelto.Core.Abstractions;
+using Vuelto.Core.Repositories;
+using Vuelto.Infrastructure.Audit;
+using Vuelto.Infrastructure.Billing;
+using Vuelto.Infrastructure.Email;
+using Vuelto.Infrastructure.Files;
+using Vuelto.Infrastructure.Http;
+using Vuelto.Infrastructure.Inbox;
+using Vuelto.Infrastructure.Outbox;
+using Vuelto.Infrastructure.Scheduling;
+using Vuelto.Infrastructure.Persistence;
+using Vuelto.Infrastructure.Repositories;
+using Vuelto.Infrastructure.Webhooks;
 
-namespace Perezosoft.Infrastructure;
+namespace Vuelto.Infrastructure;
 
 public static class ServiceCollectionExtensions
 {
@@ -54,7 +54,7 @@ public static class ServiceCollectionExtensions
         // survive server restarts/redeploys.
         // The application name is part of key derivation (like the CreateProtector purpose
         // strings): renaming it makes everything already protected — MFA secrets, webhook
-        // secrets, in-flight tokens — undecryptable. Kept through the Perezosoft rename;
+        // secrets, in-flight tokens — undecryptable. Kept through the Vuelto rename;
         // change only alongside a deliberate re-encryption migration.
         services.AddDataProtection()
             .PersistKeysToDbContext<AppDbContext>()

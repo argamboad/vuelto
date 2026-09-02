@@ -1,6 +1,6 @@
-using Perezosoft.Shared.Ui;
+using Vuelto.Shared.Ui;
 
-namespace Perezosoft.Maui;
+namespace Vuelto.Maui;
 
 public partial class App : Application
 {
@@ -14,7 +14,7 @@ public partial class App : Application
 
 	protected override Window CreateWindow(IActivationState? activationState)
 	{
-		var window = new Window(new MainPage()) { Title = "Perezosoft.Maui" };
+		var window = new Window(new MainPage()) { Title = "¿Y el vuelto?" };
 		// External round-trips (billing checkout/portal in the system browser) return here with
 		// no navigation — tell the open page to refresh itself (NATIVE-4, parity gap G2). Two
 		// hooks because the platforms signal the return differently: Android covers the Activity

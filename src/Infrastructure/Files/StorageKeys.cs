@@ -1,6 +1,6 @@
-using Perezosoft.Core.Abstractions;
+using Vuelto.Core.Abstractions;
 
-namespace Perezosoft.Infrastructure.Files;
+namespace Vuelto.Infrastructure.Files;
 
 /// <summary>
 /// Shared tenant-scoped key handling for the file-storage backends (ADR-010). One place validates the

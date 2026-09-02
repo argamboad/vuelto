@@ -1,10 +1,10 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Perezosoft.Api.Authentication;
-using Perezosoft.Api.Services;
+using Vuelto.Api.Authentication;
+using Vuelto.Api.Services;
 
-namespace Perezosoft.Api.Controllers;
+namespace Vuelto.Api.Controllers;
 
 /// <summary>
 /// Base for the platform-staff admin surface (ADR-014). Authenticated as a normal user (the app JWT),

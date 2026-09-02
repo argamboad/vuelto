@@ -1,4 +1,4 @@
-namespace Perezosoft.Core.Abstractions;
+namespace Vuelto.Core.Abstractions;
 
 /// <summary>
 /// A recurring background job run by the <c>ScheduledJobsHost</c> on its own <see cref="Interval"/>

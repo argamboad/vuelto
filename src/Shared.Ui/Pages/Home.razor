@@ -1,5 +1,5 @@
 @page "/"
-@using Perezosoft.Shared.Ui.Auth
+@using Vuelto.Shared.Ui.Auth
 @inject AuthService Auth
 @inject IStringLocalizer<AppStrings> Localizer
 
@@ -10,7 +10,7 @@
     <div class="welcome-wrapper">
         <div class="welcome-card card shadow-sm text-center">
             <div class="card-body p-4 p-md-5">
-                <img src="_content/Perezosoft.Shared.Ui/brand/lockup_light_1520.png" alt="Perezosoft"
+                <img src="_content/Vuelto.Shared.Ui/brand/lockup_light_1520.png" alt="¿Y el vuelto?"
                      class="welcome-lockup mb-4" />
                 <h1 class="h3 fw-bold mb-1">@Localizer["Home_WelcomeBack", Auth.DisplayName ?? ""]</h1>
                 <p class="text-muted mb-0">@Localizer["Home_SignedInTo", Auth.TenantName ?? ""]</p>
@@ -23,7 +23,7 @@ else
 {
     <div class="welcome-wrapper">
         <div class="hero-section text-center">
-            <img src="_content/Perezosoft.Shared.Ui/brand/lockup_light_1520.png" alt="Perezosoft"
+            <img src="_content/Vuelto.Shared.Ui/brand/lockup_light_1520.png" alt="¿Y el vuelto?"
                  class="welcome-lockup mb-4" />
             <p class="lead text-muted mb-4 mx-auto" style="max-width:480px">
                 @Localizer["Home_HeroSubtitle"]

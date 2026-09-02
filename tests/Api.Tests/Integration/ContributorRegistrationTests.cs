@@ -1,8 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
-using Perezosoft.Api.Tests.Infrastructure;
-using Perezosoft.Core.Abstractions;
+using Vuelto.Api.Tests.Infrastructure;
+using Vuelto.Core.Abstractions;
 
-namespace Perezosoft.Api.Tests.Integration;
+namespace Vuelto.Api.Tests.Integration;
 
 /// <summary>
 /// v3 audit TB-TEN-11 (T45a): the DI half of the contributor completeness story. The model canaries in
@@ -30,7 +30,7 @@ public class ContributorRegistrationTests(IntegrationTestFactory factory)
     {
         // Every non-abstract implementation in the app's own assemblies (Api incl. Features/, and
         // Infrastructure — where AuditDataContributor lives)…
-        var declared = new[] { typeof(Program).Assembly, typeof(Perezosoft.Infrastructure.ServiceCollectionExtensions).Assembly }
+        var declared = new[] { typeof(Program).Assembly, typeof(Vuelto.Infrastructure.ServiceCollectionExtensions).Assembly }
             .SelectMany(a => a.GetTypes())
             .Where(t => t is { IsClass: true, IsAbstract: false } && typeof(TContributor).IsAssignableFrom(t))
             .ToList();

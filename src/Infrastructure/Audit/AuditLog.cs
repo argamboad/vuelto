@@ -1,9 +1,9 @@
 using System.Text.Json;
-using Perezosoft.Core.Abstractions;
-using Perezosoft.Core.Entities;
-using Perezosoft.Core.Repositories;
+using Vuelto.Core.Abstractions;
+using Vuelto.Core.Entities;
+using Vuelto.Core.Repositories;
 
-namespace Perezosoft.Infrastructure.Audit;
+namespace Vuelto.Infrastructure.Audit;
 
 /// <summary>
 /// EF implementation of <see cref="IAuditLog"/> (OBS-4, ADR-008). Stages an <see cref="AuditEvent"/> on

@@ -1,8 +1,8 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
-using Perezosoft.Shared.Ui.Auth;
+using Vuelto.Shared.Ui.Auth;
 
-namespace Perezosoft.Ui.Tests.Infrastructure;
+namespace Vuelto.Ui.Tests.Infrastructure;
 
 /// <summary>
 /// Builds an access token the way <see cref="AuthService"/> reads it: it parses claims with

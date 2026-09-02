@@ -1,87 +1,52 @@
-# Perezosoft Platform
+# ¿Y el vuelto?
 
-The Perezosoft foundation for building multi-tenant SaaS apps on a fixed stack
-(ASP.NET Core API + Blazor WASM + shared RCL + PostgreSQL/EF Core + custom JWT auth, with
-MAUI Blazor Hybrid shells for mobile + Win/macOS desktop). It lets a new project skip
-re-deciding the stack and jump straight to discussing **what the app does**.
+Personal finance for Costa Rican **households that live in two currencies** (₡ CRC + $ USD).
+Every expense is captured in both currencies at that day's rate, budget months follow the
+household's **pay cycle** (weeks anchored on a chosen weekday, not the calendar), and bank voucher
+emails from BAC/BN become transactions after a one-click review.
 
-## What's in here
+The name is Costa Rican slang — *"¿Y el vuelto?"*, "and the change?". The code, database and
+docs keep the name **`Vuelto`**; the display brand is *¿Y el vuelto?* — that split is intentional.
 
-```
-_PLATFORM_PRIMER.md     ← paste into a new Claude chat to start conceptualizing a project
-CLAUDE.md               ← Claude Code operating manual skeleton (constant rules pre-filled)
-docs/                   ← doc skeletons (constant parts filled, app-specific = TODO)
-  PROJECT_BRIEF.md
-  FEATURES.md
-  DATA_MODEL.md
-  TECH_STACK.md         ← almost entirely reusable; only re-verify versions
-  DECISIONS.md          ← pre-seeded with constant ADRs (C1–C15); add app ADRs from 001
-  stories/
-src/ , tests/           ← the complete platform (auth, tenancy, billing, jobs, …) + Notes sample slice
-```
-
-## How to use it
-
-**Step 1 — Conceptualize (in Claude chat).**
-Start a new chat and paste `_PLATFORM_PRIMER.md`. Describe your app. Claude runs the
-conceptualization session — clarifying questions, recommendations, ADRs, scope discipline — and
-fills in the doc skeletons. The stack is already decided, so the conversation is about the app.
-
-**Step 2 — Create the repo (when the thinking layer is done).**
-Once concept + features + data model + decisions are settled, clone this platform tree as
-your new repo (it already has `CLAUDE.md` at root, `docs/`, and the `src/`+`tests/` layout).
-
-**Step 3 — Rebrand + build (in Claude Code).**
-Point Claude Code at the repo. The platform (auth, tenancy, billing, jobs, notifications, GDPR,
-admin, deploy pipeline, …) is already built — the first session rebrands it and fills in the
-app-specific docs; after that it's your feature slices, with per-epic user stories written into
-`docs/stories/` as they're built.
-
-**The expected first Claude Code prompt** (copy, fill the brackets, attach the logo):
-
-> We're starting a new app on this platform, from the conceptualization docs already in `docs/`.
-> The app is **[AppName]**; the tenant's app-facing label is **[Team / Workspace / Household / …]**.
-> Here is the logo: **[file]**.
->
-> 1. **Rebrand end to end per `docs/REBRANDING.md`** — every section: name/wordmark, tagline,
->    logo assets (derive the resized icons/favicon/OG image from this logo), the **colour palette
->    derived from the logo** (the `:root` tokens in `src/Shared.Ui/wwwroot/css/app.css` **and**
->    the email colours in `src/Infrastructure/Email/BrandedEmail.cs` — don't skip the email
->    templates), the OAuth callback scheme + `ApplicationId`, and the brand strings in every
->    localization `.resx`.
-> 2. **Fill the app-specific placeholders** — `CLAUDE.md` TODOs (golden rules, conventions) and
->    any remaining `docs/` placeholders — from the conceptualization docs.
-> 3. **Verify** per the checklist: `git grep -i perezosoft` returns nothing, the app builds and
->    runs with the new brand, and a test OTP email arrives with the new logo/colours/name.
->
-> Then propose the first feature epic from `docs/FEATURES.md` (the `Notes` sample slice gets
-> deleted when the first real feature lands).
+Built on the [Perezosoft platform](https://github.com/argamboad/perezosoft-platform) (ASP.NET Core
+API + Blazor WASM + shared RCL + PostgreSQL/EF Core + custom JWT auth, with MAUI Blazor Hybrid
+shells). Multi-tenancy, auth, invitations, MFA, billing, jobs, notifications, GDPR and the deploy
+pipeline are inherited; this repo adds the budgeting domain as vertical slices. It is a
+**continuation port** of the donor repo `vuelto-legacy/phase2` — see `docs/DECISIONS.md` ADR-V001.
 
 ## Reading order
 
-For a newcomer, motivation first, mechanics last:
+1. [`docs/PROJECT_BRIEF.md`](docs/PROJECT_BRIEF.md) — what the app is, the core loop, the OUT list.
+2. [`docs/FEATURES.md`](docs/FEATURES.md) — every flow, with sequence diagrams for the two hot paths.
+3. [`docs/DATA_MODEL.md`](docs/DATA_MODEL.md) — entities, ER diagram, derived rules, lifecycles.
+4. [`docs/DECISIONS.md`](docs/DECISIONS.md) — the platform's ADRs (inherited) + the app's `ADR-V…` series.
+5. [`docs/WAYS_OF_WORKING.md`](docs/WAYS_OF_WORKING.md) — slices, Gherkin stories, TDD, PR conventions.
+6. [`CLAUDE.md`](CLAUDE.md) — the operating manual (golden rules, conventions, doc map).
 
-1. [`docs/OVERVIEW.md`](docs/OVERVIEW.md) — what the platform is and why it saves months; no codebase knowledge assumed.
-2. [`docs/PROJECT_BRIEF.md`](docs/PROJECT_BRIEF.md) — what *this* app is for, and (as important) the OUT list.
-3. [`docs/NEW_APP_GUIDE.md`](docs/NEW_APP_GUIDE.md) — the end-to-end path from idea to production, phase by phase.
-4. [`docs/DECISIONS.md`](docs/DECISIONS.md) — the "why" behind every settled choice; read before disagreeing with any of them.
-5. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — the shape in diagrams: projects, seams, subsystems.
-6. [`docs/DATA_MODEL.md`](docs/DATA_MODEL.md) — entities, ER diagrams, invariants, lifecycles.
-7. [`docs/FLOWS.md`](docs/FLOWS.md) — the call stacks that matter, traced through the code.
-8. [`docs/WAYS_OF_WORKING.md`](docs/WAYS_OF_WORKING.md) — how work actually lands: slices, stories, TDD, PR conventions.
-9. [`CONTRIBUTING.md`](CONTRIBUTING.md) — the frozen quality bar and the machine-enforced rules behind it.
+Platform mechanics (architecture, flows, deployment, localization, QA plan) are documented in
+`docs/` as inherited from the platform; `docs/NEW_APP_GUIDE.md` is the phase-by-phase path this
+repo is following.
 
-## What's constant vs. per-project
+## Run it locally
 
-- **Constant (don't re-decide):** the stack, the clean-API-boundary + RCL architecture,
-  multi-tenancy (Tenant ≠ User, tenant-scoped data, per-user preferences), the doc/ADR method,
-  the "latest stable, never previews" version policy, and MAUI Blazor Hybrid for non-web clients.
-- **Per-project (designed fresh):** the concept, features, data model entities, domain-specific
-  derived rules, the tenant's real-world label, scope, seed data, and hosting.
+```bash
+cp .env.example .env            # then fill it — at minimum Jwt__Secret (any ≥32-char string)
+docker compose up -d db mail    # Postgres 17 on :5434 + Mailpit on :1026 (SMTP) / :8026 (UI)
+dotnet run --project src/Api --launch-profile https    # API on https://localhost:7160
+dotnet run --project src/Web                           # web UI on https://localhost:7008
+```
 
-## Important caution
+Sign in with **"Email me a 6-digit code"** and read the code from Mailpit at
+<http://localhost:8026>. The compose project is named `vuelto` and uses its own ports so it
+runs alongside the platform's own stack (5433 / 1025 / 8025).
 
-**Do not copy app-specific data-model decisions between projects.** Things like single-table
-inheritance, snapshot-vs-reference semantics, or any particular derived rule are designed for one
-app's domain and can quietly mislead another. Only the items listed as "constant" carry forward.
-Re-verify tool/library versions at the start of every project — this platform ages.
+```bash
+dotnet test tests/Core.Tests
+dotnet test tests/Api.Tests     # spins up a Postgres Testcontainer; Docker must be running
+dotnet test tests/Ui.Tests
+```
+
+## Branches
+
+`main` is deploy-only (protected); `develop` is the working branch — one branch + one PR per slice,
+Conventional Commits, the PR template in `.github/`. CI must be green before merge.

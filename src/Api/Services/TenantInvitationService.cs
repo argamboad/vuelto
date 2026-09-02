@@ -1,11 +1,11 @@
 using System.Net.Mail;
-using Perezosoft.Api.Configuration;
-using Perezosoft.Core.Abstractions;
-using Perezosoft.Core.Entities;
-using Perezosoft.Core.Repositories;
-using Perezosoft.Infrastructure.Email;
+using Vuelto.Api.Configuration;
+using Vuelto.Core.Abstractions;
+using Vuelto.Core.Entities;
+using Vuelto.Core.Repositories;
+using Vuelto.Infrastructure.Email;
 
-namespace Perezosoft.Api.Services;
+namespace Vuelto.Api.Services;
 
 public enum InviteCreateStatus { Created, InvalidEmail, AlreadyMember, SeatLimitReached }
 

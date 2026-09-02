@@ -1,10 +1,10 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
-using Perezosoft.Core.Abstractions;
-using Perezosoft.Infrastructure.Scheduling;
+using Vuelto.Core.Abstractions;
+using Vuelto.Infrastructure.Scheduling;
 
-namespace Perezosoft.Api.Tests.Scheduling;
+namespace Vuelto.Api.Tests.Scheduling;
 
 /// <summary>
 /// Drives JOBS-3 (ADR-007): the host runs due jobs, isolates a failing job from the others, and

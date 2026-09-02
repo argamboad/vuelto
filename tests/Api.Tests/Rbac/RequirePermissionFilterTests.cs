@@ -6,11 +6,11 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Perezosoft.Api.Endpoints;
-using Perezosoft.Core.Abstractions;
-using Perezosoft.Core.Authorization;
+using Vuelto.Api.Endpoints;
+using Vuelto.Core.Abstractions;
+using Vuelto.Core.Authorization;
 
-namespace Perezosoft.Api.Tests.Rbac;
+namespace Vuelto.Api.Tests.Rbac;
 
 /// <summary>
 /// Drives RBAC-1's minimal-API enforcement path (ADR-009): <c>.RequirePermission(...)</c> returns

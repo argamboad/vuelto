@@ -1,7 +1,7 @@
 using System.Net;
 using System.Text;
 
-namespace Perezosoft.Ui.Tests.Infrastructure;
+namespace Vuelto.Ui.Tests.Infrastructure;
 
 /// <summary>
 /// A controllable <see cref="HttpMessageHandler"/> for the client's <see cref="HttpClient"/>: route

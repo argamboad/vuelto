@@ -3,9 +3,9 @@ using System.Security.Claims;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
-using Perezosoft.Core.Abstractions;
+using Vuelto.Core.Abstractions;
 
-namespace Perezosoft.Api.Observability;
+namespace Vuelto.Api.Observability;
 
 /// <summary>
 /// OpenTelemetry traces + metrics (OBS-2, ADR-008). Instruments ASP.NET Core, outbound HttpClient, and
@@ -24,7 +24,7 @@ public static class TelemetryExtensions
         var useConsole = configuration.GetValue<bool>("OpenTelemetry:ConsoleExporter");
 
         services.AddOpenTelemetry()
-            .ConfigureResource(resource => resource.AddService("Perezosoft.Api"))
+            .ConfigureResource(resource => resource.AddService("Vuelto.Api"))
             .WithTracing(tracing =>
             {
                 tracing

@@ -1,8 +1,8 @@
 using Microsoft.Extensions.Options;
-using Perezosoft.Core.Abstractions;
-using Perezosoft.Infrastructure.Billing;
+using Vuelto.Core.Abstractions;
+using Vuelto.Infrastructure.Billing;
 
-namespace Perezosoft.Api.Tests.Billing;
+namespace Vuelto.Api.Tests.Billing;
 
 /// <summary>
 /// Unit coverage for the deterministic part of <see cref="StripeBillingProvider"/> — the

@@ -1,12 +1,12 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
-using Perezosoft.Api.Tests.Infrastructure;
-using Perezosoft.Core.Abstractions;
-using Perezosoft.Core.Entities;
-using Perezosoft.Infrastructure.Email;
-using Perezosoft.Infrastructure.Outbox;
+using Vuelto.Api.Tests.Infrastructure;
+using Vuelto.Core.Abstractions;
+using Vuelto.Core.Entities;
+using Vuelto.Infrastructure.Email;
+using Vuelto.Infrastructure.Outbox;
 
-namespace Perezosoft.Api.Tests.Outbox;
+namespace Vuelto.Api.Tests.Outbox;
 
 /// <summary>
 /// Proves the email migration in JOBS-1: the app-facing <see cref="IEmailSender"/> enqueues onto the

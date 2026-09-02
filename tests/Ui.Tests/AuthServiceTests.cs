@@ -1,8 +1,8 @@
 using System.Net;
-using Perezosoft.Ui.Tests.Infrastructure;
+using Vuelto.Ui.Tests.Infrastructure;
 using Xunit;
 
-namespace Perezosoft.Ui.Tests;
+namespace Vuelto.Ui.Tests;
 
 /// <summary>
 /// v3 audit TB-UI backfill (T45c) — the AuthService contracts the whole client hangs off:

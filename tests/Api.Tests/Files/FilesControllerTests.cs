@@ -3,11 +3,11 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
-using Perezosoft.Api.Controllers;
-using Perezosoft.Api.Services;
-using Perezosoft.Infrastructure.Files;
+using Vuelto.Api.Controllers;
+using Vuelto.Api.Services;
+using Vuelto.Infrastructure.Files;
 
-namespace Perezosoft.Api.Tests.Files;
+namespace Vuelto.Api.Tests.Files;
 
 /// <summary>
 /// FILES-2 (ADR-010): <see cref="FilesController"/> streams a file for a valid token (entering the

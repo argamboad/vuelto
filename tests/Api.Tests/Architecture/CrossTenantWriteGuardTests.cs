@@ -1,4 +1,4 @@
-namespace Perezosoft.Api.Tests.Architecture;
+namespace Vuelto.Api.Tests.Architecture;
 
 /// <summary>
 /// Proves the cross-tenant-write scanner (<see cref="CrossTenantWriteGuard"/>) flags the RLS-4/RLS-8

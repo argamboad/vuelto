@@ -1,4 +1,4 @@
-namespace Perezosoft.Core.Authorization;
+namespace Vuelto.Core.Authorization;
 
 /// <summary>
 /// A coarse tenant capability (ADR-009). Authorization asks "does the caller's role grant this

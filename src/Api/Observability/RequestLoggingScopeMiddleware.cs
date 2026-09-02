@@ -1,7 +1,7 @@
 using System.Security.Claims;
-using Perezosoft.Core.Abstractions;
+using Vuelto.Core.Abstractions;
 
-namespace Perezosoft.Api.Observability;
+namespace Vuelto.Api.Observability;
 
 /// <summary>
 /// Opens a per-request logging scope carrying <c>tenant_id</c> and <c>user_id</c>, so every log line

@@ -1,7 +1,7 @@
 using Microsoft.Playwright;
-using Perezosoft.E2E.Tests.Pages;
+using Vuelto.E2E.Tests.Pages;
 
-namespace Perezosoft.E2E.Tests;
+namespace Vuelto.E2E.Tests;
 
 /// <summary>
 /// v3 audit TB-UI-16 (T45c) — the one place UX-1 is caught end-to-end: a signed-in user whose saved

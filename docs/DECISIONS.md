@@ -1302,10 +1302,10 @@ direction the 2026-07-06 amendment anticipated.
 > (transactional email) → platform `IEmailSender` + outbox + `BrandedEmail`; donor ADR-0022
 > (removed Flutter stack) — historical, moot.
 
-**ADR-V001 — Entry mode: this app is a continuation port of `vuelto/phase2`; the donor is frozen, its tests are the spec, and the platform is extended, never modified. (2026-09-02)**
-`y-el-vuelto` was cloned from `perezosoft-platform@d09c60f` (commit `0f7d1dc`) and carries the
+**ADR-V001 — Entry mode: this app is a continuation port of `vuelto-legacy/phase2`; the donor is frozen, its tests are the spec, and the platform is extended, never modified. (2026-09-02)**
+`vuelto` was cloned from `perezosoft-platform@d09c60f` (commit `0f7d1dc`) and carries the
 **entire** platform (billing, jobs, notifications, files, GDPR, admin, MAUI shells) even where
-Vuelto has no immediate use for a subsystem. The donor repo `vuelto` (branch `develop`, 2026-09-02)
+vuelto has no immediate use for a subsystem. The donor repo `vuelto-legacy` (branch `develop`, 2026-09-02)
 is **frozen as a read-only reference**; no product work continues there. The donor's shipped
 behavior (Slices 1–6, 8 and the two audit-remediation tracks) is re-homed as vertical slices in the
 order P0–P11 of the port plan; only then does the donor's unfinished roadmap resume here (data-driven
@@ -1315,7 +1315,7 @@ concurrency) are run once against the platform as acceptance checks, then discar
 platform is **extended through its seams** (`IRepository<T>`, `ITenantDataContributor`,
 `IUserDataContributor`, `IScheduledJob`, `IEmailSender`, `ITenantContext.EnterTenant`, DI) — never
 modified in this repo; a genuinely generic gap goes upstream as a `perezosoft-platform` PR first,
-and anything Vuelto-specific is solved here; (3) stories live one file per epic in `docs/stories/`,
+and anything vuelto-specific is solved here; (3) stories live one file per epic in `docs/stories/`,
 each scenario citing the donor story it ports (`from US-015`), and new work continues the donor's
 numbering from **US-057**.
 *Rationale:* the donor is an unfinished project, not a finished product to migrate — the goal is to
@@ -1470,3 +1470,51 @@ it on failure — identical semantics to the donor's. The donor's real-Postgres 
 `EfTransactionScopeRollbackTests`) port unchanged and now run with RLS enforced.
 *Rationale:* the in-memory value read earlier in a request is never the authority; only the
 conditional write is.
+
+**ADR-V015 — Rebrand as built: code identity `vuelto.*`, display brand "¿Y el vuelto?", app id `com.perezosoft.vuelto`, the platform's Data Protection strings kept, Notes sample deleted, own Docker stack. (2026-09-02; Guide Phase 3, per platform ADR-019 + `REBRANDING.md`)**
+The platform's find/replace rebrand was applied end to end: solution `Vuelto.slnx`, every
+project/assembly and root namespace `vuelto.*` (the RCL's static-asset path is therefore
+`_content/Vuelto.Shared.Ui/`), JWT issuer `Vuelto`, OTel service name `Vuelto.Api`, native OAuth
+callback scheme **`vuelto`** (`vuelto://auth` on Android/iOS/Catalyst, `Auth:Native:CallbackScheme`),
+native env override `VUELTO_API_BASE_URL`. The **display brand** is *"¿Y el vuelto?"* everywhere a
+person reads it (header wordmark, page titles, OG tags, MAUI `ApplicationTitle`, email sender name,
+email copy in both languages, invitation/OTP/magic-link strings); the **code, DB and docs keep
+`Vuelto`** — the split is deliberate (donor `brand/BRAND-SPEC.md`). Two identity choices worth
+naming: (1) the MAUI **`ApplicationId` is `com.perezosoft.vuelto`** — reverse-DNS of the publisher
+(Perezosoft) plus the app, so the one remaining `perezosoft` token outside history docs is the
+publisher segment, by design (it also drives the APK name, the iOS bundle id in `ci.yml`'s
+simulator smoke, the Android smoke's `PKG` default, and the Catalyst `keychain-access-groups`
+entitlement — all updated together); (2) the MFA authenticator **issuer stays `Vuelto`** (an
+`otpauth://` label; the inverted `¿` renders unreliably in authenticator apps). **Deliberately
+unchanged, per ADR-019:** the Data Protection application name `"template"` and the
+`CreateProtector("Template.*.v1")` purpose strings (key derivation). **Palette** (from the logo):
+primary indigo `#5A67D8`, accent ring `#8B95F0`, dark/wordmark ink `#3A4178`, light accent
+`#C5CBF7`, surfaces `#F7F7FC` / `#E1E3F2` (dark: `#14162A` / `#2C3050`); gold `#F2CB6E` exists only as
+`--brand-gold` and is never a state color. **Typeface** Nunito via Google Fonts in both hosts'
+`index.html` with a system fallback. **Assets** rendered from the donor SVGs (headless Chromium +
+Pillow; generator kept outside the repo): RCL lockups (1520 px) + tile icon, CID email logo, web
+favicons/OG/PWA set, MAUI adaptive icon (gold ₡ at ~58 % of the canvas) + coin splash, store/marketing
+PNGs. **Removed:** the `Notes` sample slice (entity, configuration, `AddNotesSample` migration and its
+row in the RLS backstop, feature folder, tests, arch-test/doc-sync entries, Postman folder 7) — the
+model snapshot was edited by hand and the drift gate proves it. **Docker:** compose project
+`vuelto`, host ports **5434 / 1026 / 8026** (Postgres / Mailpit SMTP / UI) so the platform's
+own stack (5433 / 1025 / 8025) and the donor's Postgres (5432) can run alongside; `.env.example`,
+the E2E/mobile docs follow; `appsettings.Development.json` keeps the platform default `1025` (CI maps Mailpit there) and `.env` carries the local `Email__Smtp__Port=1026` override â the first CI run of this PR failed all 31 OTP-based E2E tests when the port was checked in. Render service renamed
+`vuelto-staging` **before** any deploy (the name is the public URL). Verification for this
+repo: `git grep -i perezosoft` is clean outside `docs/DECISIONS.md`, `docs/REBRANDING.md`,
+`docs/QA_TEST_PLAN.md`, `docs/audits/**`, `docs/stories/**` (platform history, left verbatim) and
+the publisher segment of the app id — a tighter reading than `REBRANDING.md`'s "nothing outside this
+doc" (platform feedback F14).
+*Rationale:* ADR-019 makes the rename one unambiguous find/replace; keeping the publisher in the
+app id and the platform's key-derivation strings avoids inventing identity where none is needed.
+
+*Amendment (2026-09-02, same day — one identifier everywhere).* The owner asked for naming
+consistency: the app's single identifier is **`vuelto`, cased by each context's own standard**: lowercase wherever lowercase is the norm (GitHub repo and folder, compose project, Render service `vuelto-staging`, app id `com.perezosoft.vuelto`, URL scheme `vuelto://`, kebab tokens such as `vuelto-logo`), and ordinary capitalization elsewhere â `Vuelto` as a proper noun in prose, titles and display strings (Swagger "Vuelto API", Postman "Vuelto â local dev", JWT/MFA issuer `Vuelto`), `Vuelto.*` for .NET identifiers and their files (`Vuelto.slnx`, `Vuelto.Api.csproj`, `Vuelto.postman_collection.json`, `_content/Vuelto.Shared.Ui`) â the same repo-vs-code convention as `perezosoft-platform` / `Perezosoft.*` â and
+*"¿Y el vuelto?"* is used **only** where a person reads it. Consequences: the GitHub repo
+`argamboad/y-el-vuelto` was renamed **`argamboad/vuelto`** (the frozen donor became
+**`argamboad/vuelto-legacy`**; GitHub redirects both old URLs), the local folders follow, the compose
+project is `vuelto` and the Render service `vuelto-staging`. `y-el-vuelto` no longer appears as an
+identifier anywhere. Rejected alternative: `YElVuelto.*` namespaces — C# identifiers can't carry
+hyphens, so "y-el-vuelto everywhere" would have introduced a fourth spelling. **Postman:** the
+collection ("Vuelto API") and environments sync into the **same Perezosoft workspace** as the
+platform's — one workspace for every downstream app, distinguished by name.

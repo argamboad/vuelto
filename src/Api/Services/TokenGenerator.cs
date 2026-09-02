@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
 
-namespace Perezosoft.Api.Services;
+namespace Vuelto.Api.Services;
 
 /// <summary>
 /// Generates cryptographically secure random tokens.

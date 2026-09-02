@@ -1,6 +1,6 @@
 using System.Xml.Linq;
 
-namespace Perezosoft.Api.Tests;
+namespace Vuelto.Api.Tests;
 
 /// <summary>
 /// Localization resource parity (course lesson 3.5's guard, made real during the 2026-07 comprehensive

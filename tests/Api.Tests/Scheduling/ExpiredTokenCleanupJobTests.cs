@@ -1,9 +1,9 @@
 using Microsoft.EntityFrameworkCore;
-using Perezosoft.Api.Tests.Infrastructure;
-using Perezosoft.Core.Entities;
-using Perezosoft.Infrastructure.Scheduling;
+using Vuelto.Api.Tests.Infrastructure;
+using Vuelto.Core.Entities;
+using Vuelto.Infrastructure.Scheduling;
 
-namespace Perezosoft.Api.Tests.Scheduling;
+namespace Vuelto.Api.Tests.Scheduling;
 
 /// <summary>
 /// Drives the JOBS-3 reference job: it deletes expired passwordless and refresh tokens while leaving

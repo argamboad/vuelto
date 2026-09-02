@@ -1,4 +1,4 @@
-namespace Perezosoft.Infrastructure.Billing;
+namespace Vuelto.Infrastructure.Billing;
 
 /// <summary>
 /// Stripe configuration (bound from the <c>Billing:Stripe</c> section). Secrets come from <c>.env</c>

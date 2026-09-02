@@ -179,11 +179,11 @@ add it until horizontal scale actually forces it. The outbox dispatcher's `SKIP 
 ---
 
 ## 10. Platform as NuGet packages — `PKG`
-**What:** ship `Perezosoft.Core` / `Perezosoft.Infrastructure` / `Perezosoft.Shared.Ui` as versioned
+**What:** ship `Vuelto.Core` / `Vuelto.Infrastructure` / `Vuelto.Shared.Ui` as versioned
 NuGet packages so downstream apps consume the platform by package reference instead of clone-and-rebrand.
 **Why:** only once several apps exist on different upgrade cadences and clone-merge starts hurting.
 **Sketch / hooks:** Core/Infrastructure/Shared.Ui pack as-is (RCL static assets flow via `_content/`);
-the hard parts are (1) turning `Perezosoft.Api` into a referenced library (`AddApplicationPart` +
+the hard parts are (1) turning `Vuelto.Api` into a referenced library (`AddApplicationPart` +
 extracting `Program.cs` composition into extension methods) and (2) the DbContext/migrations seam —
 app-owned context deriving from a platform base, entity configs discovered from app assemblies, per-app
 migration history interleaving with platform schema changes. Hosts (Web/Maui), CI, Dockerfile, and docs

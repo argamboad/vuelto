@@ -1,7 +1,7 @@
 {
   "info": {
-    "name": "Perezosoft Platform API",
-    "description": "Complete API surface of the Perezosoft platform (rename per app — see docs/REBRANDING.md).\n\n**Setup**\n1. Import `Perezosoft.local.postman_environment.json` and select it.\n2. Start the stack: `docker compose up -d` (Postgres + Mailpit) and the API (`dotnet run --project src/Api --launch-profile https`).\n3. SMTP must point at **Mailpit** (`localhost:1025`) for the OTP auto-fetch to work — if your `.env` overrides SMTP to a real provider, switch it back for API testing.\n\n**Sign-in flow (folder 1):** `OTP — send` → `OTP — fetch code from Mailpit` (delivery is async; wait ~2–5 s after send) → `OTP — verify`. Tokens are stored in the environment and every request in the collection authenticates with them automatically. Auth requests send `X-Native-Client: true`, selecting the body token transport (no cookies needed in Postman); the refresh token rotates on every `Refresh` call.\n\n**MFA:** if the account has MFA enabled, `OTP — verify` stores a `mfaChallenge` instead of tokens — run `MFA — verify (step-up)` with a TOTP or recovery code.\n\n**Admin folder** needs the signed-in user's email in `Admin__StaffEmails__0` (API restart required). **Public API / Webhooks folders** are config-gated default-off (`PublicApi__Enabled=true`, `Webhooks__Enabled=true`).",
+    "name": "Vuelto API",
+    "description": "Complete API surface of the Vuelto app (rename per app — see docs/REBRANDING.md).\n\n**Setup**\n1. Import `vuelto.local.postman_environment.json` and select it.\n2. Start the stack: `docker compose up -d` (Postgres + Mailpit) and the API (`dotnet run --project src/Api --launch-profile https`).\n3. SMTP must point at **Mailpit** (`localhost:1025`) for the OTP auto-fetch to work — if your `.env` overrides SMTP to a real provider, switch it back for API testing.\n\n**Sign-in flow (folder 1):** `OTP — send` → `OTP — fetch code from Mailpit` (delivery is async; wait ~2–5 s after send) → `OTP — verify`. Tokens are stored in the environment and every request in the collection authenticates with them automatically. Auth requests send `X-Native-Client: true`, selecting the body token transport (no cookies needed in Postman); the refresh token rotates on every `Refresh` call.\n\n**MFA:** if the account has MFA enabled, `OTP — verify` stores a `mfaChallenge` instead of tokens — run `MFA — verify (step-up)` with a TOTP or recovery code.\n\n**Admin folder** needs the signed-in user's email in `Admin__StaffEmails__0` (API restart required). **Public API / Webhooks folders** are config-gated default-off (`PublicApi__Enabled=true`, `Webhooks__Enabled=true`).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -595,34 +595,6 @@
             "description": "Upgrades {{tenantId}} to pro/active as if checkout completed (QA-BILL upgrade loop). Requires the FAKE provider (dev default) — on an environment wired to real Stripe (test mode), this returns 400 invalid signature by design; use `stripe trigger` there instead. Run 'Get household' first to populate {{tenantId}}. Re-sending the same EventId is deduped (inbox); an older OccurredAt than the last applied event is ignored."
           },
           "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"200 applied\", () => pm.response.to.have.status(200));"], "type": "text/javascript" } }]
-        }
-      ]
-    },
-    {
-      "name": "7 · Notes (sample slice — deleted on rebrand)",
-      "item": [
-        {
-          "name": "List",
-          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/notes", "host": ["{{baseUrl}}"], "path": ["api", "notes"] } },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"200\", () => pm.response.to.have.status(200));"], "type": "text/javascript" } }]
-        },
-        {
-          "name": "Create",
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"title\": \"From Postman\",\n  \"content\": \"Tenant-scoped sample entity.\"\n}" },
-            "url": { "raw": "{{baseUrl}}/api/notes", "host": ["{{baseUrl}}"], "path": ["api", "notes"] }
-          },
-          "event": [{ "listen": "test", "script": { "exec": [
-            "pm.test(\"201\", () => pm.response.to.have.status(201));",
-            "if (pm.response.code === 201) pm.environment.set('noteId', pm.response.json().id);"
-          ], "type": "text/javascript" } }]
-        },
-        {
-          "name": "Delete",
-          "request": { "method": "DELETE", "url": { "raw": "{{baseUrl}}/api/notes/{{noteId}}", "host": ["{{baseUrl}}"], "path": ["api", "notes", "{{noteId}}"] } },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"204/404\", () => pm.expect(pm.response.code).to.be.oneOf([204, 404]));"], "type": "text/javascript" } }]
         }
       ]
     },

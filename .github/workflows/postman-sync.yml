@@ -45,7 +45,7 @@ jobs:
           AUTH=(-H "X-Api-Key: ${POSTMAN_API_KEY}" -H "Content-Type: application/json")
 
           # ── Collection ────────────────────────────────────────────────────────────
-          FILE="docs/postman/Perezosoft.postman_collection.json"
+          FILE="docs/postman/Vuelto.postman_collection.json"
           NAME="$(jq -r '.info.name' "$FILE")"
           # NB: not "UID" — that's a readonly bash built-in (the runner's user id); assigning it dies.
           COLLECTION_UID="$(curl -sf "${AUTH[@]}" "$API/collections?workspace=$WORKSPACE_ID" \

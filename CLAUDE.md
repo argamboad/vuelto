@@ -4,15 +4,15 @@
 > Constant rules are pre-filled; fill the app-specific placeholders during conceptualization.
 
 ## What this project is
-**¿Y el vuelto?** (code name `Vuelto`) — a personal-finance app for Costa Rican **households that
+**¿Y el vuelto?** (code name `vuelto`) — a personal-finance app for Costa Rican **households that
 live in two currencies** (₡ CRC + $ USD). Money spent (typed in, or parsed from bank voucher
 emails) is captured in both currencies at that day's rate, lands in the **pay-cycle budget month**
 containing its date (weeks anchored on a chosen weekday, not the calendar), and the dashboard shows
 budgeted vs actual per line / week / bank×method plus income, unplanned essentials, expected
 refunds and savings envelopes. Full context in `docs/PROJECT_BRIEF.md`.
 
-**This app is a continuation port** (ADR-V001) of the donor repo `vuelto/phase2`
-(`C:\Users\argam\source\repos\Personal\vuelto`, frozen, read-only reference) onto this platform.
+**This app is a continuation port** (ADR-V001) of the donor repo `vuelto-legacy/phase2`
+(`C:\Users\argam\source\repos\Personal\vuelto-legacy`, frozen, read-only reference) onto this platform.
 Until parity: work the port plan slice by slice (P0–P11 — see the plan linked from ADR-V001), port
 the donor's tests as the spec, and **never modify platform code in this repo** — extend it through
 its seams; a generic gap goes upstream to `perezosoft-platform` first.
@@ -35,8 +35,9 @@ its seams; a generic gap goes upstream to `perezosoft-platform` first.
 - Starting a build slice → read **`docs/WAYS_OF_WORKING.md`** (slices, story format, PR/commit
   conventions).
 - Adding an app feature → follow the **clean-platform + vertical-slice convention** in
-  `docs/WAYS_OF_WORKING.md` (and ADR-004); copy `src/Api/Features/Notes` as the reference, then
-  delete the Notes sample.
+  `docs/WAYS_OF_WORKING.md` (and ADR-004). The platform's `Notes` sample slice was **deleted in the
+  rebrand PR** (this repo has no sample); the four-file anatomy in `WAYS_OF_WORKING.md` is the
+  reference, and `perezosoft-platform/src/Api/Features/Notes` can be consulted read-only.
 - Wondering *why* something is the way it is → check **`docs/DECISIONS.md`** before changing it.
 - Changing a settled decision → add a new dated ADR in `docs/DECISIONS.md`; don't silently
   reverse it.
@@ -129,7 +130,7 @@ its seams; a generic gap goes upstream to `perezosoft-platform` first.
 - **The Postman collection mirrors the API — and the repo copy is canonical (ADR-023; the
   `PostmanParityTests` CI gate enforces the floor).** Any change to API
   endpoints (route, verb, path/query params, request/response shape, auth requirements, or error
-  codes) must update **`docs/postman/Perezosoft.postman_collection.json`** (+ the environment
+  codes) must update **`docs/postman/Vuelto.postman_collection.json`** (+ the environment
   files when config/env expectations change) in the same slice. Controllers in
   `src/Api/Controllers/` and slices under `src/Api/Features/` are the source of truth; the
   collection documents them.

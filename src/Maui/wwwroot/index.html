@@ -3,16 +3,20 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <title>Perezosoft</title>
+    <title>¿Y el vuelto?</title>
     <base href="/" />
     <!-- bootstrap is still a vendored copy per host (kept in sync with src/Web/wwwroot/lib);
          app.css (brand tokens + shared styles) is single-sourced from the RCL. -->
     <!-- Theme bootstrap BEFORE the stylesheets: applies the saved data-bs-theme pre-paint (no flash). -->
-    <script src="_content/Perezosoft.Shared.Ui/js/theme.js"></script>
+    <script src="_content/Vuelto.Shared.Ui/js/theme.js"></script>
+    <!-- Brand typeface (BRAND-SPEC: Nunito); app.css falls back to the system stack when offline. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" />
     <link rel="stylesheet" href="lib/bootstrap/dist/css/bootstrap.min.css" />
-    <link rel="stylesheet" href="_content/Perezosoft.Shared.Ui/css/app.css" />
+    <link rel="stylesheet" href="_content/Vuelto.Shared.Ui/css/app.css" />
     <!-- Auto-aggregated bundle of the RCL's scoped component CSS. -->
-    <link rel="stylesheet" href="Perezosoft.Maui.styles.css" />
+    <link rel="stylesheet" href="Vuelto.Maui.styles.css" />
     <link rel="icon" href="data:,">
 </head>
 
@@ -29,10 +33,10 @@
     </div>
 
     <!-- MFA enrollment QR (vendored qrcode-generator, MIT) — client-side only -->
-    <script src="_content/Perezosoft.Shared.Ui/js/qrcode-generator.min.js"></script>
-    <script src="_content/Perezosoft.Shared.Ui/js/mfa-qr.js"></script>
+    <script src="_content/Vuelto.Shared.Ui/js/qrcode-generator.min.js"></script>
+    <script src="_content/Vuelto.Shared.Ui/js/mfa-qr.js"></script>
     <!-- Reload bfcache restores so Back after sign-out can't show a stale authenticated view (QA-SEC-03; browser-only, no-op in the WebView — loaded for host parity). -->
-    <script src="_content/Perezosoft.Shared.Ui/js/bfcache-guard.js"></script>
+    <script src="_content/Vuelto.Shared.Ui/js/bfcache-guard.js"></script>
     <script src="_framework/blazor.webview.js" autostart="false"></script>
 
 </body>

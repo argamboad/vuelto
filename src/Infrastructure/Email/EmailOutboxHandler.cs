@@ -1,8 +1,8 @@
 using System.Text.Json;
-using Perezosoft.Core.Abstractions;
-using Perezosoft.Core.Entities;
+using Vuelto.Core.Abstractions;
+using Vuelto.Core.Entities;
 
-namespace Perezosoft.Infrastructure.Email;
+namespace Vuelto.Infrastructure.Email;
 
 /// <summary>
 /// Outbox handler for <c>"email"</c> messages: deserializes the payload and performs the real SMTP

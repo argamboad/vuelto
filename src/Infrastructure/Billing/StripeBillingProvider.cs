@@ -1,11 +1,11 @@
 using Microsoft.Extensions.Options;
 using Stripe;
 using Stripe.Checkout;
-using Perezosoft.Core.Abstractions;
-using Perezosoft.Core.Billing;
-using Perezosoft.Core.Entities;
+using Vuelto.Core.Abstractions;
+using Vuelto.Core.Billing;
+using Vuelto.Core.Entities;
 
-namespace Perezosoft.Infrastructure.Billing;
+namespace Vuelto.Infrastructure.Billing;
 
 /// <summary>
 /// Stripe reference implementation of <see cref="IBillingProvider"/> (ADR-006). Creates a hosted

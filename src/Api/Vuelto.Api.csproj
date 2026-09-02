@@ -26,12 +26,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Core\Perezosoft.Core.csproj" />
-    <ProjectReference Include="..\Infrastructure\Perezosoft.Infrastructure.csproj" />
+    <ProjectReference Include="..\Core\Vuelto.Core.csproj" />
+    <ProjectReference Include="..\Infrastructure\Vuelto.Infrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <InternalsVisibleTo Include="Perezosoft.Api.Tests" />
+    <InternalsVisibleTo Include="Vuelto.Api.Tests" />
   </ItemGroup>
 
 </Project>

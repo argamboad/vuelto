@@ -1,9 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
-using Perezosoft.Core.Repositories;
-using Perezosoft.Infrastructure.Persistence;
+using Vuelto.Core.Repositories;
+using Vuelto.Infrastructure.Persistence;
 
-namespace Perezosoft.Infrastructure.Repositories;
+namespace Vuelto.Infrastructure.Repositories;
 
 /// <summary>
 /// EF Core implementation of <see cref="IUnitOfWork"/>. Wraps a real

@@ -1,6 +1,6 @@
-using Perezosoft.Shared.Ui;
+using Vuelto.Shared.Ui;
 
-namespace Perezosoft.Maui;
+namespace Vuelto.Maui;
 
 /// <summary>
 /// Native implementation (NATIVE-3): a WebView can't perform a browser download, so fetch the

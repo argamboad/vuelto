@@ -1,9 +1,9 @@
 using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.DependencyInjection;
-using Perezosoft.Api.Services;
+using Vuelto.Api.Services;
 
-namespace Perezosoft.Api.Tests.Auth;
+namespace Vuelto.Api.Tests.Auth;
 
 /// <summary>
 /// The OAuth provider-discovery logic behind <c>GET /api/auth/providers</c> (used by the login/settings
