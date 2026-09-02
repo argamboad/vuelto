@@ -1,0 +1,27 @@
+===== src/Core =====
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+
+The following sources were used:
+   https://api.nuget.org/v3/index.json
+   C:\Program Files (x86)\Microsoft SDKs\NuGetPackages\
+
+The given project `Perezosoft.Core` has no vulnerable packages given the current sources.
+===== src/Infrastructure =====
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+
+The following sources were used:
+   https://api.nuget.org/v3/index.json
+   C:\Program Files (x86)\Microsoft SDKs\NuGetPackages\
+
+The given project `Perezosoft.Infrastructure` has no vulnerable packages given the current sources.
+===== src/Api =====
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+
+The following sources were used:
+   https://api.nuget.org/v3/index.json
+   C:\Program Files (x86)\Microsoft SDKs\NuGetPackages\
+
+The given project `Perezosoft.Api` has no vulnerable packages given the current sources.

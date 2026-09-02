@@ -1,0 +1,66 @@
+@using System.Globalization
+@using System.Net.Http.Json
+@using Perezosoft.Shared.Ui.Auth
+@inject ICulturePersistence CulturePersistence
+@inject NavigationManager Nav
+@inject HttpClient Http
+@inject AuthService Auth
+@inject IStringLocalizer<AppStrings> Localizer
+
+<select class="form-select form-select-sm lang-switcher" value="@_current" data-testid="language-switcher"
+        @onchange="OnChange" aria-label="@Localizer["Language"]">
+    @foreach (var c in Cultures)
+    {
+        <option value="@c.Code">@c.Name</option>
+    }
+</select>
+@if (_syncFailed)
+{
+    <span class="text-warning small ms-1" data-testid="locale-sync-failed"
+          title="@Localizer["Pref_SyncFailed"]" role="status">&#9888;</span>
+}
+
+@code {
+    // Native language names — these stay constant regardless of the selected culture.
+    private static readonly (string Code, string Name)[] Cultures =
+    [
+        ("en", "English"),
+        ("es", "Español"),
+    ];
+
+    private string _current = "en";
+    private bool _syncFailed;
+
+    protected override void OnInitialized() =>
+        _current = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
+
+    private async Task OnChange(ChangeEventArgs e)
+    {
+        var code = e.Value?.ToString() ?? "en";
+        if (code == _current) return;
+        _syncFailed = false;
+
+        // Signed in: sync to the server FIRST, before the disruptive reload (UX-3). A language switch
+        // reloads immediately, so an optimistic marker couldn't survive it — and committing a switch the
+        // server never got would silently revert on the next sign-in's server-wins reconcile. So on a
+        // failed PUT, surface it and DON'T switch; the user can retry.
+        if (Auth.IsAuthenticated)
+        {
+            try
+            {
+                var res = await Http.PutAsJsonAsync("/api/auth/locale", new { locale = code });
+                if (!res.IsSuccessStatusCode) { _syncFailed = true; return; }
+            }
+            catch { _syncFailed = true; return; }
+        }
+
+        _current = code;
+
+        // Device-local store (read back by the host's next cold start: web pre-render, MauiProgram on
+        // native), plus the in-process culture so the MAUI webview reload picks it up (MauiProgram doesn't
+        // re-run on reload). Then the full reload for the WASM satellite assemblies.
+        await CulturePersistence.PersistAsync(code);
+        CultureInfo.DefaultThreadCurrentCulture = CultureInfo.DefaultThreadCurrentUICulture = new CultureInfo(code);
+        Nav.NavigateTo(Nav.Uri, forceLoad: true);
+    }
+}

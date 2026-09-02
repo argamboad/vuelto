@@ -1,0 +1,200 @@
+@page "/billing"
+@using System.Net.Http.Json
+@using System.Text.Json.Serialization
+@implements IDisposable
+@inject AuthService Auth
+@inject HttpClient Http
+@inject NavigationManager Nav
+@inject AppResumeNotifier Resume
+@inject IStringLocalizer<AppStrings> Localizer
+
+<PageTitle>@Localizer["Billing_Title"]</PageTitle>
+
+<div class="billing-wrapper">
+    <h1 class="h4 fw-bold mb-1">@Localizer["Billing_Title"]</h1>
+    <p class="text-muted mb-4">@Localizer["Billing_Subtitle"]</p>
+
+    @if (!string.IsNullOrEmpty(_error))
+    {
+        <div class="alert alert-danger py-2" data-testid="billing-error">@_error</div>
+    }
+
+    @if (_loading)
+    {
+        <div class="p-4 text-center text-muted">
+            <span class="spinner-border spinner-border-sm me-2"></span> @Localizer["Common_Loading"]
+        </div>
+    }
+    else if (_forbidden)
+    {
+        @* Billing is owner-only (Permission.ManageBilling) — members get a friendly pointer. *@
+        <div class="alert alert-secondary" data-testid="billing-owner-only">@Localizer["Billing_OwnerOnly"]</div>
+    }
+    else if (_summary is not null)
+    {
+        <div class="card shadow-sm mb-3">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h2 class="h6 fw-bold mb-1">@Localizer["Billing_CurrentPlan"]</h2>
+                        <div class="h5 mb-0 text-capitalize" data-testid="billing-plan">@Label($"Plan_{_summary.PlanKey}", _summary.PlanKey)</div>
+                    </div>
+                    <span class="badge bg-info-subtle text-info-emphasis" data-testid="billing-status">@Label($"BillingStatus_{_summary.Status}", _summary.Status)</span>
+                </div>
+                @if (_summary.CurrentPeriodEnd is { } end)
+                {
+                    <div class="small text-muted mt-2">@Localizer["Billing_RenewsOn", end.LocalDateTime.ToString("d")]</div>
+                }
+            </div>
+        </div>
+
+        <div class="card shadow-sm mb-3">
+            <div class="card-body">
+                <h2 class="h6 fw-bold mb-2">@Localizer["Billing_Seats"]</h2>
+                <div data-testid="billing-seats">@Localizer["Billing_SeatsUsage", _summary.Seats.Used, _summary.Seats.Limit?.ToString() ?? "∞"]</div>
+            </div>
+        </div>
+
+        <div class="d-flex gap-2">
+            @if (_summary.PlanKey == FreePlanKey)
+            {
+                <button class="btn btn-primary" data-testid="billing-upgrade" disabled="@_busy" @onclick="Upgrade">
+                    @if (_busy)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2"></span>
+                    }
+                    @Localizer["Billing_Upgrade"]
+                </button>
+            }
+            @if (_summary.HasSubscription)
+            {
+                <button class="btn btn-outline-secondary" data-testid="billing-portal" disabled="@_busy" @onclick="OpenPortal">@Localizer["Billing_Manage"]</button>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    // Localize a plan/status token via its "Plan_{key}" / "BillingStatus_{status}" resource, falling back
+    // to the raw token when there's no string for it — so the money page never renders bare machine tokens
+    // for known values, and an unmapped one degrades to the (capitalized) token instead of a missing key
+    // (v3 UX-5).
+    private string Label(string key, string fallback)
+    {
+        var s = Localizer[key];
+        return s.ResourceNotFound ? fallback : s.Value;
+    }
+
+    // Plan keys mirror src/Core/Billing/PlanCatalog.cs (EXAMPLE plans — retune per app with the catalog).
+    private const string FreePlanKey = "free";
+    private const string UpgradePlanKey = "pro";
+
+    private bool _loading = true;
+    private bool _forbidden;
+    private bool _busy;
+    private string? _error;
+    private SummaryDto? _summary;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Auth.IsAuthenticated)
+        {
+            Nav.NavigateTo("/login");
+            return;
+        }
+        // On native, checkout/portal open the system browser and the provider's redirect lands on
+        // web — this page is still what the user returns to. Refresh on resume so the new plan
+        // shows without a manual re-navigation (NATIVE-4, G2). Never fires on web.
+        Resume.Resumed += OnAppResumed;
+        await LoadAsync();
+    }
+
+    private void OnAppResumed() => _ = InvokeAsync(async () =>
+    {
+        await LoadAsync();
+        StateHasChanged();
+    });
+
+    public void Dispose() => Resume.Resumed -= OnAppResumed;
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            var res = await Http.GetAsync("/api/billing");
+            if (res.StatusCode == System.Net.HttpStatusCode.Forbidden)
+            {
+                _forbidden = true;
+                return;
+            }
+            res.EnsureSuccessStatusCode();
+            _summary = await res.Content.ReadFromJsonAsync<SummaryDto>();
+        }
+        catch { _error = Localizer["Billing_ErrLoad"]; }
+        finally { _loading = false; }
+    }
+
+    private async Task Upgrade()
+    {
+        _busy = true; _error = null;
+        try
+        {
+            var res = await Http.PostAsJsonAsync("/api/billing/checkout", new { plan_key = UpgradePlanKey });
+            if (res.IsSuccessStatusCode)
+            {
+                var body = await res.Content.ReadFromJsonAsync<UrlDto>();
+                if (!string.IsNullOrEmpty(body?.Url))
+                {
+                    // Hosted checkout is an external page — full navigation, the provider redirects back.
+                    Nav.NavigateTo(body.Url, forceLoad: true);
+                    return;
+                }
+            }
+            _error = Localizer["Billing_ErrCheckout"];
+        }
+        catch { _error = Localizer["Billing_ErrCheckout"]; }
+        finally { _busy = false; }
+    }
+
+    private async Task OpenPortal()
+    {
+        _busy = true; _error = null;
+        try
+        {
+            var res = await Http.PostAsync("/api/billing/portal", null);
+            if (res.IsSuccessStatusCode)
+            {
+                var body = await res.Content.ReadFromJsonAsync<UrlDto>();
+                if (!string.IsNullOrEmpty(body?.Url))
+                {
+                    Nav.NavigateTo(body.Url, forceLoad: true);
+                    return;
+                }
+            }
+            _error = Localizer["Billing_ErrPortal"];
+        }
+        catch { _error = Localizer["Billing_ErrPortal"]; }
+        finally { _busy = false; }
+    }
+
+    private sealed record SummaryDto
+    {
+        [JsonPropertyName("plan_key")] public string PlanKey { get; init; } = "free";
+        [JsonPropertyName("status")] public string Status { get; init; } = "none";
+        [JsonPropertyName("current_period_end")] public DateTimeOffset? CurrentPeriodEnd { get; init; }
+        [JsonPropertyName("seats")] public SeatsDto Seats { get; init; } = new();
+        [JsonPropertyName("has_subscription")] public bool HasSubscription { get; init; }
+    }
+
+    private sealed record SeatsDto
+    {
+        [JsonPropertyName("used")] public int Used { get; init; }
+        [JsonPropertyName("limit")] public int? Limit { get; init; }
+    }
+
+    private sealed record UrlDto
+    {
+        [JsonPropertyName("url")] public string? Url { get; init; }
+    }
+}

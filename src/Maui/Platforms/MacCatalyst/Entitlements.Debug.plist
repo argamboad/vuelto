@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+    <!-- Local-dev entitlements (ad-hoc signed Debug builds). The store entitlements in
+         Entitlements.plist enable the App Sandbox, and sandboxed keychain access needs the
+         keychain-access-groups entitlement — which is restricted: an ad-hoc signature that
+         claims it gets SIGKILLed at launch (no provisioning profile). Debug therefore drops
+         that entitlement and runs unsandboxed. WITHOUT keychain-access-groups, SecureStorage
+         CANNOT reach the data-protection keychain either — so Catalyst Debug swaps in the
+         file-based DebugFileSessionStore (see MauiProgram's #if MACCATALYST && DEBUG branch and
+         DebugFileSessionStore, PR #125). Release/store builds (a downstream app's signed release —
+         ADR-024) keep Entitlements.plist + a real signing identity, where SecureStorage works. (Corrected: v3 audit NAT-8 — this
+         comment previously claimed SecureStorage worked here, contradicting the code.) -->
+    <dict>
+        <key>com.apple.security.network.client</key>
+        <true/>
+    </dict>
+</plist>

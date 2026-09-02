@@ -1,0 +1,132 @@
+@page "/join"
+@using System.Net
+@using System.Net.Http.Json
+@inject AuthService Auth
+@inject HttpClient Http
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@inject IStringLocalizer<AppStrings> Localizer
+
+<PageTitle>@Localizer["Join_Title"]</PageTitle>
+
+<div class="join-wrapper text-center py-5">
+    @if (_state == State.Working)
+    {
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">@Localizer["Common_Working"]</span>
+        </div>
+        <p class="text-muted mt-3">@Localizer["Join_Working"]</p>
+    }
+    else if (_state == State.NeedsSignIn)
+    {
+        <h1 class="h5 fw-bold mb-2" data-testid="join-needs-signin">@Localizer["Join_InvitedTitle"]</h1>
+        <p class="text-muted">@Localizer["Join_NeedsSignIn"]</p>
+        <a class="btn btn-primary" href="/login">@Localizer["Join_SignInToAccept"]</a>
+    }
+    else if (_state == State.Success)
+    {
+        <h1 class="h5 fw-bold mb-2 text-success" data-testid="join-success">@Localizer["Join_SuccessTitle"]</h1>
+        <p class="text-muted">@Localizer["Join_SuccessBody"]</p>
+        <button class="btn btn-primary" data-testid="join-go-household" @onclick="@(() => Nav.NavigateTo("/household", forceLoad: true))">@Localizer["Join_GoToHousehold"]</button>
+    }
+    else if (_state == State.EnterCode)
+    {
+        <h1 class="h5 fw-bold mb-2" data-testid="join-enter-code">@Localizer["Join_EnterCodeTitle"]</h1>
+        <p class="text-muted">@Localizer["Join_EnterCodeBody"]</p>
+        @if (_codeError)
+        {
+            <p class="text-danger small" data-testid="join-code-error">@Localizer["Join_DefaultError"]</p>
+        }
+        <div class="d-flex justify-content-center gap-2">
+            <input class="form-control" style="max-width:320px" placeholder="@Localizer["Join_CodePlaceholder"]"
+                   data-testid="join-code-input" @bind="_code" @bind:event="oninput" />
+            <button class="btn btn-primary" data-testid="join-code-submit"
+                    disabled="@string.IsNullOrWhiteSpace(_code)"
+                    @onclick="SubmitCode">@Localizer["Join_SubmitCode"]</button>
+        </div>
+    }
+    else if (_state == State.Error && _householdFull)
+    {
+        @* Seat re-check refused the accept (BILLING-9): the household downgraded below its
+           reserved seats. The token stays valid — upgrading self-heals. *@
+        <h1 class="h5 fw-bold mb-2 text-danger" data-testid="join-household-full">@Localizer["Join_FullTitle"]</h1>
+        <p class="text-muted">@Localizer["Join_FullBody"]</p>
+        <a class="btn btn-outline-secondary" href="/household">@Localizer["Join_BackToHousehold"]</a>
+    }
+    else if (_state == State.Error)
+    {
+        <h1 class="h5 fw-bold mb-2 text-danger" data-testid="join-error">@Localizer["Join_ErrorTitle"]</h1>
+        <p class="text-muted">@Localizer["Join_DefaultError"]</p>
+        <a class="btn btn-outline-secondary" href="/household">@Localizer["Join_BackToHousehold"]</a>
+    }
+</div>
+
+@code {
+    [SupplyParameterFromQuery] public string? Token { get; set; }
+
+    private enum State { Working, NeedsSignIn, EnterCode, Success, Error }
+    private State _state = State.Working;
+    private string _code = "";
+    private bool _codeError;
+    private bool _householdFull;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Auth.IsAuthenticated)
+        {
+            // Remember where to return after sign-in. localStorage is shared across
+            // tabs for this origin, so it survives the OAuth/magic-link round-trip —
+            // even when a magic-link email opens a new tab.
+            await JS.InvokeVoidAsync("localStorage.setItem",
+                "post_login_redirect", "/" + Nav.ToBaseRelativePath(Nav.Uri));
+            _state = State.NeedsSignIn;
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(Token))
+        {
+            // No token in the URL — native apps have no address bar for the emailed
+            // /join?token=… link (parity gap G5), and some email clients mangle links,
+            // so offer manual entry of the invite code shown in the email instead.
+            _state = State.EnterCode;
+            return;
+        }
+
+        await AcceptAsync(Token, failure: State.Error);
+    }
+
+    private Task SubmitCode() => AcceptAsync(_code.Trim(), failure: State.EnterCode, inlineError: true);
+
+    private async Task AcceptAsync(string token, State failure, bool inlineError = false)
+    {
+        _state = State.Working;
+        _codeError = false;
+        _householdFull = false;
+        try
+        {
+            var resp = await Http.PostAsJsonAsync("/api/household/invitations/accept", new { token });
+            if (resp.IsSuccessStatusCode)
+            {
+                // The tenant_name claim changed — refresh so the new household shows.
+                await Auth.TryRefreshAsync();
+                _state = State.Success;
+                return;
+            }
+            if (resp.StatusCode == HttpStatusCode.PaymentRequired)
+            {
+                // 402 seat_limit_reached (BILLING-9): the token is fine — the household is over
+                // its plan's seats. Terminal for now regardless of entry path (retyping the code
+                // won't help), so show the specific full-household state, not the inline error.
+                _householdFull = true;
+                _state = State.Error;
+                return;
+            }
+        }
+        catch
+        {
+            // fall through to the failure state
+        }
+        _codeError = inlineError;
+        _state = failure;
+    }
+}

@@ -1,0 +1,22 @@
+<Project>
+
+  <!--
+    Solution-wide build hygiene (audit B9-2). Nullable reference types on, and warnings are
+    errors so the invariants the analyzers and the compiler check can't rot into ignored noise.
+    This is half of "solid by construction" — the architecture tests (B9-1) are the other half,
+    and CI (B9-3) runs both.
+  -->
+  <PropertyGroup>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!--
+      Supply-chain hardening (audit B11-6, R27). Restore writes a packages.lock.json next to each
+      project pinning the full transitive graph; those files are committed and CI restores in
+      locked mode so any drift fails the build. Paired with Central Package Management
+      (Directory.Packages.props).
+    -->
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+  </PropertyGroup>
+
+</Project>

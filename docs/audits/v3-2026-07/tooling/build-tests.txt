@@ -1,0 +1,32 @@
+########## Api.Tests ##########
+  Determining projects to restore...
+  Restored C:\Users\argam\source\repos\Personal\perezosoft-platform\src\Core\Perezosoft.Core.csproj (in 81 ms).
+  Restored C:\Users\argam\source\repos\Personal\perezosoft-platform\tests\Api.Tests\Perezosoft.Api.Tests.csproj (in 248 ms).
+  Restored C:\Users\argam\source\repos\Personal\perezosoft-platform\src\Infrastructure\Perezosoft.Infrastructure.csproj (in 258 ms).
+  Restored C:\Users\argam\source\repos\Personal\perezosoft-platform\src\Api\Perezosoft.Api.csproj (in 258 ms).
+  Perezosoft.Core -> C:\Users\argam\source\repos\Personal\perezosoft-platform\src\Core\bin\Debug\net10.0\Perezosoft.Core.dll
+  Perezosoft.Infrastructure -> C:\Users\argam\source\repos\Personal\perezosoft-platform\src\Infrastructure\bin\Debug\net10.0\Perezosoft.Infrastructure.dll
+  Perezosoft.Api -> C:\Users\argam\source\repos\Personal\perezosoft-platform\src\Api\bin\Debug\net10.0\Perezosoft.Api.dll
+  Perezosoft.Api.Tests -> C:\Users\argam\source\repos\Personal\perezosoft-platform\tests\Api.Tests\bin\Debug\net10.0\Perezosoft.Api.Tests.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:14.93
+=== Api.Tests EXIT 0 ===
+
+########## Core.Tests ##########
+  Determining projects to restore...
+  Restored C:\Users\argam\source\repos\Personal\perezosoft-platform\tests\Core.Tests\Perezosoft.Core.Tests.csproj (in 346 ms).
+  2 of 3 projects are up-to-date for restore.
+  Perezosoft.Core -> C:\Users\argam\source\repos\Personal\perezosoft-platform\src\Core\bin\Debug\net10.0\Perezosoft.Core.dll
+  Perezosoft.Shared.Ui -> C:\Users\argam\source\repos\Personal\perezosoft-platform\src\Shared.Ui\bin\Debug\net10.0\Perezosoft.Shared.Ui.dll
+  Perezosoft.Core.Tests -> C:\Users\argam\source\repos\Personal\perezosoft-platform\tests\Core.Tests\bin\Debug\net10.0\Perezosoft.Core.Tests.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:04.04
+=== Core.Tests EXIT 0 ===

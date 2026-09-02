@@ -1,0 +1,24 @@
+# DEP-4 lockfile investigation — src/Web/packages.lock.json (local SDK 10.0.301)
+
+Committed lockfile pins the WASM SDK assets at 10.0.10:
+  Microsoft.AspNetCore.App.Internal.Assets = 10.0.10
+  Microsoft.NET.ILLink.Tasks               = 10.0.10
+  Microsoft.NET.Sdk.WebAssembly.Pack       = 10.0.10
+(CLAUDE.md: "re-verified 2026-07-14: SDK 10.0.302, WASM/ILLink SDK assets 10.0.10".)
+
+Observed under local SDK 10.0.301:
+  1. LOCKED-MODE restore (what CI does):        EXIT 0 — restores the pinned 10.0.10 assets fine.
+     `dotnet restore src/Web --locked-mode` and `--locked-mode --force-evaluate` both pass.
+     => NU1004 does NOT fire in CI (CI floats 10.0.x, uses locked mode). DEP-4's
+        "the pinned build stage NU1004s" reading is NOT reproduced.
+  2. NON-LOCKED restore (IDE / `dotnet list` / a careless dev on 10.0.301):
+     SILENTLY REWRITES the lockfile 10.0.10 -> 10.0.9 (SDK 10.0.301 ships the 10.0.9 WASM pack).
+     Observed: `dotnet list src/Web package --deprecated` mutated the lockfile in place
+     (9 insertions / 9 deletions, all 10.0.10 -> 10.0.9). Reverted with `git checkout`.
+
+CONCLUSION (refines DEP-4): the real trap is not CI NU1004 but a lockfile-CHURN /
+dirty-tree hazard — the committed lockfile is aligned to SDK 10.0.302 (10.0.10 assets),
+the Dockerfile + a common dev machine are on 10.0.301 (10.0.9 assets), and any non-locked
+restore there rewrites the lockfile and risks committing a silent downgrade. The Dockerfile
+survives only because its Web restore is deliberately unlocked. Fix = single SDK pin source
+(R55): align the Dockerfile/global.json/CI to the SDK the lockfile was generated with (10.0.302).

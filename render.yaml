@@ -1,0 +1,52 @@
+# Render blueprint (DEPLOY-2, ADR-017) — free-tier staging for the single-origin container.
+# Docs: https://render.com/docs/blueprint-spec . Apply via Render → "New +" → "Blueprint" pointed at
+# this repo. Secrets (sync:false) are set once in the Render dashboard, NEVER committed here.
+#
+# Reminders (free tier): the instance sleeps after ~15 min idle (first request cold-starts ~30–60s and
+# the outbox/scheduler pause while asleep — fine for staging, never for a paid prod). Bring your own
+# Postgres (Neon) + SMTP (Brevo); see docs/DEPLOYMENT.md.
+services:
+  - type: web
+    name: template-staging
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /health/ready   # readiness = DB reachable (Render restarts if it fails)
+    autoDeploy: false                # DEPLOY-3 drives deploys via a hook, not on every push
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: Hosting__ServeWebClient
+        value: "true"               # serve the bundled WASM single-origin (also baked into the image)
+      - key: Proxy__Enabled
+        value: "true"               # behind Render's TLS proxy: honor X-Forwarded-For/-Proto (DEPLOY-1)
+      - key: Jwt__Secret
+        generateValue: true         # Render mints a strong secret ONCE and persists it (sessions survive redeploys)
+      # ── Secrets — set these in the dashboard (sync:false keeps them out of git) ──
+      - key: ConnectionStrings__DefaultConnection
+        sync: false                 # Neon SESSION-pooler URI + sslmode=require (see runbook)
+      - key: Billing__Stripe__SecretKey
+        sync: false                 # REQUIRED in Production (fail-closed guard) — a Stripe TEST key for staging
+      - key: Auth__AppBaseUrl
+        sync: false                 # this service's public https URL — magic-link/invite emails link here
+      - key: Email__Smtp__Host
+        value: smtp-relay.brevo.com
+      - key: Email__Smtp__Port
+        value: "2525"               # Render free BLOCKS outbound 25/465/587 — Brevo also listens on 2525 (STARTTLS)
+      - key: Email__Smtp__Username
+        sync: false                 # Brevo SMTP login
+      - key: Email__Smtp__Password
+        sync: false                 # Brevo SMTP key
+      - key: Email__Smtp__FromAddress
+        sync: false                 # REQUIRED — a Brevo-VERIFIED sender address, else sends are rejected
+      - key: Email__Smtp__FromName
+        value: Perezosoft           # display name on outgoing mail — rename per your brand
+      # ── Optional — uncomment/set to enable ──
+      # - key: Authentication__Google__ClientId
+      #   sync: false
+      # - key: Authentication__Google__ClientSecret
+      #   sync: false
+      # - key: PublicApi__Enabled
+      #   value: "false"
+      # - key: Webhooks__Enabled
+      #   value: "false"

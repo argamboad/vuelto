@@ -1,0 +1,477 @@
+@page "/login"
+@using System.Globalization
+@using System.Net.Http.Json
+@using System.Text.Json.Serialization
+@using Perezosoft.Shared.Ui.Auth
+@inject AuthService Auth
+@inject NavigationManager Nav
+@inject HttpClient Http
+@inject IStringLocalizer<AppStrings> Localizer
+
+<PageTitle>@Localizer["Login_Title"]</PageTitle>
+
+<div class="login-wrapper">
+    <div class="login-card card shadow-sm">
+        <div class="card-body p-4 p-md-5">
+
+            <div class="text-center mb-4">
+                <img src="_content/Perezosoft.Shared.Ui/brand/lockup_light_1520.png" alt="Perezosoft"
+                     class="login-lockup mb-3" />
+                <h1 class="h5 fw-bold mb-0">@Localizer["Login_Title"]</h1>
+                <p class="text-muted small mt-1">@Localizer["Login_Subtitle"]</p>
+            </div>
+
+            @if (!string.IsNullOrEmpty(Error))
+            {
+                <div class="alert alert-danger mb-4" data-testid="login-error">@ErrorMessage</div>
+            }
+
+            <!-- OAuth providers. Only those the server has configured are shown (else the button would
+                 500 on challenge). Web full-navigates to the API; native runs the system-browser flow
+                 via AuthService and stays in the app. -->
+            @if (_providers.Contains("google") || _providers.Contains("microsoft"))
+            {
+                <div class="d-grid gap-2">
+                    @if (_providers.Contains("google"))
+                    {
+                        @if (Auth.IsNative)
+                        {
+                            <button type="button" class="btn btn-oauth btn-google"
+                                    @onclick='() => SignInWithOAuth("Google")' disabled="@_oauthBusy">
+                                @GoogleIcon @Localizer["Login_ContinueWith", "Google"]
+                            </button>
+                        }
+                        else
+                        {
+                            <a href="@($"{ApiBase}/api/auth/login/Google")" class="btn btn-oauth btn-google">
+                                @GoogleIcon @Localizer["Login_ContinueWith", "Google"]
+                            </a>
+                        }
+                    }
+                    @if (_providers.Contains("microsoft"))
+                    {
+                        @if (Auth.IsNative)
+                        {
+                            <button type="button" class="btn btn-oauth btn-microsoft"
+                                    @onclick='() => SignInWithOAuth("Microsoft")' disabled="@_oauthBusy">
+                                @MicrosoftIcon @Localizer["Login_ContinueWith", "Microsoft"]
+                            </button>
+                        }
+                        else
+                        {
+                            <a href="@($"{ApiBase}/api/auth/login/Microsoft")" class="btn btn-oauth btn-microsoft">
+                                @MicrosoftIcon @Localizer["Login_ContinueWith", "Microsoft"]
+                            </a>
+                        }
+                    }
+                </div>
+
+                <div class="divider-text my-4"><span>@Localizer["Login_OrWithEmail"]</span></div>
+            }
+
+            @if (_mode == Mode.Idle)
+            {
+                <div class="mb-3">
+                    <label for="email" class="form-label fw-medium">@Localizer["Login_EmailLabel"]</label>
+                    <input id="email" data-testid="login-email" type="email" class="form-control @(_emailError ? "is-invalid" : "")"
+                           placeholder="you@example.com" @bind="_email" @bind:event="oninput" disabled="@_busy" />
+                    @if (_emailError)
+                    {
+                        <div class="invalid-feedback">@Localizer["Login_EmailInvalid"]</div>
+                    }
+                </div>
+                @if (!string.IsNullOrEmpty(_error))
+                {
+                    <div class="alert alert-danger py-2">@_error</div>
+                }
+                <div class="d-grid gap-2">
+                    @* Magic link is web-only: the email link opens a browser, which can't
+                       hand the session back to a native app. Native uses the OTP code. *@
+                    @if (!Auth.IsNative)
+                    {
+                        <button class="btn btn-primary" data-testid="login-send-magic-link"
+                                @onclick="SendMagicLink" disabled="@_busy">
+                            @if (_busy && _pending == Mode.MagicLinkSent)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2"></span>
+                            }
+                            @Localizer["Login_SendMagicLink"]
+                        </button>
+                    }
+                    <button class="btn @(Auth.IsNative ? "btn-primary" : "btn-outline-primary")"
+                            data-testid="login-send-otp"
+                            @onclick="SendOtp" disabled="@_busy">
+                        @if (_busy && _pending == Mode.OtpSent)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                        }
+                        @Localizer["Login_SendOtp"]
+                    </button>
+                </div>
+            }
+            else if (_mode == Mode.MagicLinkSent)
+            {
+                <div class="alert alert-success d-flex align-items-start gap-2 mb-0">
+                    <span class="mt-1">&#10003;</span>
+                    <div>
+                        <strong>@Localizer["Login_InboxTitle"]</strong><br/>
+                        @Localizer["Login_MagicLinkSent", _email]
+                    </div>
+                </div>
+                <button class="btn btn-link btn-sm mt-2 p-0" @onclick="Reset">@Localizer["Login_UseDifferentEmail"]</button>
+            }
+            else if (_mode == Mode.OtpSent)
+            {
+                <p class="text-muted small mb-2">@Localizer["Login_OtpPrompt", _email]</p>
+                <div class="mb-2">
+                    <input type="text" inputmode="numeric" maxlength="6"
+                           data-testid="login-otp-code"
+                           class="form-control text-center @(_otpError ? "is-invalid" : "")"
+                           style="letter-spacing:.4rem;font-size:1.25rem"
+                           placeholder="------" @bind="_otpCode" @bind:event="oninput"
+                           @onkeydown="OnOtpKeyDown" disabled="@_busy" />
+                </div>
+                @if (!string.IsNullOrEmpty(_error))
+                {
+                    <div class="alert alert-danger py-2" data-testid="login-otp-error">@_error</div>
+                }
+                <div class="d-grid">
+                    <button class="btn btn-primary" data-testid="login-verify-otp" @onclick="VerifyOtp" disabled="@_busy">
+                        @if (_busy)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                        }
+                        @Localizer["Login_VerifyCode"]
+                    </button>
+                </div>
+                <button class="btn btn-link btn-sm mt-2 p-0" @onclick="Reset">@Localizer["Login_UseDifferentEmail"]</button>
+            }
+            else if (_mode == Mode.MfaChallenge)
+            {
+                <p class="text-muted small mb-2">@Localizer["Login_MfaPrompt"]</p>
+                <div class="mb-2">
+                    <input type="text" inputmode="text" maxlength="14"
+                           data-testid="login-mfa-code"
+                           class="form-control text-center @(_otpError ? "is-invalid" : "")"
+                           style="letter-spacing:.3rem;font-size:1.15rem"
+                           placeholder="------" @bind="_mfaCode" @bind:event="oninput"
+                           @onkeydown="OnMfaKeyDown" disabled="@_busy" />
+                </div>
+                @if (!string.IsNullOrEmpty(_error))
+                {
+                    <div class="alert alert-danger py-2">@_error</div>
+                }
+                <div class="d-grid">
+                    <button class="btn btn-primary" data-testid="login-verify-mfa" @onclick="VerifyMfa" disabled="@_busy">
+                        @if (_busy)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                        }
+                        @Localizer["Login_VerifyCode"]
+                    </button>
+                </div>
+                <button class="btn btn-link btn-sm mt-2 p-0" @onclick="Reset">@Localizer["Login_UseDifferentEmail"]</button>
+            }
+
+            <div class="d-flex justify-content-center gap-2 mt-4">
+                <div style="max-width:170px;width:100%"><LanguageSwitcher /></div>
+                <div style="max-width:130px;width:100%"><ThemeSwitcher /></div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+@code {
+    private enum Mode { Idle, MagicLinkSent, OtpSent, MfaChallenge }
+
+    [SupplyParameterFromQuery]
+    public string? Error { get; set; }
+
+    // Set by the server when a redirect login (OAuth / magic link) needs a second factor: a signed,
+    // single-use, short-lived MFA challenge. Its presence drops us straight into the step-up prompt.
+    [SupplyParameterFromQuery(Name = "mfa")]
+    public string? MfaChallengeToken { get; set; }
+
+    private string? ErrorMessage => Error switch
+    {
+        "external_failed" => Localizer["Login_ErrExternalFailed"],
+        "email_unverified" => Localizer["Login_ErrEmailUnverified"],
+        "invalid_link" => Localizer["Login_ErrInvalidLink"],
+        _ => Localizer["Login_ErrSomethingWrong"]
+    };
+
+    private string ApiBase => Http.BaseAddress?.ToString().TrimEnd('/') ?? string.Empty;
+
+    private string _email = string.Empty;
+    private string _otpCode = string.Empty;
+    private string _mfaCode = string.Empty;
+    private string? _challenge;
+    private Mode _mode = Mode.Idle;
+    private Mode _pending = Mode.Idle;
+    private bool _busy;
+    private bool _emailError;
+    private bool _otpError;
+    private string? _error;
+
+    // The OAuth providers the server actually configured — only these get a button (an unconfigured
+    // provider would 500 on challenge). Empty until fetched / when none configured.
+    private HashSet<string> _providers = new(StringComparer.OrdinalIgnoreCase);
+
+    protected override void OnInitialized()
+    {
+        // A native sign-in resumed after process death (NATIVE-12) may need follow-up:
+        // enter the MFA step-up with the resumed challenge, or explain why it failed.
+        var resume = Auth.TakeOAuthResumeHandoff();
+        if (resume is { Outcome: OAuthResumeOutcome.MfaRequired, Challenge: not null })
+        {
+            _challenge = resume.Challenge;
+            _mode = Mode.MfaChallenge;
+            return;
+        }
+        if (resume is { Outcome: OAuthResumeOutcome.Expired })
+            _error = Localizer["Login_ErrOAuthResumeExpired"];
+        else if (resume is { Outcome: OAuthResumeOutcome.Failed })
+            _error = Localizer["Login_ErrOAuthCancelled"];
+
+        // A redirect login (OAuth / magic link) that needs a second factor lands here with ?mfa=<challenge>.
+        // Enter the step-up prompt directly — the user isn't signed in yet (no session was issued).
+        if (!string.IsNullOrEmpty(MfaChallengeToken))
+        {
+            _challenge = MfaChallengeToken;
+            _mode = Mode.MfaChallenge;
+            return;
+        }
+
+        if (Auth.IsAuthenticated)
+            Nav.NavigateTo("/");
+    }
+
+    protected override async Task OnInitializedAsync() =>
+        _providers = new HashSet<string>(await Auth.GetEnabledProvidersAsync(), StringComparer.OrdinalIgnoreCase);
+
+    private bool ValidateEmail()
+    {
+        _emailError = string.IsNullOrWhiteSpace(_email) || !_email.Contains('@') || !_email.Contains('.');
+        return !_emailError;
+    }
+
+    private async Task SendMagicLink()
+    {
+        _error = null;
+        if (!ValidateEmail()) return;
+        _busy = true; _pending = Mode.MagicLinkSent;
+        try
+        {
+            var res = await Http.PostAsJsonAsync("/api/auth/magic-link/send",
+                new { email = _email.Trim(), culture = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName });
+            if (res.IsSuccessStatusCode) _mode = Mode.MagicLinkSent;
+            else _error = res.StatusCode == System.Net.HttpStatusCode.TooManyRequests
+                ? Localizer["Login_ErrTooManyRequests"]
+                : Localizer["Login_ErrCouldntSendLink"];
+        }
+        catch { _error = Localizer["Login_ErrCouldntSendLink"]; }
+        finally { _busy = false; _pending = Mode.Idle; }
+    }
+
+    private async Task SendOtp()
+    {
+        _error = null;
+        if (!ValidateEmail()) return;
+        _busy = true; _pending = Mode.OtpSent;
+        try
+        {
+            var res = await Http.PostAsJsonAsync("/api/auth/otp/send",
+                new { email = _email.Trim(), culture = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName });
+            if (res.IsSuccessStatusCode) { _mode = Mode.OtpSent; _otpCode = string.Empty; }
+            else _error = res.StatusCode == System.Net.HttpStatusCode.TooManyRequests
+                ? Localizer["Login_ErrTooManyRequests"]
+                : Localizer["Login_ErrCouldntSendCode"];
+        }
+        catch { _error = Localizer["Login_ErrCouldntSendCode"]; }
+        finally { _busy = false; _pending = Mode.Idle; }
+    }
+
+    private async Task VerifyOtp()
+    {
+        _error = null; _otpError = false;
+        if (string.IsNullOrWhiteSpace(_otpCode))
+        {
+            _otpError = true; _error = Localizer["Login_ErrEnterCode"]; return;
+        }
+        _busy = true;
+        try
+        {
+            if (Auth.IsNative)
+            {
+                // Native: tokens come back in the body and AuthService stores them — unless MFA is on,
+                // in which case we get a challenge and step up with a code (same prompt as the web path).
+                var result = await Auth.VerifyOtpAsync(_email.Trim(), _otpCode.Trim());
+                if (result.Status == SignInStatus.Success) { Nav.NavigateTo("/"); return; }
+                if (result.Status == SignInStatus.MfaRequired)
+                {
+                    _challenge = result.Challenge;
+                    _mfaCode = string.Empty;
+                    _error = null; _otpError = false;
+                    _mode = Mode.MfaChallenge;
+                    return;
+                }
+                _otpError = true;
+                // Native shares the web mapping: a lockout reads distinctly, wrong/expired stays generic.
+                _error = Localizer[AuthErrorCopy.OtpErrorKey(result.Error)];
+                return;
+            }
+
+            var res = await Http.PostAsJsonAsync("/api/auth/otp/verify",
+                new { email = _email.Trim(), code = _otpCode.Trim() });
+            if (res.IsSuccessStatusCode)
+            {
+                var body = await res.Content.ReadFromJsonAsync<VerifyResult>();
+                if (body?.MfaRequired == true && !string.IsNullOrEmpty(body.Challenge))
+                {
+                    // MFA is on: no session yet. Hold the challenge and step up with a code.
+                    _challenge = body.Challenge;
+                    _mfaCode = string.Empty;
+                    _error = null; _otpError = false;
+                    _mode = Mode.MfaChallenge;
+                    return;
+                }
+                // Refresh cookie is set; /auth-callback exchanges it for the session.
+                Nav.NavigateTo("/auth-callback");
+                return;
+            }
+            _otpError = true;
+            // A lockout (too_many_attempts) is a distinct, user-relevant signal: retrying or
+            // requesting a fresh code won't help until the window elapses (CONF-5). Surfacing the
+            // generic "incorrect or expired" here would wrongly imply a mistype. The server keeps
+            // wrong-vs-no-active-code collapsed to invalid_code for enumeration safety (CONF-6).
+            _error = res.StatusCode switch
+            {
+                System.Net.HttpStatusCode.Unauthorized => await OtpErrorAsync(res),
+                System.Net.HttpStatusCode.TooManyRequests => Localizer["Login_ErrTooManyRequests"],
+                _ => Localizer["Login_ErrVerificationFailed"],
+            };
+        }
+        catch { _error = Localizer["Login_ErrVerificationFailed"]; }
+        finally { _busy = false; }
+    }
+
+    // Reads the 401 body's error code and maps it via the shared helper (same copy rules as native):
+    // lockout gets its own line, everything else (wrong / expired) stays deliberately generic.
+    private async Task<string> OtpErrorAsync(HttpResponseMessage res)
+    {
+        string? code = null;
+        try { code = (await res.Content.ReadFromJsonAsync<ApiError>())?.Error; }
+        catch { /* no/again-unreadable body → fall through to the generic message */ }
+        return Localizer[AuthErrorCopy.OtpErrorKey(code)];
+    }
+
+    private async Task VerifyMfa()
+    {
+        _error = null; _otpError = false;
+        if (string.IsNullOrWhiteSpace(_mfaCode))
+        {
+            _otpError = true; _error = Localizer["Login_ErrEnterCode"]; return;
+        }
+        _busy = true;
+        try
+        {
+            if (Auth.IsNative)
+            {
+                // Native: tokens come back in the body and AuthService stores them.
+                if (await Auth.VerifyMfaAsync(_challenge!, _mfaCode.Trim())) { Nav.NavigateTo("/"); return; }
+                _otpError = true;
+                _error = Localizer["Login_ErrCodeIncorrect"];
+                return;
+            }
+
+            // Web: the API sets the refresh cookie on success, then /auth-callback
+            // exchanges it for the session (mirrors the OTP path).
+            var res = await Http.PostAsJsonAsync("/api/auth/mfa/verify",
+                new { challenge = _challenge, code = _mfaCode.Trim() });
+            if (res.IsSuccessStatusCode)
+            {
+                Nav.NavigateTo("/auth-callback");
+                return;
+            }
+            _otpError = true;
+            _error = Localizer["Login_ErrCodeIncorrect"];
+        }
+        catch { _error = Localizer["Login_ErrVerificationFailed"]; }
+        finally { _busy = false; }
+    }
+
+    private bool _oauthBusy;
+
+    private async Task SignInWithOAuth(string provider)
+    {
+        _error = null;
+        _oauthBusy = true;
+        try
+        {
+            var result = await Auth.SignInWithOAuthAsync(provider);
+            if (result.Status == SignInStatus.Success)
+            {
+                Nav.NavigateTo("/");
+                return;
+            }
+            if (result.Status == SignInStatus.MfaRequired)
+            {
+                // MFA on: step up with a code (same prompt as the OTP path).
+                _challenge = result.Challenge;
+                _mfaCode = string.Empty;
+                _mode = Mode.MfaChallenge;
+                return;
+            }
+            _error = Localizer["Login_ErrOAuthCancelled"];
+        }
+        finally { _oauthBusy = false; }
+    }
+
+    private async Task OnOtpKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await VerifyOtp();
+    }
+
+    private async Task OnMfaKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await VerifyMfa();
+    }
+
+    private void Reset()
+    {
+        _mode = Mode.Idle;
+        _otpCode = string.Empty;
+        _mfaCode = string.Empty;
+        _challenge = null;
+        _error = null;
+        _emailError = false;
+        _otpError = false;
+    }
+
+    // Shape of the /api/auth/otp/verify body when MFA is enabled (else it's the session).
+    private sealed record VerifyResult
+    {
+        [JsonPropertyName("mfa_required")] public bool MfaRequired { get; init; }
+        [JsonPropertyName("challenge")] public string? Challenge { get; init; }
+    }
+
+    // Shape of the API's ErrorResponse (code + message); we key the OTP copy off the code.
+    private sealed record ApiError
+    {
+        [JsonPropertyName("error")] public string? Error { get; init; }
+    }
+
+    // Provider glyphs, shared by the web (anchor) and native (button) variants.
+    private readonly RenderFragment GoogleIcon = @<svg class="oauth-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
+        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+    </svg>;
+
+    private readonly RenderFragment MicrosoftIcon = @<svg class="oauth-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path fill="#F35325" d="M1 1h10v10H1z"/><path fill="#81BC06" d="M13 1h10v10H13z"/>
+        <path fill="#05A6F0" d="M1 13h10v10H1z"/><path fill="#FFBA08" d="M13 13h10v10H13z"/>
+    </svg>;
+}

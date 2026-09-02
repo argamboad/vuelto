@@ -1,0 +1,48 @@
+.app-header {
+    background: var(--bs-primary);
+    /* min-height (not height): on phones the collapsed menu expands below the bar and
+       must not be clipped. Stays 60px tall when closed / on wide screens. */
+    min-height: var(--header-height, 60px);
+    /* Clear the iOS notch/status bar (WKWebView + viewport-fit=cover in the MAUI
+       index.html). Android WebView always resolves env() to 0 — the Android 15+
+       edge-to-edge underlap is fixed natively instead (MainActivity pads the content
+       view by the status-bar inset). Resolves to 0 on web/desktop. */
+    padding-top: env(safe-area-inset-top, 0px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .20);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.app-brand {
+    font-weight: 700;
+    font-size: 1.1rem;
+    letter-spacing: -.01em;
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+}
+
+.brand-icon {
+    height: 32px;
+    width: auto;
+    display: block;
+}
+
+.brand-text {
+    line-height: 1;
+}
+
+.tenant-badge {
+    background: rgba(255, 255, 255, .18);
+    color: #fff;
+    font-size: .75rem;
+    font-weight: 600;
+    padding: .25rem .65rem;
+    border-radius: 999px;
+    letter-spacing: .02em;
+}
+
+.user-name {
+    font-size: .85rem;
+}

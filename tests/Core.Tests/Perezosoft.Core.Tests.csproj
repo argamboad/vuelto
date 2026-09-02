@@ -1,0 +1,28 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Core\Perezosoft.Core.csproj" />
+    <!-- Shared.Ui is a self-contained RCL (no ProjectReference of its own), so this pulls in the
+         client auth helpers (AuthErrorCopy, AuthService) for unit testing without dragging in Api. -->
+    <ProjectReference Include="..\..\src\Shared.Ui\Perezosoft.Shared.Ui.csproj" />
+  </ItemGroup>
+
+</Project>

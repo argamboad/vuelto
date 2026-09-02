@@ -1,0 +1,93 @@
+Test run for C:\Users\argam\source\repos\Personal\template\tests\E2E.Tests\bin\Debug\net10.0\Template.E2E.Tests.dll (.NETCoreApp,Version=v10.0)
+Test run for C:\Users\argam\source\repos\Personal\template\tests\Api.Tests\bin\Debug\net10.0\Template.Api.Tests.dll (.NETCoreApp,Version=v10.0)
+Test run for C:\Users\argam\source\repos\Personal\template\tests\Core.Tests\bin\Debug\net10.0\Template.Core.Tests.dll (.NETCoreApp,Version=v10.0)
+A total of 1 test files matched the specified pattern.
+A total of 1 test files matched the specified pattern.
+A total of 1 test files matched the specified pattern.
+
+Passed!  - Failed:     0, Passed:    42, Skipped:     0, Total:    42, Duration: 72 ms - Template.Core.Tests.dll (net10.0)
+  Failed Invalid_Email_IsRejected_NoCodeStep [6 s]
+  Error Message:
+   Microsoft.Playwright.PlaywrightException : net::ERR_CONNECTION_REFUSED at https://localhost:7008/login
+Call log:
+  - navigating to "https://localhost:7008/login", waiting until "load"
+  Stack Trace:
+     at Microsoft.Playwright.Transport.Connection.InnerSendMessageToServerAsync[T](ChannelOwner object, String method, Dictionary`2 dictionary, Boolean keepNulls) in /_/src/Playwright/Transport/Connection.cs:line 201
+   at Microsoft.Playwright.Transport.Connection.WrapApiCallAsync[T](Func`1 action, Boolean isInternal, String title) in /_/src/Playwright/Transport/Connection.cs:line 505
+   at Microsoft.Playwright.Core.Frame.GotoAsync(String url, FrameGotoOptions options) in /_/src/Playwright/Core/Frame.cs:line 815
+   at Template.E2E.Tests.AuthFlowTests.Invalid_Email_IsRejected_NoCodeStep() in C:\Users\argam\source\repos\Personal\template\tests\E2E.Tests\AuthFlowTests.cs:line 67
+   at NUnit.Framework.Internal.TaskAwaitAdapter.GenericAdapter`1.BlockUntilCompleted()
+   at NUnit.Framework.Internal.MessagePumpStrategy.NoMessagePumpStrategy.WaitForCompletion(AwaitAdapter awaiter)
+   at NUnit.Framework.Internal.AsyncToSyncAdapter.Await[TResult](TestExecutionContext context, Func`1 invoke)
+   at NUnit.Framework.Internal.AsyncToSyncAdapter.Await(TestExecutionContext context, Func`1 invoke)
+   at NUnit.Framework.Internal.Commands.TestMethodCommand.RunTestMethod(TestExecutionContext context)
+   at NUnit.Framework.Internal.Commands.TestMethodCommand.Execute(TestExecutionContext context)
+   at NUnit.Framework.Internal.Commands.BeforeAndAfterTestCommand.<>c__DisplayClass1_0.<Execute>b__0()
+   at NUnit.Framework.Internal.Commands.DelegatingTestCommand.RunTestMethodInThreadAbortSafeZone(TestExecutionContext context, Action action)
+
+  Failed Login_Page_Renders [2 s]
+  Error Message:
+   Microsoft.Playwright.PlaywrightException : net::ERR_CONNECTION_REFUSED at https://localhost:7008/login
+Call log:
+  - navigating to "https://localhost:7008/login", waiting until "load"
+  Stack Trace:
+     at Microsoft.Playwright.Transport.Connection.InnerSendMessageToServerAsync[T](ChannelOwner object, String method, Dictionary`2 dictionary, Boolean keepNulls) in /_/src/Playwright/Transport/Connection.cs:line 201
+   at Microsoft.Playwright.Transport.Connection.WrapApiCallAsync[T](Func`1 action, Boolean isInternal, String title) in /_/src/Playwright/Transport/Connection.cs:line 505
+   at Microsoft.Playwright.Core.Frame.GotoAsync(String url, FrameGotoOptions options) in /_/src/Playwright/Core/Frame.cs:line 815
+   at Template.E2E.Tests.AuthFlowTests.Login_Page_Renders() in C:\Users\argam\source\repos\Personal\template\tests\E2E.Tests\AuthFlowTests.cs:line 22
+   at NUnit.Framework.Internal.TaskAwaitAdapter.GenericAdapter`1.BlockUntilCompleted()
+   at NUnit.Framework.Internal.MessagePumpStrategy.NoMessagePumpStrategy.WaitForCompletion(AwaitAdapter awaiter)
+   at NUnit.Framework.Internal.AsyncToSyncAdapter.Await[TResult](TestExecutionContext context, Func`1 invoke)
+   at NUnit.Framework.Internal.AsyncToSyncAdapter.Await(TestExecutionContext context, Func`1 invoke)
+   at NUnit.Framework.Internal.Commands.TestMethodCommand.RunTestMethod(TestExecutionContext context)
+   at NUnit.Framework.Internal.Commands.TestMethodCommand.Execute(TestExecutionContext context)
+   at NUnit.Framework.Internal.Commands.BeforeAndAfterTestCommand.<>c__DisplayClass1_0.<Execute>b__0()
+   at NUnit.Framework.Internal.Commands.DelegatingTestCommand.RunTestMethodInThreadAbortSafeZone(TestExecutionContext context, Action action)
+
+  Failed Otp_SignIn_LandsInTheApp [2 s]
+  Error Message:
+   Microsoft.Playwright.PlaywrightException : net::ERR_CONNECTION_REFUSED at https://localhost:7008/login
+Call log:
+  - navigating to "https://localhost:7008/login", waiting until "load"
+  Stack Trace:
+     at Microsoft.Playwright.Transport.Connection.InnerSendMessageToServerAsync[T](ChannelOwner object, String method, Dictionary`2 dictionary, Boolean keepNulls) in /_/src/Playwright/Transport/Connection.cs:line 201
+   at Microsoft.Playwright.Transport.Connection.WrapApiCallAsync[T](Func`1 action, Boolean isInternal, String title) in /_/src/Playwright/Transport/Connection.cs:line 505
+   at Microsoft.Playwright.Core.Frame.GotoAsync(String url, FrameGotoOptions options) in /_/src/Playwright/Core/Frame.cs:line 815
+   at Template.E2E.Tests.AuthFlowTests.Otp_SignIn_LandsInTheApp() in C:\Users\argam\source\repos\Personal\template\tests\E2E.Tests\AuthFlowTests.cs:line 35
+   at NUnit.Framework.Internal.TaskAwaitAdapter.GenericAdapter`1.BlockUntilCompleted()
+   at NUnit.Framework.Internal.MessagePumpStrategy.NoMessagePumpStrategy.WaitForCompletion(AwaitAdapter awaiter)
+   at NUnit.Framework.Internal.AsyncToSyncAdapter.Await[TResult](TestExecutionContext context, Func`1 invoke)
+   at NUnit.Framework.Internal.AsyncToSyncAdapter.Await(TestExecutionContext context, Func`1 invoke)
+   at NUnit.Framework.Internal.Commands.TestMethodCommand.RunTestMethod(TestExecutionContext context)
+   at NUnit.Framework.Internal.Commands.TestMethodCommand.Execute(TestExecutionContext context)
+   at NUnit.Framework.Internal.Commands.BeforeAndAfterTestCommand.<>c__DisplayClass1_0.<Execute>b__0()
+   at NUnit.Framework.Internal.Commands.DelegatingTestCommand.RunTestMethodInThreadAbortSafeZone(TestExecutionContext context, Action action)
+
+  Failed SignOut_ReturnsToLogin [2 s]
+  Error Message:
+   Microsoft.Playwright.PlaywrightException : net::ERR_CONNECTION_REFUSED at https://localhost:7008/login
+Call log:
+  - navigating to "https://localhost:7008/login", waiting until "load"
+  Stack Trace:
+     at Microsoft.Playwright.Transport.Connection.InnerSendMessageToServerAsync[T](ChannelOwner object, String method, Dictionary`2 dictionary, Boolean keepNulls) in /_/src/Playwright/Transport/Connection.cs:line 201
+   at Microsoft.Playwright.Transport.Connection.WrapApiCallAsync[T](Func`1 action, Boolean isInternal, String title) in /_/src/Playwright/Transport/Connection.cs:line 505
+   at Microsoft.Playwright.Core.Frame.GotoAsync(String url, FrameGotoOptions options) in /_/src/Playwright/Core/Frame.cs:line 815
+   at Template.E2E.Tests.AuthFlowTests.SignOut_ReturnsToLogin() in C:\Users\argam\source\repos\Personal\template\tests\E2E.Tests\AuthFlowTests.cs:line 52
+   at NUnit.Framework.Internal.TaskAwaitAdapter.GenericAdapter`1.BlockUntilCompleted()
+   at NUnit.Framework.Internal.MessagePumpStrategy.NoMessagePumpStrategy.WaitForCompletion(AwaitAdapter awaiter)
+   at NUnit.Framework.Internal.AsyncToSyncAdapter.Await[TResult](TestExecutionContext context, Func`1 invoke)
+   at NUnit.Framework.Internal.AsyncToSyncAdapter.Await(TestExecutionContext context, Func`1 invoke)
+   at NUnit.Framework.Internal.Commands.TestMethodCommand.RunTestMethod(TestExecutionContext context)
+   at NUnit.Framework.Internal.Commands.TestMethodCommand.Execute(TestExecutionContext context)
+   at NUnit.Framework.Internal.Commands.BeforeAndAfterTestCommand.<>c__DisplayClass1_0.<Execute>b__0()
+   at NUnit.Framework.Internal.Commands.DelegatingTestCommand.RunTestMethodInThreadAbortSafeZone(TestExecutionContext context, Action action)
+
+
+Failed!  - Failed:     4, Passed:     0, Skipped:     0, Total:     4, Duration: 14 s - Template.E2E.Tests.dll (net10.0)
+
+Passed!  - Failed:     0, Passed:   335, Skipped:     0, Total:   335, Duration: 13 s - Template.Api.Tests.dll (net10.0)
+
+Attachments:
+  C:\Users\argam\source\repos\Personal\template\docs\audits\v2-2026-07\tooling\coverage\71b001d8-9556-47df-8c97-a159fcdf3f68\coverage.cobertura.xml
+  C:\Users\argam\source\repos\Personal\template\docs\audits\v2-2026-07\tooling\coverage\7d1ee1d7-75ac-4dac-bd8d-4d66cea1be75\coverage.cobertura.xml
+  C:\Users\argam\source\repos\Personal\template\docs\audits\v2-2026-07\tooling\coverage\91ab5cc6-0762-40e7-905b-fa226f993fb4\coverage.cobertura.xml

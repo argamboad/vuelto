@@ -1,0 +1,302 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="Language" xml:space="preserve"><value>Language</value></data>
+  <data name="Plan_free" xml:space="preserve"><value>Free</value></data>
+  <data name="Plan_pro" xml:space="preserve"><value>Pro</value></data>
+  <data name="BillingStatus_none" xml:space="preserve"><value>No subscription</value></data>
+  <data name="BillingStatus_free" xml:space="preserve"><value>Free</value></data>
+  <data name="BillingStatus_active" xml:space="preserve"><value>Active</value></data>
+  <data name="BillingStatus_trialing" xml:space="preserve"><value>Trial</value></data>
+  <data name="BillingStatus_past_due" xml:space="preserve"><value>Past due</value></data>
+  <data name="BillingStatus_canceled" xml:space="preserve"><value>Canceled</value></data>
+  <data name="BillingStatus_incomplete" xml:space="preserve"><value>Incomplete</value></data>
+  <data name="BillingStatus_unpaid" xml:space="preserve"><value>Unpaid</value></data>
+  <data name="Pref_SyncFailed" xml:space="preserve"><value>Preference didn’t sync to your account — try again.</value></data>
+  <data name="Theme_Label" xml:space="preserve"><value>Theme</value></data>
+  <data name="Theme_System" xml:space="preserve"><value>Auto</value></data>
+  <data name="Theme_Light" xml:space="preserve"><value>Light</value></data>
+  <data name="Theme_Dark" xml:space="preserve"><value>Dark</value></data>
+  <data name="Login_Title" xml:space="preserve"><value>Sign in</value></data>
+  <data name="Login_Subtitle" xml:space="preserve"><value>Choose how you'd like to continue</value></data>
+  <data name="Login_ContinueWith" xml:space="preserve"><value>Continue with {0}</value></data>
+  <data name="Login_OrWithEmail" xml:space="preserve"><value>or sign in with email</value></data>
+  <data name="Login_EmailLabel" xml:space="preserve"><value>Email address</value></data>
+  <data name="Login_EmailInvalid" xml:space="preserve"><value>Enter a valid email address.</value></data>
+  <data name="Login_SendMagicLink" xml:space="preserve"><value>Email me a magic link</value></data>
+  <data name="Login_SendOtp" xml:space="preserve"><value>Email me a 6-digit code</value></data>
+  <data name="Login_InboxTitle" xml:space="preserve"><value>Check your inbox.</value></data>
+  <data name="Login_MagicLinkSent" xml:space="preserve"><value>A sign-in link was sent to {0}. It expires in 15 minutes.</value></data>
+  <data name="Login_UseDifferentEmail" xml:space="preserve"><value>Use a different email</value></data>
+  <data name="Login_OtpPrompt" xml:space="preserve"><value>Enter the 6-digit code sent to {0}.</value></data>
+  <data name="Login_VerifyCode" xml:space="preserve"><value>Verify code</value></data>
+  <data name="Login_ErrSomethingWrong" xml:space="preserve"><value>Something went wrong. Please try again.</value></data>
+  <data name="Login_ErrExternalFailed" xml:space="preserve"><value>Sign-in with the external provider failed. Please try again.</value></data>
+  <data name="Login_ErrEmailUnverified" xml:space="preserve"><value>Your provider hasn't verified this email address, so it can't be attached to an existing account.</value></data>
+  <data name="Login_ErrInvalidLink" xml:space="preserve"><value>This sign-in link has expired or was already used. Request a new one.</value></data>
+  <data name="Login_ErrCouldntSendLink" xml:space="preserve"><value>Couldn't send the link. Please try again.</value></data>
+  <data name="Login_ErrCouldntSendCode" xml:space="preserve"><value>Couldn't send the code. Please try again.</value></data>
+  <data name="Login_ErrCodeIncorrect" xml:space="preserve"><value>That code is incorrect or has expired.</value></data>
+  <data name="Login_ErrTooManyAttempts" xml:space="preserve"><value>Too many attempts. Please wait a few minutes, then request a new code.</value></data>
+  <data name="Login_ErrVerificationFailed" xml:space="preserve"><value>Verification failed. Please try again.</value></data>
+  <data name="Login_ErrTooManyRequests" xml:space="preserve"><value>Too many requests. Please wait a minute, then try again.</value></data>
+  <data name="Login_ErrEnterCode" xml:space="preserve"><value>Enter the code from your email.</value></data>
+  <data name="Login_ErrOAuthCancelled" xml:space="preserve"><value>Sign-in was cancelled or didn't complete. Please try again.</value></data>
+  <data name="Login_ErrOAuthResumeExpired" xml:space="preserve"><value>Your sign-in took too long to complete. Please try again.</value></data>
+  <data name="Common_Loading" xml:space="preserve"><value>Loading…</value></data>
+  <data name="Common_Working" xml:space="preserve"><value>Working…</value></data>
+  <data name="Common_Cancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="Login_MfaPrompt" xml:space="preserve"><value>Enter the 6-digit code from your authenticator app (or a recovery code).</value></data>
+  <data name="Mfa_Title" xml:space="preserve"><value>Two-factor authentication</value></data>
+  <data name="Mfa_Subtitle" xml:space="preserve"><value>Add a second step at sign-in using an authenticator app (TOTP).</value></data>
+  <data name="Mfa_On" xml:space="preserve"><value>On</value></data>
+  <data name="Mfa_Off" xml:space="preserve"><value>Off</value></data>
+  <data name="Mfa_Enable" xml:space="preserve"><value>Enable two-factor</value></data>
+  <data name="Mfa_Step1" xml:space="preserve"><value>Scan the QR code with your authenticator app, or enter the key manually.</value></data>
+  <data name="Mfa_Step2" xml:space="preserve"><value>Enter the 6-digit code it shows to confirm.</value></data>
+  <data name="Mfa_ManualKey" xml:space="preserve"><value>Or enter this key manually:</value></data>
+  <data name="Mfa_EnterCode" xml:space="preserve"><value>Verification code</value></data>
+  <data name="Mfa_Verify" xml:space="preserve"><value>Verify &amp; enable</value></data>
+  <data name="Mfa_EnabledNow" xml:space="preserve"><value>Two-factor authentication is now on.</value></data>
+  <data name="Mfa_RecoveryIntro" xml:space="preserve"><value>Save these recovery codes somewhere safe — each works once if you lose your authenticator. They won't be shown again.</value></data>
+  <data name="Mfa_SavedCodes" xml:space="preserve"><value>I've saved my codes</value></data>
+  <data name="Mfa_Disable" xml:space="preserve"><value>Disable two-factor</value></data>
+  <data name="Mfa_DisablePrompt" xml:space="preserve"><value>Enter a code from your app (or a recovery code) to turn it off.</value></data>
+  <data name="Mfa_ConfirmDisable" xml:space="preserve"><value>Disable</value></data>
+  <data name="Mfa_ErrLoad" xml:space="preserve"><value>Couldn't load your two-factor status.</value></data>
+  <data name="Mfa_ErrEnroll" xml:space="preserve"><value>Couldn't start enrollment. Please try again.</value></data>
+  <data name="Mfa_ErrEnterCode" xml:space="preserve"><value>Enter the code first.</value></data>
+  <data name="Mfa_ErrCodeIncorrect" xml:space="preserve"><value>That code is incorrect or has expired.</value></data>
+  <data name="Mfa_ErrDisable" xml:space="preserve"><value>Couldn't disable two-factor. Please try again.</value></data>
+  <data name="Notif_Title" xml:space="preserve"><value>Notifications</value></data>
+  <data name="Notif_MarkAllRead" xml:space="preserve"><value>Mark all read</value></data>
+  <data name="Notif_ClearRead" xml:space="preserve"><value>Clear read</value></data>
+  <data name="Notif_ClearAll" xml:space="preserve"><value>Clear all</value></data>
+  <data name="Notif_Delete" xml:space="preserve"><value>Delete notification</value></data>
+  <data name="Notif_Empty" xml:space="preserve"><value>You're all caught up.</value></data>
+  <data name="Notif_JustNow" xml:space="preserve"><value>just now</value></data>
+  <data name="NotifPrefs_Title" xml:space="preserve"><value>Notifications</value></data>
+  <data name="NotifPrefs_Subtitle" xml:space="preserve"><value>Choose how you'd like to be notified.</value></data>
+  <data name="NotifPrefs_InApp" xml:space="preserve"><value>In-app notifications</value></data>
+  <data name="NotifPrefs_Email" xml:space="preserve"><value>Email notifications</value></data>
+  <data name="NotifPrefs_ErrLoad" xml:space="preserve"><value>Couldn't load your notification preferences.</value></data>
+  <data name="NotifPrefs_ErrSave" xml:space="preserve"><value>Couldn't save your preferences. Please try again.</value></data>
+  <data name="Nav_Admin" xml:space="preserve"><value>Admin</value></data>
+  <data name="Impersonation_Banner" xml:space="preserve"><value>You are viewing the app as {0}.</value></data>
+  <data name="Impersonation_Stop" xml:space="preserve"><value>Stop impersonating</value></data>
+  <data name="Admin_Title" xml:space="preserve"><value>Admin console</value></data>
+  <data name="Admin_Subtitle" xml:space="preserve"><value>Platform-staff back office — inspect tenants and sign in as a user.</value></data>
+  <data name="Admin_Forbidden" xml:space="preserve"><value>You don't have access to the admin console.</value></data>
+  <data name="Admin_BackHome" xml:space="preserve"><value>Back to home</value></data>
+  <data name="Admin_TenantsTitle" xml:space="preserve"><value>Tenants</value></data>
+  <data name="Admin_NoTenants" xml:space="preserve"><value>No tenants.</value></data>
+  <data name="Admin_SelectTenant" xml:space="preserve"><value>Select a tenant to see its details.</value></data>
+  <data name="Admin_Created" xml:space="preserve"><value>Created</value></data>
+  <data name="Admin_AuditEvents" xml:space="preserve"><value>Audit events</value></data>
+  <data name="Admin_Members" xml:space="preserve"><value>Members</value></data>
+  <data name="Admin_ColMember" xml:space="preserve"><value>Member</value></data>
+  <data name="Admin_ColRole" xml:space="preserve"><value>Role</value></data>
+  <data name="Admin_Impersonate" xml:space="preserve"><value>Sign in as</value></data>
+  <data name="Admin_ConfirmImpersonate" xml:space="preserve"><value>Sign in as {0}? Actions you take will be recorded against them.</value></data>
+  <data name="Admin_ErrLoad" xml:space="preserve"><value>Couldn't load tenants.</value></data>
+  <data name="Admin_ErrDetail" xml:space="preserve"><value>Couldn't load tenant details.</value></data>
+  <data name="Admin_ErrImpersonate" xml:space="preserve"><value>Couldn't start impersonation.</value></data>
+  <data name="Admin_AnnounceTitle" xml:space="preserve"><value>Send announcement</value></data>
+  <data name="Admin_AnnounceTitlePlaceholder" xml:space="preserve"><value>Title</value></data>
+  <data name="Admin_AnnounceBodyPlaceholder" xml:space="preserve"><value>Message</value></data>
+  <data name="Admin_AnnounceSend" xml:space="preserve"><value>Send to all members</value></data>
+  <data name="Admin_ConfirmAnnounce" xml:space="preserve"><value>Send this announcement to all members of "{0}"?</value></data>
+  <data name="Admin_AnnounceSent" xml:space="preserve"><value>Announcement sent to {0} member(s).</value></data>
+  <data name="Admin_ErrAnnounce" xml:space="preserve"><value>Couldn't send the announcement.</value></data>
+  <data name="Admin_SubscriptionTitle" xml:space="preserve"><value>Subscription</value></data>
+  <data name="Admin_CompPro" xml:space="preserve"><value>Upgrade to Pro (comp)</value></data>
+  <data name="Admin_RevertFree" xml:space="preserve"><value>Revert to Free</value></data>
+  <data name="Admin_ProviderManaged" xml:space="preserve"><value>Managed by the billing provider — change the plan there.</value></data>
+  <data name="Admin_ConfirmComp" xml:space="preserve"><value>Put "{0}" on the Pro plan at no charge?</value></data>
+  <data name="Admin_ConfirmRevert" xml:space="preserve"><value>Revert "{0}" to the Free plan?</value></data>
+  <data name="Admin_SubscriptionUpdated" xml:space="preserve"><value>Subscription updated.</value></data>
+  <data name="Admin_ErrSubscription" xml:space="preserve"><value>Couldn't update the subscription.</value></data>
+  <data name="Admin_AnnounceSendSelected" xml:space="preserve"><value>Send to {0} selected</value></data>
+  <data name="Admin_ConfirmAnnounceSelected" xml:space="preserve"><value>Send this announcement to {0} selected member(s) of "{1}"?</value></data>
+  <data name="Admin_BroadcastTitle" xml:space="preserve"><value>Announce to everyone</value></data>
+  <data name="Admin_BroadcastHint" xml:space="preserve"><value>Sends a notification to every user of every tenant on the platform. Delivery is queued and processed in the background.</value></data>
+  <data name="Admin_BroadcastSend" xml:space="preserve"><value>Send to everyone</value></data>
+  <data name="Admin_ConfirmBroadcast" xml:space="preserve"><value>Send this announcement to EVERY user of EVERY tenant on the platform?</value></data>
+  <data name="Admin_BroadcastQueued" xml:space="preserve"><value>Broadcast queued for delivery.</value></data>
+  <data name="Admin_ErrBroadcast" xml:space="preserve"><value>Couldn't queue the broadcast.</value></data>
+  <data name="Admin_ResetMfa" xml:space="preserve"><value>Reset MFA</value></data>
+  <data name="Admin_ConfirmResetMfa" xml:space="preserve"><value>Reset two-factor authentication for {0}? Their authenticator and recovery codes stop working immediately and they will be notified. Only do this after verifying their identity out-of-band.</value></data>
+  <data name="Admin_MfaWasReset" xml:space="preserve"><value>Two-factor authentication was reset for {0}.</value></data>
+  <data name="Admin_ErrResetMfa" xml:space="preserve"><value>Couldn't reset two-factor authentication.</value></data>
+  <data name="Nav_Home" xml:space="preserve"><value>Home</value></data>
+  <data name="Nav_Household" xml:space="preserve"><value>Household</value></data>
+  <data name="Nav_Settings" xml:space="preserve"><value>Settings</value></data>
+  <data name="Nav_Billing" xml:space="preserve"><value>Billing</value></data>
+  <data name="Billing_Title" xml:space="preserve"><value>Billing</value></data>
+  <data name="Billing_Subtitle" xml:space="preserve"><value>Your plan, usage, and subscription.</value></data>
+  <data name="Billing_CurrentPlan" xml:space="preserve"><value>Current plan</value></data>
+  <data name="Billing_RenewsOn" xml:space="preserve"><value>Renews or ends on {0}.</value></data>
+  <data name="Billing_Seats" xml:space="preserve"><value>Seats</value></data>
+  <data name="Billing_SeatsUsage" xml:space="preserve"><value>{0} of {1} used</value></data>
+  <data name="Billing_Upgrade" xml:space="preserve"><value>Upgrade to Pro</value></data>
+  <data name="Billing_Manage" xml:space="preserve"><value>Manage subscription</value></data>
+  <data name="Billing_OwnerOnly" xml:space="preserve"><value>Only the household owner can manage billing. Ask them if you need a plan change.</value></data>
+  <data name="Billing_ErrLoad" xml:space="preserve"><value>Couldn't load billing.</value></data>
+  <data name="Billing_ErrCheckout" xml:space="preserve"><value>Couldn't start checkout.</value></data>
+  <data name="Billing_ErrPortal" xml:space="preserve"><value>Couldn't open the billing portal.</value></data>
+  <data name="Nav_SignOut" xml:space="preserve"><value>Sign out</value></data>
+  <data name="Home_WelcomeBack" xml:space="preserve"><value>Welcome back, {0}!</value></data>
+  <data name="Home_SignedInTo" xml:space="preserve"><value>Signed in to the {0} household.</value></data>
+  <data name="Home_HeroSubtitle" xml:space="preserve"><value>Sign in to get started with your household.</value></data>
+  <data name="Home_SignInCta" xml:space="preserve"><value>Sign in</value></data>
+  <data name="AuthCallback_Processing" xml:space="preserve"><value>Processing sign-in…</value></data>
+  <data name="AuthError_Title" xml:space="preserve"><value>Sign-in failed</value></data>
+  <data name="AuthError_Heading" xml:space="preserve"><value>Authentication failed</value></data>
+  <data name="AuthError_Body" xml:space="preserve"><value>We couldn't sign you in. Please try again.</value></data>
+  <data name="AuthError_BackToSignIn" xml:space="preserve"><value>Back to sign in</value></data>
+  <data name="Join_Title" xml:space="preserve"><value>Join household</value></data>
+  <data name="Join_Working" xml:space="preserve"><value>Joining the household…</value></data>
+  <data name="Join_InvitedTitle" xml:space="preserve"><value>You've been invited</value></data>
+  <data name="Join_NeedsSignIn" xml:space="preserve"><value>Sign in to accept — we'll bring you right back here.</value></data>
+  <data name="Join_SignInToAccept" xml:space="preserve"><value>Sign in to accept</value></data>
+  <data name="Join_SuccessTitle" xml:space="preserve"><value>You're in!</value></data>
+  <data name="Join_SuccessBody" xml:space="preserve"><value>You've joined the household.</value></data>
+  <data name="Join_GoToHousehold" xml:space="preserve"><value>Go to household</value></data>
+  <data name="Join_EnterCodeTitle" xml:space="preserve"><value>Join with an invite code</value></data>
+  <data name="Join_EnterCodeBody" xml:space="preserve"><value>Paste the code from your invitation email.</value></data>
+  <data name="Join_CodePlaceholder" xml:space="preserve"><value>Invite code</value></data>
+  <data name="Join_SubmitCode" xml:space="preserve"><value>Join</value></data>
+  <data name="Join_ErrorTitle" xml:space="preserve"><value>Couldn't join</value></data>
+  <data name="Join_FullTitle" xml:space="preserve"><value>This household is full</value></data>
+  <data name="Join_FullBody" xml:space="preserve"><value>It has reached its plan's member limit. Ask the owner to upgrade their plan, then use your invitation again.</value></data>
+  <data name="Join_BackToHousehold" xml:space="preserve"><value>Back to household</value></data>
+  <data name="Join_DefaultError" xml:space="preserve"><value>The invitation is invalid or has expired.</value></data>
+  <data name="Settings_Preferences" xml:space="preserve"><value>Preferences</value></data>
+  <data name="Settings_PreferencesHint" xml:space="preserve"><value>Your language and theme are saved to your account and follow you on every device.</value></data>
+  <data name="Settings_Title" xml:space="preserve"><value>Account settings</value></data>
+  <data name="Settings_Subtitle" xml:space="preserve"><value>Link sign-in providers to this account. They all sign you into the same household.</value></data>
+  <data name="Settings_Connected" xml:space="preserve"><value>Connected</value></data>
+  <data name="Settings_Link" xml:space="preserve"><value>Link</value></data>
+  <data name="Settings_Unlink" xml:space="preserve"><value>Unlink</value></data>
+  <data name="Settings_ConfirmUnlink" xml:space="preserve"><value>Unlink this sign-in method?</value></data>
+  <data name="Settings_DangerZone" xml:space="preserve"><value>Danger zone</value></data>
+  <data name="Settings_DeleteAccount" xml:space="preserve"><value>Delete my account</value></data>
+  <data name="Settings_DeleteAccountWarning" xml:space="preserve"><value>Permanently delete your account and personal data. This can't be undone.</value></data>
+  <data name="Settings_ConfirmDelete" xml:space="preserve"><value>Delete your account permanently? This cannot be undone.</value></data>
+  <data name="Settings_ConfirmDissolve" xml:space="preserve"><value>You're the only member, so this also dissolves your household and permanently deletes all its data. Continue?</value></data>
+  <data name="Settings_ErrDeleteTransferFirst" xml:space="preserve"><value>Transfer household ownership before deleting your account.</value></data>
+  <data name="Settings_ErrDelete" xml:space="preserve"><value>Couldn't delete your account. Please try again.</value></data>
+  <data name="Settings_LinkedSuccess" xml:space="preserve"><value>{0} linked successfully.</value></data>
+  <data name="Settings_LinkErrInUse" xml:space="preserve"><value>That provider account is already linked to a different user.</value></data>
+  <data name="Settings_LinkErrExpired" xml:space="preserve"><value>The link request expired — please try again.</value></data>
+  <data name="Settings_LinkCancelled" xml:space="preserve"><value>Linking was cancelled.</value></data>
+  <data name="Settings_LinkFailed" xml:space="preserve"><value>Couldn't link that provider. Please try again.</value></data>
+  <data name="Settings_ErrLoad" xml:space="preserve"><value>Couldn't load linked accounts.</value></data>
+  <data name="Settings_ErrStartLinking" xml:space="preserve"><value>Couldn't start linking. Please try again.</value></data>
+  <data name="Settings_ErrUnlink" xml:space="preserve"><value>Couldn't unlink. Please try again.</value></data>
+  <data name="Household_HaveInvite" xml:space="preserve"><value>Have an invite?</value></data>
+  <data name="Household_Subtitle" xml:space="preserve"><value>Manage who shares this household.</value></data>
+  <data name="Household_NameLabel" xml:space="preserve"><value>Household name</value></data>
+  <data name="Household_Rename" xml:space="preserve"><value>Rename</value></data>
+  <data name="Household_Members" xml:space="preserve"><value>Members</value></data>
+  <data name="Household_RoleOwner" xml:space="preserve"><value>Owner</value></data>
+  <data name="Household_RoleAdmin" xml:space="preserve"><value>Admin</value></data>
+  <data name="Household_RoleMember" xml:space="preserve"><value>Member</value></data>
+  <data name="Household_MakeAdmin" xml:space="preserve"><value>Make admin</value></data>
+  <data name="Household_MakeMember" xml:space="preserve"><value>Make member</value></data>
+  <data name="Household_StatusRoleChanged" xml:space="preserve"><value>Role updated.</value></data>
+  <data name="Household_ErrRoleChange" xml:space="preserve"><value>Couldn't update the role. Please try again.</value></data>
+  <data name="Household_Remove" xml:space="preserve"><value>Remove</value></data>
+  <data name="Household_Invitations" xml:space="preserve"><value>Invitations</value></data>
+  <data name="Household_Invite" xml:space="preserve"><value>Invite</value></data>
+  <data name="Household_InviteTokenFor" xml:space="preserve"><value>Invitation token for {0} (shown once):</value></data>
+  <data name="Household_Copy" xml:space="preserve"><value>Copy</value></data>
+  <data name="Household_EmailedJoinLink" xml:space="preserve"><value>We also emailed a join link to the invitee.</value></data>
+  <data name="Household_NoPending" xml:space="preserve"><value>No pending invitations.</value></data>
+  <data name="Household_Expires" xml:space="preserve"><value>Expires {0}</value></data>
+  <data name="Household_Regenerate" xml:space="preserve"><value>Regenerate</value></data>
+  <data name="Household_Revoke" xml:space="preserve"><value>Revoke</value></data>
+  <data name="Household_TransferOwnership" xml:space="preserve"><value>Transfer ownership</value></data>
+  <data name="Household_ChooseMember" xml:space="preserve"><value>Choose a member…</value></data>
+  <data name="Household_Transfer" xml:space="preserve"><value>Transfer</value></data>
+  <data name="Household_MustTransfer" xml:space="preserve"><value>You must transfer ownership before you can leave this household.</value></data>
+  <data name="Household_LeaveDissolve" xml:space="preserve"><value>Leave &amp; dissolve</value></data>
+  <data name="Household_DissolveWarning" xml:space="preserve"><value>You're the only member. Leaving permanently deletes this household and its data.</value></data>
+  <data name="Household_LeaveAndDelete" xml:space="preserve"><value>Leave and delete</value></data>
+  <data name="Household_DataTitle" xml:space="preserve"><value>Data</value></data>
+  <data name="Household_DataSubtitle" xml:space="preserve"><value>Download an export of this household's data.</value></data>
+  <data name="Household_ExportData" xml:space="preserve"><value>Download household data</value></data>
+  <data name="Household_ExportReady" xml:space="preserve"><value>Your export is ready:</value></data>
+  <data name="Household_ExportDownload" xml:space="preserve"><value>Download</value></data>
+  <data name="Household_ErrExport" xml:space="preserve"><value>Couldn't create the export. Please try again.</value></data>
+  <data name="Household_LeaveTitle" xml:space="preserve"><value>Leave household</value></data>
+  <data name="Household_LeaveAsMemberNote" xml:space="preserve"><value>The shared household stays intact; you'll get a fresh household of your own.</value></data>
+  <data name="Household_Leave" xml:space="preserve"><value>Leave</value></data>
+  <data name="Household_StatusRenamed" xml:space="preserve"><value>Household renamed.</value></data>
+  <data name="Household_ErrRename" xml:space="preserve"><value>Couldn't rename the household.</value></data>
+  <data name="Household_ErrEmailAlreadyMember" xml:space="preserve"><value>That email is already a member.</value></data>
+  <data name="Household_ErrSeatLimit" xml:space="preserve"><value>Your plan's seat limit is reached. Upgrade your plan to invite more members.</value></data>
+  <data name="Household_ErrSendInvite" xml:space="preserve"><value>Couldn't send the invitation.</value></data>
+  <data name="Household_ErrRegenerate" xml:space="preserve"><value>Couldn't regenerate the token.</value></data>
+  <data name="Household_StatusRevoked" xml:space="preserve"><value>Invitation revoked.</value></data>
+  <data name="Household_ErrRevoke" xml:space="preserve"><value>Couldn't revoke the invitation.</value></data>
+  <data name="Household_StatusMemberRemoved" xml:space="preserve"><value>Member removed.</value></data>
+  <data name="Household_ErrRemoveMember" xml:space="preserve"><value>Couldn't remove the member.</value></data>
+  <data name="Household_StatusOwnershipTransferred" xml:space="preserve"><value>Ownership transferred.</value></data>
+  <data name="Household_ErrTransfer" xml:space="preserve"><value>Couldn't transfer ownership.</value></data>
+  <data name="Household_ErrLeave" xml:space="preserve"><value>Couldn't leave the household.</value></data>
+  <data name="Household_ErrDissolve" xml:space="preserve"><value>Couldn't dissolve the household.</value></data>
+  <data name="Household_ErrLoad" xml:space="preserve"><value>Couldn't load the household.</value></data>
+  <data name="Household_ConfirmRemove" xml:space="preserve"><value>Remove {0} from this household?</value></data>
+  <data name="Household_ConfirmLeave" xml:space="preserve"><value>Leave this household?</value></data>
+  <data name="Household_ConfirmDissolve" xml:space="preserve"><value>This permanently deletes the household and its data. Continue?</value></data>
+</root>

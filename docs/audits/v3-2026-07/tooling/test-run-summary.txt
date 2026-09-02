@@ -1,0 +1,9 @@
+# test-run.txt trimmed to result markers (full 172KB console log discarded; all green)
+########## Core.Tests ##########
+Total tests: 49
+     Passed: 49
+=== Core.Tests EXIT 0 ===
+########## Api.Tests (incl Testcontainers integration) ##########
+Total tests: 483
+     Passed: 483
+=== Api.Tests EXIT 0 ===

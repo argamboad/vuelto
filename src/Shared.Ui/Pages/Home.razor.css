@@ -1,0 +1,25 @@
+/* Fill the area below the header and center the box both ways.
+   4rem accounts for the content-container's vertical padding (2rem top + bottom). */
+.welcome-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: calc(100vh - var(--header-height, 60px) - 4rem);
+}
+
+.welcome-card {
+    width: 100%;
+    max-width: 520px;
+    border-radius: 14px;
+    border: 1px solid var(--app-border, #E0E7EF);
+}
+
+.welcome-lockup {
+    width: 100%;
+    max-width: 300px;
+    height: auto;
+}
+
+.hero-section {
+    max-width: 520px;
+}

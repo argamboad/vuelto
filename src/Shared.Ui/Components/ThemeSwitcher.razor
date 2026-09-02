@@ -1,0 +1,72 @@
+@using System.Net.Http.Json
+@using Perezosoft.Shared.Ui.Auth
+@implements IDisposable
+@inject IThemePersistence ThemePersistence
+@inject IJSRuntime JS
+@inject HttpClient Http
+@inject AuthService Auth
+@inject IStringLocalizer<AppStrings> Localizer
+
+<select class="form-select form-select-sm theme-switcher" value="@_current" data-testid="theme-switcher"
+        @onchange="OnChange" aria-label="@Localizer["Theme_Label"]">
+    <option value="system">@Localizer["Theme_System"]</option>
+    <option value="light">@Localizer["Theme_Light"]</option>
+    <option value="dark">@Localizer["Theme_Dark"]</option>
+</select>
+@if (_syncFailed)
+{
+    <span class="text-warning small ms-1" data-testid="theme-sync-failed"
+          title="@Localizer["Pref_SyncFailed"]" role="status">&#9888;</span>
+}
+
+@code {
+    private string _current = "system";
+    private bool _syncFailed;
+
+    // theme.js already applied the saved mode before first paint; read it back so the
+    // select reflects reality.
+    protected override async Task OnInitializedAsync()
+    {
+        try { _current = await JS.InvokeAsync<string>("appTheme.current"); }
+        catch { /* JS unavailable — show the "system" default */ }
+        Auth.SignedIn += OnSignedIn;
+    }
+
+    // UX-4: a soft sign-in reconciles the SERVER theme after this component initialized, so re-read it —
+    // otherwise the select shows a stale value all session. Auth.Theme is the reconciled server value
+    // (from the JWT, read synchronously — no race with reconcile's JS apply).
+    private void OnSignedIn()
+    {
+        if (Auth.Theme is { Length: > 0 } serverTheme && serverTheme != _current)
+        {
+            _current = serverTheme;
+            InvokeAsync(StateHasChanged); // dispatch to the renderer — the event fires off the UI thread
+        }
+    }
+
+    private async Task OnChange(ChangeEventArgs e)
+    {
+        var theme = e.Value?.ToString() ?? "system";
+        if (theme == _current) return;
+        _current = theme;
+        _syncFailed = false;
+
+        await JS.InvokeVoidAsync("appTheme.set", theme); // applies live — no reload
+        await ThemePersistence.PersistAsync(theme);      // device store for the next cold start
+
+        // Signed in: persist server-side so the choice follows the user across devices. UX-3: a failed PUT
+        // would be silently reverted by the next sign-in's server-wins reconcile — surface it so the user
+        // knows it didn't sync (the local choice still applies for now).
+        if (Auth.IsAuthenticated)
+        {
+            try
+            {
+                var res = await Http.PutAsJsonAsync("/api/auth/theme", new { theme });
+                _syncFailed = !res.IsSuccessStatusCode;
+            }
+            catch { _syncFailed = true; }
+        }
+    }
+
+    public void Dispose() => Auth.SignedIn -= OnSignedIn;
+}

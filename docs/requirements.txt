@@ -1,0 +1,6 @@
+# Python deps for the QA/tutorial PDF generators + the CI sync check (v3 audit R80/T51 —
+# version pins live HERE, the single committed manifest; ci.yml installs with `-r`).
+# Used by: docs/gen_qa_guide.py, docs/gen_qa_runlog.py, docs/check_qa_artifacts.py,
+# docs/tutorial/gen_tutorial_pdf.py.
+reportlab==5.0.0
+pypdf==6.14.2

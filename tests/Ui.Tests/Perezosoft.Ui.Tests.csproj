@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+    <!-- Component-test host for the shared RCL (v3 audit TOOL-2): the Blazor UI in Shared.Ui had NO
+         unit/component coverage — its logic was reachable only through the full-stack E2E suite, which is
+         where the audit's UX/ADM client bugs hid. bUnit renders the real components against test doubles for
+         every seam (AuthService over a fake HTTP handler + session store, IJSRuntime, NavigationManager,
+         localization, theme/culture persistence), so client logic gets fast, deterministic tests. -->
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <IsPackable>false</IsPackable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="bunit" />
+        <!-- Promote AngleSharp to a direct ref so the pinned patched 1.5.2 overrides bUnit's transitive
+             1.4.0 (GHSA-pgww-w46g-26qg). Without this the vulnerable transitive version fails NU1902. -->
+        <PackageReference Include="AngleSharp" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" />
+        <PackageReference Include="xunit" />
+        <PackageReference Include="xunit.runner.visualstudio" />
+        <PackageReference Include="coverlet.collector" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- The system under test: the shared RCL. Its ProjectReferences (JWT handler, localization,
+             logging abstractions) come transitively, so the doubles need no extra packages. -->
+        <ProjectReference Include="..\..\src\Shared.Ui\Perezosoft.Shared.Ui.csproj" />
+    </ItemGroup>
+
+</Project>

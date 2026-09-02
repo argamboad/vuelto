@@ -1,0 +1,13 @@
+@page "/auth-error"
+@inject IStringLocalizer<AppStrings> Localizer
+
+<PageTitle>@Localizer["AuthError_Title"]</PageTitle>
+
+<div class="auth-error text-center py-5">
+    <div class="error-icon mb-3" style="font-size:3rem">&#9888;</div>
+    <h1 class="h4 fw-bold mb-2">@Localizer["AuthError_Heading"]</h1>
+    <p class="text-muted mb-4 mx-auto" style="max-width:420px">
+        @Localizer["AuthError_Body"]
+    </p>
+    <a href="/login" class="btn btn-primary">@Localizer["AuthError_BackToSignIn"]</a>
+</div>

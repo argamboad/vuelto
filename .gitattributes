@@ -1,0 +1,11 @@
+# Shell scripts must check out LF even on Windows clones: CRLF makes bash fail with an opaque
+# "bad interpreter" / "\r: command not found" on the Linux CI runners that execute them.
+*.sh   text eol=lf
+
+# Treat PDFs and common binary assets as binary — no line-ending conversion, no text diff.
+*.pdf  binary
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary

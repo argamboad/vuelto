@@ -1,0 +1,538 @@
+@page "/household"
+@using System.Net.Http.Json
+@using System.Text.Json.Serialization
+@inject AuthService Auth
+@inject HttpClient Http
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@inject IFileDownloadLauncher DownloadLauncher
+@inject IStringLocalizer<AppStrings> Localizer
+
+<PageTitle>@Localizer["Nav_Household"]</PageTitle>
+
+<div class="household-wrapper">
+    <div class="d-flex align-items-center justify-content-between mb-1">
+        <h1 class="h4 fw-bold mb-0">@Localizer["Nav_Household"]</h1>
+        <a class="btn btn-outline-secondary btn-sm" href="/join">@Localizer["Household_HaveInvite"]</a>
+    </div>
+    <p class="text-muted mb-4">@Localizer["Household_Subtitle"]</p>
+
+    @if (!string.IsNullOrEmpty(_status))
+    {
+        <div class="alert @(_statusOk ? "alert-success" : "alert-danger") py-2" data-testid="household-status">@_status</div>
+    }
+
+    @if (_loading)
+    {
+        <div class="p-4 text-center text-muted">
+            <span class="spinner-border spinner-border-sm me-2"></span> @Localizer["Common_Loading"]
+        </div>
+    }
+    else if (_household is not null)
+    {
+        <div class="card shadow-sm mb-3">
+            <div class="card-body">
+                @* ── Name ── *@
+                @if (CanRename)
+                {
+                    <label class="form-label fw-medium">@Localizer["Household_NameLabel"]</label>
+                    <div class="d-flex gap-2 flex-wrap">
+                        <input class="form-control" style="max-width:320px" @bind="_name" data-testid="household-rename-input" />
+                        <button class="btn btn-primary" data-testid="household-rename-save"
+                                disabled="@(_busy || string.IsNullOrWhiteSpace(_name) || _name.Trim() == _household.Name)"
+                                @onclick="SaveName">@Localizer["Household_Rename"]</button>
+                    </div>
+                }
+                else
+                {
+                    <h2 class="h5 mb-0">@_household.Name</h2>
+                }
+            </div>
+        </div>
+
+        @* ── Members ── *@
+        <div class="card shadow-sm mb-3">
+            <div class="card-body">
+                <h2 class="h6 fw-bold mb-3">@Localizer["Household_Members"]</h2>
+                <ul class="list-group list-group-flush">
+                    @foreach (var m in _household.Members)
+                    {
+                        <li class="list-group-item d-flex align-items-center justify-content-between px-0" data-testid="member-row">
+                            <div>
+                                <div class="fw-medium">@(string.IsNullOrWhiteSpace(m.DisplayName) ? m.Email : m.DisplayName)</div>
+                                @if (!string.IsNullOrWhiteSpace(m.DisplayName))
+                                {
+                                    <div class="small text-muted">@m.Email</div>
+                                }
+                            </div>
+                            <div class="d-flex align-items-center gap-2">
+                                @if (m.Role == "owner")
+                                {
+                                    <span class="badge bg-primary-subtle text-primary-emphasis" data-testid="member-role" data-role="owner">@Localizer["Household_RoleOwner"]</span>
+                                }
+                                else if (m.Role == "admin")
+                                {
+                                    <span class="badge bg-info-subtle text-info-emphasis" data-testid="member-role" data-role="admin">@Localizer["Household_RoleAdmin"]</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary-subtle text-secondary-emphasis" data-testid="member-role" data-role="member">@Localizer["Household_RoleMember"]</span>
+                                }
+                                @* Actions target everyone but the owner, and never self. Roles are owner-only
+                                   (ManageRoles); remove is owner+admin (ManageMembers). *@
+                                @if (m.UserId != _myUserId && m.Role != "owner")
+                                {
+                                    @if (CanManageRoles)
+                                    {
+                                        @if (m.Role == "admin")
+                                        {
+                                            <button class="btn btn-outline-secondary btn-sm" disabled="@_busy" data-testid="member-demote"
+                                                    @onclick="() => Demote(m)">@Localizer["Household_MakeMember"]</button>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn btn-outline-secondary btn-sm" disabled="@_busy" data-testid="member-promote"
+                                                    @onclick="() => Promote(m)">@Localizer["Household_MakeAdmin"]</button>
+                                        }
+                                    }
+                                    @if (CanManageMembers)
+                                    {
+                                        <button class="btn btn-outline-danger btn-sm" disabled="@_busy" data-testid="member-remove"
+                                                @onclick="() => RemoveMember(m)">@Localizer["Household_Remove"]</button>
+                                    }
+                                }
+                            </div>
+                        </li>
+                    }
+                </ul>
+            </div>
+        </div>
+
+        @* ── Invitations (owner + admin — ManageMembers) ── *@
+        @if (CanManageMembers)
+        {
+            <div class="card shadow-sm mb-3">
+                <div class="card-body">
+                    <h2 class="h6 fw-bold mb-3">@Localizer["Household_Invitations"]</h2>
+                    <div class="d-flex gap-2 flex-wrap mb-3">
+                        <input class="form-control" style="max-width:320px" type="email" data-testid="invite-email"
+                               placeholder="email@example.com" @bind="_inviteEmail" />
+                        <button class="btn btn-outline-primary" disabled="@(_busy || string.IsNullOrWhiteSpace(_inviteEmail))"
+                                data-testid="invite-send" @onclick="SendInvite">@Localizer["Household_Invite"]</button>
+                    </div>
+
+                    @if (_revealedToken is not null)
+                    {
+                        <div class="alert alert-success py-2">
+                            <div class="fw-medium mb-1">@Localizer["Household_InviteTokenFor", _revealedEmail ?? ""]</div>
+                            <div class="d-flex align-items-center gap-2">
+                                <code class="text-break" data-testid="invite-token">@_revealedToken</code>
+                                <button class="btn btn-outline-secondary btn-sm" @onclick="() => CopyToken(_revealedToken)">@Localizer["Household_Copy"]</button>
+                            </div>
+                            <div class="small text-muted mt-1">@Localizer["Household_EmailedJoinLink"]</div>
+                        </div>
+                    }
+
+                    @if (_pending.Count == 0)
+                    {
+                        <p class="text-muted small mb-0">@Localizer["Household_NoPending"]</p>
+                    }
+                    else
+                    {
+                        <ul class="list-group list-group-flush">
+                            @foreach (var inv in _pending)
+                            {
+                                <li class="list-group-item d-flex align-items-center justify-content-between px-0" data-testid="pending-invite-row">
+                                    <div>
+                                        <div class="fw-medium">@inv.InvitedEmail</div>
+                                        <div class="small text-muted">@Localizer["Household_Expires", inv.ExpiresAt.ToLocalTime().ToString("d")]</div>
+                                    </div>
+                                    <div class="d-flex gap-2">
+                                        <button class="btn btn-outline-secondary btn-sm" disabled="@_busy" data-testid="invite-regenerate"
+                                                @onclick="() => RegenerateInvite(inv)">@Localizer["Household_Regenerate"]</button>
+                                        <button class="btn btn-outline-danger btn-sm" disabled="@_busy" data-testid="invite-revoke"
+                                                @onclick="() => RevokeInvite(inv)">@Localizer["Household_Revoke"]</button>
+                                    </div>
+                                </li>
+                            }
+                        </ul>
+                    }
+                </div>
+            </div>
+        }
+
+        @* ── Data export (owner only — GDPR / ADR-011) ── *@
+        @if (IsOwner)
+        {
+            <div class="card shadow-sm mb-3">
+                <div class="card-body">
+                    <h2 class="h6 fw-bold mb-2">@Localizer["Household_DataTitle"]</h2>
+                    <p class="small text-muted mb-2">@Localizer["Household_DataSubtitle"]</p>
+                    <button class="btn btn-outline-secondary" disabled="@_busy" data-testid="export-data" @onclick="ExportData">
+                        @if (_busy && _exporting)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                        }
+                        @Localizer["Household_ExportData"]
+                    </button>
+                    @if (_exportUrl is not null)
+                    {
+                        <div class="alert alert-success py-2 mt-3 mb-0 d-flex align-items-center gap-2">
+                            <span>@Localizer["Household_ExportReady"]</span>
+                            <button class="btn btn-link p-0 align-baseline" data-testid="export-download"
+                                    @onclick="DownloadExport">@Localizer["Household_ExportDownload"]</button>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
+        @* ── Membership lifecycle ── *@
+        <div class="card shadow-sm">
+            <div class="card-body">
+                @if (IsOwner && OtherMembers.Count > 0)
+                {
+                    <h2 class="h6 fw-bold mb-3">@Localizer["Household_TransferOwnership"]</h2>
+                    <div class="d-flex gap-2 flex-wrap">
+                        <select class="form-select" style="max-width:320px" data-testid="transfer-select" @bind="_transferTargetId">
+                            <option value="">@Localizer["Household_ChooseMember"]</option>
+                            @foreach (var m in OtherMembers)
+                            {
+                                <option value="@m.UserId">@(string.IsNullOrWhiteSpace(m.DisplayName) ? m.Email : m.DisplayName)</option>
+                            }
+                        </select>
+                        <button class="btn btn-outline-primary" disabled="@(_busy || string.IsNullOrEmpty(_transferTargetId))"
+                                data-testid="transfer-submit" @onclick="TransferOwnership">@Localizer["Household_Transfer"]</button>
+                    </div>
+                    <p class="small text-muted mt-2 mb-0">@Localizer["Household_MustTransfer"]</p>
+                }
+                else if (IsOwner)
+                {
+                    <h2 class="h6 fw-bold mb-2 text-danger">@Localizer["Household_LeaveDissolve"]</h2>
+                    <p class="small text-muted">@Localizer["Household_DissolveWarning"]</p>
+                    <button class="btn btn-danger" disabled="@_busy" data-testid="leave-dissolve" @onclick="DissolveAndLeave">@Localizer["Household_LeaveAndDelete"]</button>
+                }
+                else
+                {
+                    <h2 class="h6 fw-bold mb-2">@Localizer["Household_LeaveTitle"]</h2>
+                    <p class="small text-muted">@Localizer["Household_LeaveAsMemberNote"]</p>
+                    <button class="btn btn-outline-danger" disabled="@_busy" data-testid="leave-household" @onclick="LeaveAsMember">@Localizer["Household_Leave"]</button>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private bool _loading = true;
+    private bool _busy;
+    private string? _status;
+    private bool _statusOk;
+    private TenantView? _household;
+    private Guid _myUserId;
+    private string _name = "";
+    private string _inviteEmail = "";
+    private List<Invitation> _pending = new();
+    private string? _transferTargetId;
+    private string? _revealedToken;
+    private string? _revealedEmail;
+    private bool _exporting;
+    private string? _exportUrl;
+
+    // Client-side mirror of the RolePermissions matrix (ADR-009). The API is the real gate; this just
+    // shows/hides controls so the UI matches what the caller can actually do.
+    private bool IsOwner => _household?.MyRole == "owner";
+    private bool IsAdmin => _household?.MyRole == "admin";
+    private bool CanRename => IsOwner || IsAdmin;        // RenameTenant
+    private bool CanManageMembers => IsOwner || IsAdmin; // ManageMembers (invite / remove)
+    private bool CanManageRoles => IsOwner;              // ManageRoles (promote / demote) — owner only
+    private List<Member> OtherMembers =>
+        _household?.Members.Where(m => m.UserId != _myUserId).ToList() ?? new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Auth.IsAuthenticated)
+        {
+            Nav.NavigateTo("/login");
+            return;
+        }
+        _myUserId = Auth.UserId ?? Guid.Empty;
+        await Reload();
+    }
+
+    private async Task Reload()
+    {
+        _loading = true;
+        try
+        {
+            _household = await Http.GetFromJsonAsync<TenantView>("/api/household");
+            _name = _household?.Name ?? "";
+            if (CanManageMembers)
+                _pending = await Http.GetFromJsonAsync<List<Invitation>>("/api/household/invitations") ?? new();
+            else
+                _pending = new();
+        }
+        catch
+        {
+            SetStatus(Localizer["Household_ErrLoad"], false);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    // The tenant_name claim drives the header; refresh it silently after tenant changes.
+    // The header re-renders on the next navigation (leave/dissolve force a full reload).
+    private Task RefreshHeaderAsync() => Auth.TryRefreshAsync();
+
+    private async Task SaveName()
+    {
+        _busy = true;
+        try
+        {
+            var resp = await Http.PutAsJsonAsync("/api/household", new { name = _name.Trim() });
+            if (resp.IsSuccessStatusCode)
+            {
+                SetStatus(Localizer["Household_StatusRenamed"], true);
+                await RefreshHeaderAsync();
+                await Reload();
+            }
+            else { SetStatus(Localizer["Household_ErrRename"], false); }
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task SendInvite()
+    {
+        _busy = true;
+        _revealedToken = null;
+        try
+        {
+            var resp = await Http.PostAsJsonAsync("/api/household/invitations", new { email = _inviteEmail.Trim() });
+            if (resp.IsSuccessStatusCode)
+            {
+                var body = await resp.Content.ReadFromJsonAsync<CreateInvitationResult>();
+                _revealedToken = body?.Token;
+                _revealedEmail = body?.InvitedEmail ?? _inviteEmail.Trim();
+                _inviteEmail = "";
+                SetStatus(null, true);
+                await Reload();
+            }
+            else if (resp.StatusCode == System.Net.HttpStatusCode.Conflict)
+            {
+                SetStatus(Localizer["Household_ErrEmailAlreadyMember"], false);
+            }
+            else if (resp.StatusCode == System.Net.HttpStatusCode.PaymentRequired)
+            {
+                // Seat quota reached (BILLING-5) — prompt to upgrade rather than a generic error.
+                SetStatus(Localizer["Household_ErrSeatLimit"], false);
+            }
+            else { SetStatus(Localizer["Household_ErrSendInvite"], false); }
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task RegenerateInvite(Invitation inv)
+    {
+        _busy = true;
+        _revealedToken = null;
+        try
+        {
+            var resp = await Http.PostAsJsonAsync($"/api/household/invitations/{inv.InvitationId}/regenerate", new { });
+            if (resp.IsSuccessStatusCode)
+            {
+                var body = await resp.Content.ReadFromJsonAsync<CreateInvitationResult>();
+                _revealedToken = body?.Token;
+                _revealedEmail = inv.InvitedEmail;
+                await Reload();
+            }
+            else { SetStatus(Localizer["Household_ErrRegenerate"], false); }
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task RevokeInvite(Invitation inv)
+    {
+        _busy = true;
+        _revealedToken = null;
+        try
+        {
+            var resp = await Http.DeleteAsync($"/api/household/invitations/{inv.InvitationId}");
+            if (resp.IsSuccessStatusCode)
+            {
+                SetStatus(Localizer["Household_StatusRevoked"], true);
+                await Reload();
+            }
+            else { SetStatus(Localizer["Household_ErrRevoke"], false); }
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task RemoveMember(Member m)
+    {
+        var name = string.IsNullOrWhiteSpace(m.DisplayName) ? m.Email : m.DisplayName;
+        if (!await JS.ConfirmAsync(Localizer["Household_ConfirmRemove", name])) return;
+
+        _busy = true;
+        try
+        {
+            var resp = await Http.DeleteAsync($"/api/household/members/{m.UserId}");
+            if (resp.IsSuccessStatusCode)
+            {
+                SetStatus(Localizer["Household_StatusMemberRemoved"], true);
+                await Reload();
+            }
+            else { SetStatus(Localizer["Household_ErrRemoveMember"], false); }
+        }
+        finally { _busy = false; }
+    }
+
+    private Task Promote(Member m) => ChangeRole(m, "admin");
+    private Task Demote(Member m) => ChangeRole(m, "member");
+
+    private async Task ChangeRole(Member m, string role)
+    {
+        _busy = true;
+        try
+        {
+            var resp = await Http.PutAsJsonAsync($"/api/household/members/{m.UserId}/role", new { role });
+            if (resp.IsSuccessStatusCode)
+            {
+                SetStatus(Localizer["Household_StatusRoleChanged"], true);
+                await Reload();
+            }
+            else { SetStatus(Localizer["Household_ErrRoleChange"], false); }
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task ExportData()
+    {
+        _busy = true; _exporting = true; _exportUrl = null;
+        try
+        {
+            var resp = await Http.PostAsync("/api/household/export", null);
+            if (resp.IsSuccessStatusCode)
+            {
+                var body = await resp.Content.ReadFromJsonAsync<ExportResult>();
+                // The URL may be relative (local disk) — resolve it against the API base for the browser.
+                _exportUrl = body?.DownloadUrl is { } u ? new Uri(Http.BaseAddress!, u).ToString() : null;
+            }
+            else { SetStatus(Localizer["Household_ErrExport"], false); }
+        }
+        catch { SetStatus(Localizer["Household_ErrExport"], false); }
+        finally { _busy = false; _exporting = false; }
+    }
+
+    // Browser: same-tab navigation → attachment download. Native: fetch + OS share sheet.
+    // The server names the file (Content-Disposition); the fallback only covers a bare response.
+    private async Task DownloadExport()
+    {
+        if (_exportUrl is null) return;
+        try { await DownloadLauncher.LaunchAsync(_exportUrl, "household-export.json"); }
+        catch { SetStatus(Localizer["Household_ErrExport"], false); }
+    }
+
+    private async Task TransferOwnership()
+    {
+        if (!Guid.TryParse(_transferTargetId, out var target)) return;
+        _busy = true;
+        try
+        {
+            var resp = await Http.PostAsJsonAsync("/api/household/transfer-ownership", new { user_id = target });
+            if (resp.IsSuccessStatusCode)
+            {
+                _transferTargetId = null;
+                SetStatus(Localizer["Household_StatusOwnershipTransferred"], true);
+                await Reload();
+            }
+            else { SetStatus(Localizer["Household_ErrTransfer"], false); }
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task LeaveAsMember()
+    {
+        if (!await JS.ConfirmAsync(Localizer["Household_ConfirmLeave"])) return;
+        _busy = true;
+        try
+        {
+            var resp = await Http.PostAsJsonAsync("/api/household/leave", new { });
+            if (resp.IsSuccessStatusCode)
+            {
+                await RefreshHeaderAsync();
+                Nav.NavigateTo("/", forceLoad: true);
+            }
+            else { SetStatus(Localizer["Household_ErrLeave"], false); }
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task DissolveAndLeave()
+    {
+        if (!await JS.ConfirmAsync(Localizer["Household_ConfirmDissolve"])) return;
+        _busy = true;
+        try
+        {
+            var resp = await Http.PostAsJsonAsync("/api/household/leave", new { confirm_dissolve = true });
+            if (resp.IsSuccessStatusCode)
+            {
+                await RefreshHeaderAsync();
+                Nav.NavigateTo("/", forceLoad: true);
+            }
+            else { SetStatus(Localizer["Household_ErrDissolve"], false); }
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task CopyToken(string? token)
+    {
+        if (token is null) return;
+        try { await JS.InvokeVoidAsync("navigator.clipboard.writeText", token); }
+        catch { /* clipboard may be unavailable; the token is still visible */ }
+    }
+
+    private void SetStatus(string? text, bool ok)
+    {
+        _status = text;
+        _statusOk = ok;
+    }
+
+    private record TenantView
+    {
+        [JsonPropertyName("id")] public Guid Id { get; init; }
+        [JsonPropertyName("name")] public string Name { get; init; } = "";
+        [JsonPropertyName("my_role")] public string MyRole { get; init; } = "member";
+        [JsonPropertyName("members")] public List<Member> Members { get; init; } = new();
+    }
+
+    private record Member
+    {
+        [JsonPropertyName("user_id")] public Guid UserId { get; init; }
+        [JsonPropertyName("display_name")] public string? DisplayName { get; init; }
+        [JsonPropertyName("email")] public string Email { get; init; } = "";
+        [JsonPropertyName("role")] public string Role { get; init; } = "member";
+        [JsonPropertyName("joined_at")] public DateTimeOffset JoinedAt { get; init; }
+    }
+
+    // List response — no token.
+    private record Invitation
+    {
+        [JsonPropertyName("invitation_id")] public Guid InvitationId { get; init; }
+        [JsonPropertyName("invited_email")] public string InvitedEmail { get; init; } = "";
+        [JsonPropertyName("expires_at")] public DateTimeOffset ExpiresAt { get; init; }
+    }
+
+    // One-time create/regenerate response — includes raw token.
+    private record CreateInvitationResult
+    {
+        [JsonPropertyName("token")] public string Token { get; init; } = "";
+        [JsonPropertyName("invited_email")] public string InvitedEmail { get; init; } = "";
+    }
+
+    private record ExportResult
+    {
+        [JsonPropertyName("download_url")] public string? DownloadUrl { get; init; }
+    }
+}

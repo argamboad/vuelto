@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>Perezosoft</title>
+    <base href="/" />
+    <!-- bootstrap is still a vendored copy per host (kept in sync with src/Web/wwwroot/lib);
+         app.css (brand tokens + shared styles) is single-sourced from the RCL. -->
+    <!-- Theme bootstrap BEFORE the stylesheets: applies the saved data-bs-theme pre-paint (no flash). -->
+    <script src="_content/Perezosoft.Shared.Ui/js/theme.js"></script>
+    <link rel="stylesheet" href="lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="_content/Perezosoft.Shared.Ui/css/app.css" />
+    <!-- Auto-aggregated bundle of the RCL's scoped component CSS. -->
+    <link rel="stylesheet" href="Perezosoft.Maui.styles.css" />
+    <link rel="icon" href="data:,">
+</head>
+
+<body>
+
+    <div class="status-bar-safe-area"></div>
+
+    <div id="app">Loading...</div>
+
+    <div id="blazor-error-ui" data-nosnippet>
+        An unhandled error has occurred.
+        <a href="." class="reload">Reload</a>
+        <span class="dismiss">🗙</span>
+    </div>
+
+    <!-- MFA enrollment QR (vendored qrcode-generator, MIT) — client-side only -->
+    <script src="_content/Perezosoft.Shared.Ui/js/qrcode-generator.min.js"></script>
+    <script src="_content/Perezosoft.Shared.Ui/js/mfa-qr.js"></script>
+    <!-- Reload bfcache restores so Back after sign-out can't show a stale authenticated view (QA-SEC-03; browser-only, no-op in the WebView — loaded for host parity). -->
+    <script src="_content/Perezosoft.Shared.Ui/js/bfcache-guard.js"></script>
+    <script src="_framework/blazor.webview.js" autostart="false"></script>
+
+</body>
+
+</html>

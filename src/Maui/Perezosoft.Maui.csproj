@@ -1,0 +1,153 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+    <PropertyGroup>
+        <!-- All four target platforms (NATIVE-1, ADR-018). Each TFM is added only on a host OS that
+             can actually build it, so `dotnet build src/Maui` (no -f) never tries a target the host
+             can't produce: Android anywhere; Windows on Windows; iOS/MacCatalyst on macOS (they need
+             Xcode — a Windows box without a paired Mac can't build them). CI builds each TFM on its
+             matching runner (the native-build jobs in ci.yml). -->
+        <TargetFrameworks>net10.0-android</TargetFrameworks>
+        <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
+        <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('osx'))">$(TargetFrameworks);net10.0-ios;net10.0-maccatalyst</TargetFrameworks>
+
+        <!-- No packages.lock.json for this project (overrides the solution-wide opt-in): the TFM list
+             above is host-OS-conditional, so the resolved graph differs per OS and a single committed
+             lockfile can never satisfy locked-mode on all three runners. MAUI is deliberately outside
+             the locked-mode CI path (build-test restores Api/Web/tests only); supply-chain pinning for
+             it comes from CPM (Directory.Packages.props) alone. Also stops the recurring untracked
+             src/Maui/packages.lock.json that full-solution builds kept regenerating. -->
+        <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
+
+        <!-- Note for MacCatalyst:
+            The default runtime is maccatalyst-x64, except in Release config, in which case the default is maccatalyst-x64;maccatalyst-arm64.
+            When specifying both architectures, use the plural <RuntimeIdentifiers> instead of the singular <RuntimeIdentifier>.
+            The Mac App Store will NOT accept apps with ONLY maccatalyst-arm64 indicated;
+            either BOTH runtimes must be indicated or ONLY macatalyst-x64. -->
+        <!-- For example: <RuntimeIdentifiers>maccatalyst-x64;maccatalyst-arm64</RuntimeIdentifiers> -->
+
+        <OutputType>Exe</OutputType>
+        <RootNamespace>Perezosoft.Maui</RootNamespace>
+        <UseMaui>true</UseMaui>
+        <SingleProject>true</SingleProject>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <EnableDefaultCssItems>false</EnableDefaultCssItems>
+        <Nullable>enable</Nullable>
+
+        <!-- Enable XAML source generation for faster build times and improved performance.
+             This generates C# code from XAML at compile time instead of runtime inflation.
+             To disable, remove this line.
+             For individual files, you can override by setting Inflator metadata:
+               <MauiXaml Update="MyPage.xaml" Inflator="Default" /> (reverts to defaults: Runtime for Debug, XamlC for Release)
+               <MauiXaml Update="MyPage.xaml" Inflator="Runtime" /> (force runtime inflation) -->
+        <MauiXamlInflator>SourceGen</MauiXamlInflator>
+
+        <!-- Display name -->
+        <ApplicationTitle>Perezosoft Platform</ApplicationTitle>
+
+        <!-- App Identifier -->
+        <ApplicationId>com.perezosoft.platform</ApplicationId>
+
+        <!-- Versions -->
+        <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
+        <ApplicationVersion>1</ApplicationVersion>
+
+        <!-- To develop, package, and publish an app to the Microsoft Store, see: https://aka.ms/MauiTemplateUnpackaged -->
+        <WindowsPackageType>None</WindowsPackageType>
+
+        <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">15.0</SupportedOSPlatformVersion>
+        <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">15.0</SupportedOSPlatformVersion>
+        <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">24.0</SupportedOSPlatformVersion>
+        <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</SupportedOSPlatformVersion>
+        <TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
+    </PropertyGroup>
+
+    <!-- Mac Catalyst Debug builds are ad-hoc signed, so they can't claim the restricted
+         keychain-access-groups entitlement the store Entitlements.plist needs for sandboxed
+         SecureStorage — macOS SIGKILLs the app at launch. Debug swaps to unsandboxed
+         entitlements instead (see Entitlements.Debug.plist). -->
+    <PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst' And '$(Configuration)' == 'Debug'">
+        <CodesignEntitlements>Platforms/MacCatalyst/Entitlements.Debug.plist</CodesignEntitlements>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- App Icon -->
+        <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#6b8a72" />
+
+        <!-- Splash Screen -->
+        <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#6b8a72" BaseSize="128,128" />
+
+        <!-- Images -->
+        <MauiImage Include="Resources\Images\*" />
+        <MauiImage Update="Resources\Images\dotnet_bot.svg" BaseSize="168,208" />
+
+        <!-- Custom Fonts -->
+        <MauiFont Include="Resources\Fonts\*" />
+
+        <!-- Raw Assets (also remove the "Resources\Raw" prefix) -->
+        <MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Maui.Controls" />
+        <PackageReference Include="Microsoft.AspNetCore.Components.WebView.Maui" />
+        <PackageReference Include="Microsoft.Extensions.Logging.Debug" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- Render the SHARED UI from the RCL. A net10.0-android/-windows app can consume a net10.0 RCL. -->
+        <ProjectReference Include="..\Shared.Ui\Perezosoft.Shared.Ui.csproj" />
+    </ItemGroup>
+
+    <!-- Dev convenience (Android): make sure VS invokes MSBuild on every Debug F5 so the
+         adb-reverse hook below always fires. VS's fast up-to-date check would otherwise skip the
+         build (and with it the hook) when nothing changed — exactly the "rebooted the emulator,
+         bridge gone, F5 does nothing" case. Costs a fast incremental-build invocation per F5;
+         Release/CI unaffected. -->
+    <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+        <DisableFastUpToDateCheck>true</DisableFastUpToDateCheck>
+    </PropertyGroup>
+
+    <!-- Dev convenience (Android): re-establish the loopback bridge to the local API on every
+         Debug build/deploy/run — CLI installs (Install/_Run) AND VS F5 (Build; VS deploy skips
+         Install when the APK is up-to-date) — so http://localhost:5238 on the device reaches the
+         host. `adb reverse` is wiped on emulator reboot/reconnect; this removes the need to re-run
+         it by hand. Uses VS's selected device ($(AdbTarget)) when set so multi-device setups don't
+         error. It never fails the build (ContinueOnError) and stays out of Release/CI builds. -->
+    <Target Name="AndroidReverseDevApiPort" AfterTargets="Build;Install;_Run"
+            Condition="$(TargetFramework.Contains('-android')) And '$(Configuration)' == 'Debug'">
+        <PropertyGroup>
+            <_AdbExe Condition="'$(AndroidSdkDirectory)' != ''">$([System.IO.Path]::Combine('$(AndroidSdkDirectory)', 'platform-tools', 'adb.exe'))</_AdbExe>
+            <_AdbExe Condition="'$(_AdbExe)' == '' or !Exists('$(_AdbExe)')">adb</_AdbExe>
+        </PropertyGroup>
+        <Message Importance="high" Text="[dev] adb $(AdbTarget) reverse tcp:5238 tcp:5238 — bridging the device to the local API" />
+        <Exec Command="&quot;$(_AdbExe)&quot; $(AdbTarget) reverse tcp:5238 tcp:5238" ContinueOnError="true" />
+    </Target>
+
+    <!-- ═══ Release must not ship the dev localhost API base (v3 audit NAT-3) ═══════════════════════
+         A Debug build keeps the localhost fallback + PEREZOSOFT_API_BASE_URL override (dev + CI smoke).
+         A Release build compiles in the real base from $(ApiBaseUrl) and REFUSES to build without it —
+         otherwise a by-the-book Release AAB would send OTP codes + refresh tokens cleartext to whatever
+         binds device-localhost:5238. Supply it: dotnet build -c Release -p:ApiBaseUrl=https://api.example.com -->
+    <Target Name="RequireApiBaseUrlInRelease" BeforeTargets="BeforeBuild"
+            Condition="'$(Configuration)' == 'Release' And '$(ApiBaseUrl)' == ''">
+        <Error Text="Release builds require -p:ApiBaseUrl=https://your-api-host — refusing to ship the dev localhost API base (v3 NAT-3). Set it in your release pipeline." />
+    </Target>
+    <ItemGroup Condition="'$(Configuration)' == 'Release' And '$(ApiBaseUrl)' != ''">
+        <!-- MauiProgram.ReleaseApiBaseUrl reads this back at runtime. -->
+        <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+            <_Parameter1>ApiBaseUrl</_Parameter1>
+            <_Parameter2>$(ApiBaseUrl)</_Parameter2>
+        </AssemblyAttribute>
+    </ItemGroup>
+
+    <!-- Cleartext-to-localhost is a DEBUG-ONLY posture (v3 NAT-3). Debug uses the convention-included
+         Resources/xml/network_security_config.xml (permits cleartext to the dev host). Release removes it
+         and Links the HTTPS-only variant (kept outside Resources/xml/ so it isn't auto-globbed) to the same
+         resource name, so the manifest's @xml/network_security_config reference stays valid either way. -->
+    <ItemGroup Condition="$(TargetFramework.Contains('-android')) And '$(Configuration)' != 'Debug'">
+        <AndroidResource Remove="Platforms/Android/Resources/xml/network_security_config.xml" />
+        <AndroidResource Include="Platforms/Android/network_security_config_release.xml"
+                         Link="Resources/xml/network_security_config.xml" />
+    </ItemGroup>
+
+</Project>

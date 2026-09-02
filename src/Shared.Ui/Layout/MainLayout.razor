@@ -1,0 +1,231 @@
+@inherits LayoutComponentBase
+@implements IDisposable
+@using System.Globalization
+@using System.Net.Http.Json
+@using Perezosoft.Shared.Ui.Auth
+@inject AuthService Auth
+@inject NavigationManager Nav
+@inject HttpClient Http
+@inject ICulturePersistence CulturePersistence
+@inject IThemePersistence ThemePersistence
+@inject IJSRuntime JS
+@inject IStringLocalizer<AppStrings> Localizer
+
+@if (!_initialized)
+{
+    <div class="app-loading">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading…</span>
+        </div>
+    </div>
+}
+else if (!Auth.IsAuthenticated)
+{
+    @* Anonymous pages (login, auth-callback, auth-error, join) render chromeless. *@
+    @Body
+}
+else
+{
+    @if (Auth.IsImpersonating)
+    {
+        <div class="impersonation-banner alert alert-warning d-flex align-items-center justify-content-center gap-3 mb-0 rounded-0 py-2"
+             role="alert" data-testid="impersonation-banner">
+            <span class="small mb-0">@Localizer["Impersonation_Banner", Auth.DisplayName ?? ""]</span>
+            <button class="btn btn-sm btn-outline-dark" @onclick="StopImpersonation">@Localizer["Impersonation_Stop"]</button>
+        </div>
+    }
+    <AppHeader />
+    <main class="main-content">
+        <div class="content-container">
+            @Body
+        </div>
+    </main>
+}
+
+@code {
+    private bool _initialized;
+
+    // Pages reachable without authentication. /auth-callback receives the sign-in
+    // handoff; /join shows the invite prompt and stores its own return URL.
+    private static readonly string[] AnonymousPaths = ["/login", "/auth-callback", "/auth-error", "/join"];
+
+    // The subset of anonymous paths a SIGNED-IN user has no reason to stay on, so a locale-mismatch
+    // reload bounces them home. /join + /auth-callback are deliberately excluded (UX-1): a signed-in
+    // user still needs to complete an invite acceptance / OAuth handoff there.
+    private static readonly string[] BounceToHomePaths = ["/login", "/auth-error"];
+
+    protected override async Task OnInitializedAsync()
+    {
+        // THE single auth entry point: one silent refresh from the cookie, awaited
+        // before @Body renders. No page triggers its own refresh → no rotation race.
+        await Auth.InitializeAsync();
+
+        // Native only (NATIVE-12): the OS may have killed the app mid-OAuth; a stashed
+        // callback from that round-trip is completed here, BEFORE the preference reconcile —
+        // a resumed sign-in sets the session first, so the reconcile below runs for that user
+        // (reconcile-first would no-op unauthenticated). Sign-in outcomes flow through Auth
+        // (session set, or a Login-page handoff); link outcomes reuse Settings' existing
+        // linked/link_error query banners. Its SignedIn fires before OnSignedIn subscribes,
+        // which is deliberate: the cold-start reconcile right below covers the resumed user,
+        // same no-second-pass principle as the startup refresh (PREFS-1).
+        var resume = await Auth.TryCompletePendingOAuthAsync();
+
+        // Cross-device preference sync, awaited before @Body renders (PREFS-1, ADR-022).
+        // Subsumes the earlier inline locale apply (MITI-5) — theme AND locale both reconcile here.
+        var reloading = await ReconcilePreferencesAsync();
+
+        // Interactive sign-ins (OTP/MFA/native OAuth) are soft navigations — this layout
+        // instance stays alive and OnInitializedAsync never re-runs — so reconcile again
+        // whenever a sign-in lands. Subscribed AFTER the cold-start reconcile above so the
+        // startup refresh doesn't trigger a second pass — but BEFORE the doomed-boot return
+        // below: the instance lives until the browser navigation lands, so its handlers
+        // (e.g. sign-out clears the device prefs, ADM-9) stay wired for that window.
+        Auth.SignedIn += OnSignedIn;
+        Auth.SignedOut += OnSignedOut;
+
+        // A TRUE result means the reconcile issued the locale reload: this boot is doomed, so stop
+        // here with the body unrendered — pages' boot side effects (Join's auto-accept POST) must
+        // fire once, on the boot the reload lands on, not twice (v3 T45c: the double-accept showed
+        // a joined user the error state).
+        if (reloading)
+            return;
+
+        _initialized = true;
+
+        if (resume.Outcome == OAuthResumeOutcome.LinkCompleted)
+        {
+            Nav.NavigateTo($"/settings?linked={Uri.EscapeDataString(resume.Provider ?? "")}", replace: true);
+            return;
+        }
+        if (resume.Outcome == OAuthResumeOutcome.LinkFailed)
+        {
+            Nav.NavigateTo($"/settings?link_error={Uri.EscapeDataString(resume.Error ?? "link_failed")}", replace: true);
+            return;
+        }
+
+        var path = new Uri(Nav.Uri).AbsolutePath;
+        var isAnonymous = AnonymousPaths.Any(p => path.StartsWith(p, StringComparison.OrdinalIgnoreCase));
+        if (!Auth.IsAuthenticated && !isAnonymous)
+            Nav.NavigateTo("/login", replace: true);
+    }
+
+    public void Dispose()
+    {
+        Auth.SignedIn -= OnSignedIn;
+        Auth.SignedOut -= OnSignedOut;
+    }
+
+    // Wipe the device-stored preferences on sign-out so the next user on a shared device can't inherit
+    // this account's theme/locale (ADM-9). A new sign-in can only follow a logout — the refresh cookie
+    // would otherwise auto-restore this session — so clearing here fully closes the cross-user vector.
+    private async void OnSignedOut()
+    {
+        try
+        {
+            await ThemePersistence.ClearAsync();
+            await CulturePersistence.ClearAsync();
+        }
+        catch { /* best-effort — a store that can't clear is no worse than before */ }
+    }
+
+    private async void OnSignedIn()
+    {
+        try
+        {
+            await InvokeAsync(async () =>
+            {
+                await ReconcilePreferencesAsync();
+                StateHasChanged();
+            });
+        }
+        catch { /* best-effort — the device defaults stand */ }
+    }
+
+    // Two-way preference sync between the user record (via the JWT claims) and the device:
+    //  - server value set → it wins; apply + cache on this device.
+    //  - server value never set → adopt an explicit device choice into the user record, so a
+    //    pre-auth login-page pick becomes the account preference (never while impersonating —
+    //    an admin's device must not rewrite the impersonated user's preferences).
+    // Idempotent: everything is compare-then-act, so re-running is a no-op when in sync.
+    // Returns TRUE when it issued the locale reload — the caller's boot is then doomed and must not
+    // render @Body (v3 T45c): a page's boot side effects (Join's auto-accept POST) would otherwise fire
+    // on the doomed boot AND again after the reload — the user joined but saw the error state.
+    private async Task<bool> ReconcilePreferencesAsync()
+    {
+        if (!Auth.IsAuthenticated) return false;
+
+        // No preference reconcile while impersonating (ADM-9, defence-in-depth): an admin session must not
+        // adopt/apply the impersonated user's theme or locale, nor write them to the admin's device — even
+        // if the impersonation token were ever to carry those claims. (The else-branch server writes are
+        // also guarded below; this makes the whole reconcile a no-op up front.)
+        if (Auth.IsImpersonating) return false;
+
+        // Theme first — it applies live (data-bs-theme), no reload involved.
+        try
+        {
+            if (Auth.Theme is { } savedTheme)
+            {
+                var local = await JS.InvokeAsync<string>("appTheme.current");
+                if (!string.Equals(savedTheme, local, StringComparison.OrdinalIgnoreCase))
+                {
+                    await JS.InvokeVoidAsync("appTheme.set", savedTheme);
+                    await ThemePersistence.PersistAsync(savedTheme);
+                }
+            }
+            else if (!Auth.IsImpersonating && await ThemePersistence.GetAsync() is { Length: > 0 } deviceTheme)
+            {
+                await Http.PutAsJsonAsync("/api/auth/theme", new { theme = deviceTheme });
+            }
+        }
+        catch { /* JS/HTTP unavailable — the device default stands */ }
+
+        // Locale last — a mismatch ends in ONE full reload: WASM fetches satellite resource
+        // assemblies for the boot culture only, so an in-process switch alone would leave the
+        // strings untranslated (reverts B7-3's no-reload approach; the reload happens only on
+        // an actual mismatch, so there is still no guaranteed double load).
+        try
+        {
+            if (Auth.Locale is { } savedLocale)
+            {
+                if (!string.Equals(savedLocale, CultureInfo.CurrentUICulture.TwoLetterISOLanguageName, StringComparison.OrdinalIgnoreCase))
+                {
+                    // In-process for MAUI (the WebView reload doesn't re-run MauiProgram);
+                    // persisted for the web (its reload re-boots from localStorage).
+                    var culture = new CultureInfo(savedLocale);
+                    CultureInfo.DefaultThreadCurrentCulture = CultureInfo.DefaultThreadCurrentUICulture = culture;
+                    await CulturePersistence.PersistAsync(savedLocale);
+
+                    // Only reload if the write actually stuck (UX-2). A store that's readable but not
+                    // writable (quota/policy) swallows the persist, so a reboot would read the OLD value,
+                    // see the same mismatch, and reload FOREVER. If it didn't stick, the in-process switch
+                    // above still serves this session — just skip the satellite-assembly reload.
+                    if (string.Equals(await CulturePersistence.GetAsync(), savedLocale, StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Preserve the current path across the reload — EXCEPT the two dead-ends a signed-in
+                        // user has no reason to sit on (UX-1). /join (accept an invite) and /auth-callback
+                        // (OAuth handoff) are anonymous paths a signed-in user still needs to COMPLETE, so
+                        // bouncing every anonymous path to "/" destroyed those journeys.
+                        var path = new Uri(Nav.Uri).AbsolutePath;
+                        var isDeadEnd = BounceToHomePaths.Any(p => path.StartsWith(p, StringComparison.OrdinalIgnoreCase));
+                        Nav.NavigateTo(isDeadEnd ? "/" : Nav.Uri, forceLoad: true);
+                        return true; // this boot is doomed — the caller must not render @Body
+                    }
+                }
+            }
+            else if (!Auth.IsImpersonating && await CulturePersistence.GetAsync() is { Length: > 0 } deviceLocale)
+            {
+                await Http.PutAsJsonAsync("/api/auth/locale", new { locale = deviceLocale });
+            }
+        }
+        catch (CultureNotFoundException) { /* unknown saved locale — keep the current culture */ }
+        catch { /* best-effort — the device default stands */ }
+        return false;
+    }
+
+    // Leave the impersonated session and reload as the staff user (restored from the refresh cookie).
+    private async Task StopImpersonation()
+    {
+        await Auth.StopImpersonationAsync();
+        Nav.NavigateTo("/", forceLoad: true);
+    }
+}

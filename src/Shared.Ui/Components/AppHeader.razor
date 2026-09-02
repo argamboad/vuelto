@@ -1,0 +1,105 @@
+@using Microsoft.AspNetCore.Components.Routing
+@using Perezosoft.Shared.Ui.Auth
+@implements IDisposable
+@inject AuthService Auth
+@inject NavigationManager Nav
+@inject IStringLocalizer<AppStrings> Localizer
+
+<nav class="navbar navbar-expand-lg navbar-dark app-header">
+    <div class="container-fluid">
+
+        <a class="navbar-brand app-brand d-flex align-items-center gap-2" href="/">
+            <!-- Brand mark from the RCL's static web assets (shared by Web + MAUI). -->
+            <img src="_content/Perezosoft.Shared.Ui/brand/icon_light.svg" alt="" class="brand-icon" height="32" width="32" />
+            <span class="brand-text">Perezosoft</span>
+        </a>
+
+        <!-- Hamburger: shown below the lg breakpoint (phones/tablets); Bootstrap hides it
+             on wide screens. Toggled by Blazor state — the app doesn't load Bootstrap JS. -->
+        <button class="navbar-toggler" type="button" @onclick="ToggleMenu"
+                aria-label="Toggle navigation" aria-expanded="@_menuOpen.ToString().ToLowerInvariant()">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div class="collapse navbar-collapse @(_menuOpen ? "show" : "")">
+            <ul class="navbar-nav me-auto ms-lg-4 mt-2 mt-lg-0">
+                <li class="nav-item">
+                    <NavLink class="nav-link" href="/" Match="NavLinkMatch.All">@Localizer["Nav_Home"]</NavLink>
+                </li>
+                <!-- TODO: add app-specific nav links here -->
+            </ul>
+
+            <div class="header-user d-flex flex-column flex-lg-row align-items-lg-center gap-2 gap-lg-3 mt-3 mt-lg-0 pb-2 pb-lg-0">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="tenant-badge" data-testid="tenant-badge">@Auth.TenantName</span>
+                    <span class="user-name text-white-50 small">@Auth.DisplayName</span>
+                </div>
+                <ThemeSwitcher />
+                <NotificationBell />
+                @if (_isStaff && !Auth.IsImpersonating)
+                {
+                    <NavLink class="btn btn-outline-warning btn-sm" href="/admin" data-testid="nav-admin">@Localizer["Nav_Admin"]</NavLink>
+                }
+                <NavLink class="btn btn-outline-light btn-sm" href="/household">@Localizer["Nav_Household"]</NavLink>
+                <NavLink class="btn btn-outline-light btn-sm" href="/billing" data-testid="nav-billing">@Localizer["Nav_Billing"]</NavLink>
+                <NavLink class="btn btn-outline-light btn-sm" href="/settings">@Localizer["Nav_Settings"]</NavLink>
+                <button class="btn btn-outline-light btn-sm" data-testid="sign-out" @onclick="SignOutAsync">@Localizer["Nav_SignOut"]</button>
+            </div>
+        </div>
+
+    </div>
+</nav>
+
+@code {
+    private bool _menuOpen;
+    private bool _isStaff;
+
+    // Close the menu after any navigation so it doesn't stay open over the new page on mobile.
+    protected override void OnInitialized()
+    {
+        Nav.LocationChanged += OnLocationChanged;
+        // Impersonation swaps the active token in place (a soft nav, no parameter change), so this
+        // parameterless component wouldn't otherwise re-render — re-source identity + staff flag then.
+        Auth.IdentityChanged += OnIdentityChanged;
+    }
+
+    // Show the Admin link only for platform staff (cheap, cached probe). Hidden while impersonating.
+    protected override async Task OnInitializedAsync() => _isStaff = await Auth.IsStaffAsync();
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        if (!_menuOpen) return;
+        _menuOpen = false;
+        InvokeAsync(StateHasChanged);
+    }
+
+    // Identity changed under us (enter/leave impersonation): re-probe staff status and re-render so the
+    // tenant badge, name, and Admin-link visibility reflect the active token — not the staff cold-start.
+    private async void OnIdentityChanged()
+    {
+        try
+        {
+            var isStaff = await Auth.IsStaffAsync();
+            await InvokeAsync(() =>
+            {
+                _isStaff = isStaff;
+                StateHasChanged();
+            });
+        }
+        catch { /* best-effort — leaves the prior header until the next render */ }
+    }
+
+    private void ToggleMenu() => _menuOpen = !_menuOpen;
+
+    private async Task SignOutAsync()
+    {
+        await Auth.LogoutAsync();
+        Nav.NavigateTo("/login", forceLoad: true);
+    }
+
+    public void Dispose()
+    {
+        Nav.LocationChanged -= OnLocationChanged;
+        Auth.IdentityChanged -= OnIdentityChanged;
+    }
+}

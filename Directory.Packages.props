@@ -1,0 +1,87 @@
+<Project>
+
+  <!--
+    Central Package Management (v2 audit B11-6, R25). One version per package across the whole
+    solution; the individual .csproj files carry version-less <PackageReference> entries. Combined
+    with the committed packages.lock.json files and locked-mode restore in CI, this pins the exact
+    dependency graph so a supply-chain change can't slip in unnoticed.
+
+    MAUI packages are driven by the $(MauiVersion) MSBuild property (set by the MAUI workload), so
+    their PackageVersion entries deliberately reference that property rather than a literal.
+  -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- App / API -->
+    <PackageVersion Include="DotNetEnv" Version="3.2.0" />
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.11" />
+    <PackageVersion Include="OpenTelemetry.Exporter.Console" Version="1.16.0" />
+    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.16.0" />
+    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.16.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.16.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.16.0" />
+    <PackageVersion Include="Otp.NET" Version="1.4.1" />
+    <PackageVersion Include="Swashbuckle.AspNetCore" Version="7.2.0" />
+
+    <!-- Infrastructure -->
+    <PackageVersion Include="AWSSDK.S3" Version="4.0.100" />
+    <PackageVersion Include="MailKit" Version="4.17.0" />
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.Google" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.MicrosoftAccount" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" Version="10.0.11" />
+    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+    <PackageVersion Include="Stripe.net" Version="52.1.0" />
+
+    <!-- Web (Blazor WASM) -->
+    <PackageVersion Include="Microsoft.AspNetCore.Components.Authorization" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.11" />
+    <!-- The Web project pins the WASM SDK's implicit build-time packs (ILLink & co.) via
+         VersionOverride in its own csproj, NOT as PackageVersion entries here: the MAUI SDK also
+         injects ILLink.Tasks implicitly, and a central version for an SDK-implicit package fails
+         its restore with NU1009. See the note in src/Web/Perezosoft.Web.csproj. -->
+    <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.11" />
+    <!-- Api hosts the published WASM bundle single-origin (DEPLOY-1, ADR-017). -->
+    <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.Extensions.Http" Version="10.0.11" />
+
+    <!-- Shared.Ui (RCL) -->
+    <PackageVersion Include="Microsoft.AspNetCore.Components.Web" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.Extensions.Localization" Version="10.0.11" />
+    <PackageVersion Include="System.IdentityModel.Tokens.Jwt" Version="8.19.1" />
+
+    <!-- MAUI (versions driven by the $(MauiVersion) workload property) -->
+    <PackageVersion Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
+    <PackageVersion Include="Microsoft.AspNetCore.Components.WebView.Maui" Version="$(MauiVersion)" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Debug" Version="10.0.0" />
+
+    <!-- Tests -->
+    <PackageVersion Include="coverlet.collector" Version="6.0.4" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.7.0" />
+    <PackageVersion Include="bunit" Version="2.7.2" /> <!-- RCL component tests (v3 TOOL-2) -->
+    <!-- bUnit 2.7.2 pulls AngleSharp 1.4.0 transitively, which has GHSA-pgww-w46g-26qg (mXSS, moderate);
+         pin the patched 1.5.2 directly so the "0 vulnerable packages" bar (NU1902 as error) stays green. -->
+    <PackageVersion Include="AngleSharp" Version="1.5.2" />
+
+    <!-- Consolidated: E2E.Tests referenced 17.14.0, the xUnit test projects 17.14.1 → highest wins. -->
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <!-- Testcontainers 4.12.0 pulls SSH.NET 2025.1.0 transitively, which has GHSA-q939-rpr3-3284
+         (ScpClient arbitrary file write, high); pin the patched 2026.0.0 directly so the
+         "0 vulnerable packages" bar (NU1903 as error) stays green. -->
+    <PackageVersion Include="SSH.NET" Version="2026.0.0" />
+    <PackageVersion Include="Testcontainers.Minio" Version="4.12.0" />
+    <PackageVersion Include="Testcontainers.PostgreSql" Version="4.12.0" />
+    <PackageVersion Include="xunit" Version="2.9.3" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.4" />
+    <PackageVersion Include="Microsoft.Playwright.NUnit" Version="1.60.0" />
+    <PackageVersion Include="NUnit" Version="4.3.2" />
+    <PackageVersion Include="NUnit.Analyzers" Version="4.7.0" />
+    <PackageVersion Include="NUnit3TestAdapter" Version="5.0.0" />
+  </ItemGroup>
+
+</Project>

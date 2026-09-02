@@ -1,0 +1,81 @@
+.login-wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 2rem 1rem;
+}
+
+.login-card {
+    width: 100%;
+    max-width: 420px;
+    border-radius: 14px;
+    border: 1px solid var(--app-border, #E0E7EF);
+}
+
+.login-lockup {
+    width: 100%;
+    max-width: 240px;
+    height: auto;
+}
+
+/* OAuth buttons */
+.btn-oauth {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: .65rem;
+    font-weight: 500;
+    background: #fff;
+    border: 1.5px solid #D0D5DD;
+    color: #344054;
+    padding: .6rem 1rem;
+    border-radius: 8px;
+    text-decoration: none;
+    transition: border-color .15s, box-shadow .15s;
+}
+
+.btn-oauth:hover {
+    border-color: var(--bs-primary);
+    box-shadow: 0 0 0 3px rgba(var(--bs-primary-rgb), .12);
+    color: #344054;
+}
+
+/* Dark theme: the provider buttons keep their shape but drop the hardcoded light surface. */
+[data-bs-theme="dark"] .btn-oauth,
+[data-bs-theme="dark"] .btn-oauth:hover {
+    background: var(--bs-body-bg);
+    border-color: var(--bs-border-color);
+    color: var(--bs-body-color);
+}
+
+.oauth-icon {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+}
+
+/* "or" divider */
+.divider-text {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    color: #98A2B3;
+    font-size: .8rem;
+}
+
+.divider-text::before,
+.divider-text::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: #E4E7EC;
+}
+
+[data-bs-theme="dark"] .divider-text {
+    color: var(--bs-secondary-color);
+}
+
+[data-bs-theme="dark"] .divider-text::before,
+[data-bs-theme="dark"] .divider-text::after {
+    background: var(--bs-border-color);
+}

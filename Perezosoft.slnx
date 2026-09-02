@@ -1,0 +1,34 @@
+<Solution>
+  <Folder Name="/src/" />
+  <Folder Name="/src/Api/">
+    <Project Path="src/Api/Perezosoft.Api.csproj" />
+  </Folder>
+  <Folder Name="/src/Core/">
+    <Project Path="src/Core/Perezosoft.Core.csproj" />
+  </Folder>
+  <Folder Name="/src/Infrastructure/">
+    <Project Path="src/Infrastructure/Perezosoft.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/src/Maui/">
+    <Project Path="src/Maui/Perezosoft.Maui.csproj" />
+  </Folder>
+  <Folder Name="/src/Shared.Ui/">
+    <Project Path="src/Shared.Ui/Perezosoft.Shared.Ui.csproj" />
+  </Folder>
+  <Folder Name="/src/Web/">
+    <Project Path="src/Web/Perezosoft.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/" />
+  <Folder Name="/tests/Api.Tests/">
+    <Project Path="tests/Api.Tests/Perezosoft.Api.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tests/Core.Tests/">
+    <Project Path="tests/Core.Tests/Perezosoft.Core.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tests/E2E.Tests/">
+    <Project Path="tests/E2E.Tests/Perezosoft.E2E.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tests/Ui.Tests/">
+    <Project Path="tests/Ui.Tests/Perezosoft.Ui.Tests.csproj" />
+  </Folder>
+</Solution>

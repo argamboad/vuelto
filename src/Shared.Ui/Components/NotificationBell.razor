@@ -1,0 +1,255 @@
+@using System.Net.Http.Json
+@using System.Text.Json.Serialization
+@using Perezosoft.Shared.Ui.Auth
+@implements IDisposable
+@inject HttpClient Http
+@inject AuthService Auth
+@inject IStringLocalizer<AppStrings> Localizer
+
+@* Per-user notification center (NOTIFY-1, ADR-013). Bell + unread badge + dropdown list. *@
+<div class="notif-bell position-relative">
+    <button class="btn btn-outline-light btn-sm position-relative" @onclick="Toggle"
+            data-testid="notif-bell" aria-label="@Localizer["Notif_Title"]">
+        <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true">
+            <path d="M8 16a2 2 0 0 0 2-2H6a2 2 0 0 0 2 2zM8 1.5A.75.75 0 0 1 8.75 2v.61a4 4 0 0 1 3.25 3.93v2.2l1 1.5V12H3v-.76l1-1.5v-2.2A4 4 0 0 1 7.25 2.6V2A.75.75 0 0 1 8 1.5z"/>
+        </svg>
+        @if (_count > 0)
+        {
+            <span class="badge rounded-pill bg-danger position-absolute top-0 start-100 translate-middle"
+                  data-testid="notif-count" style="font-size:.6rem">@(_count > 99 ? "99+" : _count.ToString())</span>
+        }
+    </button>
+
+    @if (_open)
+    {
+        @* Click-away backdrop (the app doesn't load Bootstrap's JS dropdowns). *@
+        <div class="notif-backdrop position-fixed top-0 start-0 w-100 h-100" style="z-index:1040"
+             @onclick="Close"></div>
+
+        <div class="notif-panel card shadow position-absolute end-0 mt-2"
+             style="z-index:1050;width:320px;max-width:90vw" data-testid="notif-panel">
+            <div class="card-header d-flex align-items-center justify-content-between py-2">
+                <span class="fw-semibold small">@Localizer["Notif_Title"]</span>
+                @if (_count > 0)
+                {
+                    <button class="btn btn-link btn-sm p-0" @onclick="MarkAllRead">@Localizer["Notif_MarkAllRead"]</button>
+                }
+            </div>
+            <div class="notif-list" style="max-height:360px;overflow-y:auto">
+                @if (_loading)
+                {
+                    <div class="p-3 text-center text-muted small"><span class="spinner-border spinner-border-sm me-2"></span>@Localizer["Common_Loading"]</div>
+                }
+                else if (_items.Count == 0)
+                {
+                    <div class="p-4 text-center text-muted small" data-testid="notif-empty">@Localizer["Notif_Empty"]</div>
+                }
+                else
+                {
+                    <ul class="list-group list-group-flush">
+                        @foreach (var n in _items)
+                        {
+                            <li class="list-group-item notif-item @(n.ReadAt is null ? "notif-unread" : "")"
+                                data-testid="notif-item" role="button" @onclick="() => OnItemClick(n)">
+                                <div class="d-flex align-items-start gap-2">
+                                    @* Delete this notification (NOTIFY: DELETE /api/notifications/{id}). stopPropagation
+                                       so it doesn't also fire the row's mark-read. Rebrandable — see CLAUDE.md. *@
+                                    <button type="button" class="btn btn-link btn-sm p-0 text-muted flex-shrink-0 notif-delete"
+                                            data-testid="notif-delete" title="@Localizer["Notif_Delete"]" aria-label="@Localizer["Notif_Delete"]"
+                                            @onclick="() => Delete(n)" @onclick:stopPropagation="true">
+                                        <svg viewBox="0 0 16 16" width="13" height="13" fill="currentColor" aria-hidden="true">
+                                            <path d="M6.5 1a1 1 0 0 0-1 1v.5H2.75a.75.75 0 0 0 0 1.5h.31l.66 8.6A2 2 0 0 0 5.72 15h4.56a2 2 0 0 0 2-1.4l.66-8.6h.31a.75.75 0 0 0 0-1.5H10.5V2a1 1 0 0 0-1-1h-3zM7 2h2v.5H7V2zM5.57 4h4.86l-.64 8.35a.5.5 0 0 1-.5.4H6.71a.5.5 0 0 1-.5-.4L5.57 4z"/>
+                                        </svg>
+                                    </button>
+                                    @if (n.ReadAt is null)
+                                    {
+                                        <span class="notif-dot bg-primary rounded-circle mt-1 flex-shrink-0"
+                                              style="width:.5rem;height:.5rem"></span>
+                                    }
+                                    else
+                                    {
+                                        <span class="flex-shrink-0" style="width:.5rem"></span>
+                                    }
+                                    <div class="flex-grow-1" style="min-width:0">
+                                        <div class="fw-medium small text-truncate">@n.Title</div>
+                                        <div class="text-muted small">@n.Body</div>
+                                        <div class="text-muted" style="font-size:.7rem">@Ago(n.CreatedAt)</div>
+                                    </div>
+                                </div>
+                            </li>
+                        }
+                    </ul>
+                }
+            </div>
+            @* Bulk clear (NOTIFY: DELETE /api/notifications[?read=true]). Rebrandable — see CLAUDE.md. *@
+            @if (!_loading && _items.Count > 0)
+            {
+                <div class="card-footer d-flex align-items-center justify-content-between py-2">
+                    <button class="btn btn-link btn-sm p-0 text-muted" data-testid="notif-clear-read"
+                            disabled="@(!_items.Any(n => n.ReadAt is not null))" @onclick="ClearRead">@Localizer["Notif_ClearRead"]</button>
+                    <button class="btn btn-link btn-sm p-0 text-danger" data-testid="notif-clear-all"
+                            @onclick="ClearAll">@Localizer["Notif_ClearAll"]</button>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private bool _open;
+    private bool _loading;
+    private int _count;
+    private List<NotificationDto> _items = new();
+    private CancellationTokenSource? _poll;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshCount();
+        _ = PollLoop();
+    }
+
+    // Lightweight unread-count refresh so the badge stays roughly live without a push channel.
+    private async Task PollLoop()
+    {
+        _poll = new CancellationTokenSource();
+        try
+        {
+            using var timer = new PeriodicTimer(TimeSpan.FromSeconds(60));
+            while (await timer.WaitForNextTickAsync(_poll.Token))
+                await RefreshCount();
+        }
+        catch (OperationCanceledException) { /* disposed */ }
+    }
+
+    private async Task RefreshCount()
+    {
+        if (!Auth.IsAuthenticated) { _count = 0; return; }
+        try
+        {
+            var res = await Http.GetFromJsonAsync<UnreadCountDto>("/api/notifications/unread-count");
+            _count = res?.Count ?? 0;
+            StateHasChanged();
+        }
+        catch { /* transient; keep the last count */ }
+    }
+
+    private async Task Toggle()
+    {
+        _open = !_open;
+        if (_open) await LoadList();
+    }
+
+    private void Close() => _open = false;
+
+    private async Task LoadList()
+    {
+        _loading = true;
+        try
+        {
+            _items = await Http.GetFromJsonAsync<List<NotificationDto>>("/api/notifications?limit=20") ?? new();
+        }
+        catch { _items = new(); }
+        finally { _loading = false; }
+    }
+
+    private async Task OnItemClick(NotificationDto n)
+    {
+        if (n.ReadAt is not null) return;
+
+        // Mark optimistically BEFORE the await (v3 LB-UI-9): a rapid second click would otherwise pass the
+        // null-ReadAt guard again while the first request is still in flight, and decrement the count twice.
+        var previous = n.ReadAt;
+        n.ReadAt = DateTimeOffset.UtcNow;
+        if (_count > 0) _count--;
+        try
+        {
+            var res = await Http.PostAsync($"/api/notifications/{n.Id}/read", null);
+            if (!res.IsSuccessStatusCode) { n.ReadAt = previous; _count++; } // revert — leave unread, user can retry
+        }
+        catch { n.ReadAt = previous; _count++; }
+    }
+
+    private async Task MarkAllRead()
+    {
+        try
+        {
+            var res = await Http.PostAsync("/api/notifications/read-all", null);
+            if (res.IsSuccessStatusCode)
+            {
+                var now = DateTimeOffset.UtcNow;
+                foreach (var n in _items) n.ReadAt ??= now;
+                _count = 0;
+            }
+        }
+        catch { /* retryable */ }
+    }
+
+    private async Task Delete(NotificationDto n)
+    {
+        try
+        {
+            var res = await Http.DeleteAsync($"/api/notifications/{n.Id}");
+            if (res.IsSuccessStatusCode)
+            {
+                _items.Remove(n);
+                if (n.ReadAt is null && _count > 0) _count--; // only unread contributed to the badge
+            }
+        }
+        catch { /* leave it; user can retry */ }
+    }
+
+    private async Task ClearRead()
+    {
+        try
+        {
+            // Server clears ALL read rows (not just this loaded page), so re-fetch to resync.
+            var res = await Http.DeleteAsync("/api/notifications?read=true");
+            if (res.IsSuccessStatusCode) await LoadList();
+        }
+        catch { /* retryable */ }
+    }
+
+    private async Task ClearAll()
+    {
+        try
+        {
+            // Explicit ?read=false — the server now REQUIRES the scope so "delete all" can't be reached by
+            // a dropped param (v3 LB-UI-10).
+            var res = await Http.DeleteAsync("/api/notifications?read=false");
+            if (res.IsSuccessStatusCode) { _items.Clear(); _count = 0; }
+        }
+        catch { /* retryable */ }
+    }
+
+    // Compact relative time ("just now", "5m", "3h", "2d"), falling back to a date.
+    private string Ago(DateTimeOffset when)
+    {
+        var span = DateTimeOffset.UtcNow - when;
+        if (span < TimeSpan.FromMinutes(1)) return Localizer["Notif_JustNow"];
+        if (span < TimeSpan.FromHours(1)) return $"{(int)span.TotalMinutes}m";
+        if (span < TimeSpan.FromDays(1)) return $"{(int)span.TotalHours}h";
+        if (span < TimeSpan.FromDays(7)) return $"{(int)span.TotalDays}d";
+        return when.LocalDateTime.ToString("d");
+    }
+
+    public void Dispose()
+    {
+        _poll?.Cancel();
+        _poll?.Dispose();
+    }
+
+    private sealed class NotificationDto
+    {
+        [JsonPropertyName("id")] public Guid Id { get; set; }
+        [JsonPropertyName("kind")] public string Kind { get; set; } = string.Empty;
+        [JsonPropertyName("title")] public string Title { get; set; } = string.Empty;
+        [JsonPropertyName("body")] public string Body { get; set; } = string.Empty;
+        [JsonPropertyName("read_at")] public DateTimeOffset? ReadAt { get; set; }
+        [JsonPropertyName("created_at")] public DateTimeOffset CreatedAt { get; set; }
+    }
+
+    private sealed record UnreadCountDto
+    {
+        [JsonPropertyName("count")] public int Count { get; init; }
+    }
+}

@@ -1,0 +1,77 @@
+# Mirrors docs/postman/ into the Postman workspace whenever it changes on develop —
+# git is the single source of truth (see CLAUDE.md "API documentation"); the workspace
+# copy is a read-mostly mirror kept fresh here, so nobody ever export/imports JSON.
+#
+# One-time setup (skips gracefully until done):
+#   - Secret  POSTMAN_API_KEY       — Postman: avatar → Settings → API keys
+#   - Variable POSTMAN_WORKSPACE_ID — Postman: workspace → Overview (ID in the sidebar)
+#
+# Sync is by NAME (collection info.name / environment name): update if it exists in the
+# workspace, create it otherwise. Delete any duplicate same-name copies in Postman once —
+# with duplicates present, the first match wins.
+name: postman-sync
+
+on:
+  push:
+    branches: [develop]
+    # The workflow file itself is in the paths so a fix to the sync re-runs the sync.
+    paths: ["docs/postman/**", ".github/workflows/postman-sync.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: postman-sync
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Sync collection + environments to the Postman workspace
+        env:
+          POSTMAN_API_KEY: ${{ secrets.POSTMAN_API_KEY }}
+          WORKSPACE_ID: ${{ vars.POSTMAN_WORKSPACE_ID }}
+        run: |
+          set -euo pipefail
+          if [ -z "${POSTMAN_API_KEY:-}" ] || [ -z "${WORKSPACE_ID:-}" ]; then
+            echo "::notice::POSTMAN_API_KEY / POSTMAN_WORKSPACE_ID not set — skipping Postman sync."
+            exit 0
+          fi
+          API="https://api.getpostman.com"
+          AUTH=(-H "X-Api-Key: ${POSTMAN_API_KEY}" -H "Content-Type: application/json")
+
+          # ── Collection ────────────────────────────────────────────────────────────
+          FILE="docs/postman/Perezosoft.postman_collection.json"
+          NAME="$(jq -r '.info.name' "$FILE")"
+          # NB: not "UID" — that's a readonly bash built-in (the runner's user id); assigning it dies.
+          COLLECTION_UID="$(curl -sf "${AUTH[@]}" "$API/collections?workspace=$WORKSPACE_ID" \
+                 | jq -r --arg n "$NAME" '[.collections[] | select(.name == $n)][0].uid // empty')"
+          BODY="$(jq -n --slurpfile c "$FILE" '{collection: $c[0]}')"
+          if [ -n "$COLLECTION_UID" ]; then
+            echo "Updating collection '$NAME' ($COLLECTION_UID)…"
+            curl -sf "${AUTH[@]}" -X PUT "$API/collections/$COLLECTION_UID" -d "$BODY" > /dev/null
+          else
+            echo "Creating collection '$NAME'…"
+            curl -sf "${AUTH[@]}" -X POST "$API/collections?workspace=$WORKSPACE_ID" -d "$BODY" > /dev/null
+          fi
+
+          # ── Environments (one file per deploy target) ─────────────────────────────
+          ENVS_JSON="$(curl -sf "${AUTH[@]}" "$API/environments?workspace=$WORKSPACE_ID")"
+          for f in docs/postman/*postman_environment.json; do
+            ENV_NAME="$(jq -r '.name' "$f")"
+            ENV_UID="$(echo "$ENVS_JSON" \
+                       | jq -r --arg n "$ENV_NAME" '[.environments[] | select(.name == $n)][0].uid // empty')"
+            ENV_BODY="$(jq '{environment: {name: .name, values: .values}}' "$f")"
+            if [ -n "$ENV_UID" ]; then
+              echo "Updating environment '$ENV_NAME' ($ENV_UID)…"
+              curl -sf "${AUTH[@]}" -X PUT "$API/environments/$ENV_UID" -d "$ENV_BODY" > /dev/null
+            else
+              echo "Creating environment '$ENV_NAME'…"
+              curl -sf "${AUTH[@]}" -X POST "$API/environments?workspace=$WORKSPACE_ID" -d "$ENV_BODY" > /dev/null
+            fi
+          done
+          echo "Postman workspace is in sync with docs/postman/."

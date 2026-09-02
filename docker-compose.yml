@@ -1,0 +1,65 @@
+services:
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-dev_db}
+      POSTGRES_USER: ${DB_USER:-dev}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-devpassword}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      # RLS runtime role (ADR-020) — auto-provisioned on a FRESH volume only; for an existing
+      # volume run the script once via psql (see the script header).
+      - ./docker/db:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-dev} -d ${DB_NAME:-dev_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  mail:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - "${MAIL_SMTP_PORT:-1025}:1025"
+      - "${MAIL_UI_PORT:-8025}:8025"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8025 || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  # Production image, single-origin API+WASM (DEPLOY-2). Behind the "app" profile so the normal dev flow
+  # (`docker compose up -d`) still starts ONLY db + mail — this only runs with `--profile app`. It's the
+  # local parity check: "does the container that ships to Render actually boot + migrate + serve?".
+  # Loads your .env for the app secrets, then overrides the connection string + SMTP to reach the
+  # sibling containers by service name. Copy .env.example -> .env first.
+  app:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      ConnectionStrings__DefaultConnection: "Host=db;Port=5432;Database=${DB_NAME:-dev_db};Username=${DB_USER:-dev};Password=${DB_PASSWORD:-devpassword}"
+      Email__Smtp__Host: mail
+      Email__Smtp__Port: "1025"
+      Email__Smtp__Username: ""
+      Email__Smtp__Password: ""
+      PORT: "8080"
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+      mail:
+        condition: service_healthy
+
+volumes:
+  db_data:

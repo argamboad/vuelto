@@ -1,0 +1,24 @@
+# Local dev environment — never commit secrets
+.env
+
+# .NET build output
+bin/
+obj/
+
+# User-specific VS/Rider files
+*.user
+.vs/
+.idea/
+
+# Agent / editor tooling
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node (the Android native smoke in tests/native-smoke-android)
+node_modules/
+
+# MAUI lockfile — excluded by design (NATIVE-1): platform-conditional restore makes it churn
+src/Maui/packages.lock.json

@@ -1,0 +1,909 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+# Least privilege for every job (v3 audit DEP-8). No job here consumes GITHUB_TOKEN — nothing pushes,
+# comments, or releases — but several execute freshly-downloaded third-party binaries (gitleaks, mailpit,
+# dotnet tools), so the default write-all token would hand those a repo-write credential for no reason.
+# `contents: read` is all `actions/checkout` needs. Grant any future write scope per-job, never here.
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      # Supply-chain (B11-6): restore in LOCKED mode against the committed packages.lock.json
+      # files. --locked-mode fails if the resolved graph differs from the lockfile, so a
+      # dependency change can't slip in without updating the (reviewed) lockfile. The MAUI
+      # shells are excluded (not built in CI, no committed lockfile).
+      - name: Restore (locked mode)
+        run: |
+          dotnet restore src/Api/Perezosoft.Api.csproj --locked-mode
+          dotnet restore src/Web/Perezosoft.Web.csproj --locked-mode
+          dotnet restore tests/E2E.Tests/Perezosoft.E2E.Tests.csproj --locked-mode
+          dotnet restore tests/Core.Tests/Perezosoft.Core.Tests.csproj --locked-mode
+          dotnet restore tests/Api.Tests/Perezosoft.Api.Tests.csproj --locked-mode
+          dotnet restore tests/Ui.Tests/Perezosoft.Ui.Tests.csproj --locked-mode
+
+      # Build the Linux-buildable graph with warnings-as-errors (Directory.Build.props).
+      # The MAUI shells target net10.0-windows / -android and are excluded here; they're
+      # deferred and not part of the gate. Building Web covers Shared.Ui (the RCL).
+      # --no-restore: reuse the locked-mode restore above (don't let the build re-restore loosely).
+      - name: Build (warnings-as-errors)
+        run: |
+          dotnet build src/Api/Perezosoft.Api.csproj -c Release --no-restore
+          dotnet build src/Web/Perezosoft.Web.csproj -c Release --no-restore
+          dotnet build tests/E2E.Tests/Perezosoft.E2E.Tests.csproj -c Release --no-restore
+
+      # Unit + integration tests. Api.Tests includes the architecture invariants (B9-1) and the
+      # migration-drift guard (B6-2); both spin up Postgres via Testcontainers (Docker is
+      # available on ubuntu-latest). E2E.Tests need the full running stack and aren't run here.
+      # --no-restore: the locked-mode restore already ran.
+      - name: Test (Core + Api + Ui)
+        run: |
+          dotnet test tests/Core.Tests/Perezosoft.Core.Tests.csproj -c Release --no-restore
+          dotnet test tests/Api.Tests/Perezosoft.Api.Tests.csproj -c Release --no-restore
+          dotnet test tests/Ui.Tests/Perezosoft.Ui.Tests.csproj -c Release --no-restore
+
+      # Fail the build if the EF model has drifted from the latest migration/snapshot.
+      - name: No pending EF model changes
+        # The design-time factory reads the connection string from this key (no .env in CI).
+        # has-pending-model-changes compares the model to the snapshot and opens no DB
+        # connection, so a placeholder is enough to build the Npgsql model.
+        env:
+          ConnectionStrings__DefaultConnection: "Host=localhost;Port=5432;Database=ef_designtime;Username=ci;Password=ci"
+        run: |
+          # Tool version comes from the committed manifest .config/dotnet-tools.json (v3 audit T51/R63)
+          # — pinned to match the EF packages (10.0.11); an unpinned install would float and let the
+          # drift gate change verdict without a code change (DEP-9). Bump the manifest with the EF
+          # PackageVersions in Directory.Packages.props.
+          dotnet tool restore
+          dotnet tool run dotnet-ef migrations has-pending-model-changes \
+            --project src/Infrastructure/Perezosoft.Infrastructure.csproj \
+            --startup-project src/Api/Perezosoft.Api.csproj
+
+  # Secret scan (v2 audit B11-5). Runs the gitleaks OSS binary directly (no marketplace action, so no
+  # org-license requirement) over the full history + working tree. Config + allowlist in .gitleaks.toml;
+  # real secrets live only in the gitignored .env, which is never committed.
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # full history so the scan covers every commit, not just the tip
+
+      - name: gitleaks
+        env:
+          GITLEAKS_VERSION: "8.21.2"
+          # sha256 of gitleaks_8.21.2_linux_x64.tar.gz, from the release's published checksums.txt.
+          # Verify before executing (v3 audit DEP-9): a version tag alone is mutable — the release asset
+          # can be replaced. Re-pin this hash whenever GITLEAKS_VERSION moves.
+          GITLEAKS_SHA256: "5bc41815076e6ed6ef8fbecc9d9b75bcae31f39029ceb55da08086315316e3ba"
+        run: |
+          curl -sSfL -o gitleaks.tar.gz \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  gitleaks.tar.gz" | sha256sum -c -
+          tar -xzf gitleaks.tar.gz gitleaks
+          ./gitleaks detect --no-banner --redact --config .gitleaks.toml
+
+  # QA artifacts (v2 audit B11-8). The two printable PDFs (QA_TEST_GUIDE, QA_RUN_LOG) are generated from
+  # docs/QA_TEST_PLAN.md; this job regenerates them and fails if the committed PDFs' text has drifted from
+  # the plan — i.e. the plan was edited without re-running the generators (plan ⇄ PDFs must change
+  # together). reportlab/pypdf are pinned so regeneration matches the committed artifacts.
+  qa-artifacts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Check QA PDFs are in sync with QA_TEST_PLAN.md
+        # Pins live in docs/requirements.txt — the single committed manifest (v3 audit T51/R63).
+        run: |
+          python -m pip install --quiet -r docs/requirements.txt
+          cd docs && python check_qa_artifacts.py
+
+      # The §16 sign-off sheet is the QA RUN LOG — executed (tester/date-stamped) rows are history
+      # and must survive verbatim; re-runs append a new row (v3 audit S0-G5, T49 / R75). Unknown
+      # diff base (force push, branch creation) fails OPEN, mirroring the native-paths gate.
+      - name: QA run-log is append-only
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ -z "$BASE_SHA" ] || ! git fetch --quiet origin "$BASE_SHA" 2>/dev/null; then
+            echo "Diff base unavailable ($BASE_SHA) — skipping the append-only guard."
+            exit 0
+          fi
+          if ! git show "$BASE_SHA:docs/QA_TEST_PLAN.md" > /tmp/qa-plan-base.md 2>/dev/null; then
+            echo "QA plan absent at the diff base — nothing to guard."
+            exit 0
+          fi
+          bash .github/scripts/qa-runlog-append-only.sh /tmp/qa-plan-base.md docs/QA_TEST_PLAN.md
+
+  # Dependency license scan (v2 audit B11-6, R26). Inventories every NuGet license in the main app's
+  # graph (direct + transitive) and FAILS only on clearly-incompatible copyleft licenses
+  # (GPL/AGPL/LGPL/SSPL) — a prohibited-list, not an allow-list, so Microsoft/permissive-OSS
+  # licenses (MIT, Apache-2.0, BSD, PostgreSQL, ...) never trip a false positive. Kept a separate
+  # job so a license failure is distinguishable from a build/test failure.
+  license-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: dotnet-project-licenses (fail on copyleft)
+        # Restore first so project.assets.json exists for the transitive walk (the app uses Central
+        # Package Management, so versions resolve from Directory.Packages.props). The tool targets an
+        # older runtime, so roll forward to the installed .NET. It prints the full license table and
+        # exits non-zero if any license in .github/forbidden-licenses.json (GPL/AGPL/LGPL/SSPL) appears.
+        # Scans EVERY shipped graph (v3 audit TOOL-1, T46): Api (server) AND Web (the WASM client,
+        # which transitively covers Shared.Ui's packages) — a copyleft package added client-side used
+        # to ship unscanned. The Maui graph needs the MAUI workloads to restore, so its scan lives in
+        # the native-build android leg, which already has them.
+        env:
+          DOTNET_ROLL_FORWARD: LatestMajor
+        run: |
+          # Version comes from the committed manifest .config/dotnet-tools.json (v3 audit T51/R63);
+          # pinned because a new release could change the license table or the forbidden-list
+          # semantics and flip this gate's verdict on an untouched dependency graph (DEP-9).
+          dotnet tool restore
+          for proj in src/Api/Perezosoft.Api.csproj src/Web/Perezosoft.Web.csproj; do
+            dotnet restore "$proj"
+            dotnet tool run dotnet-project-licenses \
+              --input "$proj" \
+              --include-transitive \
+              --use-project-assets-json \
+              --forbidden-license-types .github/forbidden-licenses.json
+          done
+
+  # Production image build gate (DEPLOY-2, ADR-017). The multi-stage Dockerfile (publishes Web + Api and
+  # serves the WASM single-origin) must keep building. Build-only — no push, and no run here: the
+  # compose-parity smoke (boot + migrate + serve) needs a database and is a local/manual step per
+  # docs/DEPLOYMENT.md. This just stops the Dockerfile silently rotting.
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build the production image
+        run: docker build -t perezosoft-app:ci .
+
+  # Native (MAUI) build gate — NATIVE-1 (ADR-018). Compile-only (no emulator, no signing): a change that
+  # breaks the native build fails the PR instead of rotting until a manual run. Android + Windows run on
+  # every trigger (cheap runners); the Apple targets live in native-build-apple below (macOS = 10× billed
+  # minutes on a private repo, so they run on develop pushes only — still catches rot within one merge).
+  # The Maui project is outside the locked-mode restore path by design (host-conditional TFMs — see the
+  # csproj note); CPM pins its package versions.
+  native-build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - tfm: net10.0-android
+            os: ubuntu-latest
+          - tfm: net10.0-windows10.0.19041.0
+            os: windows-latest
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      # The Android target compiles against the JDK; runners preinstall the Android SDK (ANDROID_HOME).
+      - uses: actions/setup-java@v5
+        if: contains(matrix.tfm, 'android')
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      # workload RESTORE (not install <id>): a multi-TFM project restores EVERY host-visible TFM even
+      # when building just one (-f), so each runner needs the workloads for all TFMs its OS exposes —
+      # e.g. macOS needs android too (NETSDK1147 otherwise). restore resolves that per-host, forever.
+      - name: Install the MAUI workloads (host-aware)
+        run: dotnet workload restore src/Maui/Perezosoft.Maui.csproj --version 10.0.400.1
+
+      - name: Build (compile-only gate)
+        run: dotnet build src/Maui/Perezosoft.Maui.csproj -f ${{ matrix.tfm }} -c Debug -p:AcceptAndroidSDKLicenses=true
+
+      # The Maui half of the license gate (v3 audit TOOL-1, T46): the license-scan job can't restore
+      # this project (needs the MAUI workloads), so scan it here where the build above already
+      # produced project.assets.json. Android leg only — the package graph is TFM-invariant enough
+      # for license purposes, and one leg keeps it off the paid-runner path.
+      - name: dotnet-project-licenses (Maui graph, fail on copyleft)
+        if: contains(matrix.tfm, 'android')
+        env:
+          DOTNET_ROLL_FORWARD: LatestMajor
+        run: |
+          dotnet tool restore  # version from .config/dotnet-tools.json (v3 audit T51/R63)
+          dotnet tool run dotnet-project-licenses \
+            --input src/Maui/Perezosoft.Maui.csproj \
+            --include-transitive \
+            --use-project-assets-json \
+            --forbidden-license-types .github/forbidden-licenses.json
+
+  # Relevance gate for the expensive native legs. Born as a free-tier cost guard (the 2026-07-03
+  # NATIVE sprint burned a month of private-repo minutes in one day: ~10 develop pushes × [2 macOS
+  # legs at 10× + Windows at 2×]); the repo is public now (2026-07-04) so standard-runner minutes
+  # are free, but the gate still pays for itself in wall-clock and runner-queue time — and keeps
+  # any future return to private billable-safe. This cheap job diffs each develop push; docs-only
+  # merges (stories, QA plan/PDFs, parity matrix, ...) skip the Apple builds and all three native smokes.
+  # Anything that could affect a native binary or the smoke harness (src/**, the E2E project,
+  # package pins, this workflow) still runs them. A schedule can't replace this: scheduled
+  # workflows execute from the DEFAULT branch (main here, which is deploy-only and behind develop).
+  native-paths:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.diff.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - id: diff
+        run: |
+          # Unknown before-SHA (force push, branch creation) ⇒ fail open: run the legs.
+          if ! git cat-file -e ${{ github.event.before }} 2>/dev/null; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if git diff --name-only ${{ github.event.before }} ${{ github.sha }} \
+              | grep -qE '^(src/|tests/E2E\.Tests/|tests/native-smoke-android/|Directory\.Packages\.props|\.github/workflows/ci\.yml|global\.json)'; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::docs-only push — skipping the Apple builds and native smokes."
+          fi
+
+  # Apple half of the native build gate (NATIVE-1). Develop pushes only, and only when the push
+  # touched native-relevant paths (see native-paths): macOS runners bill at 10× on a private repo.
+  native-build-apple:
+    needs: native-paths
+    if: needs.native-paths.outputs.changed == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - tfm: net10.0-ios
+          - tfm: net10.0-maccatalyst
+    # Pinned (not macos-latest): the .NET-for-iOS/macCatalyst workload requires a matching Xcode
+    # and macos-latest can lag several Xcode versions behind (fails with "requires Xcode NN").
+    # The workload restore below pins the WORKLOAD SET (10.0.400.1, iOS/macCatalyst 26.5.10315,
+    # which REQUIRES Xcode 26.6 — ⚠️ the workload's version number does NOT encode its Xcode
+    # requirement: the 10.0.300-band 26.5.x packs required Xcode 26.5, the 10.0.400-band 26.5.10315
+    # requires 26.6; the pack's own build error is the authority, learned at the 2026-08-28 SDK
+    # bump). macos-26's DEFAULT Xcode is 26.6 (since 2026-07-21), so DEVELOPER_DIR pins the
+    # default explicitly — bump the set pin + DEVELOPER_DIR together, and trust a red build over
+    # the version numbers.
+    runs-on: macos-26
+    timeout-minutes: 60
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      # See the native-build note: restore installs ALL workloads this host's TFM list needs (on macOS
+      # that's ios + maccatalyst + android — the android TFM restores here too, even building -f ios).
+      # --version pins the workload set (10.0.400.1 ships the iOS/macCatalyst workloads requiring
+      # Xcode 26.6, selected via DEVELOPER_DIR above) — same feature band as the pinned SDK.
+      - name: Install the MAUI workloads (host-aware, workload set pinned to the image's Xcode)
+        run: |
+          xcodebuild -version
+          dotnet workload restore src/Maui/Perezosoft.Maui.csproj --version 10.0.400.1
+
+      - name: Build (compile-only gate)
+        run: dotnet build src/Maui/Perezosoft.Maui.csproj -f ${{ matrix.tfm }} -c Debug
+
+  # Native smoke — Apple (iOS simulator + Mac Catalyst; the legs the 2026-07-06 Apple QA pass
+  # unpinned; ADR-018 cost pattern). ONE job for both targets: the expensive setup (workload
+  # restore, brew Postgres, API build) is most of the macOS wall-clock, so paying it once beats two
+  # jobs. Boots the REAL MAUI apps against a real API + Postgres and asserts boot-to-login per
+  # target: the app process survives startup (the G7 crash class) AND its login page's provider
+  # probe (GET /api/auth/providers) lands a 200 on the API — proving Blazor booted inside the
+  # WebView and reached the network. Deliberately shallower than the Windows/Android legs:
+  # WKWebView exposes no CDP, so DRIVING the UI needs XCUITest/Appium — not worth the flake budget
+  # for a canary; sign-in flows stay manual (§13b/§13c). The apps are pointed at the plain-HTTP API
+  # via PEREZOSOFT_API_BASE_URL (SIMCTL_CHILD_-prefixed for the simulator; ATS exempts loopback, so
+  # the login page fully renders over http — verified 2026-07-06; only real OAuth needs the
+  # https/cert ceremony). Catalyst runs the Debug entitlements path (unsandboxed +
+  # DebugFileSessionStore — ad-hoc builds can't reach the keychain, see PR #125). No Mailpit: no
+  # email is sent in a boot smoke. Not in deploy-staging needs (same accepted-risk note as the
+  # other native smokes). macOS bills 10× — develop pushes with native-relevant changes only.
+  native-smoke-apple:
+    needs: native-paths
+    if: needs.native-paths.outputs.changed == 'true'
+    # Same Xcode reasoning as native-build-apple: pinned image + workload set 10.0.400.1 (iOS
+    # 26.5.10315, requires Xcode 26.6) + DEVELOPER_DIR pinning the image's default Xcode 26.6.
+    runs-on: macos-26
+    timeout-minutes: 60
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Install the MAUI workloads (host-aware, workload set pinned to the image's Xcode)
+        run: |
+          xcodebuild -version
+          dotnet workload restore src/Maui/Perezosoft.Maui.csproj --version 10.0.400.1
+
+      - name: Build the apps (Catalyst + iOS simulator) + API
+        run: |
+          dotnet build src/Maui/Perezosoft.Maui.csproj -f net10.0-maccatalyst -c Debug
+          dotnet build src/Maui/Perezosoft.Maui.csproj -f net10.0-ios -c Debug
+          dotnet restore src/Api/Perezosoft.Api.csproj --locked-mode
+          dotnet build src/Api/Perezosoft.Api.csproj -c Debug --no-restore
+
+      - name: Start Postgres (Homebrew)
+        # macOS runners can't host Linux service containers; brew's postgresql@17 fills in.
+        # The brew service runs as the runner user with no password — trust auth on localhost.
+        run: |
+          brew install postgresql@17
+          PGBIN="$(brew --prefix postgresql@17)/bin"
+          brew services start postgresql@17
+          for i in $(seq 1 30); do "$PGBIN/pg_isready" -h localhost && break; sleep 2; done
+          "$PGBIN/pg_isready" -h localhost || { echo "::error::Postgres never became ready"; exit 1; }
+          "$PGBIN/createdb" -h localhost smoke
+
+      - name: Boot a simulator
+        # Prefer a pre-created iPhone from the image; create one only if none exists. bootstatus -b
+        # boots AND blocks until ready, bounded by the step's own logic (no unbounded waits).
+        run: |
+          set -e
+          UDID=$(xcrun simctl list devices available | grep -Eo 'iPhone [^(]*\(([0-9A-F-]{36})\)' | head -1 | grep -Eo '[0-9A-F-]{36}' || true)
+          if [ -z "$UDID" ]; then
+            echo "no pre-created iPhone — creating one on the newest iOS runtime"
+            RUNTIME=$(xcrun simctl list runtimes | grep -Eo 'com\.apple\.CoreSimulator\.SimRuntime\.iOS-[0-9-]+' | tail -1)
+            DEVTYPE=$(xcrun simctl list devicetypes | grep -Eo 'com\.apple\.CoreSimulator\.SimDeviceType\.iPhone-[0-9A-Za-z-]+' | tail -1)
+            UDID=$(xcrun simctl create smoke "$DEVTYPE" "$RUNTIME")
+          fi
+          echo "UDID=$UDID" >> "$GITHUB_ENV"
+          echo "booting $UDID…"
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl list devices | grep "$UDID"
+
+      - name: Boot API + apps, assert boot-to-login (Catalyst, then iOS)
+        # One step for everything process-bound (the runner tears down a step's process tree).
+        # Request logging is raised so each app's provider probe is grep-able in api.log — the
+        # assertion that Blazor booted in the WKWebView and reached the API over the network.
+        # Both targets share the API; the iOS assert requires the probe COUNT to grow past the
+        # Catalyst phase's, so one target's probe can't satisfy the other's check.
+        env:
+          ASPNETCORE_ENVIRONMENT: Development
+          Jwt__Secret: "ci-native-smoke-jwt-signing-key-0123"
+        run: |
+          set -e
+          export ConnectionStrings__DefaultConnection="Host=localhost;Port=5432;Database=smoke;Username=$(whoami)"
+          # The dotted logging key can't be a shell export (invalid identifier) — env(1) sets it.
+          # It raises AspNetCore request logging so the provider probe is grep-able below.
+          env 'Logging__LogLevel__Microsoft.AspNetCore=Information' \
+            dotnet run --project src/Api/Perezosoft.Api.csproj -c Debug --no-build --urls http://localhost:5238 > api.log 2>&1 &
+
+          echo "Waiting for the API…"
+          for i in $(seq 1 60); do
+            api=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5238/health/ready || echo 000)
+            [ "$api" = "200" ] && { echo "ready"; break; }
+            sleep 3
+          done
+          [ "$api" = "200" ] || { echo "::error::API did not become ready"; tail -60 api.log; exit 1; }
+
+          probes() { grep -c 'Request finished.*GET.*/api/auth/providers.*200' api.log || true; }
+
+          echo "=== Mac Catalyst: launch + boot-to-login ==="
+          CAT_BIN=$(ls src/Maui/bin/Debug/net10.0-maccatalyst/maccatalyst-*/*.app/Contents/MacOS/* | head -1)
+          PEREZOSOFT_API_BASE_URL=http://localhost:5238 "$CAT_BIN" > catalyst-app.log 2>&1 &
+          CAT_PID=$!
+          ok=0
+          for i in $(seq 1 40); do   # up to 2 min
+            kill -0 "$CAT_PID" 2>/dev/null || { echo "::error::the Catalyst app died after launch (startup crash)"; tail -30 catalyst-app.log; break; }
+            [ "$(probes)" -ge 1 ] && { ok=1; echo "Catalyst provider probe hit the API after ~$((i*3))s"; break; }
+            sleep 3
+          done
+          screencapture -x mac-smoke.png 2>/dev/null || true
+          kill "$CAT_PID" 2>/dev/null || true
+          [ "$ok" = "1" ] || { echo "::error::the Catalyst app never reached /api/auth/providers"; tail -40 api.log; exit 1; }
+          CAT_PROBES=$(probes)
+
+          echo "=== iOS simulator: install + launch + boot-to-login ==="
+          APP=$(ls -d src/Maui/bin/Debug/net10.0-ios/iossimulator-*/Perezosoft.Maui.app | head -1)
+          xcrun simctl install "$UDID" "$APP"
+          SIMCTL_CHILD_PEREZOSOFT_API_BASE_URL=http://localhost:5238 \
+            xcrun simctl launch "$UDID" com.perezosoft.platform | tee launch.out
+          APP_PID=$(grep -Eo '[0-9]+$' launch.out)
+
+          echo "Waiting for the login page's provider probe (app pid $APP_PID, past $CAT_PROBES Catalyst probes)…"
+          ok=0
+          for i in $(seq 1 40); do   # up to 2 min — first Blazor boot on a cold simulator is slow
+            kill -0 "$APP_PID" 2>/dev/null || { echo "::error::the iOS app process died after launch (startup crash)"; break; }
+            [ "$(probes)" -gt "$CAT_PROBES" ] && { ok=1; echo "iOS provider probe hit the API after ~$((i*3))s"; break; }
+            sleep 3
+          done
+
+          xcrun simctl io "$UDID" screenshot ios-smoke.png || true
+          [ "$ok" = "1" ] || { echo "::error::the iOS app never reached /api/auth/providers — Blazor did not boot or cannot reach the API"; tail -40 api.log; exit 1; }
+
+      - name: Screenshot artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: apple-smoke-screenshots
+          path: |
+            ios-smoke.png
+            mac-smoke.png
+          if-no-files-found: ignore
+
+      - name: Logs (diagnostics)
+        # always(), not failure() — see the Android leg: a timed-out job's cancelled steps never
+        # satisfy failure(), and then there are zero diagnostics.
+        if: always()
+        run: |
+          tail -n 60 api.log || true
+          tail -n 30 catalyst-app.log || true
+          xcrun simctl spawn "$UDID" log show --last 5m --predicate 'process == "Perezosoft.Maui"' --style compact 2>/dev/null | tail -n 40 || true
+
+  # Native smoke — Windows (NATIVE-7, ADR-018). Runs the REAL MAUI Windows app against a real API +
+  # Postgres and asserts BOOT-TO-LOGIN: the app process stays up and its Blazor login page reaches the
+  # API (a GET /api/auth/providers 200 in api.log) — proving the WebView booted and can talk to the
+  # backend. This is the same process-alive + provider-probe canary as the Apple leg, NOT a CDP
+  # UI-driving smoke: WebView2 Runtime 150 strips --remote-debugging-port from
+  # WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS when the host runs elevated (GitHub runners do), so the CDP
+  # endpoint never binds (MicrosoftEdge/WebView2Feedback#5640; runner image 20260707.563+). The
+  # UI-driving journey (fill email → OTP → household) still runs end-to-end on the ANDROID leg below,
+  # so that coverage isn't lost. Develop pushes with native-relevant changes only (see native-paths).
+  # Deliberately NOT in the deploy-staging needs — a native run must not block web deploys (ADR-018).
+  native-smoke-windows:
+    needs: native-paths
+    if: needs.native-paths.outputs.changed == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Install the MAUI workloads (host-aware)
+        run: dotnet workload restore src/Maui/Perezosoft.Maui.csproj --version 10.0.400.1
+
+      - name: Build the app + API
+        # The boot-probe drives no CDP/Playwright, so E2E.Tests isn't built here (the Linux `e2e` job
+        # already compiles it). API + the Windows MAUI app are all this leg needs.
+        run: |
+          dotnet restore src/Api/Perezosoft.Api.csproj --locked-mode
+          dotnet build src/Api/Perezosoft.Api.csproj -c Debug --no-restore
+          dotnet build src/Maui/Perezosoft.Maui.csproj -f net10.0-windows10.0.19041.0 -c Debug
+
+      - name: Start Postgres (preinstalled)
+        # The Windows runner image ships PostgreSQL with its service disabled (creds
+        # postgres/root via PGUSER/PGPASSWORD). No Mailpit: the boot-probe never signs in, so no
+        # email is sent (that path is exercised by the Android leg's full sign-in journey).
+        run: |
+          $svc = Get-Service postgresql* | Select-Object -First 1
+          if (-not $svc) { Write-Error "no preinstalled PostgreSQL service on this image"; exit 1 }
+          Set-Service $svc.Name -StartupType Manual
+          Start-Service $svc.Name
+          $env:PGPASSWORD = "root"
+          & "$env:PGBIN\psql" -U postgres -c "CREATE DATABASE smoke;"
+
+      - name: Boot API + app, assert boot-to-login
+        # Everything process-bound lives in ONE step (the runner tears down a step's process tree).
+        # The app is pointed at the plain-HTTP API via PEREZOSOFT_API_BASE_URL (no dev-cert hoops).
+        # No CDP: we assert the app stays up AND its login page's provider probe reaches the API
+        # (grep-able because request logging is raised), exactly like the Apple leg.
+        env:
+          ASPNETCORE_ENVIRONMENT: Development
+          ConnectionStrings__DefaultConnection: "Host=localhost;Port=5432;Database=smoke;Username=postgres;Password=root"
+          Jwt__Secret: "ci-native-smoke-jwt-signing-key-0123"
+          PEREZOSOFT_API_BASE_URL: "http://localhost:5238"
+        run: |
+          # Raise AspNetCore request logging so the provider probe is grep-able in api.log (the dotted
+          # key can't be a PowerShell $env: assignment — the '.' parses as member access — so set it
+          # via the environment API; Start-Process inherits it).
+          [Environment]::SetEnvironmentVariable('Logging__LogLevel__Microsoft.AspNetCore', 'Information')
+          $api = Start-Process dotnet -ArgumentList "run --project src/Api/Perezosoft.Api.csproj -c Debug --no-build --urls http://localhost:5238" -PassThru -RedirectStandardOutput api.log -RedirectStandardError api.err.log
+
+          Write-Host "Waiting for the API..."
+          $ready = $false
+          foreach ($i in 1..60) {
+            try { if ((Invoke-WebRequest -Uri "http://localhost:5238/health/ready" -UseBasicParsing -TimeoutSec 3).StatusCode -eq 200) { $ready = $true; break } } catch {}
+            Start-Sleep -Seconds 3
+          }
+          if (-not $ready) { Write-Host "::error::API did not become ready"; Get-Content api.log -Tail 60; exit 1 }
+
+          $exe = "src/Maui/bin/Debug/net10.0-windows10.0.19041.0/win-x64/Perezosoft.Maui.exe"
+          if (-not (Test-Path $exe)) { $exe = Get-ChildItem -Recurse -Path src/Maui/bin -Filter Perezosoft.Maui.exe | Select-Object -First 1 -ExpandProperty FullName }
+          $app = Start-Process -FilePath $exe -PassThru
+          Write-Host "Waiting for the login page's provider probe (app pid $($app.Id))..."
+
+          function Probes { (Select-String -Path api.log -Pattern 'Request finished.*GET.*/api/auth/providers.*200' -ErrorAction SilentlyContinue | Measure-Object).Count }
+          $ok = $false
+          foreach ($i in 1..40) {   # up to 2 min — first Blazor boot in a cold WebView2 is slow
+            if ($app.HasExited) { Write-Host "::error::the Windows app process exited after launch (startup crash)"; break }
+            if ((Probes) -gt 0) { $ok = $true; Write-Host "provider probe hit the API after ~$($i*3)s"; break }
+            Start-Sleep -Seconds 3
+          }
+          if (-not $ok) {
+            Write-Host "::error::the Windows app never reached /api/auth/providers — Blazor did not boot or cannot reach the API"
+            Write-Host ("app process alive: " + (-not $app.HasExited))
+            $rt = (Get-ItemProperty 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}' -ErrorAction SilentlyContinue).pv
+            Write-Host ("WebView2 runtime: " + ($rt ?? "NOT INSTALLED"))
+            Get-Content api.log -Tail 40
+            exit 1
+          }
+
+      - name: API log (diagnostics)
+        # always(), not failure(): a timed-out job's cancelled steps never satisfy failure(), leaving
+        # zero diagnostics (same reasoning as the Apple/Android legs).
+        if: always()
+        run: if (Test-Path api.log) { Get-Content api.log -Tail 100 }
+
+  # Native smoke — Android (NATIVE-7, ADR-018). Same canary as the Windows leg, on a real emulator.
+  # Android WebView's CDP lacks the browser-context management Playwright's ConnectOverCDP needs, so
+  # this leg uses playwright-core's Node-only _android module (adb + WebView attach) — the tiny spec
+  # lives in tests/native-smoke-android/. The emulator is hand-rolled from the runner's preinstalled
+  # SDK (no marketplace action, mirroring the gitleaks approach). Two hard-won gotchas encoded here:
+  # the app must be built with EmbedAssembliesIntoApk=true (a fast-deployment Debug APK silently
+  # fails to start from a plain `adb install`), and the WebView devtools socket only exists after
+  # the app process is up.
+  native-smoke-android:
+    needs: native-paths
+    if: needs.native-paths.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      db:
+        image: postgres:17
+        env:
+          POSTGRES_DB: smoke
+          POSTGRES_USER: smoke
+          POSTGRES_PASSWORD: smoke
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U smoke -d smoke" --health-interval 5s --health-timeout 5s --health-retries 15
+      mail:
+        image: axllent/mailpit:v1.30.4 # pinned, not :latest — reproducible mail trap (v3 DEP-9); keep == the Windows-leg MailpitVersion
+        ports: ["1025:1025", "8025:8025"]
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Free disk space (the emulator needs ~7.4 GB free for its userdata partition)
+        # Run 32748305585 attempt 1 died at launch: "Not enough space to create userdata
+        # partition. Available: 2220 MB, need 7372 MB" — free space on ubuntu-latest varies per
+        # runner instance, and this job stacks workloads + system image + APK on top. Drop the
+        # biggest preinstalled toolchains it never uses (never /usr/share/dotnet, the Android SDK,
+        # Java, or /usr/local/lib/node_modules — npm itself lives there and the smoke runs npm ci).
+        run: |
+          df -h / | tail -1
+          sudo rm -rf /usr/share/swift /usr/local/.ghcup /opt/hostedtoolcache/CodeQL /usr/share/miniconda
+          df -h / | tail -1
+
+      - name: Install the MAUI workloads (host-aware)
+        run: dotnet workload restore src/Maui/Perezosoft.Maui.csproj --version 10.0.400.1
+
+      - name: Build the app (self-contained APK) + API + smoke deps
+        run: |
+          dotnet build src/Maui/Perezosoft.Maui.csproj -f net10.0-android -c Debug \
+            -p:AcceptAndroidSDKLicenses=true -p:EmbedAssembliesIntoApk=true
+          dotnet restore src/Api/Perezosoft.Api.csproj --locked-mode
+          dotnet build src/Api/Perezosoft.Api.csproj -c Debug --no-restore
+          npm ci --prefix tests/native-smoke-android
+
+      - name: Enable KVM (hardware-accelerated emulator)
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Create and boot the emulator
+        # Every phase is bounded and narrated — the first CI run hung silently for 30+ minutes to
+        # the job timeout (a timed-out job's logs aren't even archived), so nothing here may block
+        # without a deadline: downloads get `timeout`, and the adb waits poll WITH an emulator
+        # process liveness check instead of the unbounded `adb wait-for-device`.
+        run: |
+          set -e
+          SDK="$ANDROID_HOME"
+          echo "::group::sdkmanager (licenses + system image)"
+          yes | timeout 120 "$SDK/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          timeout 900 "$SDK/cmdline-tools/latest/bin/sdkmanager" --install "system-images;android-34;google_apis;x86_64" "emulator" "platform-tools"
+          echo "::endgroup::"
+
+          # avdmanager and the emulator resolve the AVD directory DIFFERENTLY unless it's pinned:
+          # run 3 failed with "Unknown AVD name [smoke]" — avdmanager wrote the AVD where the
+          # emulator doesn't look. One exported ANDROID_AVD_HOME makes both sides agree (it's also
+          # what the reactivecircus emulator action does), and -list-avds verifies before launch.
+          export ANDROID_AVD_HOME="$HOME/.android/avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+
+          echo "creating AVD…"
+          echo no | timeout 120 "$SDK/cmdline-tools/latest/bin/avdmanager" create avd -n smoke -k "system-images;android-34;google_apis;x86_64" --force
+          "$SDK/emulator/emulator" -list-avds | grep -qx smoke || {
+            echo "::error::the AVD is not visible to the emulator"; ls -la "$ANDROID_AVD_HOME" || true; exit 1; }
+
+          echo "launching emulator…"
+          nohup "$SDK/emulator/emulator" -avd smoke -no-window -no-audio -no-snapshot -no-boot-anim -gpu swiftshader_indirect > emulator.log 2>&1 &
+          EMU_PID=$!
+          echo "emulator pid $EMU_PID"
+
+          echo "waiting for the device + Android boot…"
+          booted=0
+          for i in $(seq 1 96); do   # up to 8 min, 5s ticks
+            kill -0 "$EMU_PID" 2>/dev/null || { echo "::error::the emulator process died"; tail -60 emulator.log; exit 1; }
+            boot=$("$SDK/platform-tools/adb" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)
+            [ "$boot" = "1" ] && { booted=1; echo "emulator booted after ~$((i*5))s"; break; }
+            [ $((i % 6)) -eq 0 ] && echo "  still booting (~$((i*5))s)…"
+            sleep 5
+          done
+          [ "$booted" = "1" ] || { echo "::error::emulator did not finish booting in 8 min"; tail -60 emulator.log; exit 1; }
+
+      - name: Boot API + app, run the Android smoke
+        # One step for everything process-bound (the runner tears down a step's process tree).
+        env:
+          ASPNETCORE_ENVIRONMENT: Development
+          ConnectionStrings__DefaultConnection: "Host=localhost;Port=5432;Database=smoke;Username=smoke;Password=smoke"
+          Jwt__Secret: "ci-native-smoke-jwt-signing-key-0123"
+          MAILPIT_BASE_URL: "http://localhost:8025"
+        run: |
+          set -e
+          # platform-tools was installed by sdkmanager this job — it is NOT on the runner's PATH
+          # (run 4 died with `adb: command not found`); the Node smoke needs adb reachable too.
+          export PATH="$ANDROID_HOME/platform-tools:$PATH"
+          dotnet run --project src/Api/Perezosoft.Api.csproj -c Debug --no-build --urls http://localhost:5238 > api.log 2>&1 &
+
+          echo "Waiting for the API…"
+          for i in $(seq 1 60); do
+            api=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5238/health/ready || echo 000)
+            [ "$api" = "200" ] && { echo "ready"; break; }
+            sleep 3
+          done
+          [ "$api" = "200" ] || { echo "::error::API did not become ready"; tail -60 api.log; exit 1; }
+
+          adb install -r src/Maui/bin/Debug/net10.0-android/com.perezosoft.platform-Signed.apk
+          # The app's compiled Android base URL is http://localhost:5238 — adb reverse maps the
+          # emulator's localhost:5238 back to this runner (same trick as local dev).
+          adb reverse tcp:5238 tcp:5238
+          adb shell monkey -p com.perezosoft.platform -c android.intent.category.LAUNCHER 1
+
+          echo "Waiting for the app process…"
+          for i in $(seq 1 20); do
+            pid=$(adb shell pidof com.perezosoft.platform | tr -d '\r')
+            [ -n "$pid" ] && { echo "app pid $pid"; break; }
+            sleep 3
+          done
+          [ -n "$pid" ] || { echo "::error::the app never started (fast-deployment APK? startup crash?)"; timeout 60 adb logcat -d | grep -iE "perezosoft|FATAL" | tail -40; exit 1; }
+
+          node tests/native-smoke-android/smoke.js
+
+      - name: Logs (diagnostics)
+        # always(), not failure(): a job TIMEOUT cancels remaining steps, and cancelled steps
+        # don't satisfy failure() — the first hung run produced zero diagnostics because of this.
+        if: always()
+        timeout-minutes: 3
+        run: |
+          export PATH="$ANDROID_HOME/platform-tools:$PATH"
+          tail -n 40 emulator.log || true
+          tail -n 60 api.log || true
+          # "chromium" is the tag Blazor WebView unhandled .NET exceptions surface under —
+          # run 28949312350 only kept the last stack frame because the filter missed it.
+          # timeout: with a half-dead emulator, adb logcat can block forever — the boot step's
+          # "nothing here may block without a deadline" rule applies to diagnostics too (a hung
+          # diagnostics step sat 30+ min on 2026-08-24 until it was cancelled by hand).
+          timeout 60 adb logcat -d 2>/dev/null | grep -iE "perezosoft|FATAL|blazor|chromium" | tail -n 120 || true
+
+  # End-to-end tests (v2 audit B8-5). Boots the REAL stack — Postgres + Mailpit (service containers) +
+  # the API + the Blazor WASM Web app — and drives a headless Chromium through the QA smoke journeys,
+  # reading OTP codes from Mailpit (the same trick a manual tester uses). Everything runs on plain HTTP
+  # (Development skips the HTTPS redirect) so there are no dev-cert hoops; the WASM client is pointed at
+  # the HTTP API, and appsettings.Development already allow-lists the Web origin for CORS + Mailpit SMTP.
+  # OAuth/desktop/Android stay manual (they need an external provider / native runners).
+  e2e:
+    runs-on: ubuntu-latest
+    services:
+      db:
+        image: postgres:17
+        env:
+          POSTGRES_DB: e2e
+          POSTGRES_USER: e2e
+          POSTGRES_PASSWORD: e2e
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U e2e -d e2e" --health-interval 5s --health-timeout 5s --health-retries 15
+      mail:
+        image: axllent/mailpit:v1.30.4 # pinned, not :latest — reproducible mail trap (v3 DEP-9); keep == the Windows-leg MailpitVersion
+        ports: ["1025:1025", "8025:8025"]
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Point the WASM client at the HTTP API
+        # The committed wwwroot/appsettings.json targets the dev https API; the CI stack is http.
+        run: |
+          echo '{ "ApiBaseUrl": "http://localhost:5238" }' > src/Web/wwwroot/appsettings.json
+
+      - name: Restore (locked mode)
+        run: |
+          dotnet restore src/Api/Perezosoft.Api.csproj --locked-mode
+          dotnet restore src/Web/Perezosoft.Web.csproj --locked-mode
+          dotnet restore tests/E2E.Tests/Perezosoft.E2E.Tests.csproj --locked-mode
+
+      - name: Build API + Web + E2E
+        run: |
+          dotnet build src/Api/Perezosoft.Api.csproj -c Debug --no-restore
+          dotnet build src/Web/Perezosoft.Web.csproj -c Debug --no-restore
+          dotnet build tests/E2E.Tests/Perezosoft.E2E.Tests.csproj -c Debug --no-restore
+
+      - name: Install Chromium (Playwright)
+        run: pwsh tests/E2E.Tests/bin/Debug/net10.0/playwright.ps1 install --with-deps chromium
+
+      - name: Boot the stack + run E2E
+        # Servers must be started in the SAME step as the test run — GitHub tears down a step's process
+        # tree when the step ends. Start API + Web in the background, wait for readiness, then test.
+        env:
+          ASPNETCORE_ENVIRONMENT: Development
+          ConnectionStrings__DefaultConnection: "Host=localhost;Port=5432;Database=e2e;Username=e2e;Password=e2e"
+          Jwt__Secret: "ci-e2e-jwt-signing-secret-0123456789ab"
+          # The whole browser suite shares one source IP, so raise the per-IP passwordless limit well
+          # above the prod default of 5 (the limiter itself is unit-tested at the default in Api.Tests).
+          Auth__RateLimit__PasswordlessPermitLimit: "1000"
+          # Staff allowlist for the admin-console E2E journey (ADMIN-3) — must match
+          # AnnouncementJourneyTests.StaffEmail.
+          Admin__StaffEmails__0: "e2e-staff@example.com"
+          # Where server-side redirects send the BROWSER (magic-link verify, OAuth callback → the client).
+          # Without this it falls back to the dev default https://localhost:7008, which is NOT running in
+          # this stack — so the magic-link journey (E2E-4) died with ERR_CONNECTION_REFUSED (Playwright
+          # attributes the refusal to the *requested* URL, which made it look like the API was down).
+          Auth__AppBaseUrl: "http://localhost:5169"
+        run: |
+          set -e
+          dotnet run --project src/Api/Perezosoft.Api.csproj -c Debug --no-build --urls http://localhost:5238 > api.log 2>&1 &
+          dotnet run --project src/Web/Perezosoft.Web.csproj -c Debug --no-build --urls http://localhost:5169 > web.log 2>&1 &
+
+          echo "Waiting for API + Web…"
+          for i in $(seq 1 60); do
+            api=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5238/health/ready || echo 000)
+            web=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5169/ || echo 000)
+            [ "$api" = "200" ] && [ "$web" = "200" ] && { echo "ready"; break; }
+            sleep 3
+          done
+          [ "$api" = "200" ] && [ "$web" = "200" ] || { echo "::error::stack did not become ready"; tail -40 api.log web.log; exit 1; }
+
+          PLAYWRIGHT_BASE_URL=http://localhost:5169 MAILPIT_BASE_URL=http://localhost:8025 \
+            E2E_API_BASE_URL=http://localhost:5238 \
+            dotnet test tests/E2E.Tests/Perezosoft.E2E.Tests.csproj -c Debug --no-build
+
+      - name: Server logs (on failure)
+        if: failure()
+        # -n 80 (not -80): the numeric shorthand is invalid with multiple files in GNU tail, which made
+        # this diagnostic silently print nothing on every failure.
+        run: tail -n 80 api.log web.log || true
+
+  # Deploy staging (DEPLOY-3, ADR-017). Runs ONLY on a push to develop, and only after every test/build
+  # gate above is green — so staging always reflects a passing develop. Triggers the Render deploy via a
+  # deploy hook (repo secret), then polls the public URL and smoke-tests it. Both the hook and the base
+  # URL are optional: absent ⇒ the job logs a notice and passes, so the platform is green out of the box
+  # and a downstream app opts in by adding the secret + variable (see docs/DEPLOYMENT.md).
+  deploy-staging:
+    needs: [build-test, secret-scan, qa-artifacts, license-scan, docker-build, e2e]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    # Back-to-back merges: Render supersedes the older build, so the older run's version-gated smoke
+    # can never see its own SHA go live and fails spuriously. Cancel the older in-flight deploy job
+    # instead — cancelled reads as neutral, and the newest push still gets its full smoke.
+    concurrency:
+      group: deploy-staging
+      cancel-in-progress: true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5 # for .github/scripts/deploy-smoke.sh
+
+      - name: Trigger Render deploy
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_STAGING }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "::notice::RENDER_DEPLOY_HOOK_STAGING not set — skipping staging deploy. Add the secret to enable."
+            exit 0
+          fi
+          curl -fsS -X POST "$HOOK" > /dev/null
+          echo "Triggered Render staging deploy."
+
+      - name: Wait for staging + smoke test
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_STAGING }}
+          BASE: ${{ vars.STAGING_BASE_URL }}
+          EXPECT: ${{ github.sha }}
+        run: |
+          # Skip ONLY when no deploy happened. If the hook fired but STAGING_BASE_URL is unset we cannot
+          # verify what we just shipped — that must fail, not pass quietly (v3 audit DEP-6): the old code
+          # exited 0 here, so a real, entirely unverified deploy reported a green pipeline.
+          if [ -z "$HOOK" ]; then
+            echo "::notice::RENDER_DEPLOY_HOOK_STAGING not set — no deploy fired, nothing to smoke."
+            exit 0
+          fi
+          if [ -z "$BASE" ]; then
+            echo "::error::a staging deploy was TRIGGERED but STAGING_BASE_URL is not set — the deploy cannot be verified. Set the STAGING_BASE_URL repo variable (Settings → Variables) to the service URL."
+            exit 1
+          fi
+          bash .github/scripts/deploy-smoke.sh "$BASE" "$EXPECT"
+
+  # Deploy prod (DEPLOY-3). Runs ONLY on a push to main, behind the `production` GitHub Environment — add a
+  # required reviewer to that environment (repo Settings → Environments) to make prod a manual approval, so
+  # main stays deploy-only + deliberate. That reviewer lives in repo settings, NOT in this file: a clone that
+  # skips it gets un-gated auto-deploy-to-prod on any main push, so it's an explicit step in
+  # docs/DEPLOYMENT.md §6. Skips cleanly until a prod service + its deploy hook exist.
+  deploy-prod:
+    needs: [build-test, secret-scan, qa-artifacts, license-scan, docker-build, e2e]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Same rationale as deploy-staging: back-to-back merges supersede each other's builds, so an older
+    # run's version-gated smoke could never see its own SHA go live (v3 audit DEP-7).
+    concurrency:
+      group: deploy-prod
+      cancel-in-progress: true
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v5 # for .github/scripts/deploy-smoke.sh
+
+      - name: Trigger Render prod deploy
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_PROD }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "::notice::RENDER_DEPLOY_HOOK_PROD not set — no prod service yet. Skipping."
+            exit 0
+          fi
+          curl -fsS -X POST "$HOOK" > /dev/null
+          echo "Triggered Render prod deploy."
+
+      # Prod got NO post-deploy verification at all until v3 audit DEP-7 — it fired the hook and reported
+      # green. Same version-gated smoke as staging, same fail-not-skip rule (DEP-6).
+      - name: Wait for prod + smoke test
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_PROD }}
+          BASE: ${{ vars.PROD_BASE_URL }}
+          EXPECT: ${{ github.sha }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "::notice::RENDER_DEPLOY_HOOK_PROD not set — no deploy fired, nothing to smoke."
+            exit 0
+          fi
+          if [ -z "$BASE" ]; then
+            echo "::error::a PROD deploy was TRIGGERED but PROD_BASE_URL is not set — the deploy cannot be verified. Set the PROD_BASE_URL repo variable (Settings → Variables) to the service URL."
+            exit 1
+          fi
+          bash .github/scripts/deploy-smoke.sh "$BASE" "$EXPECT"

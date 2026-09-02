@@ -1,0 +1,39 @@
+@page "/auth-callback"
+@inject AuthService Auth
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@inject IStringLocalizer<AppStrings> Localizer
+
+<PageTitle>@Localizer["AuthCallback_Processing"]</PageTitle>
+
+<div class="auth-callback text-center py-5">
+    <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">@Localizer["Common_Loading"]</span>
+    </div>
+    <p class="text-muted mt-3">@Localizer["AuthCallback_Processing"]</p>
+</div>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        // MainLayout already ran InitializeAsync (the single refresh), so by now we're
+        // usually authenticated. Fall back to a refresh only if not.
+        var ok = Auth.IsAuthenticated || await Auth.TryRefreshAsync();
+
+        if (!ok)
+        {
+            Nav.NavigateTo("/auth-error", replace: true);
+            return;
+        }
+
+        // Honor a pending post-login redirect (e.g. an invite being accepted).
+        // Only same-origin relative paths are allowed — guards against open redirects.
+        var redirect = await JS.InvokeAsync<string?>("localStorage.getItem", "post_login_redirect");
+        await JS.InvokeVoidAsync("localStorage.removeItem", "post_login_redirect");
+
+        if (!string.IsNullOrWhiteSpace(redirect) && redirect.StartsWith('/') && !redirect.StartsWith("//"))
+            Nav.NavigateTo(redirect, replace: true);
+        else
+            Nav.NavigateTo("/", replace: true);
+    }
+}

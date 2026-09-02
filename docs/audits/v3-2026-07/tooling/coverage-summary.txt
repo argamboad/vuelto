@@ -1,0 +1,14 @@
+# Coverage summary — v3 Phase 2 (commit 5fc1762, all 532 tests green)
+
+Api.Tests run (server graph):
+  overall: line 93.9% / branch 63.5%
+  Perezosoft.Infrastructure : line 98.3%
+  Perezosoft.Core           : line 94.3%
+  Perezosoft.Api            : line 75.6%   <- least covered (controllers/services/endpoints)
+
+Core.Tests run:
+  Perezosoft.Core     : line 16.6% (Core is mostly exercised via Api.Tests integration, not Core units)
+  Perezosoft.Shared.Ui: line  1.2%  <- RCL client logic; E2E-only coverage (TOOL-2)
+
+Test counts: Core.Tests 49/49, Api.Tests 483/483 = 532 green (incl. RLS-enforced Testcontainers integration).
+E2E.Tests (Playwright/NUnit): NOT run in Phase 2 (needs full web stack); TR-11 count discrepancy unresolved.

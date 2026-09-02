@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Run settings for Playwright E2E tests.
+  Override PLAYWRIGHT_BASE_URL to point at your running app.
+  Usage: dotnet test tests/E2E.Tests -- RunSettings=tests/E2E.Tests/playwright.runsettings
+-->
+<RunSettings>
+  <Playwright>
+    <BrowserName>chromium</BrowserName>
+    <LaunchOptions>
+      <Headless>true</Headless>
+    </LaunchOptions>
+  </Playwright>
+  <TestRunParameters>
+    <Parameter name="PLAYWRIGHT_BASE_URL" value="https://localhost:7008" />
+  </TestRunParameters>
+</RunSettings>

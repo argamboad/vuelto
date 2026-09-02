@@ -1,0 +1,16 @@
+# Keep the build context small + never leak local secrets/artifacts into the image.
+**/bin
+**/obj
+**/.vs
+**/.vscode
+.git
+.github
+.env
+.env.*
+!.env.example
+docs
+tests
+storage
+*.md
+**/*.user
+**/TestResults

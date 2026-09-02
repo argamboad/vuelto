@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Release: HTTPS-only (v3 NAT-3). No cleartext exception — the shipped app must never send
+     credentials in plaintext. Lives OUTSIDE Resources/xml/ so the Android resource convention
+     doesn't auto-include it; the csproj Links it to @xml/network_security_config only in Release
+     (the Debug variant in Resources/xml/ permits cleartext to the dev host). -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+</network-security-config>

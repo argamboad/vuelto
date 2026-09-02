@@ -1,0 +1,49 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" />
+    <!-- Pin EF Core Relational to the app's version (10.0.9) so the test graph unifies
+         with the Infrastructure assembly and doesn't resolve a stale transitive copy. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <!-- Same TOTP library the app uses (MfaService), so integration tests can compute valid codes. -->
+    <PackageReference Include="Otp.NET" />
+    <!-- Promote SSH.NET to a direct ref so the pinned patched 2026.0.0 overrides Testcontainers'
+         transitive 2025.1.0 (GHSA-q939-rpr3-3284). Without this the vulnerable transitive version
+         fails NU1903. -->
+    <PackageReference Include="SSH.NET" />
+    <PackageReference Include="Testcontainers.Minio" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <!-- For the rate-limiter integration test: host the real policy in a minimal TestServer. -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Core\Perezosoft.Core.csproj" />
+    <ProjectReference Include="..\..\src\Api\Perezosoft.Api.csproj" />
+    <ProjectReference Include="..\..\src\Infrastructure\Perezosoft.Infrastructure.csproj" />
+    <!-- Client-side auth logic (AuthService OAuth resume, NATIVE-12) — the RCL has no test
+         project of its own; its plain-C# services are unit-tested here. -->
+    <ProjectReference Include="..\..\src\Shared.Ui\Perezosoft.Shared.Ui.csproj" />
+  </ItemGroup>
+
+</Project>

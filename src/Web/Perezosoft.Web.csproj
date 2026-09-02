@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
+    <!-- Load full ICU/culture data so non-English cultures (es/fr/de/pt) format and resolve
+         correctly in the browser. Adds to the download; fine for a handful of cultures. -->
+    <BlazorWebAssemblyLoadAllGlobalizationData>true</BlazorWebAssemblyLoadAllGlobalizationData>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.Authorization" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Extensions.Http" />
+    <!-- Promote the WASM SDK's injected build-time packs to explicit refs pinned by VersionOverride:
+         otherwise their versions float with the machine's LATEST INSTALLED runtime patch (not the
+         SDK's bundled one), so the lockfile depended on which runtimes an environment carried —
+         CI images preinstall newer patches than the Docker image ships → NU1004 in locked-mode
+         restore (the 2026-08 red streak). Pin at the version the Docker image's runtime can
+         EXECUTE (ILLink is a framework-dependent tool: it rolls forward onto newer runtimes but
+         can never run on an older one). VersionOverride, not a central PackageVersion: the MAUI
+         SDK also injects ILLink.Tasks, and a central entry fails its restore with NU1009.
+         Bump these alongside the SDK playbook (CLAUDE.md). -->
+    <PackageReference Include="Microsoft.AspNetCore.App.Internal.Assets" VersionOverride="10.0.11" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.NET.ILLink.Tasks" VersionOverride="10.0.11" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.NET.Sdk.WebAssembly.Pack" VersionOverride="10.0.11" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Shared.Ui\Perezosoft.Shared.Ui.csproj" />
+  </ItemGroup>
+
+</Project>

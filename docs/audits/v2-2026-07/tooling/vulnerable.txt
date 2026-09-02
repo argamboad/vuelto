@@ -1,0 +1,16 @@
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+
+The following sources were used:
+   https://api.nuget.org/v3/index.json
+   C:\Program Files (x86)\Microsoft SDKs\NuGetPackages\
+
+The given project `Template.Api` has no vulnerable packages given the current sources.
+The given project `Template.Core` has no vulnerable packages given the current sources.
+The given project `Template.Infrastructure` has no vulnerable packages given the current sources.
+The given project `Template.Maui` has no vulnerable packages given the current sources.
+The given project `Template.Shared.Ui` has no vulnerable packages given the current sources.
+The given project `Template.Web` has no vulnerable packages given the current sources.
+The given project `Template.Api.Tests` has no vulnerable packages given the current sources.
+The given project `Template.Core.Tests` has no vulnerable packages given the current sources.
+The given project `Template.E2E.Tests` has no vulnerable packages given the current sources.

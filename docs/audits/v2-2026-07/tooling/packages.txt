@@ -1,0 +1,95 @@
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+Project 'Template.Api' has the following package references
+   [net10.0]: 
+   Top-level Package                                    Requested   Resolved
+   > DotNetEnv                                          3.2.0       3.2.0   
+   > Microsoft.AspNetCore.Authentication.JwtBearer      10.0.9      10.0.9  
+   > Microsoft.EntityFrameworkCore.Design               10.0.9      10.0.9  
+   > OpenTelemetry.Exporter.Console                     1.16.0      1.16.0  
+   > OpenTelemetry.Exporter.OpenTelemetryProtocol       1.16.0      1.16.0  
+   > OpenTelemetry.Extensions.Hosting                   1.16.0      1.16.0  
+   > OpenTelemetry.Instrumentation.AspNetCore           1.16.0      1.16.0  
+   > OpenTelemetry.Instrumentation.Http                 1.16.0      1.16.0  
+   > Otp.NET                                            1.4.1       1.4.1   
+   > Swashbuckle.AspNetCore                             7.2.0       7.2.0   
+
+Project 'Template.Core' has the following package references
+   [net10.0]: No packages were found for this framework.
+Project 'Template.Infrastructure' has the following package references
+   [net10.0]: 
+   Top-level Package                                              Requested   Resolved
+   > AWSSDK.S3                                                    4.0.100     4.0.100 
+   > MailKit                                                      4.17.0      4.17.0  
+   > Microsoft.AspNetCore.Authentication.Google                   10.0.9      10.0.9  
+   > Microsoft.AspNetCore.Authentication.MicrosoftAccount         10.0.9      10.0.9  
+   > Microsoft.AspNetCore.DataProtection.EntityFrameworkCore      10.0.9      10.0.9  
+   > Microsoft.EntityFrameworkCore.Design                         10.0.9      10.0.9  
+   > Npgsql.EntityFrameworkCore.PostgreSQL                        10.0.2      10.0.2  
+   > Stripe.net                                                   52.1.0      52.1.0  
+
+Project 'Template.Maui' has the following package references
+   [net10.0-android]: 
+   Top-level Package                                      Requested    Resolved
+   > Microsoft.AspNetCore.Components.WebView.Maui         10.0.20      10.0.20 
+   > Microsoft.Extensions.Logging.Debug                   10.0.0       10.0.0  
+   > Microsoft.Maui.Controls                              10.0.20      10.0.20 
+   > Microsoft.NET.ILLink.Tasks                     (A)   [10.0.9, )   10.0.9  
+
+   [net10.0-windows10.0.19041.0]: 
+   Top-level Package                                   Requested   Resolved
+   > Microsoft.AspNetCore.Components.WebView.Maui      10.0.20     10.0.20 
+   > Microsoft.Extensions.Logging.Debug                10.0.0      10.0.0  
+   > Microsoft.Maui.Controls                           10.0.20     10.0.20 
+
+Project 'Template.Shared.Ui' has the following package references
+   [net10.0]: 
+   Top-level Package                                    Requested   Resolved
+   > Microsoft.AspNetCore.Components.Authorization      10.0.9      10.0.9  
+   > Microsoft.AspNetCore.Components.Web                10.0.9      10.0.9  
+   > Microsoft.Extensions.Localization                  10.0.9      10.0.9  
+   > System.IdentityModel.Tokens.Jwt                    8.19.1      8.19.1  
+
+Project 'Template.Web' has the following package references
+   [net10.0]: 
+   Top-level Package                                               Requested    Resolved
+   > Microsoft.AspNetCore.App.Internal.Assets                (A)   [10.0.9, )   10.0.9  
+   > Microsoft.AspNetCore.Components.Authorization                 10.0.9       10.0.9  
+   > Microsoft.AspNetCore.Components.WebAssembly                   10.0.9       10.0.9  
+   > Microsoft.AspNetCore.Components.WebAssembly.DevServer         10.0.9       10.0.9  
+   > Microsoft.Extensions.Http                                     10.0.9       10.0.9  
+   > Microsoft.NET.ILLink.Tasks                              (A)   [10.0.9, )   10.0.9  
+   > Microsoft.NET.Sdk.WebAssembly.Pack                      (A)   [10.0.9, )   10.0.9  
+
+Project 'Template.Api.Tests' has the following package references
+   [net10.0]: 
+   Top-level Package                                Requested   Resolved
+   > coverlet.collector                             6.0.4       6.0.4   
+   > Microsoft.AspNetCore.TestHost                  10.0.9      10.0.9  
+   > Microsoft.EntityFrameworkCore.Relational       10.0.9      10.0.9  
+   > Microsoft.Extensions.TimeProvider.Testing      10.7.0      10.7.0  
+   > Microsoft.NET.Test.Sdk                         17.14.1     17.14.1 
+   > Testcontainers.Minio                           4.12.0      4.12.0  
+   > Testcontainers.PostgreSql                      4.12.0      4.12.0  
+   > xunit                                          2.9.3       2.9.3   
+   > xunit.runner.visualstudio                      3.1.4       3.1.4   
+
+Project 'Template.Core.Tests' has the following package references
+   [net10.0]: 
+   Top-level Package                Requested   Resolved
+   > coverlet.collector             6.0.4       6.0.4   
+   > Microsoft.NET.Test.Sdk         17.14.1     17.14.1 
+   > xunit                          2.9.3       2.9.3   
+   > xunit.runner.visualstudio      3.1.4       3.1.4   
+
+Project 'Template.E2E.Tests' has the following package references
+   [net10.0]: 
+   Top-level Package                 Requested   Resolved
+   > coverlet.collector              6.0.4       6.0.4   
+   > Microsoft.NET.Test.Sdk          17.14.0     17.14.0 
+   > Microsoft.Playwright.NUnit      1.60.0      1.60.0  
+   > NUnit                           4.3.2       4.3.2   
+   > NUnit.Analyzers                 4.7.0       4.7.0   
+   > NUnit3TestAdapter               5.0.0       5.0.0   
+
+(A) : Auto-referenced package.

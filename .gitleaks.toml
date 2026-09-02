@@ -1,0 +1,23 @@
+# gitleaks config (v2 audit B11-5) — secret-scan gate run in CI.
+# Uses the built-in ruleset, plus an allowlist for values that are DELIBERATELY in the repo and are not
+# real credentials: the committed example env file and test-only fixture secrets. .env itself is
+# gitignored and never committed, so real secrets never reach the scanner.
+title = "perezosoft-platform gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Documented example values + test-only secrets — never real credentials"
+paths = [
+  '''\.env\.example''',          # documented config surface (placeholders/commented examples)
+  '''\.gitleaks\.toml''',        # this file (contains the sample patterns below)
+  '''\.github/workflows/''',     # CI uses throwaway signing secrets for the ephemeral e2e stack
+  '''tests/''',                  # test fixtures use fake secrets (e.g. the integration-test JWT key)
+]
+regexes = [
+  '''integration-test-jwt-secret-key''',        # IntegrationTestFactory
+  '''test-secret-key-at-least-32-chars''',       # ServiceHarness TestJwtSettings
+  '''ci-e2e-jwt-signing-secret''',               # the e2e CI job's throwaway JWT secret (ci.yml)
+  '''sk_test_''', '''whsec_''', '''price_''',    # Stripe example placeholders in .env.example
+]

@@ -1,0 +1,11 @@
+{
+  "name": "native-smoke-android",
+  "private": true,
+  "description": "NATIVE-7 Android smoke: drives the real MAUI app's WebView on an emulator via playwright-core's _android module (adb + WebView CDP). The .NET Playwright binding cannot do this — Android WebView's CDP lacks the browser-context management ConnectOverCDP requires.",
+  "scripts": {
+    "smoke": "node smoke.js"
+  },
+  "dependencies": {
+    "playwright-core": "1.60.0"
+  }
+}
