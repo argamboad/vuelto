@@ -1451,6 +1451,14 @@ carry over unchanged. The Postman collection is the canonical API doc (ADR-023).
 *Rationale:* the client is rewritten anyway, so the snake_case contract has no consumer left;
 one convention across platform and app.
 
+*Amendment (2026-09-02, BUDGET-1 — first slice).* Reading the platform's own DTOs settled the wire
+format precisely: the platform serializes **snake_case via explicit `[JsonPropertyName]`** on every
+DTO its clients consume (`in_app`, `member_count`, `created_at`, the Postman bodies) — the `Notes`
+sample's bare records were the exception, not the rule. App slices therefore use
+`[JsonPropertyName("snake_case")]` on request/response records (which also matches the donor's
+ADR-0005 contract, so the ported client code keeps its field names). Everything else in this ADR
+stands: minimal-API groups, plain handlers, the shared `ErrorResponse`.
+
 **ADR-V013 — Hosting follows the platform runbook: Render (single origin) + Neon + Brevo via SMTP; the donor's Railway + Supabase + Vercel topology and Brevo HTTP sender are retired. (2026-09-02; port decision D3 — supersedes donor ADR-0027 and the ADR-0026 amendment)**
 Email leaves through the platform's outbox → MailKit SMTP sender (Brevo as the relay). Railway
 blocked outbound SMTP, which is why the donor grew a Brevo HTTP sender; Render does not, and the

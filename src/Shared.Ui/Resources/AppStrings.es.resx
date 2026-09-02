@@ -299,4 +299,25 @@
   <data name="Household_ConfirmRemove" xml:space="preserve"><value>¿Eliminar a {0} de este hogar?</value></data>
   <data name="Household_ConfirmLeave" xml:space="preserve"><value>¿Salir de este hogar?</value></data>
   <data name="Household_ConfirmDissolve" xml:space="preserve"><value>Esto eliminará permanentemente el hogar y sus datos. ¿Continuar?</value></data>
+  <data name="BudgetSettings_Title" xml:space="preserve"><value>Presupuesto</value></data>
+  <data name="BudgetSettings_Subtitle" xml:space="preserve"><value>Cómo se dividen las semanas y los meses de tu hogar, y con qué ingresos empieza cada mes. Lo comparte todo el hogar.</value></data>
+  <data name="BudgetSettings_WeekStartDay" xml:space="preserve"><value>La semana empieza el</value></data>
+  <data name="BudgetSettings_MonthAnchor" xml:space="preserve"><value>El mes empieza</value></data>
+  <data name="BudgetSettings_MonthAnchorHint" xml:space="preserve"><value>Si te pagan por semana, normalmente el mes empieza con el último pago del mes anterior.</value></data>
+  <data name="BudgetSettings_Anchor_LastWeekdayPrev" xml:space="preserve"><value>Último {0} del mes anterior</value></data>
+  <data name="BudgetSettings_Anchor_FirstWeekdayCurrent" xml:space="preserve"><value>Primer {0} del mes</value></data>
+  <data name="BudgetSettings_Anchor_FirstOfMonth" xml:space="preserve"><value>El 1.º del mes</value></data>
+  <data name="BudgetSettings_ChangeNote" xml:space="preserve"><value>Los cambios aplican a los meses que se creen de ahora en adelante; los meses existentes conservan sus semanas.</value></data>
+  <data name="BudgetSettings_IncomeTitle" xml:space="preserve"><value>Ingresos por defecto</value></data>
+  <data name="BudgetSettings_IncomeHint" xml:space="preserve"><value>Se usan cuando un mes se crea automáticamente a partir de una transacción. Los meses de 5 semanas suelen traer un pago extra.</value></data>
+  <data name="BudgetSettings_Primary" xml:space="preserve"><value>Ingreso principal</value></data>
+  <data name="BudgetSettings_Secondary" xml:space="preserve"><value>Ingreso secundario</value></data>
+  <data name="BudgetSettings_Amount4w" xml:space="preserve"><value>Meses de 4 semanas</value></data>
+  <data name="BudgetSettings_Amount5w" xml:space="preserve"><value>Meses de 5 semanas</value></data>
+  <data name="BudgetSettings_Currency" xml:space="preserve"><value>Moneda</value></data>
+  <data name="BudgetSettings_Save" xml:space="preserve"><value>Guardar presupuesto</value></data>
+  <data name="BudgetSettings_Saved" xml:space="preserve"><value>Configuración del presupuesto guardada.</value></data>
+  <data name="BudgetSettings_ErrLoad" xml:space="preserve"><value>No se pudo cargar la configuración del presupuesto. Recarga para intentarlo de nuevo.</value></data>
+  <data name="BudgetSettings_ErrSave" xml:space="preserve"><value>No se pudo guardar la configuración del presupuesto. Inténtalo de nuevo.</value></data>
+  <data name="BudgetSettings_ErrInvalid" xml:space="preserve"><value>Revisa los valores: el día debe ser de domingo a sábado, los montos no pueden ser negativos y las monedas deben ser CRC o USD.</value></data>
 </root>

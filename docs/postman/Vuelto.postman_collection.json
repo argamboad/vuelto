@@ -801,6 +801,119 @@
           "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"204/404\", () => pm.expect(pm.response.code).to.be.oneOf([204, 404]));"], "type": "text/javascript" } }]
         }
       ]
+    },
+    {
+      "name": "11 · Budget settings",
+      "description": "BUDGET-1 (app slice): the household's budget structure — week-start weekday, month anchor, and the two incomes' 4-week / 5-week defaults. One row per household, created on the first PUT; before that GET serves the defaults with is_default=true. Any member may read and save (no owner gate). Error codes: 400 invalid_request (message names the field), 401 without a token.",
+      "item": [
+        {
+          "name": "Get budget settings",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/budget-settings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "budget-settings"
+              ]
+            },
+            "description": "Returns the saved row, or the defaults (Thursday, last_weekday_prev, 0 USD × 2) flagged is_default=true when the household has never saved. Never writes."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "const s = pm.response.json();",
+                  "pm.test(\"has the budget fields\", () => { pm.expect(s).to.have.property('week_start_weekday'); pm.expect(s).to.have.property('month_anchor'); pm.expect(s).to.have.property('is_default'); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update budget settings",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"week_start_weekday\": 4,\n  \"month_anchor\": \"last_weekday_prev\",\n  \"primary_income_4w\": 1500.0,\n  \"primary_income_5w\": 1800.0,\n  \"primary_income_currency\": \"USD\",\n  \"secondary_income_4w\": 400000,\n  \"secondary_income_5w\": 500000,\n  \"secondary_income_currency\": \"CRC\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/budget-settings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "budget-settings"
+              ]
+            },
+            "description": "Upserts the household's single row. week_start_weekday 0 (Sunday) … 6 (Saturday); month_anchor one of last_weekday_prev | first_weekday_current | first_of_month; amounts ≥ 0; currencies CRC or USD (case-insensitive, stored upper). 400 invalid_request otherwise; nothing is written on a 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"saved, not default\", () => pm.expect(pm.response.json().is_default).to.eql(false));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update budget settings — invalid (400)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"week_start_weekday\": 9,\n  \"month_anchor\": \"last_weekday_prev\",\n  \"primary_income_4w\": 0,\n  \"primary_income_5w\": 0,\n  \"primary_income_currency\": \"USD\",\n  \"secondary_income_4w\": 0,\n  \"secondary_income_5w\": 0,\n  \"secondary_income_currency\": \"USD\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/budget-settings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "budget-settings"
+              ]
+            },
+            "description": "Weekday 9 → 400 invalid_request; the message names week_start_weekday."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"400 invalid_request\", () => { pm.response.to.have.status(400); pm.expect(pm.response.json().error).to.eql('invalid_request'); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
     }
   ]
 }

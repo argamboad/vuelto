@@ -116,6 +116,7 @@ public class ArchitectureTests
         // did before LB-TEN-1 was fixed. Covers TenantId-carrying non-ITenantScoped entities too (WebhookDelivery).
         var handled = new HashSet<string>
         {
+            nameof(BudgetSettings),                         // BudgetSettingsDataContributor (app slice BUDGET-1)
             nameof(AuditEvent),                             // AuditDataContributor
             nameof(Subscription),                           // BillingDataContributor
             nameof(ApiKey),                                 // ApiKeyDataContributor

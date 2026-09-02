@@ -299,4 +299,25 @@
   <data name="Household_ConfirmRemove" xml:space="preserve"><value>Remove {0} from this household?</value></data>
   <data name="Household_ConfirmLeave" xml:space="preserve"><value>Leave this household?</value></data>
   <data name="Household_ConfirmDissolve" xml:space="preserve"><value>This permanently deletes the household and its data. Continue?</value></data>
+  <data name="BudgetSettings_Title" xml:space="preserve"><value>Budget</value></data>
+  <data name="BudgetSettings_Subtitle" xml:space="preserve"><value>How your household's weeks and months are divided, and the income each month starts with. Shared by everyone in the household.</value></data>
+  <data name="BudgetSettings_WeekStartDay" xml:space="preserve"><value>Week starts on</value></data>
+  <data name="BudgetSettings_MonthAnchor" xml:space="preserve"><value>Month begins</value></data>
+  <data name="BudgetSettings_MonthAnchorHint" xml:space="preserve"><value>Weekly pay cycles usually start on the last payday of the previous month.</value></data>
+  <data name="BudgetSettings_Anchor_LastWeekdayPrev" xml:space="preserve"><value>Last {0} of the previous month</value></data>
+  <data name="BudgetSettings_Anchor_FirstWeekdayCurrent" xml:space="preserve"><value>First {0} of the month</value></data>
+  <data name="BudgetSettings_Anchor_FirstOfMonth" xml:space="preserve"><value>1st of the month</value></data>
+  <data name="BudgetSettings_ChangeNote" xml:space="preserve"><value>Changes apply to months created from now on — existing months keep their weeks.</value></data>
+  <data name="BudgetSettings_IncomeTitle" xml:space="preserve"><value>Income defaults</value></data>
+  <data name="BudgetSettings_IncomeHint" xml:space="preserve"><value>Used when a month is created automatically from a transaction. 5-week months usually carry one extra pay.</value></data>
+  <data name="BudgetSettings_Primary" xml:space="preserve"><value>Primary income</value></data>
+  <data name="BudgetSettings_Secondary" xml:space="preserve"><value>Secondary income</value></data>
+  <data name="BudgetSettings_Amount4w" xml:space="preserve"><value>4-week months</value></data>
+  <data name="BudgetSettings_Amount5w" xml:space="preserve"><value>5-week months</value></data>
+  <data name="BudgetSettings_Currency" xml:space="preserve"><value>Currency</value></data>
+  <data name="BudgetSettings_Save" xml:space="preserve"><value>Save budget settings</value></data>
+  <data name="BudgetSettings_Saved" xml:space="preserve"><value>Budget settings saved.</value></data>
+  <data name="BudgetSettings_ErrLoad" xml:space="preserve"><value>Couldn't load your budget settings. Refresh to try again.</value></data>
+  <data name="BudgetSettings_ErrSave" xml:space="preserve"><value>Couldn't save your budget settings. Try again.</value></data>
+  <data name="BudgetSettings_ErrInvalid" xml:space="preserve"><value>Check the values: the weekday must be Sunday–Saturday, amounts can't be negative, and currencies must be CRC or USD.</value></data>
 </root>

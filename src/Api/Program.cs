@@ -6,6 +6,7 @@ using Microsoft.OpenApi.Models;
 using Vuelto.Api.Authentication;
 using Vuelto.Api.Configuration;
 using Vuelto.Api.Endpoints;
+using Vuelto.Api.Features.Budget;
 using Vuelto.Api.Observability;
 using Vuelto.Api.Services;
 using Vuelto.Core.Abstractions;
@@ -100,6 +101,8 @@ builder.Services.AddBillingServices();
 
 // App feature slices (src/Api/Features/<Feature>) register their handler + ITenantDataContributor
 // here and map their group below — only Program.cs may reference Features.* (R8).
+builder.Services.AddScoped<BudgetSettingsHandler>();                                   // BUDGET-1
+builder.Services.AddScoped<ITenantDataContributor, BudgetSettingsDataContributor>();
 
 // Caches + session (LinkTokenService uses IMemoryCache; session backed by distributed cache).
 builder.Services.AddMemoryCache();
@@ -303,6 +306,7 @@ app.MapGet("/api/version", () => Results.Ok(new
 })).AllowAnonymous().WithTags("Platform");
 
 // App feature slice endpoints are mapped here (app.Map<Feature>()), one call per slice.
+app.MapBudgetSettings(); // BUDGET-1
 // Billing is a platform controller (BillingController) — auto-mapped by MapControllers above.
 
 // PUBAPI (ADR-015): map key management + the public routes only when enabled — off ⇒ they don't exist.

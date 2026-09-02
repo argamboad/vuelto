@@ -1183,6 +1183,53 @@ Then /billing shows plan pro, status active, the pro seat limit, and the portal 
 
 ---
 
+## 10d. Web — Budget settings (app slice BUDGET-1) 🟠
+
+> The first **app** section (ADR-V001 port slice P1). Household-wide settings: any member may
+> edit; changes apply to months created afterwards (ADR-V005).
+
+### QA-BUD-01 — A new household sees the budget defaults 🟠 (Web)
+**Gherkin**
+```gherkin
+Given I am signed in to a household that has never saved budget settings
+When I open /settings
+Then the Budget card shows Thursday, "Last Thursday of the previous month", and 0 USD for both incomes
+```
+**Walkthrough:** sign in with a fresh account (QA-ONB-01), open **Settings**. **Expected:** a
+**Budget** card between Preferences and Notifications: *Week starts on* = Thursday, *Month begins*
+= "Last Thursday of the previous month", both income rows 0 / 0 / USD. Nothing has been saved
+(`GET /api/budget-settings` returns `is_default: true`).
+
+### QA-BUD-02 — Save the household's budget structure and see it persist 🟠 (Web)
+**Gherkin**
+```gherkin
+Given I am on /settings
+When I set Monday, "1st of the month", primary 1500 / 1800 USD, secondary 400000 / 500000 CRC and click Save
+Then the card confirms, and a reload (or another member's browser) shows the same values
+```
+**Walkthrough**
+1. Change *Week starts on* to **Monday** — **Expected:** the anchor options re-label to "…Monday…".
+2. Pick **1st of the month**; enter the amounts; secondary currency **CRC**; **Save budget settings**.
+3. **Expected:** "Budget settings saved." Reload the page: the values persist. Sign in as another
+   member of the same household (QA-INV-02): they see the same values (household-wide, not per user).
+4. Save again with a different weekday. **Expected:** still one row for the household
+   (`GET` shows the new weekday; `is_default: false`).
+
+### QA-BUD-03 — Invalid values are refused and nothing changes 🟠 (Web / API)
+**Gherkin**
+```gherkin
+Given I am on /settings
+When I try to save a negative amount, or PUT weekday 9 / anchor "x" / currency "EUR" via the API
+Then the UI shows the "check the values" message and the API answers 400 invalid_request
+And a GET still returns the previously saved values
+```
+**Walkthrough:** in the card, type **-5** in an amount and Save → **Expected:** the red
+"Check the values…" message, no success banner. Via Postman (**11 · Budget settings → Update —
+invalid (400)**) → **Expected:** 400 `{ "error": "invalid_request", "message": "week_start_weekday …" }`;
+a following **Get budget settings** is unchanged. Without a token → 401.
+
+---
+
 ## 11. Emails (Mailpit) — branding & content 🟠
 
 > **Delivery is asynchronous** (the outbox dispatcher) — emails land in Mailpit a few seconds after the
@@ -2161,6 +2208,7 @@ app fires no published events. (Published events via `IWebhookPublisher` also lo
 | Linked accounts | SET-01..06, DSK-05 | `GET /api/auth/logins`, `POST /api/auth/link/{provider}`, `DELETE /api/auth/logins/{provider}` |
 | Localization | I18N-01..04, **DSK-09 / AND-09** (native restart persistence — NATIVE-5) | `PUT /api/auth/locale` (+ resx) |
 | Theme / dark mode (THEME-1 + PREFS-1) | **SET-08** (⚙️ E2E `ThemeJourneyTests`) + **DSK-15 / AND-14** (native restart persistence) | `PUT /api/auth/theme` ("system" stored verbatim, null = never chose — ADR-022; `theme` JWT claim; pre-paint `theme.js` → `data-bs-theme`; sign-in reconcile + device adoption) |
+| Budget settings (app BUDGET-1) | BUD-01..03 | `GET /api/budget-settings`, `PUT /api/budget-settings` (400 `invalid_request`; household-wide, member-editable) |
 | Emails / branding | MAIL-01..04, I18N-04 | (SMTP via Mailpit) |
 | Tenant isolation / auth guards | SEC-01..05 | (all `[Authorize]` endpoints; write-stamping + reuse detection are automated) |
 | Platform health / readiness | SMK-07 | `GET /health`, `GET /health/ready` |
@@ -2258,6 +2306,9 @@ Record one row per executed case. Build = API/web commit SHA (`git rev-parse --s
 |---------|--------|--------------------------|--------|-------------|------|---------------------|
 | QA-SMK-01 | Web | | | | | |
 | QA-SMK-02 | Web | | | | | |
+| QA-BUD-01 | Web | | | | | |
+| QA-BUD-02 | Web | | | | | |
+| QA-BUD-03 | Web | | | | | |
 | … | | | | | | |
 
 **§14a adversarial / tenant-isolation (QA-ADV-*).** All rows are **Not-run** (blank) until executed.

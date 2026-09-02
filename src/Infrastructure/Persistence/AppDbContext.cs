@@ -81,6 +81,9 @@ public class AppDbContext : DbContext, IDataProtectionKeyContext
     // append-only via AuditAppendOnlyInterceptor.
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
 
+    // ── App (budget domain) sets — one per port slice (ADR-V001); all ITenantScoped. ──
+    public DbSet<BudgetSettings> BudgetSettings => Set<BudgetSettings>();
+
     // Tenant isolation is structural in BOTH directions: the global query filter (below)
     // scopes reads, and this interceptor scopes writes — stamping the current tenant onto
     // new ITenantScoped rows and refusing foreign-tenant writes. Registered here (not only
