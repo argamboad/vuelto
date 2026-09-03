@@ -1230,6 +1230,70 @@ a following **Get budget settings** is unchanged. Without a token → 401.
 
 ---
 
+## 10e. Web — Catalog: categories & banks (app slice CATALOG-1/2) 🟠
+
+> Two soft-delete name catalogs (ADR-V008): unique per household case-insensitively, deactivate
+> instead of delete, the inactive-clash **Reactivate** offer. Seeded once per household in the first
+> reader's language (ADR-V009).
+
+### QA-CAT-01 — A new household's first visit seeds the defaults in its language 🟠 (Web)
+**Gherkin**
+```gherkin
+Given a fresh household whose member's language is Spanish
+When I open Settings → Catalog → Manage categories
+Then I see the 7 example categories in Spanish (Alimentación … Otro), all Active
+And Manage banks shows 9 banks with "Efectivo" first
+```
+**Walkthrough:** sign up fresh (QA-ONB-01), switch the language to **Español** on the login page
+or Settings, then open **Settings → Catálogo → Administrar categorías**. **Expected:** 7 rows,
+Spanish names, Activo badges. Switch the language back to English and reload. **Expected:** the
+names **stay Spanish** — seeds are localized once (no retranslation). **Administrar bancos**:
+9 rows, "Efectivo" present, the bank proper nouns unchanged.
+
+### QA-CAT-02 — Create a category; a duplicate name is refused case-insensitively 🟠 (Web)
+**Gherkin**
+```gherkin
+Given I am on /categories
+When I click New category, type "Viajes" and Create
+Then "Viajes" appears Active
+When I try to create "VIAJES"
+Then I see "A category named 'Viajes' already exists" and nothing is created
+```
+**Walkthrough:** **New category** → `Viajes` → **Create**. **Expected:** "Created." and the row
+appears. Repeat with `VIAJES`. **Expected:** the red message in the form; no new row; no
+**Reactivate** button (the clash is with an *active* entry).
+
+### QA-CAT-03 — Deactivate, then the inactive clash offers Reactivate 🟠 (Web)
+**Gherkin**
+```gherkin
+Given "Viajes" exists and is active
+When I Edit it, switch Active off and Save
+Then it shows Inactive (still listed, greyed)
+When I try to create "viajes"
+Then I see the warning with a Reactivate button, and clicking it makes "Viajes" Active again
+```
+**Walkthrough:** **Edit** on Viajes → toggle **Active** off → **Save** → **Expected:** Inactive
+badge. **New category** → `viajes` → **Create** → **Expected:** yellow warning "…already exists
+but is inactive — reactivate it?" with **Reactivate**. Click it. **Expected:** "Updated.", Viajes
+is Active **and still spelled "Viajes"** (the stored name is restored, not the typed "viajes").
+Via Postman (**12 · Catalog → Create category — duplicate (409)**): `error` is
+`category_exists_inactive` with `existing_id` and `existing_name`.
+
+### QA-CAT-04 — Banks behave the same and are household-wide 🟠 (Web / API)
+**Gherkin**
+```gherkin
+Given I am on /banks
+When I rename "Lafise" to "Lafise CR" and create "Coopenae"
+Then another member of the household sees both changes
+And a PUT to a bank id from a different household returns 404
+```
+**Walkthrough:** on **/banks**, **Edit** Lafise → `Lafise CR` → **Save**; **New bank** →
+`Coopenae` → **Create**. Sign in as another member (QA-INV-02) → **/banks** → **Expected:** both
+changes visible (catalogs are household data). Via Postman, PUT `/api/banks/{id}` with an id copied
+from a *different* household's list → **Expected:** 404 (never 403 — no existence oracle).
+
+---
+
 ## 11. Emails (Mailpit) — branding & content 🟠
 
 > **Delivery is asynchronous** (the outbox dispatcher) — emails land in Mailpit a few seconds after the
@@ -2209,6 +2273,7 @@ app fires no published events. (Published events via `IWebhookPublisher` also lo
 | Localization | I18N-01..04, **DSK-09 / AND-09** (native restart persistence — NATIVE-5) | `PUT /api/auth/locale` (+ resx) |
 | Theme / dark mode (THEME-1 + PREFS-1) | **SET-08** (⚙️ E2E `ThemeJourneyTests`) + **DSK-15 / AND-14** (native restart persistence) | `PUT /api/auth/theme` ("system" stored verbatim, null = never chose — ADR-022; `theme` JWT claim; pre-paint `theme.js` → `data-bs-theme`; sign-in reconcile + device adoption) |
 | Budget settings (app BUDGET-1) | BUD-01..03 | `GET /api/budget-settings`, `PUT /api/budget-settings` (400 `invalid_request`; household-wide, member-editable) |
+| Catalog: categories + banks (app CATALOG-1/2) | CAT-01..04 | `GET/POST /api/categories`, `PUT /api/categories/{id}`, same under `/api/banks` (409 `*_exists` / `*_exists_inactive` + `existing_id` + `existing_name`; uniform 404) |
 | Emails / branding | MAIL-01..04, I18N-04 | (SMTP via Mailpit) |
 | Tenant isolation / auth guards | SEC-01..05 | (all `[Authorize]` endpoints; write-stamping + reuse detection are automated) |
 | Platform health / readiness | SMK-07 | `GET /health`, `GET /health/ready` |
@@ -2309,6 +2374,10 @@ Record one row per executed case. Build = API/web commit SHA (`git rev-parse --s
 | QA-BUD-01 | Web | | | | | |
 | QA-BUD-02 | Web | | | | | |
 | QA-BUD-03 | Web | | | | | |
+| QA-CAT-01 | Web | | | | | |
+| QA-CAT-02 | Web | | | | | |
+| QA-CAT-03 | Web | | | | | |
+| QA-CAT-04 | Web | | | | | |
 | … | | | | | | |
 
 **§14a adversarial / tenant-isolation (QA-ADV-*).** All rows are **Not-run** (blank) until executed.

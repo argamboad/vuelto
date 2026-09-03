@@ -117,6 +117,8 @@ public class ArchitectureTests
         var handled = new HashSet<string>
         {
             nameof(BudgetSettings),                         // BudgetSettingsDataContributor (app slice BUDGET-1)
+            nameof(Category),                               // CategoryDataContributor (app slice CATALOG-1)
+            nameof(Bank),                                   // BankDataContributor (app slice CATALOG-2)
             nameof(AuditEvent),                             // AuditDataContributor
             nameof(Subscription),                           // BillingDataContributor
             nameof(ApiKey),                                 // ApiKeyDataContributor

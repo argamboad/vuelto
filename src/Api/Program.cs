@@ -7,6 +7,7 @@ using Vuelto.Api.Authentication;
 using Vuelto.Api.Configuration;
 using Vuelto.Api.Endpoints;
 using Vuelto.Api.Features.Budget;
+using Vuelto.Api.Features.Catalog;
 using Vuelto.Api.Observability;
 using Vuelto.Api.Services;
 using Vuelto.Core.Abstractions;
@@ -103,6 +104,10 @@ builder.Services.AddBillingServices();
 // here and map their group below — only Program.cs may reference Features.* (R8).
 builder.Services.AddScoped<BudgetSettingsHandler>();                                   // BUDGET-1
 builder.Services.AddScoped<ITenantDataContributor, BudgetSettingsDataContributor>();
+builder.Services.AddScoped<CategoryCatalogHandler>();                                  // CATALOG-1/2
+builder.Services.AddScoped<BankCatalogHandler>();
+builder.Services.AddScoped<ITenantDataContributor, CategoryDataContributor>();
+builder.Services.AddScoped<ITenantDataContributor, BankDataContributor>();
 
 // Caches + session (LinkTokenService uses IMemoryCache; session backed by distributed cache).
 builder.Services.AddMemoryCache();
@@ -307,6 +312,7 @@ app.MapGet("/api/version", () => Results.Ok(new
 
 // App feature slice endpoints are mapped here (app.Map<Feature>()), one call per slice.
 app.MapBudgetSettings(); // BUDGET-1
+app.MapCatalog();        // CATALOG-1/2 (/api/categories, /api/banks)
 // Billing is a platform controller (BillingController) — auto-mapped by MapControllers above.
 
 // PUBAPI (ADR-015): map key management + the public routes only when enabled — off ⇒ they don't exist.

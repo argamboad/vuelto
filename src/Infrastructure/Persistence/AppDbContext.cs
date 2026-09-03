@@ -83,6 +83,8 @@ public class AppDbContext : DbContext, IDataProtectionKeyContext
 
     // ── App (budget domain) sets — one per port slice (ADR-V001); all ITenantScoped. ──
     public DbSet<BudgetSettings> BudgetSettings => Set<BudgetSettings>();
+    public DbSet<Category> Categories => Set<Category>();
+    public DbSet<Bank> Banks => Set<Bank>();
 
     // Tenant isolation is structural in BOTH directions: the global query filter (below)
     // scopes reads, and this interceptor scopes writes — stamping the current tenant onto
