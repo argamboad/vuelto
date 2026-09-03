@@ -7,6 +7,7 @@
 @inject AuthService Auth
 @inject NavigationManager Nav
 @inject HttpClient Http
+@inject IFileDownloadLauncher DownloadLauncher
 @inject IStringLocalizer<AppStrings> Localizer
 
 <PageTitle>@(_month is null ? Localizer["Months_Title"] : MonthLabel(_month.Year, _month.MonthNumber))</PageTitle>
@@ -30,6 +31,7 @@
                 <p class="text-muted mb-0">@Localizer["Month_Window", _month.WeekCount, _month.Weeks!.First().StartDate.ToString("d", CultureInfo.CurrentCulture), _month.Weeks!.Last().EndDate.ToString("d", CultureInfo.CurrentCulture)]</p>
             </div>
             <div class="d-flex gap-2">
+                <button class="btn btn-outline-secondary" data-testid="month-export" @onclick="ExportCsvAsync" disabled="@_exporting">@(_exporting ? Localizer["Reports_Exporting"] : Localizer["Reports_ExportCsv"])</button>
                 <a class="btn btn-outline-primary" href="/dashboard/@Id" data-testid="month-dashboard-link">@Localizer["Nav_Dashboard"]</a>
                 <a class="btn btn-primary" href="/transactions/new" data-testid="month-new-tx">@Localizer["Months_NewTransaction"]</a>
             </div>
@@ -190,6 +192,26 @@
     private bool _saving;
     private string? _error;
     private string? _notice;
+    private bool _exporting;
+
+    // REPORTS-2: the month's transactions as CSV through the platform download launcher (browser download / native share).
+    private async Task ExportCsvAsync()
+    {
+        if (_exporting) return;
+        _exporting = true; _notice = null; _error = null;
+        try
+        {
+            var res = await Http.PostAsync($"/api/reports/transactions/export?month_id={Id}", null);
+            res.EnsureSuccessStatusCode();
+            var body = (await res.Content.ReadFromJsonAsync<ExportDto>())!;
+            await DownloadLauncher.LaunchAsync(new Uri(Http.BaseAddress!, body.DownloadUrl).ToString(), body.FileName);
+            _notice = Localizer["Reports_ExportReady", body.RowCount];
+        }
+        catch { _error = Localizer["Reports_ExportError"]; }
+        finally { _exporting = false; }
+    }
+
+    private sealed record ExportDto([property: JsonPropertyName("download_url")] string DownloadUrl, [property: JsonPropertyName("file_name")] string FileName, [property: JsonPropertyName("row_count")] int RowCount);
     private MonthDto? _month;
     private List<TxDto> _transactions = new();
     private List<RefundDto> _refunds = new();
