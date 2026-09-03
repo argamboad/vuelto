@@ -10,6 +10,7 @@ using Vuelto.Api.Features.Budget;
 using Vuelto.Api.Features.Catalog;
 using Vuelto.Api.Features.Envelopes;
 using Vuelto.Api.Features.ExchangeRate;
+using Vuelto.Api.Features.Ledger;
 using Vuelto.Api.Observability;
 using Vuelto.Api.Services;
 using Vuelto.Core.Abstractions;
@@ -114,9 +115,13 @@ builder.Services.AddScoped<ITenantDataContributor, CategoryDataContributor>();
 builder.Services.AddScoped<ITenantDataContributor, BankDataContributor>();
 builder.Services.AddExchangeRates(builder.Configuration);                             // FX-1 (no entity)
 builder.Services.AddScoped<IExchangeRateResolver, ExchangeRateResolver>();
-builder.Services.AddSingleton<IRecentRateSource, NoRecentRateSource>();                // P5 swaps in the transaction-backed source
+builder.Services.AddScoped<IRecentRateSource, TransactionRecentRateSource>();          // LEDGER-2 fills the chain's last tier
 builder.Services.AddScoped<EnvelopeHandler>();                                         // ENV-1
 builder.Services.AddScoped<ITenantDataContributor, EnvelopeDataContributor>();
+builder.Services.AddSingleton<IWeekBoundaryService, WeekBoundaryService>();            // pure Core service (BUDGET-1)
+builder.Services.AddScoped<MonthHandler>();                                            // LEDGER-1/2
+builder.Services.AddScoped<TransactionHandler>();
+builder.Services.AddScoped<ITenantDataContributor, LedgerDataContributor>();
 
 // Caches + session (LinkTokenService uses IMemoryCache; session backed by distributed cache).
 builder.Services.AddMemoryCache();
@@ -324,6 +329,7 @@ app.MapBudgetSettings(); // BUDGET-1
 app.MapCatalog();        // CATALOG-1/2 (/api/categories, /api/banks)
 app.MapExchangeRate();   // FX-1
 app.MapEnvelopes();      // ENV-1
+app.MapLedger();         // LEDGER-1/2 (/api/months, /api/transactions)
 // Billing is a platform controller (BillingController) — auto-mapped by MapControllers above.
 
 // PUBAPI (ADR-015): map key management + the public routes only when enabled — off ⇒ they don't exist.

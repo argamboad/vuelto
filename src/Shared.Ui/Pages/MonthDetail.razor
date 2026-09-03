@@ -1,0 +1,250 @@
+@page "/months/{Id:guid}"
+@using System.Globalization
+@using System.Net
+@using System.Net.Http.Json
+@using System.Text.Json.Serialization
+@using Vuelto.Shared.Ui.Auth
+@inject AuthService Auth
+@inject NavigationManager Nav
+@inject HttpClient Http
+@inject IStringLocalizer<AppStrings> Localizer
+
+<PageTitle>@(_month is null ? Localizer["Months_Title"] : MonthLabel(_month.Year, _month.MonthNumber))</PageTitle>
+
+@* LEDGER-1/2: one budget month — its weeks, editable income, and its transactions (ADR-V005/V007). *@
+<div class="settings-wrapper" data-testid="month-page">
+    @if (_loading)
+    {
+        <div class="text-muted"><span class="spinner-border spinner-border-sm me-2"></span>@Localizer["Common_Loading"]</div>
+    }
+    else if (_month is null)
+    {
+        <div class="alert alert-warning" data-testid="month-missing">@Localizer["Month_NotFound"]</div>
+        <p><a href="/months">← @Localizer["Month_BackToMonths"]</a></p>
+    }
+    else
+    {
+        <div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
+            <div>
+                <h1 class="h4 fw-bold mb-1" data-testid="month-title">@MonthLabel(_month.Year, _month.MonthNumber)</h1>
+                <p class="text-muted mb-0">@Localizer["Month_Window", _month.WeekCount, _month.Weeks!.First().StartDate.ToString("d", CultureInfo.CurrentCulture), _month.Weeks!.Last().EndDate.ToString("d", CultureInfo.CurrentCulture)]</p>
+            </div>
+            <a class="btn btn-primary" href="/transactions/new" data-testid="month-new-tx">@Localizer["Months_NewTransaction"]</a>
+        </div>
+
+        @if (_notice is not null)
+        {
+            <div class="alert alert-success py-2" data-testid="month-notice">@_notice</div>
+        }
+        @if (_error is not null)
+        {
+            <div class="alert alert-danger py-2" data-testid="month-error">@_error</div>
+        }
+
+        <div class="d-flex flex-wrap gap-2 mb-3" data-testid="month-weeks">
+            @foreach (var w in _month.Weeks!)
+            {
+                <span class="badge bg-secondary-subtle text-secondary-emphasis">@Localizer["Month_Week", w.WeekNumber]: @w.StartDate.ToString("d", CultureInfo.CurrentCulture) – @w.EndDate.ToString("d", CultureInfo.CurrentCulture)</span>
+            }
+        </div>
+
+        <div class="card shadow-sm mb-3" data-testid="month-income">
+            <div class="card-body">
+                <h2 class="h6 fw-bold mb-3">@Localizer["Month_Income"]</h2>
+                <div class="row g-3 align-items-end">
+                    <div class="col-8 col-md-4">
+                        <label class="form-label small fw-medium mb-1" for="inc-primary">@Localizer["Month_PrimaryIncome"]</label>
+                        <input class="form-control" type="number" step="0.01" min="0" id="inc-primary" data-testid="inc-primary" disabled="@_saving" @bind="_primaryAmount" />
+                    </div>
+                    <div class="col-4 col-md-2">
+                        <select class="form-select" data-testid="inc-primary-cur" disabled="@_saving" @bind="_primaryCurrency"><option>CRC</option><option>USD</option></select>
+                    </div>
+                    <div class="col-8 col-md-4">
+                        <label class="form-label small fw-medium mb-1" for="inc-secondary">@Localizer["Month_SecondaryIncome"]</label>
+                        <input class="form-control" type="number" step="0.01" min="0" id="inc-secondary" data-testid="inc-secondary" disabled="@_saving" @bind="_secondaryAmount" />
+                    </div>
+                    <div class="col-4 col-md-2">
+                        <select class="form-select" data-testid="inc-secondary-cur" disabled="@_saving" @bind="_secondaryCurrency"><option>CRC</option><option>USD</option></select>
+                    </div>
+                </div>
+                <button class="btn btn-outline-primary btn-sm mt-3" data-testid="inc-save" disabled="@_saving" @onclick="SaveIncome">@(_saving ? Localizer["Catalog_Saving"] : Localizer["Catalog_Save"])</button>
+            </div>
+        </div>
+
+        <h2 class="h6 fw-bold mb-2">@Localizer["Month_Transactions"]</h2>
+        @if (_transactions.Count == 0)
+        {
+            <p class="text-muted" data-testid="month-no-tx">@Localizer["Month_NoTransactions"]</p>
+        }
+        else
+        {
+            <div class="card shadow-sm">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0" data-testid="month-tx-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">@Localizer["Tx_Date"]</th>
+                                <th scope="col">@Localizer["Tx_Payee"]</th>
+                                <th scope="col">@Localizer["Tx_Category"]</th>
+                                <th scope="col">@Localizer["Tx_Bank"]</th>
+                                <th scope="col">@Localizer["Tx_Class"]</th>
+                                <th scope="col" class="text-end">₡</th>
+                                <th scope="col" class="text-end">$</th>
+                                <th scope="col" class="text-end"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var t in _transactions)
+                            {
+                                <tr data-testid="month-tx-row">
+                                    <td>@t.TransactionDate.ToString("d", CultureInfo.CurrentCulture)</td>
+                                    <td data-testid="month-tx-payee">@t.Payee</td>
+                                    <td>@t.CategoryName</td>
+                                    <td>@t.BankName</td>
+                                    <td><span class="badge bg-secondary-subtle text-secondary-emphasis">@ClassLabel(t.TransactionType)</span></td>
+                                    <td class="text-end">@t.AmountCrc.ToString("N2", CultureInfo.CurrentCulture)</td>
+                                    <td class="text-end">@t.AmountUsd.ToString("N2", CultureInfo.CurrentCulture)</td>
+                                    <td class="text-end text-nowrap">
+                                        @if (t.Source == "manual")
+                                        {
+                                            <a class="btn btn-outline-primary btn-sm" href="/transactions/@t.Id/edit" data-testid="month-tx-edit">@Localizer["Catalog_Edit"]</a>
+                                            @if (_confirmDelete == t.Id)
+                                            {
+                                                <button class="btn btn-danger btn-sm ms-1" data-testid="month-tx-confirm" disabled="@_saving" @onclick="() => DeleteAsync(t.Id)">@Localizer["Month_ConfirmDelete"]</button>
+                                            }
+                                            else
+                                            {
+                                                <button class="btn btn-outline-danger btn-sm ms-1" data-testid="month-tx-delete" disabled="@_saving" @onclick="() => _confirmDelete = t.Id">@Localizer["Month_Delete"]</button>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <span class="small text-muted">@Localizer["Tx_Derived"]</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+        <p class="mt-3"><a href="/months">← @Localizer["Month_BackToMonths"]</a></p>
+    }
+</div>
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private bool _loading = true;
+    private bool _saving;
+    private string? _error;
+    private string? _notice;
+    private MonthDto? _month;
+    private List<TxDto> _transactions = new();
+    private Guid? _confirmDelete;
+    private decimal _primaryAmount;
+    private string _primaryCurrency = "USD";
+    private decimal _secondaryAmount;
+    private string _secondaryCurrency = "USD";
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            var res = await Http.GetAsync($"/api/months/{Id}");
+            if (res.StatusCode == HttpStatusCode.NotFound) { _month = null; return; }
+            res.EnsureSuccessStatusCode();
+            _month = await res.Content.ReadFromJsonAsync<MonthDto>();
+            _primaryAmount = _month!.PrimaryIncomeAmount; _primaryCurrency = _month.PrimaryIncomeCurrency;
+            _secondaryAmount = _month.SecondaryIncomeAmount; _secondaryCurrency = _month.SecondaryIncomeCurrency;
+            _transactions = await Http.GetFromJsonAsync<List<TxDto>>($"/api/months/{Id}/transactions") ?? new();
+        }
+        catch { _error = Localizer["Month_LoadError"]; }
+        finally { _loading = false; }
+    }
+
+    private async Task SaveIncome()
+    {
+        _notice = null; _error = null; _saving = true;
+        try
+        {
+            var res = await Http.PutAsJsonAsync($"/api/months/{Id}/income", new
+            {
+                primary_income_amount = _primaryAmount, primary_income_currency = _primaryCurrency,
+                secondary_income_amount = _secondaryAmount, secondary_income_currency = _secondaryCurrency,
+            });
+            if (res.IsSuccessStatusCode) _notice = Localizer["Month_IncomeSaved"];
+            else _error = (await res.Content.ReadFromJsonAsync<ErrorDto>())?.Message ?? Localizer["Month_IncomeError"];
+        }
+        catch { _error = Localizer["Month_IncomeError"]; }
+        finally { _saving = false; }
+    }
+
+    private async Task DeleteAsync(Guid id)
+    {
+        _notice = null; _error = null; _saving = true;
+        try
+        {
+            var res = await Http.DeleteAsync($"/api/transactions/{id}");
+            if (!res.IsSuccessStatusCode) { _error = Localizer["Month_DeleteError"]; return; }
+            _confirmDelete = null;
+            _notice = Localizer["Month_Deleted"];
+            await LoadAsync();
+            if (_month is null) Nav.NavigateTo("/months"); // the month left with its last transaction (ADR-V005)
+        }
+        catch { _error = Localizer["Month_DeleteError"]; }
+        finally { _saving = false; }
+    }
+
+    private string ClassLabel(string type) => type switch
+    {
+        "budgeted" => Localizer["Tx_Budgeted"],
+        "extraordinary" => Localizer["Tx_Extraordinary"],
+        "unplanned_essential" => Localizer["Tx_Unplanned"],
+        "inflow" => Localizer["Tx_Inflow"],
+        "envelope_contribution" => Localizer["Tx_EnvelopeContribution"],
+        _ => type,
+    };
+
+    private static string MonthLabel(int year, int month) =>
+        $"{CultureInfo.CurrentCulture.TextInfo.ToTitleCase(CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(month))} {year}";
+
+    private sealed record WeekDto(
+        [property: JsonPropertyName("week_number")] int WeekNumber,
+        [property: JsonPropertyName("start_date")] DateOnly StartDate,
+        [property: JsonPropertyName("end_date")] DateOnly EndDate);
+
+    private sealed record MonthDto(
+        [property: JsonPropertyName("id")] Guid Id,
+        [property: JsonPropertyName("year")] int Year,
+        [property: JsonPropertyName("month_number")] int MonthNumber,
+        [property: JsonPropertyName("week_count")] int WeekCount,
+        [property: JsonPropertyName("primary_income_amount")] decimal PrimaryIncomeAmount,
+        [property: JsonPropertyName("primary_income_currency")] string PrimaryIncomeCurrency,
+        [property: JsonPropertyName("secondary_income_amount")] decimal SecondaryIncomeAmount,
+        [property: JsonPropertyName("secondary_income_currency")] string SecondaryIncomeCurrency,
+        [property: JsonPropertyName("weeks")] List<WeekDto>? Weeks);
+
+    private sealed record TxDto(
+        [property: JsonPropertyName("id")] Guid Id,
+        [property: JsonPropertyName("payee")] string Payee,
+        [property: JsonPropertyName("transaction_date")] DateOnly TransactionDate,
+        [property: JsonPropertyName("category_name")] string? CategoryName,
+        [property: JsonPropertyName("bank_name")] string? BankName,
+        [property: JsonPropertyName("transaction_type")] string TransactionType,
+        [property: JsonPropertyName("amount_crc")] decimal AmountCrc,
+        [property: JsonPropertyName("amount_usd")] decimal AmountUsd,
+        [property: JsonPropertyName("source")] string Source);
+
+    private sealed record ErrorDto(
+        [property: JsonPropertyName("error")] string Error,
+        [property: JsonPropertyName("message")] string Message);
+}

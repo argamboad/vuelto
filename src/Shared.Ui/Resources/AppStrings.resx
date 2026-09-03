@@ -374,4 +374,64 @@
   <data name="Envelopes_Negative" xml:space="preserve"><value>Targets cannot be negative.</value></data>
   <data name="Envelopes_Empty" xml:space="preserve"><value>No envelopes yet — create one for the marchamo, school, or a trip.</value></data>
   <data name="Envelopes_SettingsLink" xml:space="preserve"><value>Manage envelopes</value></data>
+  <data name="Nav_Months" xml:space="preserve"><value>Months</value></data>
+  <data name="Months_Title" xml:space="preserve"><value>Budget months</value></data>
+  <data name="Months_Subtitle" xml:space="preserve"><value>Your pay-cycle months, newest first. A month appears with its first transaction and leaves with its last.</value></data>
+  <data name="Months_Empty" xml:space="preserve"><value>No months yet — enter your first transaction and its month will appear here.</value></data>
+  <data name="Months_NewTransaction" xml:space="preserve"><value>New transaction</value></data>
+  <data name="Months_LoadError" xml:space="preserve"><value>Couldn't load the months. Refresh to try again.</value></data>
+  <data name="Months_StartsOn" xml:space="preserve"><value>Starts {0}</value></data>
+  <data name="Months_Weeks" xml:space="preserve"><value>{0} weeks</value></data>
+  <data name="Month_NotFound" xml:space="preserve"><value>That month no longer exists — its last transaction was removed.</value></data>
+  <data name="Month_BackToMonths" xml:space="preserve"><value>Back to months</value></data>
+  <data name="Month_Window" xml:space="preserve"><value>{0} weeks · {1} – {2}</value></data>
+  <data name="Month_Week" xml:space="preserve"><value>Week {0}</value></data>
+  <data name="Month_Income" xml:space="preserve"><value>Income this month</value></data>
+  <data name="Month_PrimaryIncome" xml:space="preserve"><value>Primary income</value></data>
+  <data name="Month_SecondaryIncome" xml:space="preserve"><value>Secondary income</value></data>
+  <data name="Month_IncomeSaved" xml:space="preserve"><value>Income updated.</value></data>
+  <data name="Month_IncomeError" xml:space="preserve"><value>Couldn't save the income. Check the values and try again.</value></data>
+  <data name="Month_LoadError" xml:space="preserve"><value>Couldn't load the month. Refresh to try again.</value></data>
+  <data name="Month_Transactions" xml:space="preserve"><value>Transactions</value></data>
+  <data name="Month_NoTransactions" xml:space="preserve"><value>No transactions in this month.</value></data>
+  <data name="Month_Delete" xml:space="preserve"><value>Delete</value></data>
+  <data name="Month_ConfirmDelete" xml:space="preserve"><value>Confirm delete</value></data>
+  <data name="Month_Deleted" xml:space="preserve"><value>Transaction deleted.</value></data>
+  <data name="Month_DeleteError" xml:space="preserve"><value>Couldn't delete it. Try again.</value></data>
+  <data name="Tx_NewTitle" xml:space="preserve"><value>New transaction</value></data>
+  <data name="Tx_EditTitle" xml:space="preserve"><value>Edit transaction</value></data>
+  <data name="Tx_NotFound" xml:space="preserve"><value>That transaction no longer exists.</value></data>
+  <data name="Tx_BackToMonth" xml:space="preserve"><value>Back to the month</value></data>
+  <data name="Tx_Derived" xml:space="preserve"><value>Derived from a refund — read-only here.</value></data>
+  <data name="Tx_Payee" xml:space="preserve"><value>Payee</value></data>
+  <data name="Tx_Amount" xml:space="preserve"><value>Amount</value></data>
+  <data name="Tx_Currency" xml:space="preserve"><value>Currency</value></data>
+  <data name="Tx_Date" xml:space="preserve"><value>Date</value></data>
+  <data name="Tx_Category" xml:space="preserve"><value>Category</value></data>
+  <data name="Tx_Bank" xml:space="preserve"><value>Bank</value></data>
+  <data name="Tx_PaymentMethod" xml:space="preserve"><value>Payment method</value></data>
+  <data name="Tx_CreditCard" xml:space="preserve"><value>Credit card</value></data>
+  <data name="Tx_BankAccount" xml:space="preserve"><value>Bank account</value></data>
+  <data name="Tx_Class" xml:space="preserve"><value>Class</value></data>
+  <data name="Tx_Budgeted" xml:space="preserve"><value>Budgeted</value></data>
+  <data name="Tx_Extraordinary" xml:space="preserve"><value>Discretionary</value></data>
+  <data name="Tx_Unplanned" xml:space="preserve"><value>Unplanned</value></data>
+  <data name="Tx_Inflow" xml:space="preserve"><value>Income (inflow)</value></data>
+  <data name="Tx_EnvelopeContribution" xml:space="preserve"><value>Envelope contribution</value></data>
+  <data name="Tx_Envelope" xml:space="preserve"><value>Envelope</value></data>
+  <data name="Tx_EnvelopeHint" xml:space="preserve"><value>Contributions move money from a bank account into the envelope — the payment method must be bank account.</value></data>
+  <data name="Tx_Rate" xml:space="preserve"><value>Exchange rate (₡ per $1)</value></data>
+  <data name="Tx_RateLive" xml:space="preserve"><value>Pre-filled from today's rate — you may override it. It is frozen once saved.</value></data>
+  <data name="Tx_RateFrozen" xml:space="preserve"><value>Frozen when the transaction was created — never changes.</value></data>
+  <data name="Tx_RateUnavailable" xml:space="preserve"><value>No rate available right now — enter one to continue.</value></data>
+  <data name="Tx_GoesTo" xml:space="preserve"><value>Goes to {0}</value></data>
+  <data name="Tx_GoesToNew" xml:space="preserve"><value>Goes to {0} — a new month will be created</value></data>
+  <data name="Tx_LoadError" xml:space="preserve"><value>Couldn't load the form. Refresh to try again.</value></data>
+  <data name="Tx_SaveError" xml:space="preserve"><value>Couldn't save the transaction. Try again.</value></data>
+  <data name="Tx_Validation_Payee" xml:space="preserve"><value>A payee is required.</value></data>
+  <data name="Tx_Validation_Amount" xml:space="preserve"><value>The amount must be greater than zero.</value></data>
+  <data name="Tx_Validation_Category" xml:space="preserve"><value>Pick a category.</value></data>
+  <data name="Tx_Validation_Bank" xml:space="preserve"><value>Pick a bank — every transaction names its money source.</value></data>
+  <data name="Tx_Validation_Envelope" xml:space="preserve"><value>Pick the envelope this contribution goes into.</value></data>
+  <data name="Tx_Validation_Rate" xml:space="preserve"><value>An exchange rate is required — no transaction is saved without one.</value></data>
 </root>

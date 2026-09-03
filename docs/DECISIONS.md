@@ -1366,6 +1366,17 @@ Month income is two incomes, each amount + currency, editable per month.
 *Rationale:* budget periods follow pay cycles; auto-lifecycle removes an entire class of "empty
 month" and "forgot to create the month" bugs; stored weeks give historical stability.
 
+*As built (P5a / LEDGER-1/2, 2026-09-03).* `MonthHandler.GetOrCreateForDateAsync` only <em>stages</em>
+a new month and its weeks on the shared context; the transaction path validates everything, settles
+the rate, then issues **one `SaveChanges`** that lands month + weeks + transaction atomically — no
+`IUnitOfWork` scope is needed for create, update (which also stages the emptied source month's
+removal) or delete. A lost concurrent-creation race (unique `TenantId, Year, MonthNumber`) surfaces
+as a `DbUpdateException`; the handler detaches what it staged (`Remove` on Added → Detached) and
+retries once, finding the winner's month. Settings come from the household's `BudgetSettings` row or
+`BudgetSettings.Defaults` — the Ledger slice reads the entity through `IRepository<BudgetSettings>`
+rather than the Budget slice's handler (R7: slices don't reference each other). The month read returns
+weeks only; the dashboard summary arrives with P6.
+
 **ADR-V006 — The live exchange rate is the source of truth for projections; each transaction freezes its rate forever. (2026-09-02; from donor ADR-0011)**
 Months store no rate. Projections resolve: live quote (cached < 1 h counts as live — quota) →
 stale cache flagged "as of …" → most recent transaction's rate → block (`exchange_rate_unavailable`).
