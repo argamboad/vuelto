@@ -86,6 +86,7 @@ public class ArchitectureTests
             nameof(TenantMembership),                          // tenant-membership teardown
             nameof(UserMfa), nameof(MfaRecoveryCode),          // MfaUserDataContributor
             nameof(Notification), nameof(NotificationPreference), // NotificationUserDataContributor
+            nameof(EmailConnection),                            // EmailConnectionUserDataContributor (EMAIL-2, ADR-V002)
         };
 
         var options = new DbContextOptionsBuilder<AppDbContext>()
@@ -457,6 +458,10 @@ public class ArchitectureTests
         {
             // WebhookSender, the only dynamic-URL sender, injects the guard. App allowlist (FX-1, ADR-V006):
             ["ExchangeRateApiClient.cs"] = "destination = the configured vendor host (ExchangeRate:BaseUrl) + API key + two currency codes validated as ^[A-Z]{3}$ — nothing tenant-supplied reaches the URL",
+            // EMAIL-2/3 (ADR-V016): fixed provider hosts only — nothing user-supplied reaches a URL.
+            ["MailConsentService.cs"] = "destination = the two fixed IdP token endpoints (login.microsoftonline.com/{configured tenant}, oauth2.googleapis.com); the code/refresh token travel in the form body",
+            ["GraphEmailReader.cs"] = "destination = graph.microsoft.com only — folder ids are URL-escaped path segments and the @odata.nextLink is followed only when its host is graph.microsoft.com",
+            ["GmailEmailReader.cs"] = "destination = gmail.googleapis.com only — message ids are URL-escaped path segments, the search string is a query value",
         };
 
         var send = new Regex(

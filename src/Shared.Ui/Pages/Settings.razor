@@ -99,6 +99,15 @@
         </div>
     </div>
 
+    @* ── Email inboxes (EMAIL-2/3, ADR-V002) — the user's own, not the household's. ── *@
+    <div class="card shadow-sm mt-4" data-testid="email-card">
+        <div class="card-body">
+            <h2 class="h6 fw-bold mb-1">@Localizer["Email_SettingsTitle"]</h2>
+            <p class="small text-muted mb-3">@Localizer["Email_SettingsHint"]</p>
+            <a class="btn btn-outline-primary btn-sm" href="/email" data-testid="email-link">@Localizer["Email_SettingsLink"]</a>
+        </div>
+    </div>
+
     @* ── Notification preferences (NOTIFY-2, ADR-013) ── *@
     <NotificationPrefsCard />
 

@@ -1562,3 +1562,21 @@ identifier anywhere. Rejected alternative: `YElVuelto.*` namespaces — C# ident
 hyphens, so "y-el-vuelto everywhere" would have introduced a fourth spelling. **Postman:** the
 collection ("Vuelto API") and environments sync into the **same Perezosoft workspace** as the
 platform's — one workspace for every downstream app, distinguished by name.
+
+**ADR-V016 — Mail-consent secrets ride the platform key ring; the consent callback is the one anonymous feature route. (2026-09-03; port slice P9b, from donor US-026/US-037 + ADR-0016)**
+The donor protected `EmailConnection` tokens with its own AES-256-GCM key (`EMAIL_TOKEN_ENCRYPTION_KEY`)
+and signed the OAuth `state` with an HMAC secret (`CONSENT_STATE_SECRET`, falling back to the JWT
+secret). On the platform both become **Data Protection** payloads — tokens under the purpose
+`Vuelto.Mail.Tokens.v1`, the state under `Vuelto.Mail.ConsentState.v1` as a **time-limited** (15 min)
+protector. The key ring is already persisted in the database and shared by every API instance, so there
+is **no new secret** to provision, rotate or leak, and a payload from another purpose or key ring fails
+closed. The consent apps are the platform's own `Authentication:Microsoft` / `Authentication:Google`
+credentials (tenant default `consumers`, mirroring the login handler) — an unconfigured provider answers
+`provider_not_configured`. The consent **callback** lives inside the `/api/email/connections` tenant
+feature group with `.AllowAnonymous()` on that one endpoint: the IdP redirect carries no JWT, and the
+signed, expiring state IS the authorization — the same shape as the platform's anonymous
+`/api/files/{token}` (ADR-010). Everything else in the group keeps the tenant-API policy, and the entity
+stays user-keyed (ADR-V002) with an `IUserDataContributor` for erasure. **Consequences:** the readers and
+the consent service are R76-allowlisted senders with fixed provider hosts (Graph's `nextLink` is followed
+only while it stays on graph.microsoft.com); `.env.example` gains nothing; a Data Protection key-ring
+reset (never done in normal operation) would invalidate stored mail tokens — users simply reconnect.

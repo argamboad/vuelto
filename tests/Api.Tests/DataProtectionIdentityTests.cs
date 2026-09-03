@@ -21,6 +21,9 @@ public class DataProtectionIdentityTests
             "Template.Mfa.Secret.v1",      // MfaService — encrypted per-user TOTP secrets (AT REST)
             "Template.Files.Download.v1",  // FileDownloadTokenizer — signed download URLs
             "Template.Webhook.Secret.v1",  // WebhookSecretProtector — encrypted webhook secrets (AT REST)
+            // App purposes (EMAIL-2, ADR-V016) — mail OAuth tokens at rest + the 15-minute consent state.
+            "Vuelto.Mail.Tokens.v1",       // DataProtectionEmailTokenProtector — encrypted mail access/refresh tokens (AT REST)
+            "Vuelto.Mail.ConsentState.v1", // MailConsentService — time-limited OAuth consent state
             "template",                    // SetApplicationName — part of EVERY derivation above
         };
 

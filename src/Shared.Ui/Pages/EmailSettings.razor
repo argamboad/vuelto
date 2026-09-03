@@ -1,0 +1,333 @@
+@page "/email"
+@using System.Globalization
+@using System.Net
+@using System.Net.Http.Json
+@using System.Text.Json.Serialization
+@using Vuelto.Shared.Ui.Auth
+@inject AuthService Auth
+@inject NavigationManager Nav
+@inject HttpClient Http
+@inject IStringLocalizer<AppStrings> Localizer
+
+<PageTitle>@Localizer["Email_Title"]</PageTitle>
+
+@* EMAIL-2/3: the user's connected inboxes (ADR-V002 — yours, not the household's). Connect runs the
+   read-only consent round-trip on the API; edit changes folders/filters/cursor; disconnect stops ingestion. *@
+<div class="email-wrapper" data-testid="email-page">
+    <h1 class="h4 fw-bold mb-1">@Localizer["Email_Title"]</h1>
+    <p class="text-muted mb-3">@Localizer["Email_Subtitle"]</p>
+
+    @if (_notice is not null)
+    {
+        <div class="alert @(_noticeOk ? "alert-success" : "alert-danger") py-2" data-testid="email-notice">@_notice</div>
+    }
+
+    @if (_loading)
+    {
+        <div class="text-muted"><span class="spinner-border spinner-border-sm me-2"></span>@Localizer["Common_Loading"]</div>
+    }
+    else
+    {
+        <div class="card shadow-sm mb-3">
+            <div class="card-body">
+                @if (_connections.Count == 0)
+                {
+                    <p class="text-muted mb-0" data-testid="email-empty">@Localizer["Email_NoInboxes"]</p>
+                }
+                @foreach (var c in _connections)
+                {
+                    <div class="border-bottom pb-3 mb-3" data-testid="email-connection">
+                        <div class="d-flex align-items-start justify-content-between flex-wrap gap-2">
+                            <div>
+                                <div class="fw-semibold">
+                                    @ProviderLabel(c.Provider)
+                                    @if (!string.IsNullOrWhiteSpace(c.AccountEmail)) { <span class="text-muted"> — @c.AccountEmail</span> }
+                                </div>
+                                <div class="small text-muted">
+                                    @Localizer["Email_LastPolled"] @(c.LastPolledAt?.ToLocalTime().ToString("g", CultureInfo.CurrentCulture) ?? Localizer["Email_Never"].Value)
+                                    · @Localizer["Email_Every", c.PollingIntervalMinutes]
+                                </div>
+                            </div>
+                            <div class="d-flex align-items-center gap-2 flex-wrap">
+                                <span class="badge @(c.Status == "active" ? "text-bg-success" : "text-bg-warning")" data-testid="email-status">
+                                    @(c.Status == "active" ? Localizer["Email_Active"] : Localizer["Email_NeedsReconnect"])
+                                </span>
+                                @if (c.Status != "active")
+                                {
+                                    <button class="btn btn-sm btn-outline-warning" data-testid="email-reconnect" @onclick="() => ConnectAsync(c.Provider)" disabled="@_busy">@Localizer["Email_Reconnect"]</button>
+                                }
+                                <button class="btn btn-sm btn-outline-primary" data-testid="email-edit" @onclick="() => ToggleEditAsync(c)">@Localizer["Email_Edit"]</button>
+                                @if (_confirmDisconnect == c.Id)
+                                {
+                                    <button class="btn btn-sm btn-danger" data-testid="email-disconnect-confirm" @onclick="() => DisconnectAsync(c)" disabled="@_busy">@Localizer["Email_DisconnectConfirm"]</button>
+                                    <button class="btn btn-sm btn-outline-secondary" @onclick="() => _confirmDisconnect = null">@Localizer["Common_Cancel"]</button>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-sm btn-outline-danger" data-testid="email-disconnect" @onclick="() => _confirmDisconnect = c.Id">@Localizer["Email_Disconnect"]</button>
+                                }
+                            </div>
+                        </div>
+
+                        @if (_editingId == c.Id)
+                        {
+                            <div class="mt-3" data-testid="email-edit-form">
+                                <div class="d-flex align-items-center justify-content-between mb-1">
+                                    <label class="form-label small mb-0">@Localizer["Email_Folders"]</label>
+                                    <button class="btn btn-sm btn-link p-0" data-testid="email-load-folders" @onclick="() => LoadFoldersAsync(c)" disabled="@_loadingFolders">@Localizer["Email_LoadFolders"]</button>
+                                </div>
+                                @if (_loadingFolders)
+                                {
+                                    <div class="small text-muted mb-2"><span class="spinner-border spinner-border-sm me-1"></span>@Localizer["Common_Loading"]</div>
+                                }
+                                else if (_folderOptions.Count == 0)
+                                {
+                                    <p class="small text-muted mb-2" data-testid="email-no-folders">@(_selectedFolders.Count == 0 ? Localizer["Email_FoldersDefault"] : Localizer["Email_FoldersSelected", _selectedFolders.Count])</p>
+                                }
+                                else
+                                {
+                                    <div class="border rounded p-2 mb-2" style="max-height: 200px; overflow-y: auto;">
+                                        @foreach (var f in _folderOptions)
+                                        {
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="folder-@f.Id.GetHashCode()" data-testid="email-folder" checked="@_selectedFolders.Contains(f.Id)" @onchange="e => ToggleFolder(f.Id, e.Value is true)" />
+                                                <label class="form-check-label small" for="folder-@f.Id.GetHashCode()">@f.Name</label>
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                                <div class="row g-2">
+                                    <div class="col-12 col-md-6">
+                                        <label class="form-label small mb-1">@Localizer["Email_SenderFilters"]</label>
+                                        <input class="form-control form-control-sm" data-testid="email-senders" @bind="_edit.Senders" />
+                                    </div>
+                                    <div class="col-12 col-md-6">
+                                        <label class="form-label small mb-1">@Localizer["Email_SubjectFilters"]</label>
+                                        <input class="form-control form-control-sm" data-testid="email-subjects" @bind="_edit.Subjects" />
+                                        <div class="form-text">@Localizer["Email_FiltersHint"]</div>
+                                    </div>
+                                    <div class="col-6 col-md-3">
+                                        <label class="form-label small mb-1">@Localizer["Email_Interval"]</label>
+                                        <input type="number" min="5" max="1440" class="form-control form-control-sm" data-testid="email-interval" @bind="_edit.Interval" />
+                                    </div>
+                                    <div class="col-6 col-md-3">
+                                        <label class="form-label small mb-1">@Localizer["Email_ImportFrom"]</label>
+                                        <input type="date" class="form-control form-control-sm" data-testid="email-import-from" @bind="_edit.ImportFrom" />
+                                    </div>
+                                    <div class="col-12 col-md-6 d-flex align-items-end gap-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="unread-@c.Id" data-testid="email-unread" @bind="_edit.UnreadOnly" />
+                                            <label class="form-check-label small" for="unread-@c.Id">@Localizer["Email_UnreadOnly"]</label>
+                                        </div>
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="cursor-@c.Id" data-testid="email-ignore-cursor" @bind="_edit.IgnoreCursor" />
+                                            <label class="form-check-label small" for="cursor-@c.Id">@Localizer["Email_IgnoreCursor"]</label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="d-flex gap-2 mt-2">
+                                    <button class="btn btn-primary btn-sm" data-testid="email-save" @onclick="() => SaveAsync(c)" disabled="@_busy">@Localizer["Email_Save"]</button>
+                                    <button class="btn btn-outline-secondary btn-sm" @onclick="() => _editingId = null">@Localizer["Common_Cancel"]</button>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+
+                <h2 class="h6 fw-bold mb-2">@Localizer["Email_ConnectSection"]</h2>
+                <p class="small text-muted mb-2">@Localizer["Email_ConnectHint"]</p>
+                <div class="d-flex flex-wrap gap-2">
+                    <button class="btn btn-outline-primary" data-testid="email-connect-microsoft" @onclick='() => ConnectAsync("microsoft")' disabled="@_busy">@Localizer["Email_ConnectOutlook"]</button>
+                    <button class="btn btn-outline-primary" data-testid="email-connect-google" @onclick='() => ConnectAsync("google")' disabled="@_busy">@Localizer["Email_ConnectGmail"]</button>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private bool _loading = true;
+    private bool _busy;
+    private bool _loadingFolders;
+    private string? _notice;
+    private bool _noticeOk;
+    private Guid? _editingId;
+    private Guid? _confirmDisconnect;
+    private List<ConnectionDto> _connections = new();
+    private List<FolderDto> _folderOptions = new();
+    private HashSet<string> _selectedFolders = new(StringComparer.OrdinalIgnoreCase);
+    private readonly EditModel _edit = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
+        ReadCallbackQuery();
+        await ReloadAsync();
+    }
+
+    /// <summary>The consent callback lands back here with ?connected=provider or ?email_error=code.</summary>
+    private void ReadCallbackQuery()
+    {
+        var query = ParseQuery(new Uri(Nav.Uri).Query);
+        if (query.TryGetValue("connected", out var p)) Ok(Localizer["Email_ConnectSuccess", ProviderLabel(p)]);
+        else if (query.TryGetValue("email_error", out var e))
+            Fail(e == "already_connected" ? Localizer["Email_ConnectErrorExists"] : Localizer["Email_ConnectError"]);
+    }
+
+    private async Task ReloadAsync()
+    {
+        _loading = true;
+        try { _connections = await Http.GetFromJsonAsync<List<ConnectionDto>>("/api/email/connections") ?? new(); }
+        catch { Fail(Localizer["Email_LoadError"]); }
+        finally { _loading = false; }
+    }
+
+    private async Task ConnectAsync(string provider)
+    {
+        _busy = true; _notice = null;
+        try
+        {
+            var res = await Http.GetAsync($"/api/email/connections/authorize?provider={provider}");
+            if (res.StatusCode == HttpStatusCode.BadRequest)
+            {
+                var err = await res.Content.ReadFromJsonAsync<ErrorDto>();
+                Fail(err?.Error == "provider_not_configured" ? Localizer["Email_NotConfigured", ProviderLabel(provider)] : Localizer["Email_ConnectError"]);
+                return;
+            }
+            res.EnsureSuccessStatusCode();
+            var body = await res.Content.ReadFromJsonAsync<AuthorizeDto>();
+            Nav.NavigateTo(body!.AuthorizationUrl, forceLoad: true); // off to the IdP; it returns via the API callback
+        }
+        catch { Fail(Localizer["Email_ConnectError"]); }
+        finally { _busy = false; }
+    }
+
+    private async Task ToggleEditAsync(ConnectionDto c)
+    {
+        if (_editingId == c.Id) { _editingId = null; return; }
+        _editingId = c.Id;
+        _edit.Senders = string.Join(", ", c.SenderFilters);
+        _edit.Subjects = string.Join(", ", c.SubjectFilters);
+        _edit.UnreadOnly = c.UnreadOnly;
+        _edit.IgnoreCursor = c.IgnoreCursor;
+        _edit.Interval = c.PollingIntervalMinutes;
+        _edit.ImportFrom = _edit.OriginalImportFrom = DateOnly.FromDateTime(c.ImportFrom.ToLocalTime().DateTime);
+        _selectedFolders = new HashSet<string>(c.Folders, StringComparer.OrdinalIgnoreCase);
+        _folderOptions = new();
+        await Task.CompletedTask;
+    }
+
+    private async Task LoadFoldersAsync(ConnectionDto c)
+    {
+        _loadingFolders = true; _notice = null;
+        try
+        {
+            var res = await Http.GetAsync($"/api/email/connections/{c.Id}/folders");
+            if (res.StatusCode == HttpStatusCode.Conflict) { Fail(Localizer["Email_ReconnectToListFolders"]); return; }
+            res.EnsureSuccessStatusCode();
+            _folderOptions = await res.Content.ReadFromJsonAsync<List<FolderDto>>() ?? new();
+        }
+        catch { Fail(Localizer["Email_LoadError"]); }
+        finally { _loadingFolders = false; }
+    }
+
+    private void ToggleFolder(string id, bool on)
+    {
+        if (on) _selectedFolders.Add(id); else _selectedFolders.Remove(id);
+    }
+
+    private async Task SaveAsync(ConnectionDto c)
+    {
+        _busy = true; _notice = null;
+        try
+        {
+            var body = new
+            {
+                folders = _selectedFolders.ToArray(),
+                sender_filters = Split(_edit.Senders),
+                subject_filters = Split(_edit.Subjects),
+                unread_only = _edit.UnreadOnly,
+                ignore_cursor = _edit.IgnoreCursor,
+                // Only when the user changed the date: the stored value carries a time of day, and re-sending the
+                // date alone would round the cursor back by up to a day on every save (the backfill rule).
+                import_from = _edit.ImportFrom is { } d && d != _edit.OriginalImportFrom ? new DateTimeOffset(d.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero) : (DateTimeOffset?)null,
+                polling_interval_minutes = _edit.Interval,
+            };
+            var res = await Http.PutAsJsonAsync($"/api/email/connections/{c.Id}", body);
+            if (res.StatusCode == HttpStatusCode.BadRequest)
+            {
+                var err = await res.Content.ReadFromJsonAsync<ErrorDto>();
+                Fail(err?.Message ?? Localizer["Email_SaveError"]);
+                return;
+            }
+            res.EnsureSuccessStatusCode();
+            _editingId = null;
+            Ok(Localizer["Email_Saved"]);
+            await ReloadAsync();
+        }
+        catch { Fail(Localizer["Email_SaveError"]); }
+        finally { _busy = false; }
+    }
+
+    private async Task DisconnectAsync(ConnectionDto c)
+    {
+        _busy = true; _notice = null;
+        try
+        {
+            var res = await Http.DeleteAsync($"/api/email/connections/{c.Id}");
+            res.EnsureSuccessStatusCode();
+            _confirmDisconnect = null;
+            Ok(Localizer["Email_Disconnected"]);
+            await ReloadAsync();
+        }
+        catch { Fail(Localizer["Email_SaveError"]); }
+        finally { _busy = false; }
+    }
+
+    private static Dictionary<string, string> ParseQuery(string query)
+    {
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var pair in query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var kv = pair.Split('=', 2);
+            result[Uri.UnescapeDataString(kv[0])] = kv.Length > 1 ? Uri.UnescapeDataString(kv[1]) : "";
+        }
+        return result;
+    }
+
+    private static string[] Split(string? csv) =>
+        (csv ?? "").Split([',', ';', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    private string ProviderLabel(string provider) => provider == "google" ? Localizer["Email_Gmail"] : Localizer["Email_Outlook"];
+
+    private void Ok(string message) { _notice = message; _noticeOk = true; }
+    private void Fail(string message) { _notice = message; _noticeOk = false; }
+
+    private sealed class EditModel
+    {
+        public string Senders { get; set; } = "";
+        public string Subjects { get; set; } = "";
+        public bool UnreadOnly { get; set; } = true;
+        public bool IgnoreCursor { get; set; }
+        public int Interval { get; set; } = 15;
+        public DateOnly? ImportFrom { get; set; }
+        public DateOnly? OriginalImportFrom { get; set; }
+    }
+
+    private sealed record ConnectionDto(
+        [property: JsonPropertyName("id")] Guid Id,
+        [property: JsonPropertyName("provider")] string Provider,
+        [property: JsonPropertyName("account_email")] string? AccountEmail,
+        [property: JsonPropertyName("status")] string Status,
+        [property: JsonPropertyName("folders")] string[] Folders,
+        [property: JsonPropertyName("sender_filters")] string[] SenderFilters,
+        [property: JsonPropertyName("subject_filters")] string[] SubjectFilters,
+        [property: JsonPropertyName("unread_only")] bool UnreadOnly,
+        [property: JsonPropertyName("ignore_cursor")] bool IgnoreCursor,
+        [property: JsonPropertyName("import_from")] DateTimeOffset ImportFrom,
+        [property: JsonPropertyName("polling_interval_minutes")] int PollingIntervalMinutes,
+        [property: JsonPropertyName("last_polled_at")] DateTimeOffset? LastPolledAt);
+    private sealed record FolderDto([property: JsonPropertyName("id")] string Id, [property: JsonPropertyName("name")] string Name);
+    private sealed record AuthorizeDto([property: JsonPropertyName("authorization_url")] string AuthorizationUrl);
+    private sealed record ErrorDto([property: JsonPropertyName("error")] string Error, [property: JsonPropertyName("message")] string Message);
+}

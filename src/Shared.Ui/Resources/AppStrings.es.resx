@@ -525,4 +525,46 @@
   <data name="Reports_Exporting" xml:space="preserve"><value>Preparando…</value></data>
   <data name="Reports_ExportReady" xml:space="preserve"><value>CSV listo: {0} filas. La descarga comenzó.</value></data>
   <data name="Reports_ExportError" xml:space="preserve"><value>No se pudo exportar el CSV. Intenta de nuevo.</value></data>
+  <data name="Email_SettingsTitle" xml:space="preserve"><value>Bandejas de correo</value></data>
+  <data name="Email_SettingsHint" xml:space="preserve"><value>Conecta tu bandeja de Outlook o Gmail para que los vouchers del banco se conviertan en borradores por revisar. Solo lectura, y es tuya, no del hogar.</value></data>
+  <data name="Email_SettingsLink" xml:space="preserve"><value>Administrar bandejas</value></data>
+  <data name="Email_Title" xml:space="preserve"><value>Bandejas de correo</value></data>
+  <data name="Email_Subtitle" xml:space="preserve"><value>Conexiones de solo lectura a las bandejas que reciben tus vouchers bancarios. Nada se marca como leído, se mueve ni se borra.</value></data>
+  <data name="Email_NoInboxes" xml:space="preserve"><value>Todavía no hay bandejas conectadas.</value></data>
+  <data name="Email_LastPolled" xml:space="preserve"><value>Última revisión:</value></data>
+  <data name="Email_Never" xml:space="preserve"><value>nunca</value></data>
+  <data name="Email_Every" xml:space="preserve"><value>cada {0} min</value></data>
+  <data name="Email_Active" xml:space="preserve"><value>Activa</value></data>
+  <data name="Email_NeedsReconnect" xml:space="preserve"><value>Requiere reconectar</value></data>
+  <data name="Email_Reconnect" xml:space="preserve"><value>Reconectar</value></data>
+  <data name="Email_Edit" xml:space="preserve"><value>Editar</value></data>
+  <data name="Email_Save" xml:space="preserve"><value>Guardar</value></data>
+  <data name="Email_Saved" xml:space="preserve"><value>Guardado.</value></data>
+  <data name="Email_Disconnect" xml:space="preserve"><value>Desconectar</value></data>
+  <data name="Email_DisconnectConfirm" xml:space="preserve"><value>Sí, desconectar</value></data>
+  <data name="Email_Disconnected" xml:space="preserve"><value>Bandeja desconectada. Las transacciones importadas se conservan.</value></data>
+  <data name="Email_Folders" xml:space="preserve"><value>Carpetas a revisar</value></data>
+  <data name="Email_LoadFolders" xml:space="preserve"><value>Cargar carpetas</value></data>
+  <data name="Email_FoldersDefault" xml:space="preserve"><value>Bandeja de entrada (predeterminado). Carga las carpetas para elegir otras.</value></data>
+  <data name="Email_FoldersSelected" xml:space="preserve"><value>{0} carpeta(s) seleccionada(s). Carga las carpetas para cambiar.</value></data>
+  <data name="Email_SenderFilters" xml:space="preserve"><value>Filtros de remitente</value></data>
+  <data name="Email_SubjectFilters" xml:space="preserve"><value>Filtros de asunto</value></data>
+  <data name="Email_FiltersHint" xml:space="preserve"><value>Separados por coma. Se requiere al menos un remitente o asunto; solo se trae el correo que coincide.</value></data>
+  <data name="Email_Interval" xml:space="preserve"><value>Revisar cada (min)</value></data>
+  <data name="Email_ImportFrom" xml:space="preserve"><value>Importar correo desde</value></data>
+  <data name="Email_UnreadOnly" xml:space="preserve"><value>Solo no leídos</value></data>
+  <data name="Email_IgnoreCursor" xml:space="preserve"><value>Traer todo lo no leído (ignorar fecha)</value></data>
+  <data name="Email_ConnectSection" xml:space="preserve"><value>Conectar una bandeja</value></data>
+  <data name="Email_ConnectHint" xml:space="preserve"><value>Se te pedirá permitir acceso de solo lectura en la cuenta con la que iniciaste sesión. Una bandeja por proveedor.</value></data>
+  <data name="Email_ConnectOutlook" xml:space="preserve"><value>Conectar Outlook</value></data>
+  <data name="Email_ConnectGmail" xml:space="preserve"><value>Conectar Gmail</value></data>
+  <data name="Email_Outlook" xml:space="preserve"><value>Outlook</value></data>
+  <data name="Email_Gmail" xml:space="preserve"><value>Gmail</value></data>
+  <data name="Email_ConnectSuccess" xml:space="preserve"><value>{0} conectado. Los remitentes y asuntos del banco ya vienen prellenados; ajústalos si quieres.</value></data>
+  <data name="Email_ConnectError" xml:space="preserve"><value>No se pudo conectar la bandeja. Intenta de nuevo.</value></data>
+  <data name="Email_ConnectErrorExists" xml:space="preserve"><value>Ese proveedor ya está conectado.</value></data>
+  <data name="Email_NotConfigured" xml:space="preserve"><value>El consentimiento de correo para {0} aún no está configurado en este servidor.</value></data>
+  <data name="Email_ReconnectToListFolders" xml:space="preserve"><value>Reconecta esta bandeja para listar sus carpetas.</value></data>
+  <data name="Email_LoadError" xml:space="preserve"><value>No se pudieron cargar tus bandejas. Recarga para intentar de nuevo.</value></data>
+  <data name="Email_SaveError" xml:space="preserve"><value>No se pudieron guardar los cambios. Intenta de nuevo.</value></data>
 </root>
