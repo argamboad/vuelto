@@ -448,7 +448,8 @@ public class ArchitectureTests
         // other source scans in this class.
         var allowlisted = new Dictionary<string, string>
         {
-            // (none today — WebhookSender, the only dynamic-URL sender, injects the guard)
+            // WebhookSender, the only dynamic-URL sender, injects the guard. App allowlist (FX-1, ADR-V006):
+            ["ExchangeRateApiClient.cs"] = "destination = the configured vendor host (ExchangeRate:BaseUrl) + API key + two currency codes validated as ^[A-Z]{3}$ — nothing tenant-supplied reaches the URL",
         };
 
         var send = new Regex(

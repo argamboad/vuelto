@@ -353,4 +353,10 @@
   <data name="Catalog_ManageCategories" xml:space="preserve"><value>Administrar categorías</value></data>
   <data name="Catalog_ManageBanks" xml:space="preserve"><value>Administrar bancos</value></data>
   <data name="Catalog_BackToSettings" xml:space="preserve"><value>Volver a configuración</value></data>
+  <data name="Fx_Title" xml:space="preserve"><value>Tipo de cambio de hoy</value></data>
+  <data name="Fx_PerDollar" xml:space="preserve"><value>₡{0} por $1</value></data>
+  <data name="Fx_Live" xml:space="preserve"><value>en vivo</value></data>
+  <data name="Fx_AsOf" xml:space="preserve"><value>al {0}</value></data>
+  <data name="Fx_FromTransaction" xml:space="preserve"><value>de tu última transacción ({0})</value></data>
+  <data name="Fx_Unavailable" xml:space="preserve"><value>Tipo de cambio no disponible — inténtalo más tarde</value></data>
 </root>
