@@ -134,10 +134,12 @@ A money source (a bank or **Cash**). Soft-deleted; unique per household.
 - unique on (`tenant_id`, `name`)
 
 ### Envelope
-A savings bucket with an annual target and a reminder cadence.
-- `id`, `tenant_id`, `name`, `annual_target_crc`, `annual_target_usd`
+A savings bucket with an annual target and a reminder cadence. Soft-deleted; a catalog entry
+(`ICatalogEntry`) with two extra facts. Never seeded. Holds no balance — contributions are transactions.
+- `id`, `tenant_id`, `name`, `annual_target_crc`, `annual_target_usd` (`NUMERIC(12,2)`, either may be 0)
 - `reminder_cadence` — `monthly` | `five_week_months`
-- `is_active`
+- `is_active`, `created_at`, `updated_at`
+- unique on (`tenant_id`, `name`); the handler enforces case-insensitive uniqueness
 
 ### FixedExpense / VariableExpense *(two tables, one shape — `IExpenseLine`)*
 A budget line the dashboard compares actuals against.

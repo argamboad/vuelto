@@ -3137,6 +3137,167 @@
           ]
         }
       ]
+    },
+    {
+      "name": "14 · Envelopes",
+      "description": "ENV-1 (app slice P4, ADR-V007/V008): the household's savings envelopes — name, annual_target_crc / annual_target_usd (either may be 0), reminder_cadence monthly | five_week_months, soft delete. Same catalog rules as categories/banks: unique per household case-insensitively, 409 envelope_exists (active) or envelope_exists_inactive + existing_id + existing_name (offer Reactivate via PUT name=existing_name, is_active=true), uniform 404 for another household's id. Never seeded. Any member may read and edit.",
+      "item": [
+        {
+          "name": "List envelopes",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/envelopes?include_inactive=true",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "envelopes"
+              ],
+              "query": [
+                {
+                  "key": "include_inactive",
+                  "value": "true"
+                }
+              ]
+            },
+            "description": "Active by default; include_inactive=true for the management screen. A fresh household gets []. Captures the first id into {{envelopeId}}."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "const items = pm.response.json();",
+                  "if (Array.isArray(items) && items.length) pm.environment.set('envelopeId', items[0].id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create envelope",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman envelope\",\n  \"annual_target_crc\": 718000,\n  \"annual_target_usd\": 0,\n  \"reminder_cadence\": \"five_week_months\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/envelopes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "envelopes"
+              ]
+            },
+            "description": "201 with the envelope (cadence normalized to lower-case, name trimmed). Re-run → 409 envelope_exists; after deactivating it → 409 envelope_exists_inactive + existing_id + existing_name."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"201 or 409 on re-run\", () => pm.expect(pm.response.code).to.be.oneOf([201, 409]));",
+                  "if (pm.response.code === 201) pm.environment.set('envelopeId', pm.response.json().id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create envelope — invalid (400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Bad cadence\",\n  \"annual_target_crc\": 100,\n  \"annual_target_usd\": 0,\n  \"reminder_cadence\": \"whenever\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/envelopes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "envelopes"
+              ]
+            },
+            "description": "400 invalid_request; the message names the field (reminder_cadence must be monthly or five_week_months). Also 400: blank name, name over 100 characters, a negative target."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"error code\", () => pm.expect(pm.response.json().error).to.eql('invalid_request'));",
+                  "pm.test(\"names the field\", () => pm.expect(pm.response.json().message).to.include('reminder_cadence'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update envelope (retarget / recadence / deactivate / reactivate)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman envelope\",\n  \"annual_target_crc\": 750000,\n  \"annual_target_usd\": 0,\n  \"reminder_cadence\": \"monthly\",\n  \"is_active\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/envelopes/{{envelopeId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "envelopes",
+                "{{envelopeId}}"
+              ]
+            },
+            "description": "200 with the envelope. is_active=false deactivates (soft delete — no DELETE route); is_active=true reactivates. Renaming onto another envelope's name → 409 envelope_exists; an id from another household → 404."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"cadence\", () => pm.expect(pm.response.json().reminder_cadence).to.be.oneOf(['monthly', 'five_week_months']));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
     }
   ]
 }

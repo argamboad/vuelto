@@ -1332,6 +1332,51 @@ covered by `Api.Tests`; the last-transaction tier becomes manually testable once
 
 ---
 
+## 10g. Web — Envelopes (app slice ENV-1) 🟠
+
+> Savings buckets with an annual target (₡ and/or $) and a reminder cadence (ADR-V007), managed
+> like the other catalogs (ADR-V008): unique per household, deactivate instead of delete, the
+> inactive-clash **Reactivate** offer. Never seeded — a fresh household starts empty.
+
+### QA-ENV-01 — Create an envelope with targets and a reminder; duplicates are refused 🟠 (Web / API)
+**Gherkin**
+```gherkin
+Given I am on /envelopes (Settings → Catalog → Manage envelopes) in a fresh household
+Then I see the empty-state message
+When I click New envelope, type "Marchamo", ₡718000, "Only on 5-week months" and Create
+Then "Marchamo" appears with ₡718,000.00, $0.00, "Only on 5-week months" and an Active badge
+When I try to create "MARCHAMO"
+Then I see "An envelope named 'Marchamo' already exists" and nothing is created
+When I type a negative target
+Then the form refuses it before calling the API
+```
+**Walkthrough:** **Settings → Catalog → Manage envelopes** → **Expected:** "No envelopes yet…".
+**New envelope** → name `Marchamo`, **Annual target (₡)** `718000`, **Reminder** "Only on 5-week
+months" → **Create** → **Expected:** "Created." and the row with both targets and the reminder.
+Repeat with `MARCHAMO` → **Expected:** the red message in the form, no new row, no **Reactivate**.
+Type `-5` in a target → **Create** → **Expected:** "Targets cannot be negative." and no request.
+Via Postman (**14 · Envelopes → Create envelope**) → 201; re-send → 409 `envelope_exists`;
+**Create envelope — invalid (400)** → `invalid_request` naming `reminder_cadence`.
+
+### QA-ENV-02 — Edit, deactivate, then the inactive clash restores it 🟠 (Web / API)
+**Gherkin**
+```gherkin
+Given "Marchamo" exists and is active
+When I Edit it, change the target to ₡750000, switch Active off and Save
+Then it shows Inactive with the new target
+When I try to create "marchamo" with ₡800000
+Then I see the warning with a Reactivate button, and clicking it makes "Marchamo" Active with ₡800,000.00
+And a PUT to an envelope id from another household returns 404
+```
+**Walkthrough:** **Edit** on Marchamo → target `750000` → **Active** off → **Save** → **Expected:**
+"Updated.", Inactive badge, ₡750,000.00. **New envelope** → `marchamo`, `800000` → **Create** →
+**Expected:** yellow "…already exists but is inactive — reactivate it?" with **Reactivate**. Click it
+→ **Expected:** "Updated.", **Marchamo** (stored spelling) Active with ₡800,000.00. Via Postman
+(**14 · Envelopes → Update envelope**) with an id copied from a *different* household's list →
+**Expected:** 404 (never 403 — no existence oracle).
+
+---
+
 ## 11. Emails (Mailpit) — branding & content 🟠
 
 > **Delivery is asynchronous** (the outbox dispatcher) — emails land in Mailpit a few seconds after the
@@ -2313,6 +2358,7 @@ app fires no published events. (Published events via `IWebhookPublisher` also lo
 | Budget settings (app BUDGET-1) | BUD-01..03 | `GET /api/budget-settings`, `PUT /api/budget-settings` (400 `invalid_request`; household-wide, member-editable) |
 | Catalog: categories + banks (app CATALOG-1/2) | CAT-01..04 | `GET/POST /api/categories`, `PUT /api/categories/{id}`, same under `/api/banks` (409 `*_exists` / `*_exists_inactive` + `existing_id` + `existing_name`; uniform 404) |
 | Exchange rate (app FX-1) | FX-01..02 + `Api.Tests` (`ExchangeRateApiClientTests`, `ExchangeRateResolverTests`) | `GET /api/exchange-rate` (200 `{rate, source: live\|cache\|transaction, as_of}`; 503 `exchange_rate_unavailable`; 401 anonymous) |
+| Envelopes (app ENV-1) | ENV-01..02 | `GET/POST /api/envelopes`, `PUT /api/envelopes/{id}` (400 `invalid_request`; 409 `envelope_exists` / `envelope_exists_inactive` + `existing_id` + `existing_name`; uniform 404) |
 | Emails / branding | MAIL-01..04, I18N-04 | (SMTP via Mailpit) |
 | Tenant isolation / auth guards | SEC-01..05 | (all `[Authorize]` endpoints; write-stamping + reuse detection are automated) |
 | Platform health / readiness | SMK-07 | `GET /health`, `GET /health/ready` |
@@ -2419,6 +2465,8 @@ Record one row per executed case. Build = API/web commit SHA (`git rev-parse --s
 | QA-CAT-04 | Web | | | | | |
 | QA-FX-01 | Web | | | | | |
 | QA-FX-02 | Web | | | | | |
+| QA-ENV-01 | Web | | | | | |
+| QA-ENV-02 | Web | | | | | |
 | … | | | | | | |
 
 **§14a adversarial / tenant-isolation (QA-ADV-*).** All rows are **Not-run** (blank) until executed.
