@@ -90,6 +90,8 @@ public class AppDbContext : DbContext, IDataProtectionKeyContext
     public DbSet<Week> Weeks => Set<Week>();
     public DbSet<Transaction> Transactions => Set<Transaction>();
     public DbSet<Refund> Refunds => Set<Refund>();
+    public DbSet<FixedExpense> FixedExpenses => Set<FixedExpense>();
+    public DbSet<VariableExpense> VariableExpenses => Set<VariableExpense>();
 
     // Tenant isolation is structural in BOTH directions: the global query filter (below)
     // scopes reads, and this interceptor scopes writes — stamping the current tenant onto

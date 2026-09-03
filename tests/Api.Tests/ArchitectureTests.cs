@@ -124,6 +124,8 @@ public class ArchitectureTests
             nameof(Week),                                   // LedgerDataContributor
             nameof(Transaction),                            // LedgerDataContributor
             nameof(Refund),                                 // LedgerDataContributor (app slice LEDGER-3)
+            nameof(FixedExpense),                           // FixedExpenseDataContributor (app slice EXPENSES-1)
+            nameof(VariableExpense),                        // VariableExpenseDataContributor (app slice EXPENSES-1)
             nameof(AuditEvent),                             // AuditDataContributor
             nameof(Subscription),                           // BillingDataContributor
             nameof(ApiKey),                                 // ApiKeyDataContributor
