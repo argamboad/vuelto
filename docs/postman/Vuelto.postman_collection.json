@@ -4730,6 +4730,38 @@
           ]
         },
         {
+          "name": "Sync now",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/email/connections/{{emailConnectionId}}/sync",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "email",
+                "connections",
+                "{{emailConnectionId}}",
+                "sync"
+              ]
+            },
+            "description": "EMAIL-4: stage this inbox's matching mail immediately (read -> parse -> inert drafts in the owner's CURRENT household, deduped by fingerprint). 200 { staged, duplicates, unrecognized }; 409 needs_reconsent when the token is dead (the row is flagged); 404 for an unknown or another user's id. Mail is never marked read: a re-run reports the same emails under duplicates. The background email-poll job does the same on each connection's own interval."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200, 409 or 404\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404, 409]));",
+                  "if (pm.response.code === 200) pm.test(\"counts\", () => pm.expect(pm.response.json()).to.have.all.keys('staged', 'duplicates', 'unrecognized'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
           "name": "Delete connection",
           "request": {
             "method": "DELETE",

@@ -567,4 +567,9 @@
   <data name="Email_ReconnectToListFolders" xml:space="preserve"><value>Reconecta esta bandeja para listar sus carpetas.</value></data>
   <data name="Email_LoadError" xml:space="preserve"><value>No se pudieron cargar tus bandejas. Recarga para intentar de nuevo.</value></data>
   <data name="Email_SaveError" xml:space="preserve"><value>No se pudieron guardar los cambios. Intenta de nuevo.</value></data>
+  <data name="Email_SyncNow" xml:space="preserve"><value>Sincronizar ahora</value></data>
+  <data name="Email_Syncing" xml:space="preserve"><value>Sincronizando…</value></data>
+  <data name="Email_SyncResult" xml:space="preserve"><value>Sincronización lista: {0} para revisar, {1} ya vistos, {2} no eran vouchers.</value></data>
+  <data name="Email_SyncError" xml:space="preserve"><value>No se pudo sincronizar esta bandeja. Intenta de nuevo.</value></data>
+  <data name="Email_ReconnectToSync" xml:space="preserve"><value>Reconecta esta bandeja para sincronizarla.</value></data>
 </root>

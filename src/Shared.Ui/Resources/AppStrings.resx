@@ -567,4 +567,9 @@
   <data name="Email_ReconnectToListFolders" xml:space="preserve"><value>Reconnect this inbox to list its folders.</value></data>
   <data name="Email_LoadError" xml:space="preserve"><value>Couldn't load your inboxes. Refresh to try again.</value></data>
   <data name="Email_SaveError" xml:space="preserve"><value>Couldn't save the changes. Try again.</value></data>
+  <data name="Email_SyncNow" xml:space="preserve"><value>Sync now</value></data>
+  <data name="Email_Syncing" xml:space="preserve"><value>Syncing…</value></data>
+  <data name="Email_SyncResult" xml:space="preserve"><value>Sync done — {0} staged for review, {1} already seen, {2} not a voucher.</value></data>
+  <data name="Email_SyncError" xml:space="preserve"><value>Couldn't sync this inbox. Try again.</value></data>
+  <data name="Email_ReconnectToSync" xml:space="preserve"><value>Reconnect this inbox to sync it.</value></data>
 </root>

@@ -1726,6 +1726,33 @@ filters message. Second account (**Update connection** with the first user's id)
 
 ---
 
+## 10m. Web — Email ingestion: staging & dedup (app slice EMAIL-4) 🟠
+
+> Voucher emails become inert review drafts in the owner's current household (ADR-V010) — nothing in the
+> budget until confirmed (EMAIL-6). Needs a live-connected inbox (QA-EMAIL-02) with at least one real
+> BAC/BN voucher email that matches the filters.
+
+### QA-EMAIL-04 — Sync now stages drafts once, dedups re-fetches, and a dead inbox says so 🟠 (Web / API)
+**Gherkin**
+```gherkin
+Given a connected inbox with two unread BAC voucher emails received after "Import mail from"
+When I click Sync now
+Then "Sync done — 2 staged for review, 0 already seen, K not a voucher." and Last checked updates to now
+When I click Sync now again
+Then "0 staged for review, 2 already seen" — the same emails never stage twice
+When the inbox needs reconnecting (token revoked at the provider)
+Then Sync now shows "Reconnect this inbox to sync it." and the row turns Needs reconnect
+```
+**Walkthrough:** **Settings → Manage inboxes** → **Sync now** → **Expected:** the green summary with the
+counts; the emails stay **unread** in the mailbox. **Sync now** again → **Expected:** the same count now
+under "already seen". Via Postman (**21 · Email inboxes → Sync now**) → 200 `{ staged, duplicates,
+unrecognized }`; (**Get connection**) → `last_polled_at` moved to the sync time. Revoke the app's access
+in the provider's account settings → **Sync now** → **Expected:** the reconnect message, badge **Needs
+reconnect**, Postman → 409 `needs_reconsent`. The drafts become visible in EMAIL-6's Review queue; until
+then confirm via SQL that `PendingVouchers` holds the rows with `status = pending`.
+
+---
+
 ## 11. Emails (Mailpit) — branding & content 🟠
 
 > **Delivery is asynchronous** (the outbox dispatcher) — emails land in Mailpit a few seconds after the
@@ -2714,6 +2741,7 @@ app fires no published events. (Published events via `IWebhookPublisher` also lo
 | Dashboard (app DASH-1) | DASH-01..02 + `Core.Tests` (`DashboardSummaryServiceTests`, 45 donor cases) + `Api.Tests` (`DashboardSliceTests`) | `GET /api/months/{id}/summary` (200 `{month, exchange_rate, rate_source, rate_as_of, rate_unavailable, summary}`; 401 anonymous; uniform 404) |
 | Reports: category analysis + CSV export (app REPORTS-1/2) | REP-01..02 + `Core.Tests` (`CategoryAnalysisCalculatorTests`, `TransactionCsvWriterTests`) + `Api.Tests` (`ReportSliceTests`) | `GET /api/reports/category-analysis`, `POST /api/reports/transactions/export` (`month_id` \| `from`+`to`; 400 `period_required` / `period_ambiguous` / `period_incomplete` / `period_invalid`; uniform 404; export → signed `download_url` served by `GET /api/files/{token}`) |
 | Email inboxes: connect + readers (app EMAIL-2/3) | EMAIL-01..03 + `Api.Tests` (`MailConsentServiceTests`, `EmailReaderTests`, `EmailConnectionSliceTests`) | `GET /api/email/connections` (+ `/{id}`, `/{id}/folders` 409 `needs_reconsent`), `GET …/authorize?provider=` (400 `invalid_provider` / `provider_not_configured`), anonymous `GET …/callback` (→ `/email?connected=` \| `?email_error=`), `GET …/suggested-filters`, `POST …` (400 `use_consent_flow`), `PUT /{id}` (400 `filters_required` / `invalid_interval`), `DELETE /{id}`; uniform 404 |
+| Email ingestion: staging + dedup (app EMAIL-4) | EMAIL-04 + `Core.Tests` (`VoucherFingerprintTests`) + `Api.Tests` (`VoucherStagingSliceTests` incl. the poll job) | `POST /api/email/connections/{id}/sync` (200 `{staged, duplicates, unrecognized}`; 409 `needs_reconsent`; uniform 404); the `email-poll` scheduled job |
 | Emails / branding | MAIL-01..04, I18N-04 | (SMTP via Mailpit) |
 | Tenant isolation / auth guards | SEC-01..05 | (all `[Authorize]` endpoints; write-stamping + reuse detection are automated) |
 | Platform health / readiness | SMK-07 | `GET /health`, `GET /health/ready` |
@@ -2838,6 +2866,7 @@ Record one row per executed case. Build = API/web commit SHA (`git rev-parse --s
 | QA-EMAIL-01 | Web | | | | | |
 | QA-EMAIL-02 | Web | | | | | |
 | QA-EMAIL-03 | Web | | | | | |
+| QA-EMAIL-04 | Web | | | | | |
 | … | | | | | | |
 
 **§14a adversarial / tenant-isolation (QA-ADV-*).** All rows are **Not-run** (blank) until executed.

@@ -135,6 +135,22 @@ public class EmailReaderTests(PostgresFixture fixture) : PostgresTestBase(fixtur
     }
 
     [Fact]
+    public async Task Graph_Fetch_FlagsNeedsReconsent_WhenTheStoredTokenCannotBeUnprotected()
+    {
+        var (db, conn, _) = await SeedAsync(EmailProviders.Microsoft, ["Inbox"]);
+        conn.AccessToken = "not-from-this-key-ring"; db.Update(conn); await db.SaveChangesAsync(); db.ChangeTracker.Clear();
+        conn = await db.EmailConnections.SingleAsync(c => c.Id == conn.Id);
+        var handler = new QueueHandler();
+
+        var result = await Graph(db, handler, new FakeConsent()).FetchAsync(conn);
+
+        Assert.True(result.NeedsReconsent);
+        Assert.Empty(handler.Requests); // never called the provider
+        db.ChangeTracker.Clear();
+        Assert.Equal(EmailConnectionStatuses.NeedsReconsent, (await db.EmailConnections.SingleAsync(c => c.Id == conn.Id)).Status);
+    }
+
+    [Fact]
     public async Task Graph_Fetch_SkipsQuietly_OnTransient429()
     {
         var (db, conn, _) = await SeedAsync(EmailProviders.Microsoft, ["Inbox"]);

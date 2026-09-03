@@ -69,9 +69,22 @@ public abstract class OAuthEmailReader(IEmailTokenProtector tokens, IMailConsent
     /// <summary>Runs a provider call with the connection's token; on a 401 refreshes once and retries, flagging needs-reconsent if that still fails.</summary>
     private async Task<(bool Ok, T? Value)> WithAuthAsync<T>(EmailConnection connection, Func<string, CancellationToken, Task<T>> call, CancellationToken cancellationToken)
     {
+        string accessToken;
         try
         {
-            return (true, await call(tokens.Unprotect(connection.AccessToken), cancellationToken));
+            accessToken = tokens.Unprotect(connection.AccessToken);
+        }
+        catch (System.Security.Cryptography.CryptographicException ex)
+        {
+            // A token that no longer unprotects (key-ring reset, foreign purpose) is a dead connection, not a crash:
+            // flag it so the user reconnects (ADR-V016).
+            logger.LogWarning(ex, "Stored token for {Provider} connection {Id} cannot be unprotected; flagging needs-reconsent", Provider, connection.Id);
+            await MarkNeedsReconsentAsync(connection, cancellationToken);
+            return (false, default);
+        }
+        try
+        {
+            return (true, await call(accessToken, cancellationToken));
         }
         catch (MailUnauthorizedException)
         {

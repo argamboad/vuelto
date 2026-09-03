@@ -45,6 +45,12 @@ public record NewEmailConnection(
     string[] SenderFilters,
     string[] SubjectFilters);
 
+/// <summary>"Sync now" summary (EMAIL-4).</summary>
+public record SyncResultResponse(
+    [property: JsonPropertyName("staged")] int Staged,
+    [property: JsonPropertyName("duplicates")] int Duplicates,
+    [property: JsonPropertyName("unrecognized")] int Unrecognized);
+
 public record AuthorizeResponse([property: JsonPropertyName("authorization_url")] string AuthorizationUrl);
 
 public record FolderResponse([property: JsonPropertyName("id")] string Id, [property: JsonPropertyName("name")] string Name);

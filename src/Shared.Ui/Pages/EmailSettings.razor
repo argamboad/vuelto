@@ -56,6 +56,7 @@
                                 {
                                     <button class="btn btn-sm btn-outline-warning" data-testid="email-reconnect" @onclick="() => ConnectAsync(c.Provider)" disabled="@_busy">@Localizer["Email_Reconnect"]</button>
                                 }
+                                <button class="btn btn-sm btn-outline-primary" data-testid="email-sync" @onclick="() => SyncNowAsync(c)" disabled="@_busy">@(_syncingId == c.Id ? Localizer["Email_Syncing"] : Localizer["Email_SyncNow"])</button>
                                 <button class="btn btn-sm btn-outline-primary" data-testid="email-edit" @onclick="() => ToggleEditAsync(c)">@Localizer["Email_Edit"]</button>
                                 @if (_confirmDisconnect == c.Id)
                                 {
@@ -152,6 +153,7 @@
     private string? _notice;
     private bool _noticeOk;
     private Guid? _editingId;
+    private Guid? _syncingId;
     private Guid? _confirmDisconnect;
     private List<ConnectionDto> _connections = new();
     private List<FolderDto> _folderOptions = new();
@@ -200,6 +202,23 @@
         }
         catch { Fail(Localizer["Email_ConnectError"]); }
         finally { _busy = false; }
+    }
+
+    /// <summary>EMAIL-4 "Sync now": stage this inbox's matching mail immediately; drafts land in the Review queue.</summary>
+    private async Task SyncNowAsync(ConnectionDto c)
+    {
+        _busy = true; _syncingId = c.Id; _notice = null;
+        try
+        {
+            var res = await Http.PostAsync($"/api/email/connections/{c.Id}/sync", null);
+            if (res.StatusCode == HttpStatusCode.Conflict) { Fail(Localizer["Email_ReconnectToSync"]); return; }
+            res.EnsureSuccessStatusCode();
+            var r = (await res.Content.ReadFromJsonAsync<SyncDto>())!;
+            Ok(Localizer["Email_SyncResult", r.Staged, r.Duplicates, r.Unrecognized]);
+            await ReloadAsync();
+        }
+        catch { Fail(Localizer["Email_SyncError"]); }
+        finally { _busy = false; _syncingId = null; }
     }
 
     private async Task ToggleEditAsync(ConnectionDto c)
@@ -327,6 +346,7 @@
         [property: JsonPropertyName("import_from")] DateTimeOffset ImportFrom,
         [property: JsonPropertyName("polling_interval_minutes")] int PollingIntervalMinutes,
         [property: JsonPropertyName("last_polled_at")] DateTimeOffset? LastPolledAt);
+    private sealed record SyncDto([property: JsonPropertyName("staged")] int Staged, [property: JsonPropertyName("duplicates")] int Duplicates, [property: JsonPropertyName("unrecognized")] int Unrecognized);
     private sealed record FolderDto([property: JsonPropertyName("id")] string Id, [property: JsonPropertyName("name")] string Name);
     private sealed record AuthorizeDto([property: JsonPropertyName("authorization_url")] string AuthorizationUrl);
     private sealed record ErrorDto([property: JsonPropertyName("error")] string Error, [property: JsonPropertyName("message")] string Message);

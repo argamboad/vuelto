@@ -1455,6 +1455,13 @@ request. Outbound `HttpClient`s to Graph/Gmail/token endpoints are fixed hosts, 
 blank in a queue, never corrupt budget data; the platform already provides the scheduler,
 encryption, isolation and unit-of-work this needs.
 
+> **As built (P10a, 2026-09-03):** staging is `VoucherStagingService` in the Email slice; the connection is
+> user-keyed, so the service resolves the owner's *current* household and `EnterTenant`s it before writing —
+> RLS and the stamping interceptor scope the drafts. The poller is `EmailPollJob`, an `IScheduledJob` on the
+> platform scheduler (no bespoke `BackgroundService`). The donor's cursor rules (transient hold, 7-day poison
+> drop, saturation resume) carried over verbatim. A stored token that no longer unprotects flags the
+> connection `needs_reconsent` instead of failing the cycle (ADR-V016).
+
 **ADR-V011 — UI is rebuilt in the platform's Bootstrap RCL; MudBlazor is not brought over; brand tokens are indigo + gold. (2026-09-02; port decision D1)**
 The donor's 6,382 razor lines (MudBlazor 9) are rewritten page by page, in slice order, as
 Bootstrap 5.3 components in `Shared.Ui` — the platform deliberately carries no component library,
