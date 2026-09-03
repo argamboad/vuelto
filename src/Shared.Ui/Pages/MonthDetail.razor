@@ -29,7 +29,10 @@
                 <h1 class="h4 fw-bold mb-1" data-testid="month-title">@MonthLabel(_month.Year, _month.MonthNumber)</h1>
                 <p class="text-muted mb-0">@Localizer["Month_Window", _month.WeekCount, _month.Weeks!.First().StartDate.ToString("d", CultureInfo.CurrentCulture), _month.Weeks!.Last().EndDate.ToString("d", CultureInfo.CurrentCulture)]</p>
             </div>
-            <a class="btn btn-primary" href="/transactions/new" data-testid="month-new-tx">@Localizer["Months_NewTransaction"]</a>
+            <div class="d-flex gap-2">
+                <a class="btn btn-outline-primary" href="/dashboard/@Id" data-testid="month-dashboard-link">@Localizer["Nav_Dashboard"]</a>
+                <a class="btn btn-primary" href="/transactions/new" data-testid="month-new-tx">@Localizer["Months_NewTransaction"]</a>
+            </div>
         </div>
 
         @if (_notice is not null)

@@ -464,4 +464,40 @@
   <data name="Budget_Empty" xml:space="preserve"><value>Aún no hay líneas: agrega la primera.</value></data>
   <data name="Budget_LoadError" xml:space="preserve"><value>No se pudieron cargar las líneas de presupuesto. Recarga para intentar de nuevo.</value></data>
   <data name="Budget_ReorderError" xml:space="preserve"><value>No se pudieron reordenar las líneas. La lista se recargó.</value></data>
+  <data name="Nav_Dashboard" xml:space="preserve"><value>Tablero</value></data>
+  <data name="Dash_Title" xml:space="preserve"><value>Tablero</value></data>
+  <data name="Dash_EmptyTitle" xml:space="preserve"><value>Aún no hay nada que mostrar</value></data>
+  <data name="Dash_EmptySubtitle" xml:space="preserve"><value>Los meses aparecen con su primera transacción. Registra una y el tablero se llena.</value></data>
+  <data name="Dash_LoadError" xml:space="preserve"><value>No se pudo cargar el tablero. Recarga para intentar de nuevo.</value></data>
+  <data name="Dash_MonthDetails" xml:space="preserve"><value>Detalle del mes</value></data>
+  <data name="Dash_RateUnavailable" xml:space="preserve"><value>No se pudo resolver un tipo de cambio, así que las proyecciones están bloqueadas. Registra una transacción con tipo de cambio, o configura la clave del proveedor, y recarga.</value></data>
+  <data name="Dash_Income" xml:space="preserve"><value>Ingresos</value></data>
+  <data name="Dash_Total" xml:space="preserve"><value>Total</value></data>
+  <data name="Dash_Expenses" xml:space="preserve"><value>Gastos</value></data>
+  <data name="Dash_Card" xml:space="preserve"><value>Tarjeta de crédito</value></data>
+  <data name="Dash_Account" xml:space="preserve"><value>Cuenta bancaria</value></data>
+  <data name="Dash_Remainder" xml:space="preserve"><value>Restante</value></data>
+  <data name="Dash_RateNote" xml:space="preserve"><value>Los gastos reales suman cada compra a su propio tipo de cambio congelado, así que las columnas ₡ y $ no coinciden con un solo tipo de cambio.</value></data>
+  <data name="Dash_Balance" xml:space="preserve"><value>Balance</value></data>
+  <data name="Dash_CurrentBalance" xml:space="preserve"><value>Balance actual</value></data>
+  <data name="Dash_ForDebts" xml:space="preserve"><value>Restante para deudas</value></data>
+  <data name="Dash_PendingBudgeted" xml:space="preserve"><value>Presupuestado pendiente</value></data>
+  <data name="Dash_ActualRemainder" xml:space="preserve"><value>Restante real</value></data>
+  <data name="Dash_Line" xml:space="preserve"><value>Línea</value></data>
+  <data name="Dash_Budgeted" xml:space="preserve"><value>Presupuestado</value></data>
+  <data name="Dash_Actual" xml:space="preserve"><value>Real</value></data>
+  <data name="Dash_NoLines" xml:space="preserve"><value>No hay líneas activas: agrégalas en Presupuesto.</value></data>
+  <data name="Dash_OtherSpending" xml:space="preserve"><value>Otros gastos</value></data>
+  <data name="Dash_OtherSpendingHint" xml:space="preserve"><value>Gasto en categorías que ninguna línea de presupuesto activa cubre.</value></data>
+  <data name="Dash_Weekly" xml:space="preserve"><value>Semana a semana</value></data>
+  <data name="Dash_Week" xml:space="preserve"><value>Semana</value></data>
+  <data name="Dash_UnplannedAndRefunds" xml:space="preserve"><value>Imprevistos y reembolsos</value></data>
+  <data name="Dash_RefundsExpected" xml:space="preserve"><value>Reembolsos aún esperados</value></data>
+  <data name="Dash_RefundsHint" xml:space="preserve"><value>Los imprevistos cuentan en los gastos; los reembolsos esperados son informativos hasta que llegan como ingreso.</value></data>
+  <data name="Dash_Envelopes" xml:space="preserve"><value>Recordatorios de sobres</value></data>
+  <data name="Dash_NoEnvelopes" xml:space="preserve"><value>No hay recordatorios de sobres este mes.</value></data>
+  <data name="Dash_Target" xml:space="preserve"><value>Meta anual</value></data>
+  <data name="Dash_Contributed" xml:space="preserve"><value>Aportado este mes</value></data>
+  <data name="Dash_Remaining" xml:space="preserve"><value>Restante</value></data>
+  <data name="Dash_BankMethod" xml:space="preserve"><value>Por banco y método de pago</value></data>
 </root>
