@@ -50,13 +50,16 @@ jobs:
           # NB: not "UID" — that's a readonly bash built-in (the runner's user id); assigning it dies.
           COLLECTION_UID="$(curl -sf "${AUTH[@]}" "$API/collections?workspace=$WORKSPACE_ID" \
                  | jq -r --arg n "$NAME" '[.collections[] | select(.name == $n)][0].uid // empty')"
-          BODY="$(jq -n --slurpfile c "$FILE" '{collection: $c[0]}')"
+          # Bodies go through a FILE, never an inline argument: a real collection (100 KB+) exceeds the
+          # kernel's argument-length limit and curl dies with "Argument list too long" (exit 126).
+          BODY_FILE="$RUNNER_TEMP/collection-body.json"
+          jq -n --slurpfile c "$FILE" '{collection: $c[0]}' > "$BODY_FILE"
           if [ -n "$COLLECTION_UID" ]; then
             echo "Updating collection '$NAME' ($COLLECTION_UID)…"
-            curl -sf "${AUTH[@]}" -X PUT "$API/collections/$COLLECTION_UID" -d "$BODY" > /dev/null
+            curl -sf "${AUTH[@]}" -X PUT "$API/collections/$COLLECTION_UID" --data-binary "@$BODY_FILE" > /dev/null
           else
             echo "Creating collection '$NAME'…"
-            curl -sf "${AUTH[@]}" -X POST "$API/collections?workspace=$WORKSPACE_ID" -d "$BODY" > /dev/null
+            curl -sf "${AUTH[@]}" -X POST "$API/collections?workspace=$WORKSPACE_ID" --data-binary "@$BODY_FILE" > /dev/null
           fi
 
           # ── Environments (one file per deploy target) ─────────────────────────────
@@ -65,13 +68,14 @@ jobs:
             ENV_NAME="$(jq -r '.name' "$f")"
             ENV_UID="$(echo "$ENVS_JSON" \
                        | jq -r --arg n "$ENV_NAME" '[.environments[] | select(.name == $n)][0].uid // empty')"
-            ENV_BODY="$(jq '{environment: {name: .name, values: .values}}' "$f")"
+            ENV_BODY_FILE="$RUNNER_TEMP/environment-body.json"
+            jq '{environment: {name: .name, values: .values}}' "$f" > "$ENV_BODY_FILE"
             if [ -n "$ENV_UID" ]; then
               echo "Updating environment '$ENV_NAME' ($ENV_UID)…"
-              curl -sf "${AUTH[@]}" -X PUT "$API/environments/$ENV_UID" -d "$ENV_BODY" > /dev/null
+              curl -sf "${AUTH[@]}" -X PUT "$API/environments/$ENV_UID" --data-binary "@$ENV_BODY_FILE" > /dev/null
             else
               echo "Creating environment '$ENV_NAME'…"
-              curl -sf "${AUTH[@]}" -X POST "$API/environments?workspace=$WORKSPACE_ID" -d "$ENV_BODY" > /dev/null
+              curl -sf "${AUTH[@]}" -X POST "$API/environments?workspace=$WORKSPACE_ID" --data-binary "@$ENV_BODY_FILE" > /dev/null
             fi
           done
           echo "Postman workspace is in sync with docs/postman/."
