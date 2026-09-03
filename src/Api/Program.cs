@@ -18,6 +18,7 @@ using Vuelto.Api.Features.Ledger;
 using Vuelto.Api.Observability;
 using Vuelto.Api.Services;
 using Vuelto.Core.Abstractions;
+using Vuelto.Core.Mail;
 using Vuelto.Core.Budget;
 using Vuelto.Infrastructure;
 using Vuelto.Infrastructure.ExchangeRate;
@@ -140,6 +141,9 @@ builder.Services.AddScoped<DashboardHandler>();
 builder.Services.AddScoped<ReportHandler>();                                            // REPORTS-1/2
 builder.Services.AddScoped<EmailConnectionHandler>();                                   // EMAIL-2 (user-keyed, ADR-V002)
 builder.Services.AddScoped<IUserDataContributor, EmailConnectionUserDataContributor>();
+builder.Services.AddScoped<IVoucherStagingService, VoucherStagingService>();          // EMAIL-4 (staging with the tenant hop)
+builder.Services.AddScoped<IScheduledJob, EmailPollJob>();                              // EMAIL-4 (poller on the platform scheduler)
+builder.Services.AddScoped<ITenantDataContributor, VoucherStagingDataContributor>();
 
 // Caches + session (LinkTokenService uses IMemoryCache; session backed by distributed cache).
 builder.Services.AddMemoryCache();

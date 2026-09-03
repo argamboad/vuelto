@@ -175,8 +175,63 @@ contributor, HTTP `EmailEndpointTests` incl. the anonymous callback redirects); 
 regenerated PDFs; EN/ES resx; Settings card; ADR-V016; merged. **Live consent against Microsoft/Google is
 the IdP boundary — verified manually (QA-EMAIL-02).**
 
-### EMAIL-4 — Staging pipeline & dedup 🔲
+### EMAIL-4 — Staging pipeline & dedup ✅
+
+**As the** household
+**I want** voucher emails turned into inert review drafts automatically, without duplicates and without touching the mailbox
+**So that** nothing lands in the budget until someone confirms it
+
+**Context / notes:** two household-scoped tables (RLS): `PendingVoucher` (the parsed draft + resolved bank +
+room for a suggestion, `pending` → `confirmed` | `discarded`) and `IngestedVoucher` (the dedup tombstone,
+unique on `(TenantId, Fingerprint)`). `VoucherFingerprint` = SHA-256 of bank | authorization ?? reference |
+amount | date; both ids blank → the provider message id; nothing at all → null (stage anyway — under-dedup
+is recoverable). **The tenant hop:** a connection is user-keyed, so `VoucherStagingService` resolves the
+owner's *current* household and enters that tenant before staging — the stamping interceptor and RLS then
+scope every draft (ADR-V002/V010). Bank resolved by name (`BAC Credomatic`, `Banco Nacional`) with a
+Cash / Efectivo fallback; a household with no banks gets the defaults seeded in the owner's locale first (a
+concurrent seed is absorbed). Unrecognized mail is skipped. **Cursor rules:** held at the oldest transient
+failure so it retries next poll (dedup covers the re-fetch), poison mail older than 7 days is dropped and
+never stalls, a saturated page resumes from the newest fetched message minus the overlap, otherwise the
+cursor advances to the poll start; a reconsent result stages nothing and leaves the cursor alone. A failed
+save is detached so the next message is unaffected. **The poller** is `EmailPollJob`, an `IScheduledJob`
+on the platform scheduler (1-minute interval) that stages each active connection due by its own interval,
+isolating a throwing one. **"Sync now"** (`POST /api/email/connections/{id}/sync`) runs the same staging
+on demand → `{ staged, duplicates, unrecognized }` or 409 `needs_reconsent`. Both tables are wiped on
+dissolve and drafts exported (`pending_vouchers`). Suggestions stay blank until EMAIL-5; the review queue is
+EMAIL-6.
+
+```gherkin
+Scenario: A voucher email becomes an inert draft in the owner's household
+  Given a Microsoft connection owned by a member of household H, and one BAC voucher email
+  When the poller (or Sync now) runs with no ambient tenant
+  Then a pending draft exists in H with the parsed bank/merchant/amount/currency/date/auth/reference, the resolved bank and no suggestion
+  And a tombstone exists with the same fingerprint; no month and no transaction exist
+
+Scenario: Dedup per household, and the tombstone outlives the draft
+  When the same unread email is fetched again → duplicates 1, still one draft
+  When the draft is discarded and the email is fetched again → still not re-staged
+  When another household stages the same fingerprint → it stages there
+
+Scenario: Bank resolution
+  Then a BAC voucher maps to "BAC Credomatic" when the household has it, else to Cash
+  Given a household with no banks and a Spanish-locale owner → Efectivo + the CR banks are seeded first and the draft resolves BAC
+
+Scenario: Cursor rules
+  Given m1 (2h ago) succeeds and m2 (1h ago) fails transiently → last_polled_at = m2's received time; the retry stages m2 and dedups m1
+  Given the reader saturated its page cap with the newest message at 1h ago → last_polled_at = that time − 5 min, never "now"
+  Given a message older than 7 days keeps failing → it is dropped and the cursor advances
+  Given needs_reconsent → nothing staged, cursor unchanged
+
+Scenario: The poller
+  Given connections due (last polled 20 min ago at a 15-min interval), never polled (due from import_from), not due, and needs_reconsent
+  When the job runs → only the due and never-polled ones stage; a throwing connection is logged and the others still run; cancellation propagates
+
+Scenario: Sync now
+  When I click Sync now on my inbox → "Sync done — N staged for review, M already seen, K not a voucher."
+  When the inbox needs reconnecting → "Reconnect this inbox to sync it." (409)
+```
+
 ### EMAIL-5 — Merchant → category suggestions 🔲
 ### EMAIL-6 — Review queue & confirm 🔲
 
-*(EMAIL-4..6 are authored as they land — P10.)*
+*(EMAIL-5/6 are authored as they land — P10b.)*

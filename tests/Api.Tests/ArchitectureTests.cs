@@ -127,6 +127,7 @@ public class ArchitectureTests
             nameof(Refund),                                 // LedgerDataContributor (app slice LEDGER-3)
             nameof(FixedExpense),                           // FixedExpenseDataContributor (app slice EXPENSES-1)
             nameof(VariableExpense),                        // VariableExpenseDataContributor (app slice EXPENSES-1)
+            nameof(PendingVoucher), nameof(IngestedVoucher), // VoucherStagingDataContributor (app slice EMAIL-4)
             nameof(AuditEvent),                             // AuditDataContributor
             nameof(Subscription),                           // BillingDataContributor
             nameof(ApiKey),                                 // ApiKeyDataContributor

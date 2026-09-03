@@ -114,6 +114,18 @@ public static class EmailEndpoints
             return c is null ? NotFound() : Results.Ok(EmailConnectionResponse.From(c));
         });
 
+        // POST /{id}/sync — "Sync now": stage this connection's matching mail immediately (EMAIL-4).
+        group.MapPost("/{id:guid}/sync", async (Guid id, ClaimsPrincipal user, EmailConnectionHandler handler, IVoucherStagingService staging, CancellationToken ct) =>
+        {
+            if (user.GetUserId() is not { } uid) return Results.Unauthorized();
+            var c = await handler.GetAsync(uid, id, ct);
+            if (c is null) return NotFound();
+            var result = await staging.StageConnectionAsync(c, ct);
+            return result.NeedsReconsent
+                ? Results.Conflict(new ErrorResponse("needs_reconsent", "Reconnect this inbox to sync."))
+                : Results.Ok(new SyncResultResponse(result.Staged, result.Duplicates, result.Unrecognized));
+        });
+
         group.MapDelete("/{id:guid}", async (Guid id, ClaimsPrincipal user, EmailConnectionHandler handler, CancellationToken ct) =>
         {
             if (user.GetUserId() is not { } uid) return Results.Unauthorized();

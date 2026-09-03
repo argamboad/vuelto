@@ -103,6 +103,24 @@ public class EmailSettingsPageTests : ComponentTestBase
     }
 
     [Fact]
+    public async Task SyncNow_PostsTheSync_AndShowsTheCounts_OrTheReconnectMessage()
+    {
+        await SignInAsync();
+        Http.On(HttpMethod.Get, "/api/email/connections", List);
+        Http.On(HttpMethod.Post, $"/api/email/connections/{C1}/sync", """{"staged":2,"duplicates":1,"unrecognized":3}""");
+        Http.On(HttpMethod.Post, $"/api/email/connections/{C2}/sync", """{"error":"needs_reconsent","message":"x"}""", HttpStatusCode.Conflict);
+
+        var cut = Render<EmailSettings>();
+        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("[data-testid='email-sync']").Count));
+        cut.FindAll("[data-testid='email-sync']")[0].Click();
+        cut.WaitForAssertion(() => Assert.Contains("Email_SyncResult[2, 1, 3]", cut.Find("[data-testid='email-notice']").TextContent));
+        Assert.Single(Http.Requests, r => r.Method == HttpMethod.Post && r.RequestUri!.AbsolutePath == $"/api/email/connections/{C1}/sync");
+
+        cut.FindAll("[data-testid='email-sync']")[1].Click();
+        cut.WaitForAssertion(() => Assert.Contains("Email_ReconnectToSync", cut.Find("[data-testid='email-notice']").TextContent));
+    }
+
+    [Fact]
     public async Task Disconnect_IsTwoStep_ThenDeletesAndReloads()
     {
         await SignInAsync();

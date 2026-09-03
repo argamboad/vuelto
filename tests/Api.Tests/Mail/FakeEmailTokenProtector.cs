@@ -8,5 +8,5 @@ public sealed class FakeEmailTokenProtector : IEmailTokenProtector
     public string Protect(string plaintext) => "p:" + plaintext;
 
     public string Unprotect(string protectedValue) =>
-        protectedValue.StartsWith("p:", StringComparison.Ordinal) ? protectedValue[2..] : throw new InvalidOperationException("not protected by this fake");
+        protectedValue.StartsWith("p:", StringComparison.Ordinal) ? protectedValue[2..] : throw new System.Security.Cryptography.CryptographicException("not protected by this fake");
 }
