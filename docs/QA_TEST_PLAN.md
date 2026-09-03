@@ -1553,6 +1553,61 @@ click → **Expected:** "Updated.", **Water** (stored spelling) Active with ₡2
 
 ---
 
+## 10j. Web — Dashboard (app slice DASH-1) 🟠
+
+> The month at a glance (ADR-V004/V006/V007): every figure a ₡/$ pair. Actuals sum each transaction's
+> frozen amounts; projections (income conversion, budget display, pending budgeted, remainder for debts)
+> use the rate resolved through the chain. No rate → projections are blocked, never guessed.
+
+### QA-DASH-01 — The dashboard reflects income, lines vs actuals, other spending and the balance 🟠 (Web / API)
+**Gherkin**
+```gherkin
+Given a household with fixed line Mortgage ₡350,000 (Housing, BAC, Bank account) and no other lines
+And June transactions: Mortgage ₡300,000 bank account on Jun 5, and a ₡10,000 Unplanned lunch on Jun 12 in category Dining
+When I open Dashboard (nav)
+Then the newest month loads with "4 weeks · 28/5/2026 – 24/6/2026" and the rate line
+And Income shows the month's income converted at the rate; Expenses shows Bank account ₡300,000.00, Credit card ₡10,000.00, Total ₡310,000.00
+And Fixed expenses shows Mortgage — Budgeted ₡350,000.00 · $700.00 — Actual ₡300,000.00 in green
+And Other spending lists Dining ₡10,000.00; Unplanned essentials shows ₡10,000.00
+And Week by week shows the mortgage in week 2; By bank and payment method shows BAC / Bank account budget ₡350,000 actual ₡300,000
+When I Edit Mortgage's budget down to ₡250,000 and reload the dashboard
+Then Mortgage's actual turns red (over budget) and Pending budgeted drops to ₡0.00
+```
+**Walkthrough:** **Budget** → add fixed `Mortgage` `350000` CRC, Housing, BAC, Bank account. **New
+transaction** → `Bank`, `300000` CRC, Housing, BAC, Bank account, `2026-06-05`, Budgeted → **Save**.
+**New transaction** → `Soda`, `10000` CRC, Dining, BAC, Credit card, `2026-06-12`, Unplanned → **Save**.
+Nav **Dashboard** → **Expected:** June 2026 with the weeks line and "₡… per $1 …"; the three cards; the
+Fixed table with Mortgage's actual in **green**; **Other spending** with Dining; **Unplanned essentials
+& refunds** ₡10,000.00; **Week by week** 4 rows, week 2 = ₡300,000.00 budgeted; **By bank and payment
+method** BAC · Bank account and Unassigned · Credit card (the lunch has no line). **Budget** → **Edit**
+Mortgage → `250000` → **Save** → **Dashboard** → **Expected:** actual ₡300,000.00 now **red**; **Pending
+budgeted** ₡0.00. Via Postman (**19 · Dashboard → Month summary**) → 200 with `exchange_rate`,
+`rate_source`, `summary.fixed_expenses[0].actual.crc = 300000`.
+
+### QA-DASH-02 — Month selector, entry points, empty state, and the blocked projections when no rate resolves 🟠 (Web / API)
+**Gherkin**
+```gherkin
+Given months June and July 2026 exist
+When I open /dashboard → July (newest) loads; I pick June in the selector → the URL becomes /dashboard/{june id} and June loads
+When I click Month details → /months/{id}; on the month page, Dashboard → back to /dashboard/{id}
+Given a brand-new household with no transactions
+When I open Dashboard → "Nothing to show yet" with New transaction
+Given the provider key is unset and the household has no transaction yet (no rate resolves)
+When I GET /api/months/{id}/summary for a month created by another path → rate_unavailable true, summary null
+```
+**Walkthrough:** add a July transaction (`2026-07-10`). **Dashboard** → **Expected:** July 2026 first; the
+selector lists both months; pick **June 2026** → **Expected:** the URL ends in June's id and the June
+figures show. **Month details** → **Expected:** `/months/{id}` (June). **Dashboard** button there →
+**Expected:** back on June's dashboard. Sign in as a fresh household (or wipe) → **Dashboard** →
+**Expected:** "Nothing to show yet" + **New transaction**. Rate-unavailable: with `ExchangeRate__ApiKey`
+empty, stop the API, restart it (empty cache), and in a household whose only transaction was just
+deleted there is nothing to resolve — via Postman (**13 · Exchange rate → Current rate**) → 503; the
+dashboard page for a remaining month shows the red "No exchange rate could be resolved…" block and no
+figures, while the month title and buttons stay. Postman (**19 · Dashboard → Month summary**) with an
+unknown id → 404.
+
+---
+
 ## 11. Emails (Mailpit) — branding & content 🟠
 
 > **Delivery is asynchronous** (the outbox dispatcher) — emails land in Mailpit a few seconds after the
@@ -2538,6 +2593,7 @@ app fires no published events. (Published events via `IWebhookPublisher` also lo
 | Months & transactions (app LEDGER-1/2) | LED-01..04 + `Api.Tests` (`LedgerSliceTests`) | `GET /api/months`, `GET /api/months/resolve?date=`, `GET /api/months/{id}`, `PUT /api/months/{id}/income`, `GET /api/months/{id}/transactions`; `POST /api/transactions`, `GET/PUT/DELETE /api/transactions/{id}` (400 `invalid_request` / `exchange_rate_unavailable` / `derived_transaction`; uniform 404) |
 | Expected refunds & realization (app LEDGER-3) | LED-05..06 + `Api.Tests` (`RefundSliceTests`, incl. the two-context concurrency proof) | `refund_expected` / `refund_percentage` on `POST/PUT /api/transactions`; `GET /api/months/{id}/refunds`; `PUT /api/refunds/{id}` (200; 400 `invalid_request`; 404; 409 `refund_status_conflict`) |
 | Budget lines: fixed + variable (app EXPENSES-1) | EXP-01..03 | `GET/POST /api/expenses/{fixed\|variable}`, `PUT …/{id}`, `PUT …/order` (400 `invalid_request`; 409 `expense_exists` / `expense_exists_inactive` + `existing_id` + `existing_name`; uniform 404) |
+| Dashboard (app DASH-1) | DASH-01..02 + `Core.Tests` (`DashboardSummaryServiceTests`, 45 donor cases) + `Api.Tests` (`DashboardSliceTests`) | `GET /api/months/{id}/summary` (200 `{month, exchange_rate, rate_source, rate_as_of, rate_unavailable, summary}`; 401 anonymous; uniform 404) |
 | Emails / branding | MAIL-01..04, I18N-04 | (SMTP via Mailpit) |
 | Tenant isolation / auth guards | SEC-01..05 | (all `[Authorize]` endpoints; write-stamping + reuse detection are automated) |
 | Platform health / readiness | SMK-07 | `GET /health`, `GET /health/ready` |
@@ -2655,6 +2711,8 @@ Record one row per executed case. Build = API/web commit SHA (`git rev-parse --s
 | QA-EXP-01 | Web | | | | | |
 | QA-EXP-02 | Web | | | | | |
 | QA-EXP-03 | Web | | | | | |
+| QA-DASH-01 | Web | | | | | |
+| QA-DASH-02 | Web | | | | | |
 | … | | | | | | |
 
 **§14a adversarial / tenant-isolation (QA-ADV-*).** All rows are **Not-run** (blank) until executed.

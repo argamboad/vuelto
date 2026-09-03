@@ -1,0 +1,343 @@
+@page "/dashboard"
+@page "/dashboard/{Id:guid}"
+@using System.Globalization
+@using System.Net
+@using System.Net.Http.Json
+@using System.Text.Json.Serialization
+@using Vuelto.Shared.Ui.Auth
+@inject AuthService Auth
+@inject NavigationManager Nav
+@inject HttpClient Http
+@inject IStringLocalizer<AppStrings> Localizer
+
+<PageTitle>@Localizer["Dash_Title"]</PageTitle>
+
+@* DASH-1: the month at a glance (ADR-V004/V006/V007). Actuals are frozen per transaction; projections use the
+   resolved rate; when no rate resolves the projections are blocked, never guessed. Green under budget, red over. *@
+<div class="dash-wrapper" data-testid="dash-page">
+    @if (_loading)
+    {
+        <div class="text-muted"><span class="spinner-border spinner-border-sm me-2"></span>@Localizer["Common_Loading"]</div>
+    }
+    else if (_months.Count == 0)
+    {
+        <div class="text-center py-5" data-testid="dash-empty">
+            <h1 class="h4 fw-bold mb-2">@Localizer["Dash_EmptyTitle"]</h1>
+            <p class="text-muted mb-4">@Localizer["Dash_EmptySubtitle"]</p>
+            <a class="btn btn-primary" href="/transactions/new" data-testid="dash-new-tx">@Localizer["Months_NewTransaction"]</a>
+        </div>
+    }
+    else if (_dash is null)
+    {
+        <div class="alert alert-danger" data-testid="dash-error">@(_error ?? Localizer["Dash_LoadError"])</div>
+    }
+    else
+    {
+        <div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
+            <div>
+                <h1 class="h4 fw-bold mb-1" data-testid="dash-title">@MonthLabel(_dash.Month.Year, _dash.Month.MonthNumber)</h1>
+                <p class="text-muted mb-1 small">
+                    @Localizer["Month_Window", _dash.Month.WeekCount, _dash.Month.Week1StartDate.ToString("d", CultureInfo.CurrentCulture), _dash.Month.LastDay.ToString("d", CultureInfo.CurrentCulture)]
+                    @if (_dash.ExchangeRate is { } r)
+                    {
+                        <span data-testid="dash-rate"> · @Localizer["Fx_PerDollar", r.ToString("N2", CultureInfo.CurrentCulture)]
+                            @(_dash.RateSource == "live" ? Localizer["Fx_Live"] : _dash.RateSource == "cache" ? Localizer["Fx_AsOf", When(_dash.RateAsOf)] : Localizer["Fx_FromTransaction", When(_dash.RateAsOf)])</span>
+                    }
+                </p>
+                <select class="form-select form-select-sm w-auto" data-testid="dash-month" @onchange="OnMonthSelected">
+                    @foreach (var m in _months)
+                    {
+                        <option value="@m.Id" selected="@(m.Id == _dash.Month.Id)">@MonthLabel(m.Year, m.MonthNumber)</option>
+                    }
+                </select>
+            </div>
+            <div class="d-flex gap-2">
+                <a class="btn btn-outline-primary" href="/months/@_dash.Month.Id" data-testid="dash-month-link">@Localizer["Dash_MonthDetails"]</a>
+                <a class="btn btn-primary" href="/transactions/new" data-testid="dash-new-tx">@Localizer["Months_NewTransaction"]</a>
+            </div>
+        </div>
+
+        @if (_dash.RateUnavailable || _dash.Summary is null)
+        {
+            <div class="alert alert-danger" data-testid="dash-rate-unavailable">@Localizer["Dash_RateUnavailable"]</div>
+        }
+        else
+        {
+            var s = _dash.Summary;
+            <div class="row g-3">
+                <div class="col-12 col-md-4">
+                    <div class="card shadow-sm h-100" data-testid="dash-income">
+                        <div class="card-body">
+                            <h2 class="h6 fw-bold mb-3">@Localizer["Dash_Income"]</h2>
+                            @Row(Localizer["Month_PrimaryIncome"], s.IncomePrimary)
+                            @Row(Localizer["Month_SecondaryIncome"], s.IncomeSecondary)
+                            <hr class="my-2" />
+                            @Row(Localizer["Dash_Total"], s.IncomeTotal, bold: true)
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-4">
+                    <div class="card shadow-sm h-100" data-testid="dash-expenses">
+                        <div class="card-body">
+                            <h2 class="h6 fw-bold mb-3">@Localizer["Dash_Expenses"]</h2>
+                            @Row(Localizer["Dash_Card"], s.ExpensesCard)
+                            @Row(Localizer["Dash_Account"], s.ExpensesAccount)
+                            <hr class="my-2" />
+                            @Row(Localizer["Dash_Total"], s.ExpensesTotal, bold: true)
+                            @Row(Localizer["Dash_Remainder"], s.ExpensesRemainder, tone: Tone(s.ExpensesRemainder))
+                            <div class="form-text">@Localizer["Dash_RateNote"]</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-4">
+                    <div class="card shadow-sm h-100" data-testid="dash-balance">
+                        <div class="card-body">
+                            <h2 class="h6 fw-bold mb-3">@Localizer["Dash_Balance"]</h2>
+                            @Row(Localizer["Dash_CurrentBalance"], s.CurrentBalance, tone: Tone(s.CurrentBalance))
+                            @Row(Localizer["Dash_ForDebts"], s.RemainderForDebts, tone: Tone(s.RemainderForDebts))
+                            @Row(Localizer["Dash_PendingBudgeted"], s.PendingBudgeted)
+                            <hr class="my-2" />
+                            @Row(Localizer["Dash_ActualRemainder"], s.ActualRemainder, bold: true, tone: Tone(s.ActualRemainder))
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12 col-lg-6">@LinesTable(Localizer["Budget_Fixed"], s.FixedExpenses, "dash-fixed")</div>
+                <div class="col-12 col-lg-6">@LinesTable(Localizer["Budget_Variable"], s.VariableExpenses, "dash-variable")</div>
+
+                @if (s.OtherSpending.Count > 0)
+                {
+                    <div class="col-12 col-lg-6">
+                        <div class="card shadow-sm" data-testid="dash-other">
+                            <div class="card-body">
+                                <h2 class="h6 fw-bold mb-2">@Localizer["Dash_OtherSpending"]</h2>
+                                <p class="small text-muted mb-2">@Localizer["Dash_OtherSpendingHint"]</p>
+                                <table class="table table-sm mb-0">
+                                    <tbody>
+                                        @foreach (var c in s.OtherSpending)
+                                        {
+                                            <tr data-testid="dash-other-row"><td>@c.CategoryName</td><td class="text-end">@Money(c.Actual)</td></tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                <div class="col-12 col-lg-6">
+                    <div class="card shadow-sm" data-testid="dash-weekly">
+                        <div class="card-body">
+                            <h2 class="h6 fw-bold mb-2">@Localizer["Dash_Weekly"]</h2>
+                            <table class="table table-sm mb-0">
+                                <thead><tr><th>@Localizer["Dash_Week"]</th><th class="text-end">@Localizer["Tx_Budgeted"]</th><th class="text-end">@Localizer["Tx_Extraordinary"]</th></tr></thead>
+                                <tbody>
+                                    @for (var i = 0; i < s.WeeklyBudgeted.Count; i++)
+                                    {
+                                        var wb = s.WeeklyBudgeted[i];
+                                        var we = i < s.WeeklyExtraordinary.Count ? s.WeeklyExtraordinary[i].Total : new MoneyDto(0, 0);
+                                        <tr data-testid="dash-week-row">
+                                            <td><span class="fw-semibold">@Localizer["Month_Week", wb.WeekNumber]</span> <span class="text-muted small">@wb.StartDate.ToString("d", CultureInfo.CurrentCulture) – @wb.EndDate.ToString("d", CultureInfo.CurrentCulture)</span></td>
+                                            <td class="text-end">@Money(wb.Total)</td>
+                                            <td class="text-end">@Money(we)</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12 col-lg-6">
+                    <div class="card shadow-sm" data-testid="dash-unplanned">
+                        <div class="card-body">
+                            <h2 class="h6 fw-bold mb-3">@Localizer["Dash_UnplannedAndRefunds"]</h2>
+                            @Row(Localizer["Tx_Unplanned"], s.UnplannedEssentialTotal)
+                            @Row(Localizer["Dash_RefundsExpected"], s.RefundsTotal)
+                            <div class="form-text">@Localizer["Dash_RefundsHint"]</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12 col-lg-6">
+                    <div class="card shadow-sm" data-testid="dash-envelopes">
+                        <div class="card-body">
+                            <h2 class="h6 fw-bold mb-2">@Localizer["Dash_Envelopes"]</h2>
+                            @if (s.EnvelopeReminders.Count == 0)
+                            {
+                                <p class="text-muted small mb-0">@Localizer["Dash_NoEnvelopes"]</p>
+                            }
+                            else
+                            {
+                                <table class="table table-sm mb-0">
+                                    <thead><tr><th>@Localizer["Tx_Envelope"]</th><th class="text-end">@Localizer["Dash_Target"]</th><th class="text-end">@Localizer["Dash_Contributed"]</th><th class="text-end">@Localizer["Dash_Remaining"]</th></tr></thead>
+                                    <tbody>
+                                        @foreach (var e in s.EnvelopeReminders)
+                                        {
+                                            <tr data-testid="dash-envelope-row"><td>@e.Name</td><td class="text-end">@Money(e.AnnualTarget)</td><td class="text-end">@Money(e.ContributedThisMonth)</td><td class="text-end">@Money(e.Remaining)</td></tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            }
+                        </div>
+                    </div>
+                </div>
+
+                @if (s.BankMethodBreakdown.Count > 0)
+                {
+                    <div class="col-12">
+                        <div class="card shadow-sm" data-testid="dash-banks">
+                            <div class="card-body">
+                                <h2 class="h6 fw-bold mb-2">@Localizer["Dash_BankMethod"]</h2>
+                                <div class="table-responsive">
+                                    <table class="table table-sm mb-0">
+                                        <thead><tr><th>@Localizer["Tx_Bank"]</th><th>@Localizer["Tx_PaymentMethod"]</th><th class="text-end">@Localizer["Dash_Budgeted"]</th><th class="text-end">@Localizer["Dash_Actual"]</th></tr></thead>
+                                        <tbody>
+                                            @foreach (var b in s.BankMethodBreakdown)
+                                            {
+                                                <tr data-testid="dash-bank-row">
+                                                    <td>@(b.BankId is null ? Localizer["Budget_Unassigned"] : b.BankName)</td>
+                                                    <td>@(b.PaymentMethod == "bank_account" ? Localizer["Tx_BankAccount"] : Localizer["Tx_CreditCard"])</td>
+                                                    <td class="text-end">@Money(b.Budget)</td>
+                                                    <td class="text-end @OverTone(b.Budget, b.Actual)">@Money(b.Actual)</td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    }
+</div>
+
+@code {
+    [Parameter] public Guid? Id { get; set; }
+
+    private bool _loading = true;
+    private string? _error;
+    private List<MonthDto> _months = new();
+    private DashDto? _dash;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
+        try
+        {
+            _months = await Http.GetFromJsonAsync<List<MonthDto>>("/api/months") ?? new();
+            if (_months.Count == 0) return;
+            var id = Id is { } given && _months.Any(m => m.Id == given) ? given : _months[0].Id; // newest first
+            await LoadAsync(id);
+        }
+        catch { _error = Localizer["Dash_LoadError"]; }
+        finally { _loading = false; }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!_loading && Id is { } id && _dash is not null && _dash.Month.Id != id) await LoadAsync(id);
+    }
+
+    private async Task LoadAsync(Guid id)
+    {
+        try
+        {
+            var res = await Http.GetAsync($"/api/months/{id}/summary");
+            if (res.StatusCode == HttpStatusCode.NotFound) { _dash = null; _error = Localizer["Month_NotFound"]; return; }
+            res.EnsureSuccessStatusCode();
+            _dash = await res.Content.ReadFromJsonAsync<DashDto>();
+        }
+        catch { _dash = null; _error = Localizer["Dash_LoadError"]; }
+    }
+
+    private void OnMonthSelected(ChangeEventArgs e)
+    {
+        if (Guid.TryParse(e.Value?.ToString(), out var id)) Nav.NavigateTo($"/dashboard/{id}");
+    }
+
+    private RenderFragment Row(string label, MoneyDto value, bool bold = false, string? tone = null) => __builder =>
+    {
+        <div class="d-flex justify-content-between gap-2 small @(bold ? "fw-bold" : null)">
+            <span>@label</span>
+            <span class="text-end @tone">@Money(value)</span>
+        </div>
+    };
+
+    private RenderFragment LinesTable(string title, List<LineDto> lines, string testId) => __builder =>
+    {
+        <div class="card shadow-sm h-100" data-testid="@testId">
+            <div class="card-body">
+                <h2 class="h6 fw-bold mb-2">@title</h2>
+                @if (lines.Count == 0)
+                {
+                    <p class="text-muted small mb-0">@Localizer["Dash_NoLines"]</p>
+                }
+                else
+                {
+                    <table class="table table-sm mb-0">
+                        <thead><tr><th>@Localizer["Dash_Line"]</th><th class="text-end">@Localizer["Dash_Budgeted"]</th><th class="text-end">@Localizer["Dash_Actual"]</th></tr></thead>
+                        <tbody>
+                            @foreach (var l in lines)
+                            {
+                                <tr data-testid="dash-line-row"><td>@l.Name</td><td class="text-end">@Money(l.Budget)</td><td class="text-end @OverTone(l.Budget, l.Actual)" data-testid="dash-line-actual">@Money(l.Actual)</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+        </div>
+    };
+
+    /// <summary>Semantic colour only: red when actual exceeds budget in the line's native currency, green when under. Never the brand gold.</summary>
+    private static string OverTone(MoneyDto budget, MoneyDto actual) =>
+        budget.Crc == 0 && budget.Usd == 0 ? "" : actual.Crc > budget.Crc ? "text-danger" : "text-success";
+
+    private static string Tone(MoneyDto value) => value.Crc < 0 ? "text-danger" : "text-success";
+
+    private static string Money(MoneyDto m) => $"₡{m.Crc.ToString("N2", CultureInfo.CurrentCulture)} · ${m.Usd.ToString("N2", CultureInfo.CurrentCulture)}";
+
+    private static string When(DateTimeOffset? at) => at?.ToLocalTime().ToString("g", CultureInfo.CurrentCulture) ?? "";
+
+    private static string MonthLabel(int year, int month) =>
+        $"{CultureInfo.CurrentCulture.TextInfo.ToTitleCase(CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(month))} {year}";
+
+    private sealed record MonthDto([property: JsonPropertyName("id")] Guid Id, [property: JsonPropertyName("year")] int Year, [property: JsonPropertyName("month_number")] int MonthNumber);
+    private sealed record MoneyDto([property: JsonPropertyName("crc")] decimal Crc, [property: JsonPropertyName("usd")] decimal Usd);
+    private sealed record LineDto([property: JsonPropertyName("name")] string Name, [property: JsonPropertyName("budget")] MoneyDto Budget, [property: JsonPropertyName("actual")] MoneyDto Actual);
+    private sealed record WeekDto([property: JsonPropertyName("week_number")] int WeekNumber, [property: JsonPropertyName("start_date")] DateOnly StartDate, [property: JsonPropertyName("end_date")] DateOnly EndDate, [property: JsonPropertyName("total")] MoneyDto Total);
+    private sealed record EnvelopeDto([property: JsonPropertyName("name")] string Name, [property: JsonPropertyName("annual_target")] MoneyDto AnnualTarget, [property: JsonPropertyName("contributed_this_month")] MoneyDto ContributedThisMonth, [property: JsonPropertyName("remaining")] MoneyDto Remaining, [property: JsonPropertyName("cadence")] string Cadence);
+    private sealed record OtherDto([property: JsonPropertyName("category_name")] string CategoryName, [property: JsonPropertyName("actual")] MoneyDto Actual);
+    private sealed record BankDto([property: JsonPropertyName("bank_id")] Guid? BankId, [property: JsonPropertyName("bank_name")] string BankName, [property: JsonPropertyName("payment_method")] string PaymentMethod, [property: JsonPropertyName("budget")] MoneyDto Budget, [property: JsonPropertyName("actual")] MoneyDto Actual);
+    private sealed record SummaryDto(
+        [property: JsonPropertyName("income_primary")] MoneyDto IncomePrimary,
+        [property: JsonPropertyName("income_secondary")] MoneyDto IncomeSecondary,
+        [property: JsonPropertyName("income_total")] MoneyDto IncomeTotal,
+        [property: JsonPropertyName("expenses_card")] MoneyDto ExpensesCard,
+        [property: JsonPropertyName("expenses_account")] MoneyDto ExpensesAccount,
+        [property: JsonPropertyName("expenses_total")] MoneyDto ExpensesTotal,
+        [property: JsonPropertyName("expenses_remainder")] MoneyDto ExpensesRemainder,
+        [property: JsonPropertyName("fixed_expenses")] List<LineDto> FixedExpenses,
+        [property: JsonPropertyName("variable_expenses")] List<LineDto> VariableExpenses,
+        [property: JsonPropertyName("other_spending")] List<OtherDto> OtherSpending,
+        [property: JsonPropertyName("weekly_budgeted")] List<WeekDto> WeeklyBudgeted,
+        [property: JsonPropertyName("weekly_extraordinary")] List<WeekDto> WeeklyExtraordinary,
+        [property: JsonPropertyName("current_balance")] MoneyDto CurrentBalance,
+        [property: JsonPropertyName("remainder_for_debts")] MoneyDto RemainderForDebts,
+        [property: JsonPropertyName("pending_budgeted")] MoneyDto PendingBudgeted,
+        [property: JsonPropertyName("actual_remainder")] MoneyDto ActualRemainder,
+        [property: JsonPropertyName("unplanned_essential_total")] MoneyDto UnplannedEssentialTotal,
+        [property: JsonPropertyName("refunds_total")] MoneyDto RefundsTotal,
+        [property: JsonPropertyName("envelope_reminders")] List<EnvelopeDto> EnvelopeReminders,
+        [property: JsonPropertyName("bank_method_breakdown")] List<BankDto> BankMethodBreakdown);
+    private sealed record DashMonthDto([property: JsonPropertyName("id")] Guid Id, [property: JsonPropertyName("year")] int Year, [property: JsonPropertyName("month_number")] int MonthNumber, [property: JsonPropertyName("week_count")] int WeekCount, [property: JsonPropertyName("week1_start_date")] DateOnly Week1StartDate, [property: JsonPropertyName("last_day")] DateOnly LastDay);
+    private sealed record DashDto(
+        [property: JsonPropertyName("month")] DashMonthDto Month,
+        [property: JsonPropertyName("exchange_rate")] decimal? ExchangeRate,
+        [property: JsonPropertyName("rate_source")] string? RateSource,
+        [property: JsonPropertyName("rate_as_of")] DateTimeOffset? RateAsOf,
+        [property: JsonPropertyName("rate_unavailable")] bool RateUnavailable,
+        [property: JsonPropertyName("summary")] SummaryDto? Summary);
+}

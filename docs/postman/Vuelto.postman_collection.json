@@ -4171,6 +4171,83 @@
           ]
         }
       ]
+    },
+    {
+      "name": "19 · Dashboard",
+      "description": "DASH-1 (app slice P7, ADR-V004/V006/V007): the month at a glance. GET /api/months/{id}/summary returns the month header (id, year, month_number, week_count, week1_start_date, last_day), the rate resolved through the chain (exchange_rate, rate_source live|cache|transaction, rate_as_of) and the summary — every figure a {crc, usd} pair rounded to 2 dp. Actuals sum each transaction's frozen amounts; projections (income conversion, budget display, pending_budgeted, remainder_for_debts) use the resolved rate. When nothing resolves: rate_unavailable true, exchange_rate and summary null (projections are blocked, never guessed). Uniform 404 for an unknown or foreign month. Run 15 · Months first so {{monthId}} exists.",
+      "item": [
+        {
+          "name": "Month summary",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/months/{{monthId}}/summary",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "months",
+                "{{monthId}}",
+                "summary"
+              ]
+            },
+            "description": "200 { month, exchange_rate, rate_source, rate_as_of, rate_unavailable, summary }. summary: income_primary/secondary/total, expenses_card/account/total/remainder, fixed_expenses[] + variable_expenses[] ({name, budget, actual}), other_spending[] ({category_name, actual} — expense-class spend in categories no active line backs, ₡ desc then name), weekly_budgeted[] + weekly_extraordinary[] ({week_number, start_date, end_date, total}), current_balance, remainder_for_debts, pending_budgeted, actual_remainder, unplanned_essential_total, refunds_total (pending only), envelope_reminders[] ({name, annual_target, contributed_this_month, remaining, cadence}), bank_method_breakdown[] ({bank_id (null = Unassigned, last), bank_name, payment_method, budget, actual}). 404 when the month is unknown or another household's."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200 (or 404 when no month yet)\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));",
+                  "if (pm.response.code === 200) {",
+                  "  const d = pm.response.json();",
+                  "  pm.test(\"month header\", () => pm.expect(d.month).to.have.property('week_count'));",
+                  "  pm.test(\"rate or blocked\", () => pm.expect(d.rate_unavailable ? d.summary === null : typeof d.exchange_rate === 'number').to.be.true);",
+                  "  if (d.summary) pm.test(\"reconciles\", () => {",
+                  "    const lines = [...d.summary.fixed_expenses, ...d.summary.variable_expenses].reduce((a, l) => a + l.actual.crc, 0);",
+                  "    const other = d.summary.other_spending.reduce((a, c) => a + c.actual.crc, 0);",
+                  "    pm.expect(Math.abs(lines + other - d.summary.expenses_total.crc)).to.be.below(0.01);",
+                  "  });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Month summary — unknown month (404)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/months/00000000-0000-0000-0000-000000000000/summary",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "months",
+                "00000000-0000-0000-0000-000000000000",
+                "summary"
+              ]
+            },
+            "description": "Uniform 404 not_found for an unknown id — the same answer another household's month gets (no existence oracle)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"404\", () => pm.response.to.have.status(404));",
+                  "pm.test(\"error code\", () => pm.expect(pm.response.json().error).to.eql('not_found'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
     }
   ]
 }
