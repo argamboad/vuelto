@@ -204,11 +204,13 @@ deferred items without an explicit decision.
 | `docs/REBRANDING.md` | Every brand touchpoint to replace per app — **incl. the email templates** |
 | `docs/LOCALIZATION.md` | i18n setup (EN/ES live) + how to add a language |
 | `docs/MOBILE_TESTING.md` | Run/sign-in on the Android emulator (adb reverse, OAuth) |
-| `docs/QA_TEST_PLAN.md` | Manual QA plan — step-by-step tests across web + all four native platforms (153 cases: smoke + regression + §14a v3-audit adversarial/tenant-isolation + §13c native release checklist) |
+| `docs/QA_TEST_PLAN.md` | Manual QA plan — step-by-step tests across web + all four native platforms (157 cases: smoke + regression + §14a v3-audit adversarial/tenant-isolation + §13c native release checklist) |
 | `docs/ROADMAP.md` | Sequenced plan — pillars done (JOBS/BILLING/OBS) + the next waves (RBAC, files, GDPR, MFA, …) |
 | `docs/STATUS.md` | 2026-07-04 status snapshot + operator guides — native QA pass (✅ 2026-07-14), Apple first-run smoke (MacBook walkthrough), prod activation (⤵ downstream Phase-8 runbook, ADR-017 amendment); SaaS-readiness assessment |
 | `docs/PLATFORM_BACKLOG.md` | Per-item design sketches for the future foundation slices (the detail behind ROADMAP) |
 | `docs/stories/` | User stories per epic — generated at build time |
+| `docs/stories/budget-settings.md` | epic `BUDGET` — app slice P1 (ADR-V001/V003): BUDGET-1 household budget settings (week start, month anchor, income defaults; `/api/budget-settings`; `WeekBoundaryService` in Core) — from donor US-003 / US-015 |
+| `docs/stories/catalog.md` | epic `CATALOG` — app slice P2 (ADR-V008/V009): CATALOG-1 categories + CATALOG-2 banks (soft delete, case-insensitive uniqueness, 409 reactivation offer, seed once in the caller's locale; `/api/categories`, `/api/banks`; `SeedCatalog` in Core) — from donor US-010 / US-013 / US-019 / US-047 |
 | `docs/stories/ui.md` | epic `UI` ✅ COMPLETE — **retrospective** (v3 T59, closing v2 DOC-22): the four 2026-07 web-UI slices that shipped without a story file — UI-1 GDPR export/erasure UI, UI-2 MFA UI, UI-3 notification bell/prefs UI, UI-4 staff `/admin` console; defines what QA §2 + the traceability matrix cite |
 | `docs/stories/billing.md` | epic `BILLING` ✅ COMPLETE — entitlements + Checkout + webhook + Portal (1–4) + seat/usage quotas (5, `IQuotaService`) + trial/dunning (6, `IBillingNotifier` + lapse sweep via NOTIFY) + dissolve cleanup (7, `BillingDataContributor` cancels the provider sub + wipes the projection) + billing page (8, `GET /api/billing` summary + `/billing` UI, fake-provider E2E upgrade loop) + seat re-check at invitation accept (9, 2026-07-14: downgrade left stale invites joinable past the cap → 402 `seat_limit_reached` + `/join` "household full" state, self-heals on upgrade); ADR-006 |
 | `docs/stories/async-jobs.md` | epic `JOBS` ✅ COMPLETE — outbox+dispatcher, inbox, scheduler (ADR-007) |

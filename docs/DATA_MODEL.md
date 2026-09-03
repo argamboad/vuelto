@@ -126,7 +126,7 @@ The household's budget structure. Exactly one row per tenant, created with defau
 ### Category
 A spend bucket. Soft-deleted; names are case-insensitively unique per household.
 - `id`, `tenant_id`, `name`, `is_active`
-- unique on (`tenant_id`, `lower(name)`)
+- unique on (`tenant_id`, `name`) at the DB (also serialises first-read seeding); the handler enforces case-insensitive uniqueness
 
 ### Bank
 A money source (a bank or **Cash**). Soft-deleted; unique per household.

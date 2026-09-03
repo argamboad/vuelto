@@ -320,4 +320,37 @@
   <data name="BudgetSettings_ErrLoad" xml:space="preserve"><value>No se pudo cargar la configuración del presupuesto. Recarga para intentarlo de nuevo.</value></data>
   <data name="BudgetSettings_ErrSave" xml:space="preserve"><value>No se pudo guardar la configuración del presupuesto. Inténtalo de nuevo.</value></data>
   <data name="BudgetSettings_ErrInvalid" xml:space="preserve"><value>Revisa los valores: el día debe ser de domingo a sábado, los montos no pueden ser negativos y las monedas deben ser CRC o USD.</value></data>
+  <data name="Catalog_Categories_Title" xml:space="preserve"><value>Categorías</value></data>
+  <data name="Catalog_Categories_Subtitle" xml:space="preserve"><value>Donde se clasifican tus transacciones y líneas de presupuesto. Lo comparte todo el hogar.</value></data>
+  <data name="Catalog_Categories_New" xml:space="preserve"><value>Nueva categoría</value></data>
+  <data name="Catalog_Categories_LoadError" xml:space="preserve"><value>No se pudieron cargar las categorías. Recarga para intentarlo de nuevo.</value></data>
+  <data name="Catalog_Banks_Title" xml:space="preserve"><value>Bancos</value></data>
+  <data name="Catalog_Banks_Subtitle" xml:space="preserve"><value>De dónde sale el dinero de tus transacciones: bancos y efectivo. Lo comparte todo el hogar.</value></data>
+  <data name="Catalog_Banks_New" xml:space="preserve"><value>Nuevo banco</value></data>
+  <data name="Catalog_Banks_LoadError" xml:space="preserve"><value>No se pudieron cargar los bancos. Recarga para intentarlo de nuevo.</value></data>
+  <data name="Catalog_Name" xml:space="preserve"><value>Nombre</value></data>
+  <data name="Catalog_Status" xml:space="preserve"><value>Estado</value></data>
+  <data name="Catalog_Active" xml:space="preserve"><value>Activo</value></data>
+  <data name="Catalog_Inactive" xml:space="preserve"><value>Inactivo</value></data>
+  <data name="Catalog_ActiveToggle" xml:space="preserve"><value>Activo: las entradas inactivas se conservan en las transacciones pasadas pero salen de los selectores</value></data>
+  <data name="Catalog_NewTitle" xml:space="preserve"><value>Nueva entrada</value></data>
+  <data name="Catalog_EditTitle" xml:space="preserve"><value>Editar entrada</value></data>
+  <data name="Catalog_Edit" xml:space="preserve"><value>Editar</value></data>
+  <data name="Catalog_Cancel" xml:space="preserve"><value>Cancelar</value></data>
+  <data name="Catalog_Create" xml:space="preserve"><value>Crear</value></data>
+  <data name="Catalog_Save" xml:space="preserve"><value>Guardar</value></data>
+  <data name="Catalog_Saving" xml:space="preserve"><value>Guardando…</value></data>
+  <data name="Catalog_Reactivate" xml:space="preserve"><value>Reactivar</value></data>
+  <data name="Catalog_NameRequired" xml:space="preserve"><value>El nombre es obligatorio.</value></data>
+  <data name="Catalog_NameExists" xml:space="preserve"><value>Ese nombre ya existe.</value></data>
+  <data name="Catalog_SaveError" xml:space="preserve"><value>No se pudo guardar. Inténtalo de nuevo.</value></data>
+  <data name="Catalog_ReactivateError" xml:space="preserve"><value>No se pudo reactivar. Inténtalo de nuevo.</value></data>
+  <data name="Catalog_Saved" xml:space="preserve"><value>Creado.</value></data>
+  <data name="Catalog_Updated" xml:space="preserve"><value>Actualizado.</value></data>
+  <data name="Catalog_Empty" xml:space="preserve"><value>Todavía no hay nada aquí.</value></data>
+  <data name="Catalog_SettingsTitle" xml:space="preserve"><value>Catálogo</value></data>
+  <data name="Catalog_SettingsHint" xml:space="preserve"><value>Los nombres con los que tu hogar clasifica el dinero: categorías y bancos. Desactiva en lugar de borrar: el historial conserva sus etiquetas.</value></data>
+  <data name="Catalog_ManageCategories" xml:space="preserve"><value>Administrar categorías</value></data>
+  <data name="Catalog_ManageBanks" xml:space="preserve"><value>Administrar bancos</value></data>
+  <data name="Catalog_BackToSettings" xml:space="preserve"><value>Volver a configuración</value></data>
 </root>

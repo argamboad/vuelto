@@ -1,0 +1,223 @@
+@using System.Net
+@using System.Net.Http.Json
+@using System.Text.Json.Serialization
+@inject HttpClient Http
+@inject IStringLocalizer<AppStrings> Localizer
+
+@* One soft-delete name catalog (categories or banks — CATALOG-1/2, ADR-V008): list, create, edit,
+   deactivate/reactivate, and the inactive-name-clash reactivation offer. *@
+<div class="catalog-page" data-testid="catalog-page">
+    <div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
+        <div>
+            <h1 class="h4 fw-bold mb-1">@Localizer[TitleKey]</h1>
+            <p class="text-muted mb-0">@Localizer[SubtitleKey]</p>
+        </div>
+        <button class="btn btn-primary" data-testid="catalog-new" disabled="@(_form is not null)" @onclick="OpenNew">@Localizer[NewKey]</button>
+    </div>
+
+    @if (_notice is not null)
+    {
+        <div class="alert alert-success py-2" data-testid="catalog-notice">@_notice</div>
+    }
+    @if (_error is not null)
+    {
+        <div class="alert alert-danger py-2" data-testid="catalog-error">@_error</div>
+    }
+
+    @if (_form is not null)
+    {
+        <div class="card shadow-sm mb-3" data-testid="catalog-form">
+            <div class="card-body">
+                <h2 class="h6 fw-bold mb-3">@(_form.Editing is null ? Localizer["Catalog_NewTitle"] : Localizer["Catalog_EditTitle"])</h2>
+                <div class="row g-3 align-items-end">
+                    <div class="col-12 col-md-6">
+                        <label class="form-label small fw-medium mb-1" for="catalog-name">@Localizer["Catalog_Name"]</label>
+                        <input class="form-control" id="catalog-name" data-testid="catalog-name" maxlength="100" disabled="@_saving" @bind="_form.Name" @bind:event="oninput" />
+                    </div>
+                    @if (_form.Editing is not null)
+                    {
+                        <div class="col-12 col-md-6">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="catalog-active" data-testid="catalog-active" disabled="@_saving" @bind="_form.IsActive" />
+                                <label class="form-check-label" for="catalog-active">@Localizer["Catalog_ActiveToggle"]</label>
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                @if (_form.Conflict is not null)
+                {
+                    <div class="alert alert-warning py-2 mt-3 d-flex align-items-center justify-content-between gap-2" data-testid="catalog-conflict">
+                        <span>@_form.Conflict.Message</span>
+                        <button class="btn btn-warning btn-sm" data-testid="catalog-reactivate" disabled="@_saving" @onclick="Reactivate">@Localizer["Catalog_Reactivate"]</button>
+                    </div>
+                }
+                else if (_form.Error is not null)
+                {
+                    <div class="alert alert-danger py-2 mt-3" data-testid="catalog-form-error">@_form.Error</div>
+                }
+
+                <div class="d-flex gap-2 mt-3">
+                    <button class="btn btn-primary" data-testid="catalog-save" disabled="@_saving" @onclick="Save">
+                        @(_saving ? Localizer["Catalog_Saving"] : _form.Editing is null ? Localizer["Catalog_Create"] : Localizer["Catalog_Save"])
+                    </button>
+                    <button class="btn btn-outline-secondary" data-testid="catalog-cancel" disabled="@_saving" @onclick="Cancel">@Localizer["Catalog_Cancel"]</button>
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (_loading)
+    {
+        <div class="text-muted"><span class="spinner-border spinner-border-sm me-2"></span>@Localizer["Common_Loading"]</div>
+    }
+    else if (_items.Count == 0)
+    {
+        <p class="text-muted" data-testid="catalog-empty">@Localizer["Catalog_Empty"]</p>
+    }
+    else
+    {
+        <div class="card shadow-sm">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0" data-testid="catalog-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">@Localizer["Catalog_Name"]</th>
+                            <th scope="col">@Localizer["Catalog_Status"]</th>
+                            <th scope="col" class="text-end"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in _items)
+                        {
+                            <tr data-testid="catalog-row" class="@(item.IsActive ? null : "text-muted")">
+                                <td data-testid="catalog-row-name">@item.Name</td>
+                                <td>
+                                    <span class="badge @(item.IsActive ? "bg-success-subtle text-success-emphasis" : "bg-secondary-subtle text-secondary-emphasis")">
+                                        @(item.IsActive ? Localizer["Catalog_Active"] : Localizer["Catalog_Inactive"])
+                                    </span>
+                                </td>
+                                <td class="text-end">
+                                    <button class="btn btn-outline-primary btn-sm" data-testid="catalog-edit" disabled="@(_form is not null)" @onclick="() => OpenEdit(item)">@Localizer["Catalog_Edit"]</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>The API prefix, e.g. <c>/api/categories</c>.</summary>
+    [Parameter, EditorRequired] public string Endpoint { get; set; } = "";
+    [Parameter, EditorRequired] public string TitleKey { get; set; } = "";
+    [Parameter, EditorRequired] public string SubtitleKey { get; set; } = "";
+    [Parameter, EditorRequired] public string NewKey { get; set; } = "";
+    [Parameter, EditorRequired] public string LoadErrorKey { get; set; } = "";
+
+    private bool _loading = true;
+    private bool _saving;
+    private string? _error;
+    private string? _notice;
+    private List<EntryDto> _items = new();
+    private FormState? _form;
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        _loading = true;
+        try
+        {
+            _items = await Http.GetFromJsonAsync<List<EntryDto>>($"{Endpoint}?include_inactive=true") ?? new();
+        }
+        catch { _error = Localizer[LoadErrorKey]; }
+        finally { _loading = false; }
+    }
+
+    private void OpenNew() { _notice = null; _form = new FormState(null, "", true); }
+
+    private void OpenEdit(EntryDto item) { _notice = null; _form = new FormState(item, item.Name, item.IsActive); }
+
+    private void Cancel() => _form = null;
+
+    private async Task Save()
+    {
+        if (_form is not { } form) return;
+        form.Error = null; form.Conflict = null;
+        if (string.IsNullOrWhiteSpace(form.Name)) { form.Error = Localizer["Catalog_NameRequired"]; return; }
+
+        _saving = true;
+        try
+        {
+            var res = form.Editing is null
+                ? await Http.PostAsJsonAsync(Endpoint, new { name = form.Name })
+                : await Http.PutAsJsonAsync($"{Endpoint}/{form.Editing.Id}", new { name = form.Name, is_active = form.IsActive });
+
+            if (res.IsSuccessStatusCode)
+            {
+                _notice = form.Editing is null ? Localizer["Catalog_Saved"] : Localizer["Catalog_Updated"];
+                _form = null;
+                await Load();
+            }
+            else if (res.StatusCode == HttpStatusCode.Conflict)
+            {
+                var conflict = await res.Content.ReadFromJsonAsync<ConflictDto>();
+                if (conflict?.ExistingId is not null) form.Conflict = conflict;
+                else form.Error = conflict?.Message ?? Localizer["Catalog_NameExists"];
+            }
+            else
+            {
+                form.Error = Localizer["Catalog_SaveError"];
+            }
+        }
+        catch { form.Error = Localizer["Catalog_SaveError"]; }
+        finally { _saving = false; }
+    }
+
+    private async Task Reactivate()
+    {
+        if (_form is not { Conflict.ExistingId: { } id } form) return;
+        _saving = true;
+        try
+        {
+            // Restore the entry as it was — its stored name, not the casing the user just typed.
+            var res = await Http.PutAsJsonAsync($"{Endpoint}/{id}", new { name = form.Conflict.ExistingName ?? form.Name, is_active = true });
+            if (res.IsSuccessStatusCode)
+            {
+                _notice = Localizer["Catalog_Updated"];
+                _form = null;
+                await Load();
+            }
+            else
+            {
+                form.Conflict = null;
+                form.Error = Localizer["Catalog_ReactivateError"];
+            }
+        }
+        catch { form.Conflict = null; form.Error = Localizer["Catalog_ReactivateError"]; }
+        finally { _saving = false; }
+    }
+
+    private sealed class FormState(EntryDto? editing, string name, bool isActive)
+    {
+        public EntryDto? Editing { get; } = editing;
+        public string Name { get; set; } = name;
+        public bool IsActive { get; set; } = isActive;
+        public string? Error { get; set; }
+        public ConflictDto? Conflict { get; set; }
+    }
+
+    private sealed record EntryDto(
+        [property: JsonPropertyName("id")] Guid Id,
+        [property: JsonPropertyName("name")] string Name,
+        [property: JsonPropertyName("is_active")] bool IsActive);
+
+    private sealed record ConflictDto(
+        [property: JsonPropertyName("error")] string Error,
+        [property: JsonPropertyName("message")] string Message,
+        [property: JsonPropertyName("existing_id")] Guid? ExistingId,
+        [property: JsonPropertyName("existing_name")] string? ExistingName);
+}

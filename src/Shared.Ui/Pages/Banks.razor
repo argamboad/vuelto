@@ -1,0 +1,24 @@
+@page "/banks"
+@using Vuelto.Shared.Ui.Auth
+@inject AuthService Auth
+@inject NavigationManager Nav
+@inject IStringLocalizer<AppStrings> Localizer
+
+<PageTitle>@Localizer["Catalog_Banks_Title"]</PageTitle>
+
+@* CATALOG-2: the household's banks and cash (ADR-V007/V008). *@
+<div class="settings-wrapper">
+    <CatalogPage Endpoint="/api/banks"
+                 TitleKey="Catalog_Banks_Title"
+                 SubtitleKey="Catalog_Banks_Subtitle"
+                 NewKey="Catalog_Banks_New"
+                 LoadErrorKey="Catalog_Banks_LoadError" />
+    <p class="mt-3"><a href="/settings">← @Localizer["Catalog_BackToSettings"]</a></p>
+</div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        if (!Auth.IsAuthenticated) Nav.NavigateTo("/login");
+    }
+}
