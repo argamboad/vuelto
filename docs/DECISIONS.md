@@ -1374,6 +1374,19 @@ without a rate; a provider rate ≤ 0 is unavailable. The provider (exchangerate
 an `HttpClient` against a fixed host, allowlisted for the platform's outbound-URL guard (R76).
 *Rationale:* actual spend must reflect the rate at purchase; projections must reflect today.
 
+*As built (P3 / FX-1, 2026-09-03).* Three Core seams so any slice can ask for a rate without
+referencing another slice (R7): `IExchangeRateService` (the provider — `ExchangeRateApiClient` in
+`Infrastructure/ExchangeRate`, `IMemoryCache`, `ExchangeRate:{ApiKey,BaseUrl,FreshnessMinutes}`),
+`IExchangeRateResolver` (the chain, in `Features/ExchangeRate`), and `IRecentRateSource` (the
+last-transaction tier — P3 registers `NoRecentRateSource`; P5 swaps in the transaction-backed one, the
+resolver untouched). An unset key makes the provider unavailable **without a call**, so a fresh
+checkout degrades to the chain rather than erroring. `GET /api/exchange-rate` answers 200
+`{rate, source, as_of}` or 503 `exchange_rate_unavailable`; Home carries an `ExchangeRateBadge`
+(live / "as of …" / "from your last transaction" / unavailable). The ISO codes are validated before
+they enter the URL, which is the allowlist rationale in `ArchitectureTests`. No pre-warming job: the
+lazy one-hour cache already bounds quota, and a job would spend ~720 of the 1,500 monthly requests
+warming a cache nobody may read.
+
 **ADR-V007 — Five transaction classes; payment method and a required bank live on the transaction; category required; refunds are derived from unplanned essentials and realize as inflows; envelopes are transactional. (2026-09-02; from donor ADR-0009, 0010, 0014, 0018, 0019, 0020)**
 Classes: `budgeted`, `extraordinary` (label "Discretionary"), `unplanned_essential` (label
 "Unplanned"), `inflow` (money in, folded into income), `envelope_contribution` (requires an

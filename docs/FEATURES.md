@@ -169,8 +169,12 @@ Flow:
    flagged "as of …" → **the most recent transaction's `exchange_rate_used`** → **block** with a
    clear message (`exchange_rate_unavailable`, 400 on create / 503 on read).
 2. The New Transaction form pre-fills the resolved rate; the user may override it.
+3. Home shows the resolved rate with its provenance badge (live / "as of …" / from the last
+   transaction / unavailable) — the member always knows whether the app is guessing.
 
-Notes: a `conversion_rate ≤ 0` from the provider is treated as unavailable, never stored.
+Notes: a `conversion_rate ≤ 0` from the provider is treated as unavailable, never stored. With no
+provider key configured the chain simply starts at the cache (empty on a fresh checkout) — the app
+never errors on a missing key, it degrades to "unavailable".
 
 ### 9. Months and weeks exist only through transactions *(US-004, US-006, US-009, US-015 · ADR-V005)*
 **Goal:** the user never creates or deletes a month; the data does.

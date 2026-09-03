@@ -353,4 +353,10 @@
   <data name="Catalog_ManageCategories" xml:space="preserve"><value>Manage categories</value></data>
   <data name="Catalog_ManageBanks" xml:space="preserve"><value>Manage banks</value></data>
   <data name="Catalog_BackToSettings" xml:space="preserve"><value>Back to settings</value></data>
+  <data name="Fx_Title" xml:space="preserve"><value>Today's rate</value></data>
+  <data name="Fx_PerDollar" xml:space="preserve"><value>₡{0} per $1</value></data>
+  <data name="Fx_Live" xml:space="preserve"><value>live</value></data>
+  <data name="Fx_AsOf" xml:space="preserve"><value>as of {0}</value></data>
+  <data name="Fx_FromTransaction" xml:space="preserve"><value>from your last transaction ({0})</value></data>
+  <data name="Fx_Unavailable" xml:space="preserve"><value>Exchange rate unavailable — try again later</value></data>
 </root>

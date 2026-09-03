@@ -6,7 +6,13 @@
   },
   "auth": {
     "type": "bearer",
-    "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }]
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
   },
   "item": [
     {
@@ -14,23 +20,124 @@
       "item": [
         {
           "name": "Liveness",
-          "request": { "auth": { "type": "noauth" }, "method": "GET", "url": { "raw": "{{baseUrl}}/health", "host": ["{{baseUrl}}"], "path": ["health"] } },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"200 healthy\", () => pm.response.to.have.status(200));"], "type": "text/javascript" } }]
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200 healthy\", () => pm.response.to.have.status(200));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Readiness",
-          "request": { "auth": { "type": "noauth" }, "method": "GET", "url": { "raw": "{{baseUrl}}/health/ready", "host": ["{{baseUrl}}"], "path": ["health", "ready"] } },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"200 ready\", () => pm.response.to.have.status(200));"], "type": "text/javascript" } }]
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/health/ready",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health",
+                "ready"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200 ready\", () => pm.response.to.have.status(200));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Version",
-          "request": { "auth": { "type": "noauth" }, "method": "GET", "url": { "raw": "{{baseUrl}}/api/version", "host": ["{{baseUrl}}"], "path": ["api", "version"] } },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"200\", () => pm.response.to.have.status(200));", "console.log(pm.response.json());"], "type": "text/javascript" } }]
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/version",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "version"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "console.log(pm.response.json());"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Auth providers",
-          "request": { "auth": { "type": "noauth" }, "method": "GET", "url": { "raw": "{{baseUrl}}/api/auth/providers", "host": ["{{baseUrl}}"], "path": ["api", "auth", "providers"] } },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"200\", () => pm.response.to.have.status(200));"], "type": "text/javascript" } }]
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/providers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "providers"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         }
       ]
     },
@@ -40,198 +147,506 @@
         {
           "name": "OTP — send",
           "request": {
-            "auth": { "type": "noauth" },
+            "auth": {
+              "type": "noauth"
+            },
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{userEmail}}\",\n  \"culture\": \"en\"\n}" },
-            "url": { "raw": "{{baseUrl}}/api/auth/otp/send", "host": ["{{baseUrl}}"], "path": ["api", "auth", "otp", "send"] },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{userEmail}}\",\n  \"culture\": \"en\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/otp/send",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "otp",
+                "send"
+              ]
+            },
             "description": "Rate-limited 5/min per IP (429 after — QA-AUTH-11). Email delivery is async (outbox): wait a few seconds before fetching the code."
           },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"200 (429 = rate limit, wait ~1 min)\", () => pm.expect(pm.response.code).to.be.oneOf([200, 429]));"], "type": "text/javascript" } }]
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200 (429 = rate limit, wait ~1 min)\", () => pm.expect(pm.response.code).to.be.oneOf([200, 429]));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "OTP — fetch code from Mailpit (local envs only)",
           "request": {
-            "auth": { "type": "noauth" },
+            "auth": {
+              "type": "noauth"
+            },
             "method": "GET",
-            "url": { "raw": "{{mailpitUrl}}/api/v1/messages?limit=1", "host": ["{{mailpitUrl}}"], "path": ["api", "v1", "messages"], "query": [{ "key": "limit", "value": "1" }] },
+            "url": {
+              "raw": "{{mailpitUrl}}/api/v1/messages?limit=1",
+              "host": [
+                "{{mailpitUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "messages"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "1"
+                }
+              ]
+            },
             "description": "Reads the newest Mailpit message and extracts the 6-digit OTP into {{otpCode}}. Only works in environments with a mailpitUrl (local). On hosted envs (staging/prod) email goes to REAL inboxes — read the code there and set {{otpCode}} manually (or paste it straight into 'OTP — verify')."
           },
           "event": [
-            { "listen": "prerequest", "script": { "exec": [
-              "const mailpit = pm.environment.get('mailpitUrl');",
-              "if (!mailpit) {",
-              "  console.warn('This environment has no Mailpit (hosted env — real email). Read the OTP from your inbox and set {{otpCode}} manually.');",
-              "  if (pm.execution && pm.execution.skipRequest) pm.execution.skipRequest();",
-              "}"
-            ], "type": "text/javascript" } },
-            { "listen": "test", "script": { "exec": [
-            "pm.test(\"Mailpit reachable\", () => pm.response.to.have.status(200));",
-            "const msgs = pm.response.json().messages || [];",
-            "if (!msgs.length) { console.warn('Mailpit is empty — send the OTP first; delivery is async (wait ~2-5s).'); }",
-            "else {",
-            "  pm.sendRequest(pm.environment.get('mailpitUrl') + '/api/v1/message/' + msgs[0].ID, (err, res) => {",
-            "    if (err) { console.error(err); return; }",
-            "    const text = (res.json().Text || '') + ' ' + (res.json().HTML || '');",
-            "    const m = text.match(/\\b(\\d{6})\\b/);",
-            "    if (m) { pm.environment.set('otpCode', m[1]); console.log('otpCode =', m[1]); }",
-            "    else console.warn('No 6-digit code in the newest email — is it the OTP email?');",
-            "  });",
-            "}"
-          ], "type": "text/javascript" } }
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const mailpit = pm.environment.get('mailpitUrl');",
+                  "if (!mailpit) {",
+                  "  console.warn('This environment has no Mailpit (hosted env — real email). Read the OTP from your inbox and set {{otpCode}} manually.');",
+                  "  if (pm.execution && pm.execution.skipRequest) pm.execution.skipRequest();",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Mailpit reachable\", () => pm.response.to.have.status(200));",
+                  "const msgs = pm.response.json().messages || [];",
+                  "if (!msgs.length) { console.warn('Mailpit is empty — send the OTP first; delivery is async (wait ~2-5s).'); }",
+                  "else {",
+                  "  pm.sendRequest(pm.environment.get('mailpitUrl') + '/api/v1/message/' + msgs[0].ID, (err, res) => {",
+                  "    if (err) { console.error(err); return; }",
+                  "    const text = (res.json().Text || '') + ' ' + (res.json().HTML || '');",
+                  "    const m = text.match(/\\b(\\d{6})\\b/);",
+                  "    if (m) { pm.environment.set('otpCode', m[1]); console.log('otpCode =', m[1]); }",
+                  "    else console.warn('No 6-digit code in the newest email — is it the OTP email?');",
+                  "  });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
           ]
         },
         {
           "name": "OTP — verify (signs in)",
           "request": {
-            "auth": { "type": "noauth" },
+            "auth": {
+              "type": "noauth"
+            },
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "X-Native-Client", "value": "true", "description": "Body token transport — refresh_token returned in JSON instead of a cookie (Postman-friendly)." }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Native-Client",
+                "value": "true",
+                "description": "Body token transport — refresh_token returned in JSON instead of a cookie (Postman-friendly)."
+              }
             ],
-            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{userEmail}}\",\n  \"code\": \"{{otpCode}}\"\n}" },
-            "url": { "raw": "{{baseUrl}}/api/auth/otp/verify", "host": ["{{baseUrl}}"], "path": ["api", "auth", "otp", "verify"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{userEmail}}\",\n  \"code\": \"{{otpCode}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/otp/verify",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "otp",
+                "verify"
+              ]
+            },
             "description": "Stores accessToken/refreshToken on success. If the account has MFA enabled, stores mfaChallenge instead — run 'MFA — verify (step-up)' next. 401 invalid_code = wrong/expired; 401 too_many_attempts = cumulative lockout (QA-AUTH-04); 429 = throttle."
           },
-          "event": [{ "listen": "test", "script": { "exec": [
-            "pm.test(\"200\", () => pm.response.to.have.status(200));",
-            "if (pm.response.code !== 200) return;",
-            "const json = pm.response.json();",
-            "if (json.access_token) {",
-            "  pm.environment.set('accessToken', json.access_token);",
-            "  if (json.refresh_token) pm.environment.set('refreshToken', json.refresh_token);",
-            "  console.log('Signed in — tokens stored.');",
-            "} else if (json.mfa_required) {",
-            "  pm.environment.set('mfaChallenge', json.challenge);",
-            "  console.log('MFA required — challenge stored. Run: MFA — verify (step-up).');",
-            "}"
-          ], "type": "text/javascript" } }]
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "if (pm.response.code !== 200) return;",
+                  "const json = pm.response.json();",
+                  "if (json.access_token) {",
+                  "  pm.environment.set('accessToken', json.access_token);",
+                  "  if (json.refresh_token) pm.environment.set('refreshToken', json.refresh_token);",
+                  "  console.log('Signed in — tokens stored.');",
+                  "} else if (json.mfa_required) {",
+                  "  pm.environment.set('mfaChallenge', json.challenge);",
+                  "  console.log('MFA required — challenge stored. Run: MFA — verify (step-up).');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "MFA — verify (step-up)",
           "request": {
-            "auth": { "type": "noauth" },
+            "auth": {
+              "type": "noauth"
+            },
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "X-Native-Client", "value": "true" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Native-Client",
+                "value": "true"
+              }
             ],
-            "body": { "mode": "raw", "raw": "{\n  \"challenge\": \"{{mfaChallenge}}\",\n  \"code\": \"<TOTP or recovery code (xxxxx-xxxxx)>\"\n}" },
-            "url": { "raw": "{{baseUrl}}/api/auth/mfa/verify", "host": ["{{baseUrl}}"], "path": ["api", "auth", "mfa", "verify"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"challenge\": \"{{mfaChallenge}}\",\n  \"code\": \"<TOTP or recovery code (xxxxx-xxxxx)>\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/mfa/verify",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "mfa",
+                "verify"
+              ]
+            },
             "description": "Completes sign-in for an MFA-enabled account. Accepts a 6-digit TOTP or a single-use recovery code (case/hyphen/space-insensitive). Challenge is single-use and short-lived (~5 min)."
           },
-          "event": [{ "listen": "test", "script": { "exec": [
-            "pm.test(\"200\", () => pm.response.to.have.status(200));",
-            "if (pm.response.code !== 200) return;",
-            "const json = pm.response.json();",
-            "if (json.access_token) { pm.environment.set('accessToken', json.access_token); if (json.refresh_token) pm.environment.set('refreshToken', json.refresh_token); console.log('Step-up complete — tokens stored.'); }"
-          ], "type": "text/javascript" } }]
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "if (pm.response.code !== 200) return;",
+                  "const json = pm.response.json();",
+                  "if (json.access_token) { pm.environment.set('accessToken', json.access_token); if (json.refresh_token) pm.environment.set('refreshToken', json.refresh_token); console.log('Step-up complete — tokens stored.'); }"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Refresh (rotates)",
           "request": {
-            "auth": { "type": "noauth" },
+            "auth": {
+              "type": "noauth"
+            },
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "X-Native-Client", "value": "true" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Native-Client",
+                "value": "true"
+              }
             ],
-            "body": { "mode": "raw", "raw": "{\n  \"refresh_token\": \"{{refreshToken}}\"\n}" },
-            "url": { "raw": "{{baseUrl}}/api/auth/refresh", "host": ["{{baseUrl}}"], "path": ["api", "auth", "refresh"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{refreshToken}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/refresh",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "refresh"
+              ]
+            },
             "description": "Rotates the refresh token (old one is revoked; replaying it revokes every session — reuse detection). The stored refreshToken is updated automatically."
           },
-          "event": [{ "listen": "test", "script": { "exec": [
-            "pm.test(\"200\", () => pm.response.to.have.status(200));",
-            "if (pm.response.code !== 200) return;",
-            "const json = pm.response.json();",
-            "if (json.access_token) pm.environment.set('accessToken', json.access_token);",
-            "if (json.refresh_token) pm.environment.set('refreshToken', json.refresh_token);"
-          ], "type": "text/javascript" } }]
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "if (pm.response.code !== 200) return;",
+                  "const json = pm.response.json();",
+                  "if (json.access_token) pm.environment.set('accessToken', json.access_token);",
+                  "if (json.refresh_token) pm.environment.set('refreshToken', json.refresh_token);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Logout",
           "request": {
-            "auth": { "type": "noauth" },
+            "auth": {
+              "type": "noauth"
+            },
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "X-Native-Client", "value": "true" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Native-Client",
+                "value": "true"
+              }
             ],
-            "body": { "mode": "raw", "raw": "{\n  \"refresh_token\": \"{{refreshToken}}\"\n}" },
-            "url": { "raw": "{{baseUrl}}/api/auth/logout", "host": ["{{baseUrl}}"], "path": ["api", "auth", "logout"] }
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{refreshToken}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "logout"
+              ]
+            }
           },
-          "event": [{ "listen": "test", "script": { "exec": [
-            "pm.test(\"2xx\", () => pm.expect(pm.response.code).to.be.below(300));",
-            "pm.environment.unset('accessToken'); pm.environment.unset('refreshToken');"
-          ], "type": "text/javascript" } }]
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"2xx\", () => pm.expect(pm.response.code).to.be.below(300));",
+                  "pm.environment.unset('accessToken'); pm.environment.unset('refreshToken');"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Magic link — send",
           "request": {
-            "auth": { "type": "noauth" },
+            "auth": {
+              "type": "noauth"
+            },
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{userEmail}}\",\n  \"culture\": \"en\"\n}" },
-            "url": { "raw": "{{baseUrl}}/api/auth/magic-link/send", "host": ["{{baseUrl}}"], "path": ["api", "auth", "magic-link", "send"] },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{userEmail}}\",\n  \"culture\": \"en\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/magic-link/send",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "magic-link",
+                "send"
+              ]
+            },
             "description": "The verify half is a browser redirect flow (GET /api/auth/magic-link/verify?token=&email= → 302 to the web app) — click the link from Mailpit in a browser; it isn't meaningful as a pure API call."
           },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"200 (429 = rate limit)\", () => pm.expect(pm.response.code).to.be.oneOf([200, 429]));"], "type": "text/javascript" } }]
-        }
-,
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200 (429 = rate limit)\", () => pm.expect(pm.response.code).to.be.oneOf([200, 429]));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
         {
           "name": "OAuth: start browser sign-in (doc-only)",
           "request": {
-            "auth": { "type": "noauth" },
+            "auth": {
+              "type": "noauth"
+            },
             "method": "GET",
-            "url": { "raw": "{{baseUrl}}/api/auth/login/google", "host": ["{{baseUrl}}"], "path": ["api", "auth", "login", "google"] },
-            "description": "**Documentation-only \u2014 a browser flow, not runnable from Postman.** Listed so the collection stays a complete mirror of the API surface (v3 audit TR-6; the parity gate `PostmanParityTests` enforces it). Full-page navigation: 302 to the provider's consent screen. {provider} = a configured provider from GET /api/auth/providers. No auth; errors land on the client's /auth-error."
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login/google",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login",
+                "google"
+              ]
+            },
+            "description": "**Documentation-only — a browser flow, not runnable from Postman.** Listed so the collection stays a complete mirror of the API surface (v3 audit TR-6; the parity gate `PostmanParityTests` enforces it). Full-page navigation: 302 to the provider's consent screen. {provider} = a configured provider from GET /api/auth/providers. No auth; errors land on the client's /auth-error."
           }
         },
         {
           "name": "OAuth: provider callback (doc-only)",
           "request": {
-            "auth": { "type": "noauth" },
+            "auth": {
+              "type": "noauth"
+            },
             "method": "GET",
-            "url": { "raw": "{{baseUrl}}/api/auth/callback/google", "host": ["{{baseUrl}}"], "path": ["api", "auth", "callback", "google"] },
-            "description": "**Documentation-only \u2014 a browser flow, not runnable from Postman.** Listed so the collection stays a complete mirror of the API surface (v3 audit TR-6; the parity gate `PostmanParityTests` enforces it). The PROVIDER redirects here after consent (carries its code/state). Issues the session (refresh cookie) and 302s to the client. Never called by an API client directly."
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/callback/google",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "callback",
+                "google"
+              ]
+            },
+            "description": "**Documentation-only — a browser flow, not runnable from Postman.** Listed so the collection stays a complete mirror of the API surface (v3 audit TR-6; the parity gate `PostmanParityTests` enforces it). The PROVIDER redirects here after consent (carries its code/state). Issues the session (refresh cookie) and 302s to the client. Never called by an API client directly."
           }
         },
         {
           "name": "Magic link: verify (doc-only)",
           "request": {
-            "auth": { "type": "noauth" },
+            "auth": {
+              "type": "noauth"
+            },
             "method": "GET",
-            "url": { "raw": "{{baseUrl}}/api/auth/magic-link/verify?token={{magicLinkToken}}", "host": ["{{baseUrl}}"], "path": ["api", "auth", "magic-link", "verify"], "query": [{ "key": "token", "value": "{{magicLinkToken}}" }] },
-            "description": "**Documentation-only \u2014 a browser flow, not runnable from Postman.** Listed so the collection stays a complete mirror of the API surface (v3 audit TR-6; the parity gate `PostmanParityTests` enforces it). The emailed magic-link URL. Single-use, hashed, time-limited token in the query; consumes it, sets the refresh cookie (or MFA step-up redirect), then 302s to the client."
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/magic-link/verify?token={{magicLinkToken}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "magic-link",
+                "verify"
+              ],
+              "query": [
+                {
+                  "key": "token",
+                  "value": "{{magicLinkToken}}"
+                }
+              ]
+            },
+            "description": "**Documentation-only — a browser flow, not runnable from Postman.** Listed so the collection stays a complete mirror of the API surface (v3 audit TR-6; the parity gate `PostmanParityTests` enforces it). The emailed magic-link URL. Single-use, hashed, time-limited token in the query; consumes it, sets the refresh cookie (or MFA step-up redirect), then 302s to the client."
           }
         },
         {
           "name": "Native OAuth: start browser flow (doc-only)",
           "request": {
-            "auth": { "type": "noauth" },
+            "auth": {
+              "type": "noauth"
+            },
             "method": "GET",
-            "url": { "raw": "{{baseUrl}}/api/auth/native/login/google", "host": ["{{baseUrl}}"], "path": ["api", "auth", "native", "login", "google"] },
-            "description": "**Documentation-only \u2014 a browser flow, not runnable from Postman.** Listed so the collection stays a complete mirror of the API surface (v3 audit TR-6; the parity gate `PostmanParityTests` enforces it). Opened in the OS browser by MAUI clients (WebAuthenticator). Like /login/{provider} but the callback returns a deep link carrying a one-time code instead of a cookie."
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/native/login/google",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "native",
+                "login",
+                "google"
+              ]
+            },
+            "description": "**Documentation-only — a browser flow, not runnable from Postman.** Listed so the collection stays a complete mirror of the API surface (v3 audit TR-6; the parity gate `PostmanParityTests` enforces it). Opened in the OS browser by MAUI clients (WebAuthenticator). Like /login/{provider} but the callback returns a deep link carrying a one-time code instead of a cookie."
           }
         },
         {
           "name": "Native OAuth: provider callback (doc-only)",
           "request": {
-            "auth": { "type": "noauth" },
+            "auth": {
+              "type": "noauth"
+            },
             "method": "GET",
-            "url": { "raw": "{{baseUrl}}/api/auth/native/callback/google", "host": ["{{baseUrl}}"], "path": ["api", "auth", "native", "callback", "google"] },
-            "description": "**Documentation-only \u2014 a browser flow, not runnable from Postman.** Listed so the collection stays a complete mirror of the API surface (v3 audit TR-6; the parity gate `PostmanParityTests` enforces it). Provider redirect for the native flow: issues a short-lived ONE-TIME CODE and 302s to the app's custom-scheme deep link. The code is redeemed via POST /api/auth/native/exchange."
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/native/callback/google",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "native",
+                "callback",
+                "google"
+              ]
+            },
+            "description": "**Documentation-only — a browser flow, not runnable from Postman.** Listed so the collection stays a complete mirror of the API surface (v3 audit TR-6; the parity gate `PostmanParityTests` enforces it). Provider redirect for the native flow: issues a short-lived ONE-TIME CODE and 302s to the app's custom-scheme deep link. The code is redeemed via POST /api/auth/native/exchange."
           }
         },
         {
           "name": "Native OAuth: exchange one-time code",
           "request": {
-            "auth": { "type": "noauth" },
+            "auth": {
+              "type": "noauth"
+            },
             "method": "POST",
-            "header": [{ "key": "X-Native-Client", "value": "true" }, { "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"code\": \"{{nativeOneTimeCode}}\"\n}" },
-            "url": { "raw": "{{baseUrl}}/api/auth/native/exchange", "host": ["{{baseUrl}}"], "path": ["api", "auth", "native", "exchange"] },
+            "header": [
+              {
+                "key": "X-Native-Client",
+                "value": "true"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"{{nativeOneTimeCode}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/native/exchange",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "native",
+                "exchange"
+              ]
+            },
             "description": "Redeems the one-time code from the native callback deep link for tokens on the BODY transport (access + refresh token JSON; no cookie). 400/401 invalid_code on unknown/expired/replayed codes (single-use, 5-min TTL); {mfa_required, challenge} when the user has MFA enabled — step up via POST /api/auth/mfa/verify. Requires the X-Native-Client: true header."
           }
         }
@@ -242,71 +657,245 @@
       "item": [
         {
           "name": "Me",
-          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/auth/me", "host": ["{{baseUrl}}"], "path": ["api", "auth", "me"] } },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"200\", () => pm.response.to.have.status(200));", "console.log(pm.response.json());"], "type": "text/javascript" } }]
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "me"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "console.log(pm.response.json());"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Set locale",
           "request": {
             "method": "PUT",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"locale\": \"es\"\n}" },
-            "url": { "raw": "{{baseUrl}}/api/auth/locale", "host": ["{{baseUrl}}"], "path": ["api", "auth", "locale"] },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"locale\": \"es\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/locale",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "locale"
+              ]
+            },
             "description": "en / es shipped. Drives UI + email language. Follows the user across devices: applied (with one reload on mismatch) on every sign-in, and a device-local login-page choice is adopted here automatically on sign-in when unset (PREFS-1, ADR-022). With an impersonation token as bearer → 403 impersonation_not_allowed (server-side guard, v3 ADM-8)."
           },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"2xx\", () => pm.expect(pm.response.code).to.be.below(300));"], "type": "text/javascript" } }]
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"2xx\", () => pm.expect(pm.response.code).to.be.below(300));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Set theme",
           "request": {
             "method": "PUT",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"theme\": \"dark\"\n}" },
-            "url": { "raw": "{{baseUrl}}/api/auth/theme", "host": ["{{baseUrl}}"], "path": ["api", "auth", "theme"] },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"theme\": \"dark\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/theme",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "theme"
+              ]
+            },
             "description": "light / dark / system (THEME-1 + PREFS-1, ADR-022). All three are stored verbatim and follow the user across devices — \"system\" means follow the OS scheme; null in the DB means \"never chose\" (lets sign-in adopt a device-local choice). Lands in the JWT on the next refresh. Anything else → 400 unsupported_theme. With an impersonation token as bearer → 403 impersonation_not_allowed (server-side guard, v3 ADM-8)."
           },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"2xx\", () => pm.expect(pm.response.code).to.be.below(300));"], "type": "text/javascript" } }]
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"2xx\", () => pm.expect(pm.response.code).to.be.below(300));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Linked logins",
-          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/auth/logins", "host": ["{{baseUrl}}"], "path": ["api", "auth", "logins"] } },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"200\", () => pm.response.to.have.status(200));"], "type": "text/javascript" } }]
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/logins",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "logins"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Unlink provider",
           "request": {
             "method": "DELETE",
-            "url": { "raw": "{{baseUrl}}/api/auth/logins/google", "host": ["{{baseUrl}}"], "path": ["api", "auth", "logins", "google"] },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/logins/google",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "logins",
+                "google"
+              ]
+            },
             "description": "Fail-closed: refuses to remove your last sign-in method (QA-SET-05). Link-start (POST /api/auth/link/{provider}) is a browser redirect flow."
           },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"2xx or 4xx guard\", () => pm.expect(pm.response.code).to.be.below(500));"], "type": "text/javascript" } }]
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"2xx or 4xx guard\", () => pm.expect(pm.response.code).to.be.below(500));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "⚠ Delete my account",
           "request": {
             "method": "DELETE",
-            "url": { "raw": "{{baseUrl}}/api/auth/me?confirm_dissolve=false", "host": ["{{baseUrl}}"], "path": ["api", "auth", "me"], "query": [{ "key": "confirm_dissolve", "value": "false" }] },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/me?confirm_dissolve=false",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "me"
+              ],
+              "query": [
+                {
+                  "key": "confirm_dissolve",
+                  "value": "false"
+                }
+              ]
+            },
             "description": "GDPR erasure — IRREVERSIBLE. Owner-with-members → 400 (transfer first). Sole owner → 409 until confirm_dissolve=true (which also dissolves the household)."
           },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"deliberate outcome\", () => pm.expect(pm.response.code).to.be.oneOf([204, 400, 409]));"], "type": "text/javascript" } }]
-        }
-,
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"deliberate outcome\", () => pm.expect(pm.response.code).to.be.oneOf([204, 400, 409]));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
         {
           "name": "Link provider: start browser flow (doc-only)",
           "request": {
-            "auth": { "type": "noauth" },
+            "auth": {
+              "type": "noauth"
+            },
             "method": "POST",
-            "url": { "raw": "{{baseUrl}}/api/auth/link/google", "host": ["{{baseUrl}}"], "path": ["api", "auth", "link", "google"] },
-            "description": "**Documentation-only \u2014 a browser flow, not runnable from Postman.** Listed so the collection stays a complete mirror of the API surface (v3 audit TR-6; the parity gate `PostmanParityTests` enforces it). Starts linking an additional OAuth provider to the signed-in account: responds with the provider redirect carrying a short-lived link token; completes at the callback with ?linked=\u2026 (or ?link_error=\u2026) on the client's /settings. Requires the Bearer token."
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/link/google",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "link",
+                "google"
+              ]
+            },
+            "description": "**Documentation-only — a browser flow, not runnable from Postman.** Listed so the collection stays a complete mirror of the API surface (v3 audit TR-6; the parity gate `PostmanParityTests` enforces it). Starts linking an additional OAuth provider to the signed-in account: responds with the provider redirect carrying a short-lived link token; completes at the callback with ?linked=… (or ?link_error=…) on the client's /settings. Requires the Bearer token."
           }
         },
         {
           "name": "Signed file download (doc-only)",
           "request": {
-            "auth": { "type": "noauth" },
+            "auth": {
+              "type": "noauth"
+            },
             "method": "GET",
-            "url": { "raw": "{{baseUrl}}/api/files/{{fileDownloadToken}}", "host": ["{{baseUrl}}"], "path": ["api", "files", "{{fileDownloadToken}}"] },
-            "description": "**Documentation-only \u2014 a browser flow, not runnable from Postman.** Listed so the collection stays a complete mirror of the API surface (v3 audit TR-6; the parity gate `PostmanParityTests` enforces it). Time-limited signed download URL minted by the export/file surfaces (FILES-2; the token IS the authorization \u2014 DataProtection-signed, tenant-scoped). Browser navigation; responds with Content-Disposition: attachment."
+            "url": {
+              "raw": "{{baseUrl}}/api/files/{{fileDownloadToken}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "files",
+                "{{fileDownloadToken}}"
+              ]
+            },
+            "description": "**Documentation-only — a browser flow, not runnable from Postman.** Listed so the collection stays a complete mirror of the API surface (v3 audit TR-6; the parity gate `PostmanParityTests` enforces it). Time-limited signed download URL minted by the export/file surfaces (FILES-2; the token IS the authorization — DataProtection-signed, tenant-scoped). Browser navigation; responds with Content-Disposition: attachment."
           }
         }
       ]
@@ -316,48 +905,146 @@
       "item": [
         {
           "name": "Status",
-          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/auth/mfa", "host": ["{{baseUrl}}"], "path": ["api", "auth", "mfa"] } },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"200\", () => pm.response.to.have.status(200));"], "type": "text/javascript" } }]
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/mfa",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "mfa"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Enroll (begin)",
           "request": {
             "method": "POST",
-            "url": { "raw": "{{baseUrl}}/api/auth/mfa/enroll", "host": ["{{baseUrl}}"], "path": ["api", "auth", "mfa", "enroll"] },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/mfa/enroll",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "mfa",
+                "enroll"
+              ]
+            },
             "description": "Returns the otpauth:// provisioning URI + Base32 secret (shown once). Add the secret to an authenticator app, then Confirm."
           },
-          "event": [{ "listen": "test", "script": { "exec": [
-            "pm.test(\"200\", () => pm.response.to.have.status(200));",
-            "if (pm.response.code !== 200) return;",
-            "const json = pm.response.json();",
-            "if (json.secret) { pm.environment.set('mfaSecret', json.secret); console.log('Secret (add to authenticator):', json.secret); console.log(json.provisioning_uri); }"
-          ], "type": "text/javascript" } }]
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "if (pm.response.code !== 200) return;",
+                  "const json = pm.response.json();",
+                  "if (json.secret) { pm.environment.set('mfaSecret', json.secret); console.log('Secret (add to authenticator):', json.secret); console.log(json.provisioning_uri); }"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Confirm (enable)",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"code\": \"<current 6-digit TOTP>\"\n}" },
-            "url": { "raw": "{{baseUrl}}/api/auth/mfa/confirm", "host": ["{{baseUrl}}"], "path": ["api", "auth", "mfa", "confirm"] },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"<current 6-digit TOTP>\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/mfa/confirm",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "mfa",
+                "confirm"
+              ]
+            },
             "description": "Enables MFA and returns the 10 one-time recovery codes (xxxxx-xxxxx) — logged to console, shown ONCE."
           },
-          "event": [{ "listen": "test", "script": { "exec": [
-            "pm.test(\"200\", () => pm.response.to.have.status(200));",
-            "if (pm.response.code !== 200) return;",
-            "const codes = pm.response.json().recovery_codes;",
-            "if (codes) console.log('RECOVERY CODES (save now, shown once):', codes.join(', '));"
-          ], "type": "text/javascript" } }]
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "if (pm.response.code !== 200) return;",
+                  "const codes = pm.response.json().recovery_codes;",
+                  "if (codes) console.log('RECOVERY CODES (save now, shown once):', codes.join(', '));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Disable",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"code\": \"<TOTP or recovery code>\"\n}" },
-            "url": { "raw": "{{baseUrl}}/api/auth/mfa/disable", "host": ["{{baseUrl}}"], "path": ["api", "auth", "mfa", "disable"] }
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"<TOTP or recovery code>\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/mfa/disable",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "mfa",
+                "disable"
+              ]
+            }
           },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"204\", () => pm.response.to.have.status(204));"], "type": "text/javascript" } }]
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"204\", () => pm.response.to.have.status(204));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         }
       ]
     },
@@ -366,135 +1053,452 @@
       "item": [
         {
           "name": "Get household",
-          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/household", "host": ["{{baseUrl}}"], "path": ["api", "household"] } },
-          "event": [{ "listen": "test", "script": { "exec": [
-            "pm.test(\"200\", () => pm.response.to.have.status(200));",
-            "if (pm.response.code !== 200) return;",
-            "const json = pm.response.json();",
-            "if (json.id) { pm.environment.set('tenantId', json.id); }",
-            "const members = json.members || [];",
-            "if (members.length) pm.environment.set('memberUserId', members[members.length - 1].user_id);"
-          ], "type": "text/javascript" } }]
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/household",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "household"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "if (pm.response.code !== 200) return;",
+                  "const json = pm.response.json();",
+                  "if (json.id) { pm.environment.set('tenantId', json.id); }",
+                  "const members = json.members || [];",
+                  "if (members.length) pm.environment.set('memberUserId', members[members.length - 1].user_id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Rename (owner)",
           "request": {
             "method": "PUT",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Postman Test Household\"\n}" },
-            "url": { "raw": "{{baseUrl}}/api/household", "host": ["{{baseUrl}}"], "path": ["api", "household"] }
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Test Household\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/household",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "household"
+              ]
+            }
           },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"2xx (403 = not owner/admin)\", () => pm.expect(pm.response.code).to.be.oneOf([200, 204, 403]));"], "type": "text/javascript" } }]
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"2xx (403 = not owner/admin)\", () => pm.expect(pm.response.code).to.be.oneOf([200, 204, 403]));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Invitations — list",
-          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/household/invitations", "host": ["{{baseUrl}}"], "path": ["api", "household", "invitations"] } },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"200\", () => pm.response.to.have.status(200));"], "type": "text/javascript" } }]
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/household/invitations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "household",
+                "invitations"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Invitations — create",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{inviteeEmail}}\"\n}" },
-            "url": { "raw": "{{baseUrl}}/api/household/invitations", "host": ["{{baseUrl}}"], "path": ["api", "household", "invitations"] },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{inviteeEmail}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/household/invitations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "household",
+                "invitations"
+              ]
+            },
             "description": "Returns the raw token ONCE (also emailed). 402 = seat quota reached (QA-HH-14). 409 = already a member."
           },
-          "event": [{ "listen": "test", "script": { "exec": [
-            "pm.test(\"created (402 = seat quota)\", () => pm.expect(pm.response.code).to.be.oneOf([200, 201, 402, 409]));",
-            "if (pm.response.code > 201) return;",
-            "const json = pm.response.json();",
-            "if (json.token) { pm.environment.set('invitationToken', json.token); console.log('invitationToken stored'); }",
-            "if (json.invitation_id) pm.environment.set('invitationId', json.invitation_id);"
-          ], "type": "text/javascript" } }]
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"created (402 = seat quota)\", () => pm.expect(pm.response.code).to.be.oneOf([200, 201, 402, 409]));",
+                  "if (pm.response.code > 201) return;",
+                  "const json = pm.response.json();",
+                  "if (json.token) { pm.environment.set('invitationToken', json.token); console.log('invitationToken stored'); }",
+                  "if (json.invitation_id) pm.environment.set('invitationId', json.invitation_id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Invitations — regenerate token",
-          "request": { "method": "POST", "url": { "raw": "{{baseUrl}}/api/household/invitations/{{invitationId}}/regenerate", "host": ["{{baseUrl}}"], "path": ["api", "household", "invitations", "{{invitationId}}", "regenerate"] } },
-          "event": [{ "listen": "test", "script": { "exec": [
-            "pm.test(\"200\", () => pm.response.to.have.status(200));",
-            "if (pm.response.code !== 200) return;",
-            "const json = pm.response.json();",
-            "if (json.token) pm.environment.set('invitationToken', json.token);"
-          ], "type": "text/javascript" } }]
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/household/invitations/{{invitationId}}/regenerate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "household",
+                "invitations",
+                "{{invitationId}}",
+                "regenerate"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "if (pm.response.code !== 200) return;",
+                  "const json = pm.response.json();",
+                  "if (json.token) pm.environment.set('invitationToken', json.token);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Invitations — accept (run as the INVITEE)",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"token\": \"{{invitationToken}}\"\n}" },
-            "url": { "raw": "{{baseUrl}}/api/household/invitations/accept", "host": ["{{baseUrl}}"], "path": ["api", "household", "invitations", "accept"] },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{invitationToken}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/household/invitations/accept",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "household",
+                "invitations",
+                "accept"
+              ]
+            },
             "description": "Sign in as the invitee first (re-run folder 1 with the invitee email) — accept joins the CALLER to the inviting household. Errors: 400 invitation_invalid/must_transfer_first/would_abandon_data, 409 already_member, 402 seat_limit_reached when the household downgraded below its reserved seats (BILLING-9 — the token stays pending and works again after an upgrade)."
           },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"outcome\", () => pm.expect(pm.response.code).to.be.below(500));"], "type": "text/javascript" } }]
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"outcome\", () => pm.expect(pm.response.code).to.be.below(500));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Invitations — revoke",
-          "request": { "method": "DELETE", "url": { "raw": "{{baseUrl}}/api/household/invitations/{{invitationId}}", "host": ["{{baseUrl}}"], "path": ["api", "household", "invitations", "{{invitationId}}"] } },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"204/404\", () => pm.expect(pm.response.code).to.be.oneOf([204, 404]));"], "type": "text/javascript" } }]
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/household/invitations/{{invitationId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "household",
+                "invitations",
+                "{{invitationId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"204/404\", () => pm.expect(pm.response.code).to.be.oneOf([204, 404]));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Change member role (owner)",
           "request": {
             "method": "PUT",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"role\": \"admin\"\n}" },
-            "url": { "raw": "{{baseUrl}}/api/household/members/{{memberUserId}}/role", "host": ["{{baseUrl}}"], "path": ["api", "household", "members", "{{memberUserId}}", "role"] },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"admin\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/household/members/{{memberUserId}}/role",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "household",
+                "members",
+                "{{memberUserId}}",
+                "role"
+              ]
+            },
             "description": "Roles: member | admin (owner is transferred, never assigned). Owner-only."
           },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"outcome\", () => pm.expect(pm.response.code).to.be.below(500));"], "type": "text/javascript" } }]
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"outcome\", () => pm.expect(pm.response.code).to.be.below(500));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Remove member (owner/admin)",
-          "request": { "method": "DELETE", "url": { "raw": "{{baseUrl}}/api/household/members/{{memberUserId}}", "host": ["{{baseUrl}}"], "path": ["api", "household", "members", "{{memberUserId}}"] } },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"outcome\", () => pm.expect(pm.response.code).to.be.below(500));"], "type": "text/javascript" } }]
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/household/members/{{memberUserId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "household",
+                "members",
+                "{{memberUserId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"outcome\", () => pm.expect(pm.response.code).to.be.below(500));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Transfer ownership",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"user_id\": \"{{memberUserId}}\"\n}" },
-            "url": { "raw": "{{baseUrl}}/api/household/transfer-ownership", "host": ["{{baseUrl}}"], "path": ["api", "household", "transfer-ownership"] },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": \"{{memberUserId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/household/transfer-ownership",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "household",
+                "transfer-ownership"
+              ]
+            },
             "description": "Owner-only; you become a member afterwards."
           },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"outcome\", () => pm.expect(pm.response.code).to.be.below(500));"], "type": "text/javascript" } }]
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"outcome\", () => pm.expect(pm.response.code).to.be.below(500));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Leave household",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"confirm_dissolve\": false\n}" },
-            "url": { "raw": "{{baseUrl}}/api/household/leave", "host": ["{{baseUrl}}"], "path": ["api", "household", "leave"] },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"confirm_dissolve\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/household/leave",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "household",
+                "leave"
+              ]
+            },
             "description": "Member: leaves + re-homes to a fresh solo household. Owner with members: refused (transfer first). Sole owner: needs confirm_dissolve=true (dissolves)."
           },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"outcome\", () => pm.expect(pm.response.code).to.be.below(500));"], "type": "text/javascript" } }]
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"outcome\", () => pm.expect(pm.response.code).to.be.below(500));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Export household data (owner)",
           "request": {
             "method": "POST",
-            "url": { "raw": "{{baseUrl}}/api/household/export", "host": ["{{baseUrl}}"], "path": ["api", "household", "export"] },
+            "url": {
+              "raw": "{{baseUrl}}/api/household/export",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "household",
+                "export"
+              ]
+            },
             "description": "GDPR export. Returns a signed, time-limited download URL (stored as {{exportDownloadUrl}} — use 'Files — download export'). Metered per plan (402 when the monthly quota is spent)."
           },
-          "event": [{ "listen": "test", "script": { "exec": [
-            "pm.test(\"200 (402 = usage quota)\", () => pm.expect(pm.response.code).to.be.oneOf([200, 402]));",
-            "if (pm.response.code !== 200) return;",
-            "const url = pm.response.json().download_url;",
-            "if (url) { pm.environment.set('exportDownloadUrl', url.startsWith('http') ? url : pm.environment.get('baseUrl') + url); console.log('exportDownloadUrl stored'); }"
-          ], "type": "text/javascript" } }]
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200 (402 = usage quota)\", () => pm.expect(pm.response.code).to.be.oneOf([200, 402]));",
+                  "if (pm.response.code !== 200) return;",
+                  "const url = pm.response.json().download_url;",
+                  "if (url) { pm.environment.set('exportDownloadUrl', url.startsWith('http') ? url : pm.environment.get('baseUrl') + url); console.log('exportDownloadUrl stored'); }"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Files — download export",
           "request": {
-            "auth": { "type": "noauth" },
+            "auth": {
+              "type": "noauth"
+            },
             "method": "GET",
-            "url": { "raw": "{{exportDownloadUrl}}", "host": ["{{exportDownloadUrl}}"] },
+            "url": {
+              "raw": "{{exportDownloadUrl}}",
+              "host": [
+                "{{exportDownloadUrl}}"
+              ]
+            },
             "description": "The signed URL from the export (GET /api/files/{token}); no bearer needed — the token IS the auth, and it expires."
           },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"200 (404/410 = token expired — re-export)\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404, 410]));"], "type": "text/javascript" } }]
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200 (404/410 = token expired — re-export)\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404, 410]));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         }
       ]
     },
@@ -503,57 +1507,291 @@
       "item": [
         {
           "name": "List",
-          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/notifications?limit=20", "host": ["{{baseUrl}}"], "path": ["api", "notifications"], "query": [{ "key": "limit", "value": "20" }, { "key": "before", "value": "", "disabled": true }] } },
-          "event": [{ "listen": "test", "script": { "exec": [
-            "pm.test(\"200\", () => pm.response.to.have.status(200));",
-            "const items = pm.response.json();",
-            "if (Array.isArray(items) && items.length) pm.environment.set('notificationId', items[0].id);"
-          ], "type": "text/javascript" } }]
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications?limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "notifications"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "before",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "const items = pm.response.json();",
+                  "if (Array.isArray(items) && items.length) pm.environment.set('notificationId', items[0].id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Unread count",
-          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/notifications/unread-count", "host": ["{{baseUrl}}"], "path": ["api", "notifications", "unread-count"] } },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"200\", () => pm.response.to.have.status(200));"], "type": "text/javascript" } }]
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications/unread-count",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "notifications",
+                "unread-count"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Mark one read",
-          "request": { "method": "POST", "url": { "raw": "{{baseUrl}}/api/notifications/{{notificationId}}/read", "host": ["{{baseUrl}}"], "path": ["api", "notifications", "{{notificationId}}", "read"] } },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"204/404\", () => pm.expect(pm.response.code).to.be.oneOf([204, 404]));"], "type": "text/javascript" } }]
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications/{{notificationId}}/read",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "notifications",
+                "{{notificationId}}",
+                "read"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"204/404\", () => pm.expect(pm.response.code).to.be.oneOf([204, 404]));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Mark all read",
-          "request": { "method": "POST", "url": { "raw": "{{baseUrl}}/api/notifications/read-all", "host": ["{{baseUrl}}"], "path": ["api", "notifications", "read-all"] } },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"204\", () => pm.response.to.have.status(204));"], "type": "text/javascript" } }]
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications/read-all",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "notifications",
+                "read-all"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"204\", () => pm.response.to.have.status(204));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Delete one",
-          "request": { "method": "DELETE", "url": { "raw": "{{baseUrl}}/api/notifications/{{notificationId}}", "host": ["{{baseUrl}}"], "path": ["api", "notifications", "{{notificationId}}"] } },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"204/404\", () => pm.expect(pm.response.code).to.be.oneOf([204, 404]));"], "type": "text/javascript" } }]
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications/{{notificationId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "notifications",
+                "{{notificationId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"204/404\", () => pm.expect(pm.response.code).to.be.oneOf([204, 404]));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Clear read only",
-          "request": { "method": "DELETE", "url": { "raw": "{{baseUrl}}/api/notifications?read=true", "host": ["{{baseUrl}}"], "path": ["api", "notifications"], "query": [{ "key": "read", "value": "true" }] } },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"200 + cleared count\", () => pm.response.to.have.status(200));", "console.log(pm.response.json());"], "type": "text/javascript" } }]
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications?read=true",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "notifications"
+              ],
+              "query": [
+                {
+                  "key": "read",
+                  "value": "true"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200 + cleared count\", () => pm.response.to.have.status(200));",
+                  "console.log(pm.response.json());"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Clear all",
-          "request": { "method": "DELETE", "url": { "raw": "{{baseUrl}}/api/notifications?read=false", "host": ["{{baseUrl}}"], "path": ["api", "notifications"], "query": [{ "key": "read", "value": "false" }] }, "description": "Clears ALL of the caller's notifications. The scope is REQUIRED (v3 LB-UI-10): read=false = all, read=true = only read; omitting ?read is a 400 (scope_required), so delete-all can never be hit by a dropped param." },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"200 + cleared count\", () => pm.response.to.have.status(200));", "console.log(pm.response.json());"], "type": "text/javascript" } }]
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications?read=false",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "notifications"
+              ],
+              "query": [
+                {
+                  "key": "read",
+                  "value": "false"
+                }
+              ]
+            },
+            "description": "Clears ALL of the caller's notifications. The scope is REQUIRED (v3 LB-UI-10): read=false = all, read=true = only read; omitting ?read is a 400 (scope_required), so delete-all can never be hit by a dropped param."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200 + cleared count\", () => pm.response.to.have.status(200));",
+                  "console.log(pm.response.json());"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Preferences — get",
-          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/notifications/preferences", "host": ["{{baseUrl}}"], "path": ["api", "notifications", "preferences"] } },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"200\", () => pm.response.to.have.status(200));"], "type": "text/javascript" } }]
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications/preferences",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "notifications",
+                "preferences"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Preferences — update",
           "request": {
             "method": "PUT",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"in_app\": true,\n  \"email\": false\n}" },
-            "url": { "raw": "{{baseUrl}}/api/notifications/preferences", "host": ["{{baseUrl}}"], "path": ["api", "notifications", "preferences"] }
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"in_app\": true,\n  \"email\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications/preferences",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "notifications",
+                "preferences"
+              ]
+            }
           },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"200\", () => pm.response.to.have.status(200));"], "type": "text/javascript" } }]
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         }
       ]
     },
@@ -562,39 +1800,146 @@
       "item": [
         {
           "name": "Summary",
-          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/billing", "host": ["{{baseUrl}}"], "path": ["api", "billing"] }, "description": "Plan, status, seats — owner-only (403 otherwise)." },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"200/403\", () => pm.expect(pm.response.code).to.be.oneOf([200, 403]));"], "type": "text/javascript" } }]
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/billing",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "billing"
+              ]
+            },
+            "description": "Plan, status, seats — owner-only (403 otherwise)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200/403\", () => pm.expect(pm.response.code).to.be.oneOf([200, 403]));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Checkout (start upgrade)",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"plan_key\": \"pro\"\n}" },
-            "url": { "raw": "{{baseUrl}}/api/billing/checkout", "host": ["{{baseUrl}}"], "path": ["api", "billing", "checkout"] },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plan_key\": \"pro\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/billing/checkout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "billing",
+                "checkout"
+              ]
+            },
             "description": "Returns the provider checkout URL (fake provider locally: billing.test/... — won't load, by design)."
           },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"200/403\", () => pm.expect(pm.response.code).to.be.oneOf([200, 403]));", "if (pm.response.code === 200) console.log(pm.response.json().url);"], "type": "text/javascript" } }]
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200/403\", () => pm.expect(pm.response.code).to.be.oneOf([200, 403]));",
+                  "if (pm.response.code === 200) console.log(pm.response.json().url);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Portal",
-          "request": { "method": "POST", "url": { "raw": "{{baseUrl}}/api/billing/portal", "host": ["{{baseUrl}}"], "path": ["api", "billing", "portal"] } },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"200/400/403\", () => pm.expect(pm.response.code).to.be.oneOf([200, 400, 403]));"], "type": "text/javascript" } }]
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/billing/portal",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "billing",
+                "portal"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200/400/403\", () => pm.expect(pm.response.code).to.be.oneOf([200, 400, 403]));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Webhook — simulate payment completion (fake provider)",
           "request": {
-            "auth": { "type": "noauth" },
+            "auth": {
+              "type": "noauth"
+            },
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Stripe-Signature", "value": "valid", "description": "The FAKE provider accepts the literal 'valid' (dev only). Real Stripe uses stripe CLI / real signatures." }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Stripe-Signature",
+                "value": "valid",
+                "description": "The FAKE provider accepts the literal 'valid' (dev only). Real Stripe uses stripe CLI / real signatures."
+              }
             ],
-            "body": { "mode": "raw", "raw": "{\n  \"EventId\": \"evt_postman_{{$timestamp}}\",\n  \"TenantId\": \"{{tenantId}}\",\n  \"PlanKey\": \"pro\",\n  \"Status\": \"active\",\n  \"StripeCustomerId\": \"cus_postman\",\n  \"OccurredAt\": \"{{$isoTimestamp}}\"\n}" },
-            "url": { "raw": "{{baseUrl}}/api/billing/webhook", "host": ["{{baseUrl}}"], "path": ["api", "billing", "webhook"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"EventId\": \"evt_postman_{{$timestamp}}\",\n  \"TenantId\": \"{{tenantId}}\",\n  \"PlanKey\": \"pro\",\n  \"Status\": \"active\",\n  \"StripeCustomerId\": \"cus_postman\",\n  \"OccurredAt\": \"{{$isoTimestamp}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/billing/webhook",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "billing",
+                "webhook"
+              ]
+            },
             "description": "Upgrades {{tenantId}} to pro/active as if checkout completed (QA-BILL upgrade loop). Requires the FAKE provider (dev default) — on an environment wired to real Stripe (test mode), this returns 400 invalid signature by design; use `stripe trigger` there instead. Run 'Get household' first to populate {{tenantId}}. Re-sending the same EventId is deduped (inbox); an older OccurredAt than the last applied event is ignored."
           },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"200 applied\", () => pm.response.to.have.status(200));"], "type": "text/javascript" } }]
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200 applied\", () => pm.response.to.have.status(200));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         }
       ]
     },
@@ -604,88 +1949,311 @@
       "item": [
         {
           "name": "Am I staff",
-          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/admin/me", "host": ["{{baseUrl}}"], "path": ["api", "admin", "me"] } },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"200\", () => pm.response.to.have.status(200));", "console.log(pm.response.json());"], "type": "text/javascript" } }]
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "me"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "console.log(pm.response.json());"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "List tenants",
-          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/admin/tenants", "host": ["{{baseUrl}}"], "path": ["api", "admin", "tenants"] } },
-          "event": [{ "listen": "test", "script": { "exec": [
-            "pm.test(\"200/403\", () => pm.expect(pm.response.code).to.be.oneOf([200, 403]));",
-            "if (pm.response.code !== 200) return;",
-            "const list = pm.response.json();",
-            "if (list.length) { pm.environment.set('adminTenantId', list[0].id); console.log('adminTenantId =', list[0].id, '(' + list[0].name + ')'); }"
-          ], "type": "text/javascript" } }]
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/tenants",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "tenants"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200/403\", () => pm.expect(pm.response.code).to.be.oneOf([200, 403]));",
+                  "if (pm.response.code !== 200) return;",
+                  "const list = pm.response.json();",
+                  "if (list.length) { pm.environment.set('adminTenantId', list[0].id); console.log('adminTenantId =', list[0].id, '(' + list[0].name + ')'); }"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Tenant detail (audited in-tenant)",
-          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/admin/tenants/{{adminTenantId}}", "host": ["{{baseUrl}}"], "path": ["api", "admin", "tenants", "{{adminTenantId}}"] } },
-          "event": [{ "listen": "test", "script": { "exec": [
-            "pm.test(\"200/403/404\", () => pm.expect(pm.response.code).to.be.oneOf([200, 403, 404]));",
-            "if (pm.response.code !== 200) return;",
-            "const json = pm.response.json();",
-            "console.log('plan:', json.plan_key, '| provider_managed:', json.provider_managed);",
-            "if ((json.members || []).length) pm.environment.set('adminTargetUserId', json.members[0].user_id);"
-          ], "type": "text/javascript" } }]
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/tenants/{{adminTenantId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "tenants",
+                "{{adminTenantId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200/403/404\", () => pm.expect(pm.response.code).to.be.oneOf([200, 403, 404]));",
+                  "if (pm.response.code !== 200) return;",
+                  "const json = pm.response.json();",
+                  "console.log('plan:', json.plan_key, '| provider_managed:', json.provider_managed);",
+                  "if ((json.members || []).length) pm.environment.set('adminTargetUserId', json.members[0].user_id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Announce to tenant (all members or user_ids subset)",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"title\": \"Postman announcement\",\n  \"body\": \"Hello from the API collection.\",\n  \"user_ids\": null\n}" },
-            "url": { "raw": "{{baseUrl}}/api/admin/tenants/{{adminTenantId}}/announce", "host": ["{{baseUrl}}"], "path": ["api", "admin", "tenants", "{{adminTenantId}}", "announce"] },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Postman announcement\",\n  \"body\": \"Hello from the API collection.\",\n  \"user_ids\": null\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/tenants/{{adminTenantId}}/announce",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "tenants",
+                "{{adminTenantId}}",
+                "announce"
+              ]
+            },
             "description": "user_ids: null/omitted = every member; a NON-empty list = just those (intersected with the roster); an explicitly-empty [] = NO ONE (v3 LB-ADM-2). Audited in-tenant."
           },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"200/403\", () => pm.expect(pm.response.code).to.be.oneOf([200, 403]));", "if (pm.response.code === 200) console.log(pm.response.json());"], "type": "text/javascript" } }]
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200/403\", () => pm.expect(pm.response.code).to.be.oneOf([200, 403]));",
+                  "if (pm.response.code === 200) console.log(pm.response.json());"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Announce to EVERYONE (202 → outbox)",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"title\": \"Platform notice\",\n  \"body\": \"Broadcast to every user of every tenant.\"\n}" },
-            "url": { "raw": "{{baseUrl}}/api/admin/announce-all", "host": ["{{baseUrl}}"], "path": ["api", "admin", "announce-all"] },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Platform notice\",\n  \"body\": \"Broadcast to every user of every tenant.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/announce-all",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "announce-all"
+              ]
+            },
             "description": "Queued (202) — the outbox dispatcher fans out a few seconds later. ADR-021."
           },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"202/403\", () => pm.expect(pm.response.code).to.be.oneOf([202, 403]));"], "type": "text/javascript" } }]
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"202/403\", () => pm.expect(pm.response.code).to.be.oneOf([202, 403]));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Comp tenant to Pro",
           "request": {
             "method": "PUT",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"plan_key\": \"pro\"\n}" },
-            "url": { "raw": "{{baseUrl}}/api/admin/tenants/{{adminTenantId}}/subscription", "host": ["{{baseUrl}}"], "path": ["api", "admin", "tenants", "{{adminTenantId}}", "subscription"] },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plan_key\": \"pro\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/tenants/{{adminTenantId}}/subscription",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "tenants",
+                "{{adminTenantId}}",
+                "subscription"
+              ]
+            },
             "description": "Simulates a completed checkout (active, never lapses, no provider ids). 409 = tenant has a LIVE Stripe subscription — keyed on liveness (status ≠ canceled), so a churned/canceled tenant is comp-able even though it kept its Stripe id (ADR-006/021, v3 ADM-5)."
           },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"200/400/403/409\", () => pm.expect(pm.response.code).to.be.oneOf([200, 400, 403, 409]));"], "type": "text/javascript" } }]
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200/400/403/409\", () => pm.expect(pm.response.code).to.be.oneOf([200, 400, 403, 409]));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Revert tenant to Free",
-          "request": { "method": "DELETE", "url": { "raw": "{{baseUrl}}/api/admin/tenants/{{adminTenantId}}/subscription", "host": ["{{baseUrl}}"], "path": ["api", "admin", "tenants", "{{adminTenantId}}", "subscription"] }, "description": "Deletes the projection (absence ⇒ Free). Idempotent. 409 = LIVE provider subscription (status ≠ canceled); a canceled-but-lingering projection is cleaned up, not blocked (v3 ADM-5)." },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"204/403/409\", () => pm.expect(pm.response.code).to.be.oneOf([204, 403, 409]));"], "type": "text/javascript" } }]
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/tenants/{{adminTenantId}}/subscription",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "tenants",
+                "{{adminTenantId}}",
+                "subscription"
+              ]
+            },
+            "description": "Deletes the projection (absence ⇒ Free). Idempotent. 409 = LIVE provider subscription (status ≠ canceled); a canceled-but-lingering projection is cleaned up, not blocked (v3 ADM-5)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"204/403/409\", () => pm.expect(pm.response.code).to.be.oneOf([204, 403, 409]));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Impersonate user (short-lived token)",
           "request": {
             "method": "POST",
-            "url": { "raw": "{{baseUrl}}/api/admin/impersonate/{{adminTargetUserId}}", "host": ["{{baseUrl}}"], "path": ["api", "admin", "impersonate", "{{adminTargetUserId}}"] },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/impersonate/{{adminTargetUserId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "impersonate",
+                "{{adminTargetUserId}}"
+              ]
+            },
             "description": "Stores {{impersonationToken}} (does NOT overwrite your session). To act as the target, temporarily set a request's bearer to {{impersonationToken}}. ~15 min, non-refreshable, audited in the target's tenant."
           },
-          "event": [{ "listen": "test", "script": { "exec": [
-            "pm.test(\"200/403/404\", () => pm.expect(pm.response.code).to.be.oneOf([200, 403, 404]));",
-            "if (pm.response.code === 200) { pm.environment.set('impersonationToken', pm.response.json().access_token); console.log('impersonationToken stored (expires_in:', pm.response.json().expires_in + 's)'); }"
-          ], "type": "text/javascript" } }]
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200/403/404\", () => pm.expect(pm.response.code).to.be.oneOf([200, 403, 404]));",
+                  "if (pm.response.code === 200) { pm.environment.set('impersonationToken', pm.response.json().access_token); console.log('impersonationToken stored (expires_in:', pm.response.json().expires_in + 's)'); }"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "⚠ Reset user MFA (lost authenticator + codes)",
           "request": {
             "method": "DELETE",
-            "url": { "raw": "{{baseUrl}}/api/admin/users/{{adminTargetUserId}}/mfa", "host": ["{{baseUrl}}"], "path": ["api", "admin", "users", "{{adminTargetUserId}}", "mfa"] },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/users/{{adminTargetUserId}}/mfa",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "users",
+                "{{adminTargetUserId}}",
+                "mfa"
+              ]
+            },
             "description": "Staff recovery path (ADR-021 addendum): wipes the user's TOTP secret + recovery codes WITHOUT a code — verify their identity out-of-band first. Also REVOKES the target's refresh tokens/sessions (v3 ADM-7 — compromise recovery). Audited in the target's tenant (admin.mfa.reset) and the user is notified (in-app + email). 204 also when the user had no MFA (idempotent no-op)."
           },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"204/403/404\", () => pm.expect(pm.response.code).to.be.oneOf([204, 403, 404]));"], "type": "text/javascript" } }]
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"204/403/404\", () => pm.expect(pm.response.code).to.be.oneOf([204, 403, 404]));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         }
       ]
     },
@@ -695,57 +2263,214 @@
       "item": [
         {
           "name": "API keys — list",
-          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/apikeys", "host": ["{{baseUrl}}"], "path": ["api", "apikeys"] } },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"200 (404 = feature off)\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));"], "type": "text/javascript" } }]
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/apikeys",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "apikeys"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200 (404 = feature off)\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "API keys — create",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"name\": \"postman\",\n  \"scopes\": [\"read\"],\n  \"expires_at\": null\n}" },
-            "url": { "raw": "{{baseUrl}}/api/apikeys", "host": ["{{baseUrl}}"], "path": ["api", "apikeys"] },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"postman\",\n  \"scopes\": [\"read\"],\n  \"expires_at\": null\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/apikeys",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "apikeys"
+              ]
+            },
             "description": "Raw pk_ key returned ONCE — stored as {{apiKey}}."
           },
-          "event": [{ "listen": "test", "script": { "exec": [
-            "pm.test(\"2xx (404 = feature off)\", () => pm.expect(pm.response.code).to.be.oneOf([200, 201, 404]));",
-            "if (pm.response.code > 201) return;",
-            "const json = pm.response.json();",
-            "if (json.key) { pm.environment.set('apiKey', json.key); console.log('apiKey stored (shown once):', json.prefix + '…'); }",
-            "if (json.id) pm.environment.set('apiKeyId', json.id);"
-          ], "type": "text/javascript" } }]
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"2xx (404 = feature off)\", () => pm.expect(pm.response.code).to.be.oneOf([200, 201, 404]));",
+                  "if (pm.response.code > 201) return;",
+                  "const json = pm.response.json();",
+                  "if (json.key) { pm.environment.set('apiKey', json.key); console.log('apiKey stored (shown once):', json.prefix + '…'); }",
+                  "if (json.id) pm.environment.set('apiKeyId', json.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Public — whoami (X-Api-Key)",
           "request": {
-            "auth": { "type": "noauth" },
+            "auth": {
+              "type": "noauth"
+            },
             "method": "GET",
-            "header": [{ "key": "X-Api-Key", "value": "{{apiKey}}" }],
-            "url": { "raw": "{{baseUrl}}/api/public/whoami", "host": ["{{baseUrl}}"], "path": ["api", "public", "whoami"] },
+            "header": [
+              {
+                "key": "X-Api-Key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/public/whoami",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "whoami"
+              ]
+            },
             "description": "Key → tenant-scoped principal. Also accepts Authorization: Bearer pk_… . Per-key rate limit: 60/min → 429."
           },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"200/401/404/429\", () => pm.expect(pm.response.code).to.be.oneOf([200, 401, 404, 429]));"], "type": "text/javascript" } }]
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200/401/404/429\", () => pm.expect(pm.response.code).to.be.oneOf([200, 401, 404, 429]));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Public — echo",
           "request": {
-            "auth": { "type": "noauth" },
+            "auth": {
+              "type": "noauth"
+            },
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "X-Api-Key", "value": "{{apiKey}}" }],
-            "body": { "mode": "raw", "raw": "{\n  \"message\": \"ping\"\n}" },
-            "url": { "raw": "{{baseUrl}}/api/public/echo", "host": ["{{baseUrl}}"], "path": ["api", "public", "echo"] }
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Api-Key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"ping\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/public/echo",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "echo"
+              ]
+            }
           },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"200/401/404\", () => pm.expect(pm.response.code).to.be.oneOf([200, 401, 404]));"], "type": "text/javascript" } }]
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200/401/404\", () => pm.expect(pm.response.code).to.be.oneOf([200, 401, 404]));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Public — OpenAPI document",
-          "request": { "auth": { "type": "noauth" }, "method": "GET", "url": { "raw": "{{baseUrl}}/api/public/openapi.json", "host": ["{{baseUrl}}"], "path": ["api", "public", "openapi.json"] } },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"200/404\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));"], "type": "text/javascript" } }]
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/openapi.json",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "openapi.json"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200/404\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "API keys — revoke",
-          "request": { "method": "DELETE", "url": { "raw": "{{baseUrl}}/api/apikeys/{{apiKeyId}}", "host": ["{{baseUrl}}"], "path": ["api", "apikeys", "{{apiKeyId}}"] } },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"204/404\", () => pm.expect(pm.response.code).to.be.oneOf([204, 404]));"], "type": "text/javascript" } }]
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/apikeys/{{apiKeyId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "apikeys",
+                "{{apiKeyId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"204/404\", () => pm.expect(pm.response.code).to.be.oneOf([204, 404]));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         }
       ]
     },
@@ -755,50 +2480,194 @@
       "item": [
         {
           "name": "List subscriptions",
-          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/webhooks", "host": ["{{baseUrl}}"], "path": ["api", "webhooks"] } },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"200 (404 = feature off)\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));"], "type": "text/javascript" } }]
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/webhooks",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "webhooks"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200 (404 = feature off)\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Create subscription",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"url\": \"https://webhook.site/<your-id>\",\n  \"event_types\": [\"ping\"]\n}" },
-            "url": { "raw": "{{baseUrl}}/api/webhooks", "host": ["{{baseUrl}}"], "path": ["api", "webhooks"] },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"url\": \"https://webhook.site/<your-id>\",\n  \"event_types\": [\"ping\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/webhooks",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "webhooks"
+              ]
+            },
             "description": "Signing secret (whsec_…) returned ONCE — stored as {{webhookSecret}}. 400 = SSRF guard rejected the URL."
           },
-          "event": [{ "listen": "test", "script": { "exec": [
-            "pm.test(\"2xx/400/404\", () => pm.expect(pm.response.code).to.be.oneOf([200, 201, 400, 404]));",
-            "if (pm.response.code > 201) return;",
-            "const json = pm.response.json();",
-            "if (json.id) pm.environment.set('webhookId', json.id);",
-            "if (json.secret) { pm.environment.set('webhookSecret', json.secret); console.log('webhookSecret stored (shown once)'); }"
-          ], "type": "text/javascript" } }]
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"2xx/400/404\", () => pm.expect(pm.response.code).to.be.oneOf([200, 201, 400, 404]));",
+                  "if (pm.response.code > 201) return;",
+                  "const json = pm.response.json();",
+                  "if (json.id) pm.environment.set('webhookId', json.id);",
+                  "if (json.secret) { pm.environment.set('webhookSecret', json.secret); console.log('webhookSecret stored (shown once)'); }"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Send test event",
-          "request": { "method": "POST", "url": { "raw": "{{baseUrl}}/api/webhooks/{{webhookId}}/test", "host": ["{{baseUrl}}"], "path": ["api", "webhooks", "{{webhookId}}", "test"] }, "description": "Synchronously POSTs a signed test 'ping' and returns { delivered, status_code } (or { delivered:false, error:'delivery_failed' } on a transport error). Records a WebhookDelivery row for the attempt (success and failure), so the Delivery log is populated immediately — run it, then the Delivery log request." },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"2xx/404\", () => pm.expect(pm.response.code).to.be.oneOf([200, 202, 204, 404]));"], "type": "text/javascript" } }]
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/webhooks/{{webhookId}}/test",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "webhooks",
+                "{{webhookId}}",
+                "test"
+              ]
+            },
+            "description": "Synchronously POSTs a signed test 'ping' and returns { delivered, status_code } (or { delivered:false, error:'delivery_failed' } on a transport error). Records a WebhookDelivery row for the attempt (success and failure), so the Delivery log is populated immediately — run it, then the Delivery log request."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"2xx/404\", () => pm.expect(pm.response.code).to.be.oneOf([200, 202, 204, 404]));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Delivery log",
-          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/webhooks/{{webhookId}}/deliveries", "host": ["{{baseUrl}}"], "path": ["api", "webhooks", "{{webhookId}}", "deliveries"] }, "description": "Recent delivery attempts for this subscription (newest first, tenant-scoped): each row has success, status_code, error, event_id. Populated by Send test event (sync) and by published/replayed events (async via the outbox). Captures the newest row's id into {{deliveryId}} for Replay." },
-          "event": [{ "listen": "test", "script": { "exec": [
-            "pm.test(\"200/404\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));",
-            "if (pm.response.code !== 200) return;",
-            "const list = pm.response.json();",
-            "if (list.length) pm.environment.set('deliveryId', list[0].id);"
-          ], "type": "text/javascript" } }]
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/webhooks/{{webhookId}}/deliveries",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "webhooks",
+                "{{webhookId}}",
+                "deliveries"
+              ]
+            },
+            "description": "Recent delivery attempts for this subscription (newest first, tenant-scoped): each row has success, status_code, error, event_id. Populated by Send test event (sync) and by published/replayed events (async via the outbox). Captures the newest row's id into {{deliveryId}} for Replay."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200/404\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));",
+                  "if (pm.response.code !== 200) return;",
+                  "const list = pm.response.json();",
+                  "if (list.length) pm.environment.set('deliveryId', list[0].id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Replay a delivery",
-          "request": { "method": "POST", "url": { "raw": "{{baseUrl}}/api/webhooks/deliveries/{{deliveryId}}/replay", "host": ["{{baseUrl}}"], "path": ["api", "webhooks", "deliveries", "{{deliveryId}}", "replay"] }, "description": "Re-enqueues the exact stored payload of {{deliveryId}} (same event id, so a receiver can dedup) → 202; delivered async via the outbox with retry/backoff, which logs its own attempt row. 404 for an unknown or other-tenant delivery id." },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"2xx/404\", () => pm.expect(pm.response.code).to.be.oneOf([200, 202, 204, 404]));"], "type": "text/javascript" } }]
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/webhooks/deliveries/{{deliveryId}}/replay",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "webhooks",
+                "deliveries",
+                "{{deliveryId}}",
+                "replay"
+              ]
+            },
+            "description": "Re-enqueues the exact stored payload of {{deliveryId}} (same event id, so a receiver can dedup) → 202; delivered async via the outbox with retry/backoff, which logs its own attempt row. 404 for an unknown or other-tenant delivery id."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"2xx/404\", () => pm.expect(pm.response.code).to.be.oneOf([200, 202, 204, 404]));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Delete subscription",
-          "request": { "method": "DELETE", "url": { "raw": "{{baseUrl}}/api/webhooks/{{webhookId}}", "host": ["{{baseUrl}}"], "path": ["api", "webhooks", "{{webhookId}}"] } },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test(\"204/404\", () => pm.expect(pm.response.code).to.be.oneOf([204, 404]));"], "type": "text/javascript" } }]
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/webhooks/{{webhookId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "webhooks",
+                "{{webhookId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"204/404\", () => pm.expect(pm.response.code).to.be.oneOf([204, 404]));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         }
       ]
     },
@@ -1219,6 +3088,48 @@
               "script": {
                 "exec": [
                   "pm.test(\"200/404\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "13 · Exchange rate",
+      "description": "FX-1 (app slice P3, ADR-V006): the resolved USD→CRC rate and where it came from. Chain: live provider quote (cached 1 h counts as live) → stale cache flagged as of its fetch time → the household's most recent transaction rate → 503 exchange_rate_unavailable. Never a fabricated rate. Any member may read. Provider key: ExchangeRate__ApiKey in .env (unset ⇒ the chain starts at the cache).",
+      "item": [
+        {
+          "name": "Get exchange rate",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/exchange-rate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "exchange-rate"
+              ]
+            },
+            "description": "200 { rate, source: live | cache | transaction, as_of } — or 503 { error: exchange_rate_unavailable, message } when the whole chain is empty (no key / provider down, nothing cached, no transactions yet). Repeat within the hour: same as_of (cached, no provider call). 401 without a token."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200 with a rate, or the honest 503\", () => pm.expect(pm.response.code).to.be.oneOf([200, 503]));",
+                  "const body = pm.response.json();",
+                  "if (pm.response.code === 200) {",
+                  "  pm.test(\"rate > 0\", () => pm.expect(body.rate).to.be.above(0));",
+                  "  pm.test(\"source\", () => pm.expect(body.source).to.be.oneOf(['live', 'cache', 'transaction']));",
+                  "  pm.test(\"as_of\", () => pm.expect(body.as_of).to.be.a('string'));",
+                  "} else {",
+                  "  pm.test(\"error code\", () => pm.expect(body.error).to.eql('exchange_rate_unavailable'));",
+                  "}"
                 ],
                 "type": "text/javascript"
               }

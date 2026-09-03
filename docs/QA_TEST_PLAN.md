@@ -1294,6 +1294,44 @@ from a *different* household's list → **Expected:** 404 (never 403 — no exis
 
 ---
 
+## 10f. Web — Exchange rate (app slice FX-1) 🟠
+
+> The live USD→CRC rate and its honest fallback chain (ADR-V006): live → stale "as of …" → the
+> household's last transaction → unavailable. The app never invents a rate. Provider key:
+> `ExchangeRate__ApiKey` in `.env` (unset in a fresh checkout).
+
+### QA-FX-01 — Home shows today's live rate 🟠 (Web / API)
+**Gherkin**
+```gherkin
+Given ExchangeRate__ApiKey is set in .env and the API was restarted
+When I open Home
+Then I see "Today's rate ₡<rate> per $1" with a green "live" badge
+And GET /api/exchange-rate returns 200 { rate, source: "live", as_of }
+When I reload within the hour
+Then the same as_of comes back (cached — no second provider call)
+```
+**Walkthrough:** set `ExchangeRate__ApiKey=<your free-tier key>` in `.env`, restart the API, open
+**Home** → **Expected:** the rate line under the welcome text with the green **live** badge; a
+plausible value (≈ 500–560 colones per dollar in 2026). Via Postman (**13 · Exchange rate → Get
+exchange rate**) → **Expected:** 200 with `rate` > 0, `source` = `live`, `as_of` ≈ now. Send it again
+→ **Expected:** identical `as_of` (served from the one-hour cache). Without a token → 401.
+
+### QA-FX-02 — No provider → the honest "unavailable" state, never a fabricated rate 🟠 (Web / API)
+**Gherkin**
+```gherkin
+Given ExchangeRate__ApiKey is unset (fresh checkout) and the household has no transactions
+When I open Home
+Then I see the red "Exchange rate unavailable — try again later" badge and no number
+And GET /api/exchange-rate returns 503 { error: "exchange_rate_unavailable", message: "…" }
+```
+**Walkthrough:** comment out `ExchangeRate__ApiKey` in `.env`, restart the API, open **Home** →
+**Expected:** the red badge, no rate figure. Via Postman (**13 · Exchange rate → Get exchange
+rate**) → **Expected:** 503 with the shared error shape and `error` = `exchange_rate_unavailable`.
+Restore the key and restart → QA-FX-01 passes again. (The stale-cache and last-transaction tiers are
+covered by `Api.Tests`; the last-transaction tier becomes manually testable once P5 ships.)
+
+---
+
 ## 11. Emails (Mailpit) — branding & content 🟠
 
 > **Delivery is asynchronous** (the outbox dispatcher) — emails land in Mailpit a few seconds after the
@@ -2274,6 +2312,7 @@ app fires no published events. (Published events via `IWebhookPublisher` also lo
 | Theme / dark mode (THEME-1 + PREFS-1) | **SET-08** (⚙️ E2E `ThemeJourneyTests`) + **DSK-15 / AND-14** (native restart persistence) | `PUT /api/auth/theme` ("system" stored verbatim, null = never chose — ADR-022; `theme` JWT claim; pre-paint `theme.js` → `data-bs-theme`; sign-in reconcile + device adoption) |
 | Budget settings (app BUDGET-1) | BUD-01..03 | `GET /api/budget-settings`, `PUT /api/budget-settings` (400 `invalid_request`; household-wide, member-editable) |
 | Catalog: categories + banks (app CATALOG-1/2) | CAT-01..04 | `GET/POST /api/categories`, `PUT /api/categories/{id}`, same under `/api/banks` (409 `*_exists` / `*_exists_inactive` + `existing_id` + `existing_name`; uniform 404) |
+| Exchange rate (app FX-1) | FX-01..02 + `Api.Tests` (`ExchangeRateApiClientTests`, `ExchangeRateResolverTests`) | `GET /api/exchange-rate` (200 `{rate, source: live\|cache\|transaction, as_of}`; 503 `exchange_rate_unavailable`; 401 anonymous) |
 | Emails / branding | MAIL-01..04, I18N-04 | (SMTP via Mailpit) |
 | Tenant isolation / auth guards | SEC-01..05 | (all `[Authorize]` endpoints; write-stamping + reuse detection are automated) |
 | Platform health / readiness | SMK-07 | `GET /health`, `GET /health/ready` |
@@ -2378,6 +2417,8 @@ Record one row per executed case. Build = API/web commit SHA (`git rev-parse --s
 | QA-CAT-02 | Web | | | | | |
 | QA-CAT-03 | Web | | | | | |
 | QA-CAT-04 | Web | | | | | |
+| QA-FX-01 | Web | | | | | |
+| QA-FX-02 | Web | | | | | |
 | … | | | | | | |
 
 **§14a adversarial / tenant-isolation (QA-ADV-*).** All rows are **Not-run** (blank) until executed.
