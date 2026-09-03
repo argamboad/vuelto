@@ -120,14 +120,79 @@ Scenario: The pages
 **Out of scope (P5a):** LEDGER-3 below; the dashboard summary on a month read (P6); the voucher
 review path that books `source = email` rows (P10).
 
-### LEDGER-3 — Expected refunds and their realization *(P5b — pinned, not built)*
+### LEDGER-3 — Expected refunds and their realization *(P5b)*
 
-An `unplanned_essential` transaction flagged "refund expected" with a percentage spawns a derived
-`Refund` (amounts = % × the frozen amounts) that follows every edit and dies with its transaction;
-flipping it `pending → received` creates a read-only `inflow` (`source = refund_realization`) under a
-conditional update so concurrent flips yield exactly one inflow; flipping back removes it (ADR-V007,
-ADR-V014; donor US-012, WU-2). Adds `refund_expected` / `refund_percentage` to the transaction DTOs and
-the form, and `/api/refunds`.
+**As a** household member
+**I want** to note that part of an unplanned essential will come back, and to book it the day it does
+**So that** the money I am owed is visible without being counted, and the money that lands counts as income
+
+**Context / notes:** a `Refund` is **derived** from an `unplanned_essential` transaction flagged
+`refund_expected` with `refund_percentage` (0 < p ≤ 100): its amounts are that percentage of the
+transaction's frozen amounts (2 dp), status `pending`, one per transaction. The flag means nothing on
+any other class (ignored, never an error). The refund **follows its transaction**: re-derived on every
+edit (amounts, payee, date, month), removed when the flag clears or the class changes, deleted with
+the transaction. The only thing edited directly is its **status**: `PUT /api/refunds/{id}` with
+`received` books a derived `inflow` transaction — same amounts, the source's frozen rate, bank,
+category and payment method, `source = refund_realization`, in the refund's month — and links it;
+`pending` removes the inflow (and its month if emptied). Same status is a no-op. The flip is a
+**conditional update inside a unit-of-work scope** (ADR-V014): two concurrent flips book exactly one
+inflow; the loser gets 409 `refund_status_conflict`. A realized refund's inflow **tracks re-derived
+amounts** when the source is edited and disappears when the refund is dropped — never orphaned income.
+Derived inflows are read-only through the transaction API (400 `derived_transaction`).
+`GET /api/months/{id}/refunds` lists a month's refunds. Foreign ids are 404.
+
+```gherkin
+Scenario: A flagged unplanned essential spawns a pending refund
+  When I POST 50000 CRC unplanned_essential at rate 500 with refund_expected true, refund_percentage 30
+  Then the response carries refund_expected true / refund_percentage 30
+  And GET /api/months/{month}/refunds lists one refund: 15000 CRC / 30 USD, status "pending"
+
+Scenario: The flag needs a valid percentage, and only means something on an unplanned essential
+  When I POST with refund_expected true and no percentage, 0, or 150
+  Then I receive 400 "invalid_request" and nothing exists
+  When I POST an extraordinary / inflow / budgeted row with the flag
+  Then it is created without a refund
+
+Scenario: The refund follows its transaction
+  Given the refund above
+  When I PUT original_amount 80000 → the refund is 40000 / 80
+  When I PUT refund_expected false (or class budgeted) → the refund is gone
+  When I PUT a date in July → the refund moves to July with its transaction
+  When I DELETE the transaction → the refund (and the emptied month) are gone
+
+Scenario: Marking received books a derived inflow
+  When I PUT /api/refunds/{id} { status: "received" }
+  Then an inflow exists: 15000 CRC / 30 USD, exchange_rate_used 500, the source's bank and category,
+       source "refund_realization", and the refund carries inflow_transaction_id
+  And PUT / DELETE on that inflow is 400 "derived_transaction"
+  When I PUT { status: "received" } again → nothing changes (one inflow)
+  When I PUT { status: "pending" } → the inflow is gone, the source stays
+
+Scenario: A realized refund's inflow follows the source
+  Given a received refund (inflow 25000)
+  When I PUT the source to 80000 → the inflow is 40000 / 80
+  When I PUT refund_expected false → refund and inflow are both gone
+  When I DELETE the source → source, refund, inflow and the emptied month are gone
+
+Scenario: Concurrent flips book exactly one inflow
+  When two callers PUT { status: "received" } at the same time
+  Then one receives 200, the other 409 "refund_status_conflict", and exactly one inflow exists
+
+Scenario: The pages
+  Given the class is Unplanned on the form
+  Then a "Refund expected" switch appears; on, a percentage field and "Expected back: 15,000.00 CRC"
+  And the month page lists expected refunds with a status badge and Mark received / Back to pending;
+       a lost concurrent flip shows a message and reloads the list
+```
+
+**Definition of done (P5b):** tests first; Api.Tests slice tests on Postgres (derivation, invalid
+percentage theory, ignored on other classes, follows edits / moves / deletes, received books the inflow
+with the source's rate/bank/category, idempotent, revert, invalid / 404, derived read-only, source
+delete/edit/clear after received, list, cross-tenant, two-context concurrency) + HTTP (401, the
+flag → list → received → derived 400 → revert loop, 400/404), bUnit (fields only on Unplanned + payload
++ local validation; month page list, flip, conflict); migration `AddRefunds` with RLS DDL; contributor
+extended; Postman folder 17 + refund fields on folder 16; QA-LED-05..06 + regenerated PDFs; EN/ES resx;
+merged, app working.
 
 **Definition of done (P5a):** tests first; Core.Tests (`CurrencyMath`, vocabulary), Api.Tests slice
 tests on Postgres (lifecycle, snapshot by week count + defaults, reuse across the calendar boundary,

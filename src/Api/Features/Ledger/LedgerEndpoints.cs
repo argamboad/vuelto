@@ -4,11 +4,12 @@ using Vuelto.Api.Services;
 namespace Vuelto.Api.Features.Ledger;
 
 /// <summary>
-/// LEDGER-1/2 routes. <c>/api/months</c>: list, resolve a date, read one (with weeks), edit income,
-/// list its transactions. <c>/api/transactions</c>: create, read, update, delete. Any household member
-/// (member baseline, ADR-V002); the group helper applies the tenant-API policy. Errors are the shared
-/// <c>ErrorResponse</c>: 400 <c>invalid_request</c> / <c>exchange_rate_unavailable</c> /
-/// <c>derived_transaction</c>, 404 <c>not_found</c> (uniform — foreign ids do not exist).
+/// LEDGER-1/2/3 routes. <c>/api/months</c>: list, resolve a date, read one (with weeks), edit income,
+/// list its transactions and its refunds. <c>/api/transactions</c>: create, read, update, delete.
+/// <c>/api/refunds/{id}</c>: flip the status. Any household member (member baseline, ADR-V002); the
+/// group helper applies the tenant-API policy. Errors are the shared <c>ErrorResponse</c>: 400
+/// <c>invalid_request</c> / <c>exchange_rate_unavailable</c> / <c>derived_transaction</c>, 404
+/// <c>not_found</c> (uniform — foreign ids do not exist), 409 <c>refund_status_conflict</c>.
 /// </summary>
 public static class LedgerEndpoints
 {
@@ -47,6 +48,20 @@ public static class LedgerEndpoints
             return list is null ? Results.NotFound(new ErrorResponse("not_found", "month not found")) : Results.Ok(list);
         });
 
+        months.MapGet("/{id:guid}/refunds", async (Guid id, RefundHandler handler, CancellationToken ct) =>
+        {
+            var list = await handler.ListForMonthAsync(id, ct);
+            return list is null ? Results.NotFound(new ErrorResponse("not_found", "month not found")) : Results.Ok(list);
+        });
+
+        var refundsGroup = app.MapTenantFeatureGroup("/api/refunds");
+
+        refundsGroup.MapPut("/{id:guid}", async (Guid id, UpdateRefundStatusRequest request, RefundHandler handler, CancellationToken ct) =>
+        {
+            var (refund, error) = await handler.SetStatusAsync(id, request, ct);
+            return error is not null ? ToResult(error) : Results.Ok(refund);
+        });
+
         var transactions = app.MapTenantFeatureGroup("/api/transactions");
 
         transactions.MapPost("/", async (CreateTransactionRequest request, TransactionHandler handler, CancellationToken ct) =>
@@ -80,6 +95,7 @@ public static class LedgerEndpoints
     {
         { Error: "not_found" } => Results.NotFound(error),
         { Error: "invalid_token" } => Results.Json(error, statusCode: StatusCodes.Status401Unauthorized),
+        { Error: "refund_status_conflict" } => Results.Conflict(error),
         _ => Results.BadRequest(error), // invalid_request, exchange_rate_unavailable, derived_transaction
     };
 }

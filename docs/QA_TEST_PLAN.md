@@ -1449,6 +1449,48 @@ Months → Update month income — invalid (400)**) → `invalid_request`. With 
 *different* household's list → **Expected:** 404 (never 403 — no existence oracle). Also
 (**16 · Transactions → Create transaction — invalid (400)**) → `invalid_request` naming the field.
 
+### QA-LED-05 — An unplanned essential can expect a refund; the refund follows the transaction 🟠 (Web / API)
+**Gherkin**
+```gherkin
+Given I am on New transaction
+When I pick class Unplanned
+Then a "Refund expected" switch appears; switching it on shows a percentage field
+When I enter "Hospital", 50000 CRC, 30 %, and Save
+Then the month page lists an expected refund: Hospital · 30% · ₡15,000.00 · $<30> · Pending
+When I Edit the transaction to 80000 and Save
+Then the refund reads ₡40,000.00
+When I Edit it again, switch Refund expected off and Save
+Then the refund is gone
+```
+**Walkthrough:** **New transaction** → **Class** "Unplanned" → **Expected:** the **Refund expected**
+switch appears (it is absent for every other class). Switch it on → **Expected:** the percentage
+field; with `50000` and `30` the hint reads "Expected back: 15,000.00 CRC". Fill the rest and
+**Save** → **Expected:** the month page's **Expected refunds** table shows Hospital · 30% ·
+₡15,000.00 · Pending with a **Mark received** button. **Edit** → amount `80000` → **Save** →
+**Expected:** the refund row reads ₡40,000.00. **Edit** → switch off → **Save** → **Expected:** "No
+refunds expected this month." Via Postman (**16 · Transactions → Create transaction**) with
+`refund_expected: true, refund_percentage: 150` → **Expected:** 400 `invalid_request` naming
+`refund_percentage`.
+
+### QA-LED-06 — Marking a refund received books an inflow; reverting removes it 🟠 (Web / API)
+**Gherkin**
+```gherkin
+Given an expected refund of ₡15,000.00 (Pending)
+When I click Mark received
+Then the badge turns Received and the transactions table gains an Income (inflow) row of ₡15,000.00 marked "Derived from a refund — read-only"
+And that row has no Edit/Delete buttons
+When I click Back to pending
+Then the inflow row disappears and the badge is Pending again
+```
+**Walkthrough:** on the month page → **Mark received** → **Expected:** "Refund updated.", the badge
+**Received**, the button now **Back to pending**, and a new **Income (inflow)** row with the refund's
+amounts whose actions column says "Derived from a refund — read-only". Via Postman
+(**16 · Transactions → Delete transaction**) with that inflow's id → **Expected:** 400
+`derived_transaction`. **Back to pending** → **Expected:** the inflow row is gone, the badge
+**Pending**. Via Postman (**17 · Refunds → Update refund status**) send `received` twice →
+**Expected:** 200 both times, one inflow in **List month transactions**. With an id copied from a
+*different* household → **Expected:** 404. (The concurrent-flip 409 is proven by `Api.Tests`.)
+
 ---
 
 ## 11. Emails (Mailpit) — branding & content 🟠
@@ -2434,6 +2476,7 @@ app fires no published events. (Published events via `IWebhookPublisher` also lo
 | Exchange rate (app FX-1) | FX-01..02 + `Api.Tests` (`ExchangeRateApiClientTests`, `ExchangeRateResolverTests`) | `GET /api/exchange-rate` (200 `{rate, source: live\|cache\|transaction, as_of}`; 503 `exchange_rate_unavailable`; 401 anonymous) |
 | Envelopes (app ENV-1) | ENV-01..02 | `GET/POST /api/envelopes`, `PUT /api/envelopes/{id}` (400 `invalid_request`; 409 `envelope_exists` / `envelope_exists_inactive` + `existing_id` + `existing_name`; uniform 404) |
 | Months & transactions (app LEDGER-1/2) | LED-01..04 + `Api.Tests` (`LedgerSliceTests`) | `GET /api/months`, `GET /api/months/resolve?date=`, `GET /api/months/{id}`, `PUT /api/months/{id}/income`, `GET /api/months/{id}/transactions`; `POST /api/transactions`, `GET/PUT/DELETE /api/transactions/{id}` (400 `invalid_request` / `exchange_rate_unavailable` / `derived_transaction`; uniform 404) |
+| Expected refunds & realization (app LEDGER-3) | LED-05..06 + `Api.Tests` (`RefundSliceTests`, incl. the two-context concurrency proof) | `refund_expected` / `refund_percentage` on `POST/PUT /api/transactions`; `GET /api/months/{id}/refunds`; `PUT /api/refunds/{id}` (200; 400 `invalid_request`; 404; 409 `refund_status_conflict`) |
 | Emails / branding | MAIL-01..04, I18N-04 | (SMTP via Mailpit) |
 | Tenant isolation / auth guards | SEC-01..05 | (all `[Authorize]` endpoints; write-stamping + reuse detection are automated) |
 | Platform health / readiness | SMK-07 | `GET /health`, `GET /health/ready` |
@@ -2546,6 +2589,8 @@ Record one row per executed case. Build = API/web commit SHA (`git rev-parse --s
 | QA-LED-02 | Web | | | | | |
 | QA-LED-03 | Web | | | | | |
 | QA-LED-04 | Web | | | | | |
+| QA-LED-05 | Web | | | | | |
+| QA-LED-06 | Web | | | | | |
 | … | | | | | | |
 
 **§14a adversarial / tenant-isolation (QA-ADV-*).** All rows are **Not-run** (blank) until executed.

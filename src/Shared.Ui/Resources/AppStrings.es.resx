@@ -434,4 +434,17 @@
   <data name="Tx_Validation_Bank" xml:space="preserve"><value>Elige un banco: toda transacción indica de dónde salió el dinero.</value></data>
   <data name="Tx_Validation_Envelope" xml:space="preserve"><value>Elige el sobre al que va este aporte.</value></data>
   <data name="Tx_Validation_Rate" xml:space="preserve"><value>Se requiere un tipo de cambio: ninguna transacción se guarda sin uno.</value></data>
+  <data name="Tx_RefundExpected" xml:space="preserve"><value>Se espera reembolso</value></data>
+  <data name="Tx_RefundPercent" xml:space="preserve"><value>Porcentaje que se espera de vuelta</value></data>
+  <data name="Tx_RefundPreview" xml:space="preserve"><value>Se espera de vuelta: {0}</value></data>
+  <data name="Tx_Validation_Refund" xml:space="preserve"><value>Ingresa un porcentaje de reembolso entre 0 y 100.</value></data>
+  <data name="Month_Refunds" xml:space="preserve"><value>Reembolsos esperados</value></data>
+  <data name="Month_NoRefunds" xml:space="preserve"><value>No se esperan reembolsos este mes.</value></data>
+  <data name="Refund_Pending" xml:space="preserve"><value>Pendiente</value></data>
+  <data name="Refund_Received" xml:space="preserve"><value>Recibido</value></data>
+  <data name="Refund_MarkReceived" xml:space="preserve"><value>Marcar recibido</value></data>
+  <data name="Refund_MarkPending" xml:space="preserve"><value>Volver a pendiente</value></data>
+  <data name="Refund_Updated" xml:space="preserve"><value>Reembolso actualizado.</value></data>
+  <data name="Refund_Conflict" xml:space="preserve"><value>Alguien cambió este reembolso al mismo tiempo: la lista se recargó, intenta de nuevo.</value></data>
+  <data name="Refund_Error" xml:space="preserve"><value>No se pudo actualizar el reembolso. Intenta de nuevo.</value></data>
 </root>

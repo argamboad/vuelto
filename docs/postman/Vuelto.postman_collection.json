@@ -3514,7 +3514,7 @@
     },
     {
       "name": "16 · Transactions",
-      "description": "LEDGER-2 (app slice P5a, ADR-V006/V007): money movement in both currencies at a frozen rate. POST validates everything, settles the rate (manual exchange_rate override wins, else the live → cache → last-transaction chain; nothing → 400 exchange_rate_unavailable), resolves or creates the month from transaction_date, derives amount_crc/amount_usd and freezes exchange_rate_used. PUT re-derives from the frozen rate (never sends a rate) and re-resolves the month on a date change; DELETE is hard and removes an emptied month. Rows with source != manual are read-only (400 derived_transaction). Uniform 404 for another household's id. Run 12 · Catalog first so {{categoryId}} and a bank exist.",
+      "description": "LEDGER-2 (app slice P5a, ADR-V006/V007): money movement in both currencies at a frozen rate. POST validates everything, settles the rate (manual exchange_rate override wins, else the live → cache → last-transaction chain; nothing → 400 exchange_rate_unavailable), resolves or creates the month from transaction_date, derives amount_crc/amount_usd and freezes exchange_rate_used. PUT re-derives from the frozen rate (never sends a rate) and re-resolves the month on a date change; DELETE is hard and removes an emptied month. Rows with source != manual are read-only (400 derived_transaction). Uniform 404 for another household's id. Run 12 · Catalog first so {{categoryId}} and a bank exist. LEDGER-3: an unplanned_essential may carry refund_expected + refund_percentage (0 < p ≤ 100) — a derived Refund (percentage × the frozen amounts) is created/re-derived/removed with the transaction; the flag is ignored on other classes.",
       "item": [
         {
           "name": "Create transaction",
@@ -3530,7 +3530,7 @@
                 "transactions"
               ]
             },
-            "description": "201 with the row (amounts derived, rate frozen, source manual, month_id of the resolved-or-created month). Replace bank_id with an id from 12 · Catalog → List banks. Captures {{transactionId}} and {{monthId}}.",
+            "description": "201 with the row (amounts derived, rate frozen, source manual, month_id of the resolved-or-created month). Replace bank_id with an id from 12 · Catalog → List banks. Captures {{transactionId}} and {{monthId}}. Set transaction_type unplanned_essential + refund_expected true + refund_percentage (e.g. 30) to spawn an expected refund (see 17 · Refunds); the response echoes refund_expected / refund_percentage.",
             "header": [
               {
                 "key": "Content-Type",
@@ -3539,7 +3539,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"payee\": \"AutoMercado\",\n  \"bank_id\": \"{{bankId}}\",\n  \"payment_method\": \"credit_card\",\n  \"original_amount\": 50000,\n  \"currency\": \"CRC\",\n  \"transaction_date\": \"2026-07-10\",\n  \"category_id\": \"{{categoryId}}\",\n  \"transaction_type\": \"budgeted\",\n  \"exchange_rate\": 500\n}"
+              "raw": "{\n  \"payee\": \"AutoMercado\",\n  \"bank_id\": \"{{bankId}}\",\n  \"payment_method\": \"credit_card\",\n  \"original_amount\": 50000,\n  \"currency\": \"CRC\",\n  \"transaction_date\": \"2026-07-10\",\n  \"category_id\": \"{{categoryId}}\",\n  \"transaction_type\": \"budgeted\",\n  \"exchange_rate\": 500,\n  \"refund_expected\": false,\n  \"refund_percentage\": null\n}"
             }
           },
           "event": [
@@ -3639,7 +3639,7 @@
                 "{{transactionId}}"
               ]
             },
-            "description": "200 with the row; amounts re-derived from the FROZEN exchange_rate_used (a rate in the body is ignored — there is no field). A changed transaction_date re-resolves the month (creating the target, deleting the emptied source). 400 derived_transaction for a non-manual row; 404 for another household's id.",
+            "description": "200 with the row; amounts re-derived from the FROZEN exchange_rate_used (a rate in the body is ignored — there is no field). A changed transaction_date re-resolves the month (creating the target, deleting the emptied source). 400 derived_transaction for a non-manual row; 404 for another household's id. Set transaction_type unplanned_essential + refund_expected true + refund_percentage (e.g. 30) to spawn an expected refund (see 17 · Refunds); the response echoes refund_expected / refund_percentage.",
             "header": [
               {
                 "key": "Content-Type",
@@ -3648,7 +3648,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"payee\": \"AutoMercado\",\n  \"bank_id\": \"{{bankId}}\",\n  \"payment_method\": \"credit_card\",\n  \"original_amount\": 100000,\n  \"currency\": \"CRC\",\n  \"transaction_date\": \"2026-07-10\",\n  \"category_id\": \"{{categoryId}}\",\n  \"transaction_type\": \"budgeted\"\n}"
+              "raw": "{\n  \"payee\": \"AutoMercado\",\n  \"bank_id\": \"{{bankId}}\",\n  \"payment_method\": \"credit_card\",\n  \"original_amount\": 100000,\n  \"currency\": \"CRC\",\n  \"transaction_date\": \"2026-07-10\",\n  \"category_id\": \"{{categoryId}}\",\n  \"transaction_type\": \"budgeted\",\n  \"refund_expected\": false,\n  \"refund_percentage\": null\n}"
             }
           },
           "event": [
@@ -3687,6 +3687,83 @@
               "script": {
                 "exec": [
                   "pm.test(\"204\", () => pm.response.to.have.status(204));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "17 · Refunds",
+      "description": "LEDGER-3 (app slice P5b, ADR-V007/V014): expected refunds derived from unplanned_essential transactions flagged refund_expected + refund_percentage (see 16 · Transactions). Amounts = percentage × the frozen amounts; the refund follows every edit and dies with its transaction. The ONLY directly editable field is status: received books a derived inflow transaction (same amounts, the source's frozen rate/bank/category, source refund_realization) and links it; pending removes the inflow. The flip is a conditional update — concurrent flips book exactly one inflow (loser: 409 refund_status_conflict). Uniform 404 for another household's id.",
+      "item": [
+        {
+          "name": "List month refunds",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/months/{{monthId}}/refunds",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "months",
+                "{{monthId}}",
+                "refunds"
+              ]
+            },
+            "description": "The month's expected refunds newest first: payee, transaction_date, percentage, amount_crc, amount_usd, status (pending | received), inflow_transaction_id (present ⇔ received). Captures the first id into {{refundId}}. 404 for an unknown month."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200 or 404 when no month yet\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));",
+                  "if (pm.response.code === 200) { const items = pm.response.json(); if (Array.isArray(items) && items.length) pm.environment.set('refundId', items[0].id); }"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update refund status",
+          "request": {
+            "method": "PUT",
+            "url": {
+              "raw": "{{baseUrl}}/api/refunds/{{refundId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "refunds",
+                "{{refundId}}"
+              ]
+            },
+            "description": "received → 200 with inflow_transaction_id set and a derived inflow in the month's transactions (read-only there: 400 derived_transaction). pending → 200, inflow removed. Same status → 200 no-op. 400 invalid_request for any other status; 404 for another household's id; 409 refund_status_conflict when a concurrent flip won (reload and retry).",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"received\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200 (or 404 when no refund yet)\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));",
+                  "if (pm.response.code === 200) pm.test(\"status\", () => pm.expect(pm.response.json().status).to.be.oneOf(['pending', 'received']));"
                 ],
                 "type": "text/javascript"
               }
