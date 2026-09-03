@@ -553,13 +553,24 @@ jobs:
             $rt = (Get-ItemProperty 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}' -ErrorAction SilentlyContinue).pv
             Write-Host ("WebView2 runtime: " + ($rt ?? "NOT INSTALLED"))
             Get-Content api.log -Tail 40
-            exit 1
           }
+
+          # Tear the WinUI app + API down ourselves before the step ends. Leaving a live WinUI window for
+          # the runner's own step teardown has produced 0xC0000142 (STATUS_DLL_INIT_FAILED) on EVERY later
+          # process start in the job — the diagnostics step and even the checkout post-step died while the
+          # smoke assertion itself had passed. Stop them here, then let the verdict through.
+          Stop-Process -Id $app.Id -Force -ErrorAction SilentlyContinue
+          Stop-Process -Id $api.Id -Force -ErrorAction SilentlyContinue
+          Get-Process Vuelto.Maui -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+          if (-not $ok) { exit 1 }
 
       - name: API log (diagnostics)
         # always(), not failure(): a timed-out job's cancelled steps never satisfy failure(), leaving
-        # zero diagnostics (same reasoning as the Apple/Android legs).
+        # zero diagnostics (same reasoning as the Apple/Android legs). continue-on-error: printing a log
+        # is never the verdict — a runner that cannot start one more process must not turn a green
+        # smoke red (seen as exit 0xC0000142 after the WinUI app ran).
         if: always()
+        continue-on-error: true
         run: if (Test-Path api.log) { Get-Content api.log -Tail 100 }
 
   # Native smoke — Android (NATIVE-7, ADR-018). Same canary as the Windows leg, on a real emulator.
