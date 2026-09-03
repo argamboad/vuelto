@@ -447,4 +447,21 @@
   <data name="Refund_Updated" xml:space="preserve"><value>Reembolso actualizado.</value></data>
   <data name="Refund_Conflict" xml:space="preserve"><value>Alguien cambió este reembolso al mismo tiempo: la lista se recargó, intenta de nuevo.</value></data>
   <data name="Refund_Error" xml:space="preserve"><value>No se pudo actualizar el reembolso. Intenta de nuevo.</value></data>
+  <data name="Nav_Budget" xml:space="preserve"><value>Presupuesto</value></data>
+  <data name="Budget_Title" xml:space="preserve"><value>Líneas de presupuesto</value></data>
+  <data name="Budget_Subtitle" xml:space="preserve"><value>Lo que el hogar planea gastar cada mes: la base con la que el tablero compara el gasto real. Compartido por todo el hogar.</value></data>
+  <data name="Budget_Fixed" xml:space="preserve"><value>Gastos fijos</value></data>
+  <data name="Budget_Variable" xml:space="preserve"><value>Gastos variables</value></data>
+  <data name="Budget_AddFixed" xml:space="preserve"><value>Nueva línea fija</value></data>
+  <data name="Budget_AddVariable" xml:space="preserve"><value>Nueva línea variable</value></data>
+  <data name="Budget_NewLine" xml:space="preserve"><value>Nueva línea de presupuesto</value></data>
+  <data name="Budget_EditLine" xml:space="preserve"><value>Editar línea de presupuesto</value></data>
+  <data name="Budget_Amount" xml:space="preserve"><value>Presupuesto mensual</value></data>
+  <data name="Budget_AmountRequired" xml:space="preserve"><value>Ingresa un presupuesto mayor que cero.</value></data>
+  <data name="Budget_CategoryHint" xml:space="preserve"><value>Las transacciones de esta categoría cuentan como el gasto de esta línea. Una categoría respalda como máximo una línea activa.</value></data>
+  <data name="Budget_Unassigned" xml:space="preserve"><value>Sin asignar</value></data>
+  <data name="Budget_ActiveToggle" xml:space="preserve"><value>Activa: las líneas inactivas salen del tablero pero conservan su historial</value></data>
+  <data name="Budget_Empty" xml:space="preserve"><value>Aún no hay líneas: agrega la primera.</value></data>
+  <data name="Budget_LoadError" xml:space="preserve"><value>No se pudieron cargar las líneas de presupuesto. Recarga para intentar de nuevo.</value></data>
+  <data name="Budget_ReorderError" xml:space="preserve"><value>No se pudieron reordenar las líneas. La lista se recargó.</value></data>
 </root>

@@ -1493,6 +1493,66 @@ amounts whose actions column says "Derived from a refund — read-only". Via Pos
 
 ---
 
+## 10i. Web — Budget lines: fixed & variable (app slice EXPENSES-1) 🟠
+
+> The budget baseline (ADR-V007/V008): two ordered lists of single-currency lines, each tied to a
+> category that backs at most one active line across both lists; optional bank; reorder with ▲▼.
+> Never seeded — a fresh household starts empty.
+
+### QA-EXP-01 — Create fixed and variable lines; the single-currency and category rules hold 🟠 (Web / API)
+**Gherkin**
+```gherkin
+Given I am on Budget (nav) in a fresh household
+Then both sections show "No lines yet"
+When I add fixed "Mortgage", 300000 CRC, category Housing, bank BAC, Bank account, and Create
+Then it appears with ₡300,000.00 · Housing · BAC · Bank account · Active
+When I add variable "Netflix", 13 USD, category Entertainment, no bank, Credit card
+Then it appears with $13.00 · Entertainment · Unassigned
+When I add fixed "Rent" with category Housing
+Then the form shows "that category already backs another budget line" and nothing is created
+```
+**Walkthrough:** nav **Budget** → **Expected:** "No lines yet — add the first one." under both
+headings. **New fixed line** → name `Mortgage`, **Monthly budget** `300000` **CRC**, **Category**
+Housing, **Bank** BAC, **Payment method** Bank account → **Create** → **Expected:** "Created." and
+the row. **New variable line** → `Netflix`, `13` **USD**, Entertainment, bank left **Unassigned**,
+Credit card → **Create** → **Expected:** the row shows $13.00 and "Unassigned". **New fixed line** →
+`Rent`, `50000` CRC, category **Housing** → **Create** → **Expected:** the red message about the
+category already backing another line. Via Postman (**18 · Expenses → Create fixed expense —
+invalid (400)**) → `invalid_request` ("exactly one of budget_crc or budget_usd…").
+
+### QA-EXP-02 — Reorder with ▲▼; inactive lines stay out of the order 🟠 (Web / API)
+**Gherkin**
+```gherkin
+Given fixed lines Mortgage (1st) and Water (2nd)
+When I click ▼ on Mortgage
+Then Water is first and Mortgage second, and a reload keeps that order
+When I Edit Water, switch Active off, Save
+Then Water shows Inactive without ▲▼, and Mortgage's ▲▼ are both disabled (only active line)
+```
+**Walkthrough:** add `Water` (`15000` CRC, another category). **▼** on Mortgage → **Expected:** the
+rows swap; **F5** → order kept. **Edit** Water → **Active** off → **Save** → **Expected:** Inactive
+badge, no arrows on that row, Mortgage's arrows disabled. Via Postman (**18 · Expenses → Reorder
+fixed expenses**) with only one of two active ids → **Expected:** 400 `invalid_request` ("must
+exactly match the active fixed expense lines").
+
+### QA-EXP-03 — Duplicate names per list; the inactive clash restores the line; foreign ids are 404 🟠 (Web / API)
+**Gherkin**
+```gherkin
+Given fixed "Mortgage" is active and fixed "Water" is inactive
+When I add fixed "MORTGAGE" → "A fixed expense named 'Mortgage' already exists", nothing created
+When I add variable "Mortgage" → created (names are unique per list)
+When I add fixed "water" with 20000 CRC → the yellow warning with Reactivate; clicking it makes "Water" Active at ₡20,000.00
+And a PUT to a line id from another household returns 404
+```
+**Walkthrough:** **New fixed line** `MORTGAGE` → **Expected:** the red message, no row. **New variable
+line** `Mortgage` (any free category) → **Expected:** created. **New fixed line** `water`, `20000` →
+**Create** → **Expected:** "…already exists but is inactive — reactivate it?" with **Reactivate** →
+click → **Expected:** "Updated.", **Water** (stored spelling) Active with ₡20,000.00. Via Postman
+(**18 · Expenses → Update fixed expense**) with an id copied from a *different* household →
+**Expected:** 404 (never 403 — no existence oracle).
+
+---
+
 ## 11. Emails (Mailpit) — branding & content 🟠
 
 > **Delivery is asynchronous** (the outbox dispatcher) — emails land in Mailpit a few seconds after the
@@ -2477,6 +2537,7 @@ app fires no published events. (Published events via `IWebhookPublisher` also lo
 | Envelopes (app ENV-1) | ENV-01..02 | `GET/POST /api/envelopes`, `PUT /api/envelopes/{id}` (400 `invalid_request`; 409 `envelope_exists` / `envelope_exists_inactive` + `existing_id` + `existing_name`; uniform 404) |
 | Months & transactions (app LEDGER-1/2) | LED-01..04 + `Api.Tests` (`LedgerSliceTests`) | `GET /api/months`, `GET /api/months/resolve?date=`, `GET /api/months/{id}`, `PUT /api/months/{id}/income`, `GET /api/months/{id}/transactions`; `POST /api/transactions`, `GET/PUT/DELETE /api/transactions/{id}` (400 `invalid_request` / `exchange_rate_unavailable` / `derived_transaction`; uniform 404) |
 | Expected refunds & realization (app LEDGER-3) | LED-05..06 + `Api.Tests` (`RefundSliceTests`, incl. the two-context concurrency proof) | `refund_expected` / `refund_percentage` on `POST/PUT /api/transactions`; `GET /api/months/{id}/refunds`; `PUT /api/refunds/{id}` (200; 400 `invalid_request`; 404; 409 `refund_status_conflict`) |
+| Budget lines: fixed + variable (app EXPENSES-1) | EXP-01..03 | `GET/POST /api/expenses/{fixed\|variable}`, `PUT …/{id}`, `PUT …/order` (400 `invalid_request`; 409 `expense_exists` / `expense_exists_inactive` + `existing_id` + `existing_name`; uniform 404) |
 | Emails / branding | MAIL-01..04, I18N-04 | (SMTP via Mailpit) |
 | Tenant isolation / auth guards | SEC-01..05 | (all `[Authorize]` endpoints; write-stamping + reuse detection are automated) |
 | Platform health / readiness | SMK-07 | `GET /health`, `GET /health/ready` |
@@ -2591,6 +2652,9 @@ Record one row per executed case. Build = API/web commit SHA (`git rev-parse --s
 | QA-LED-04 | Web | | | | | |
 | QA-LED-05 | Web | | | | | |
 | QA-LED-06 | Web | | | | | |
+| QA-EXP-01 | Web | | | | | |
+| QA-EXP-02 | Web | | | | | |
+| QA-EXP-03 | Web | | | | | |
 | … | | | | | | |
 
 **§14a adversarial / tenant-isolation (QA-ADV-*).** All rows are **Not-run** (blank) until executed.

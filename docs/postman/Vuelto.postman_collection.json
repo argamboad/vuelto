@@ -3771,6 +3771,406 @@
           ]
         }
       ]
+    },
+    {
+      "name": "18 · Expenses (fixed + variable)",
+      "description": "EXPENSES-1 (app slice P6, ADR-V007/V008): the budget baseline — two ordered lists of single-currency lines under /api/expenses/fixed and /api/expenses/variable, identical behaviour. Each line: name (unique per list), budget_crc XOR budget_usd, payment_method, a REQUIRED active category that backs at most one active line across both lists, an optional active bank (null = Unassigned), sort_order owned by the order route. Soft delete with the 409 reactivation offer; never seeded; uniform 404. Any member may edit.",
+      "item": [
+        {
+          "name": "List fixed expenses",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/expenses/fixed?include_inactive=true",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "expenses",
+                "fixed"
+              ],
+              "query": [
+                {
+                  "key": "include_inactive",
+                  "value": "true"
+                }
+              ]
+            },
+            "description": "Active by default, ordered by sort_order; include_inactive=true for the management screen. Never seeded (a fresh household gets []). Captures the first id into {{fixedExpenseId}}."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "const items = pm.response.json();",
+                  "if (Array.isArray(items) && items.length) pm.environment.set('fixedExpenseId', items[0].id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create fixed expense",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/expenses/fixed",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "expenses",
+                "fixed"
+              ]
+            },
+            "description": "201 with the line (sort_order appended). Single-currency: exactly one of budget_crc / budget_usd non-zero. category_id required, active, and backing NO other active line in EITHER list; bank_id optional (active). Names unique per list, case-insensitively: 409 expense_exists / expense_exists_inactive + existing_id + existing_name (offer Reactivate via PUT name=existing_name, is_active=true). Run 12 · Catalog first so {{categoryId}} exists.",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman mortgage\",\n  \"budget_crc\": 300000,\n  \"budget_usd\": 0,\n  \"payment_method\": \"bank_account\",\n  \"category_id\": \"{{categoryId}}\",\n  \"bank_id\": null\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"201 or 409/400 on re-run\", () => pm.expect(pm.response.code).to.be.oneOf([201, 400, 409]));",
+                  "if (pm.response.code === 201) pm.environment.set('fixedExpenseId', pm.response.json().id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create fixed expense — invalid (400)",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/expenses/fixed",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "expenses",
+                "fixed"
+              ]
+            },
+            "description": "Both budgets non-zero → 400 invalid_request (\"exactly one of budget_crc or budget_usd…\"). Also 400: blank name, unknown payment_method, missing/unknown/inactive/foreign category, unknown/inactive bank, negative budget, a category already backing another active line.",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Bad line\",\n  \"budget_crc\": 100,\n  \"budget_usd\": 5,\n  \"payment_method\": \"credit_card\",\n  \"category_id\": \"{{categoryId}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"error code\", () => pm.expect(pm.response.json().error).to.eql('invalid_request'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update fixed expense",
+          "request": {
+            "method": "PUT",
+            "url": {
+              "raw": "{{baseUrl}}/api/expenses/fixed/{{fixedExpenseId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "expenses",
+                "fixed",
+                "{{fixedExpenseId}}"
+              ]
+            },
+            "description": "200 with the line. Every editable field changes (name, budgets, payment_method, category_id, bank_id — null clears it, is_active); sort_order is NEVER changed here (the order route owns it). 409 on a rename onto another line's name; 400 on a category that backs another active line; 404 for another household's id.",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman mortgage\",\n  \"budget_crc\": 350000,\n  \"budget_usd\": 0,\n  \"payment_method\": \"bank_account\",\n  \"category_id\": \"{{categoryId}}\",\n  \"bank_id\": null,\n  \"is_active\": true\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200 (or 404 when no line yet)\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reorder fixed expenses",
+          "request": {
+            "method": "PUT",
+            "url": {
+              "raw": "{{baseUrl}}/api/expenses/fixed/order",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "expenses",
+                "fixed",
+                "order"
+              ]
+            },
+            "description": "204. ordered_ids must be EXACTLY the active fixed lines (no missing, unknown, inactive or repeated id) → else 400 invalid_request; positions land atomically as sort_order 0..n.",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ordered_ids\": [\n    \"{{fixedExpenseId}}\"\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"204 or 400 when the set differs\", () => pm.expect(pm.response.code).to.be.oneOf([204, 400]));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "List variable expenses",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/expenses/variable?include_inactive=true",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "expenses",
+                "variable"
+              ],
+              "query": [
+                {
+                  "key": "include_inactive",
+                  "value": "true"
+                }
+              ]
+            },
+            "description": "Active by default, ordered by sort_order; include_inactive=true for the management screen. Never seeded (a fresh household gets []). Captures the first id into {{variableExpenseId}}."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "const items = pm.response.json();",
+                  "if (Array.isArray(items) && items.length) pm.environment.set('variableExpenseId', items[0].id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create variable expense",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/expenses/variable",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "expenses",
+                "variable"
+              ]
+            },
+            "description": "201 with the line (sort_order appended). Single-currency: exactly one of budget_crc / budget_usd non-zero. category_id required, active, and backing NO other active line in EITHER list; bank_id optional (active). Names unique per list, case-insensitively: 409 expense_exists / expense_exists_inactive + existing_id + existing_name (offer Reactivate via PUT name=existing_name, is_active=true). Run 12 · Catalog first so {{categoryId}} exists.",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman groceries\",\n  \"budget_crc\": 200000,\n  \"budget_usd\": 0,\n  \"payment_method\": \"credit_card\",\n  \"category_id\": \"{{categoryId}}\",\n  \"bank_id\": null\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"201 or 409/400 on re-run\", () => pm.expect(pm.response.code).to.be.oneOf([201, 400, 409]));",
+                  "if (pm.response.code === 201) pm.environment.set('variableExpenseId', pm.response.json().id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create variable expense — invalid (400)",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/expenses/variable",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "expenses",
+                "variable"
+              ]
+            },
+            "description": "Both budgets non-zero → 400 invalid_request (\"exactly one of budget_crc or budget_usd…\"). Also 400: blank name, unknown payment_method, missing/unknown/inactive/foreign category, unknown/inactive bank, negative budget, a category already backing another active line.",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Bad line\",\n  \"budget_crc\": 100,\n  \"budget_usd\": 5,\n  \"payment_method\": \"credit_card\",\n  \"category_id\": \"{{categoryId}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"error code\", () => pm.expect(pm.response.json().error).to.eql('invalid_request'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update variable expense",
+          "request": {
+            "method": "PUT",
+            "url": {
+              "raw": "{{baseUrl}}/api/expenses/variable/{{variableExpenseId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "expenses",
+                "variable",
+                "{{variableExpenseId}}"
+              ]
+            },
+            "description": "200 with the line. Every editable field changes (name, budgets, payment_method, category_id, bank_id — null clears it, is_active); sort_order is NEVER changed here (the order route owns it). 409 on a rename onto another line's name; 400 on a category that backs another active line; 404 for another household's id.",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman groceries\",\n  \"budget_crc\": 220000,\n  \"budget_usd\": 0,\n  \"payment_method\": \"credit_card\",\n  \"category_id\": \"{{categoryId}}\",\n  \"bank_id\": null,\n  \"is_active\": true\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200 (or 404 when no line yet)\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reorder variable expenses",
+          "request": {
+            "method": "PUT",
+            "url": {
+              "raw": "{{baseUrl}}/api/expenses/variable/order",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "expenses",
+                "variable",
+                "order"
+              ]
+            },
+            "description": "204. ordered_ids must be EXACTLY the active variable lines (no missing, unknown, inactive or repeated id) → else 400 invalid_request; positions land atomically as sort_order 0..n.",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ordered_ids\": [\n    \"{{variableExpenseId}}\"\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"204 or 400 when the set differs\", () => pm.expect(pm.response.code).to.be.oneOf([204, 400]));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
     }
   ]
 }
