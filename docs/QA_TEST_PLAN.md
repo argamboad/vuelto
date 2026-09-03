@@ -1377,6 +1377,80 @@ And a PUT to an envelope id from another household returns 404
 
 ---
 
+## 10h. Web — Months & transactions (app slice LEDGER-1/2) 🟠
+
+> The core loop (ADR-V005/V006/V007): a transaction's date decides its pay-cycle month; months
+> appear with their first transaction (weeks materialized, income snapshotted) and leave with their
+> last; the exchange rate is frozen at creation. Fixture with the default settings (Thursday /
+> last Thursday of the previous month): **June 2026** = 4 weeks (28 May – 24 Jun), **July 2026** = 5
+> weeks (25 Jun – 29 Jul).
+
+### QA-LED-01 — The first transaction creates its month with weeks and an income snapshot 🟠 (Web / API)
+**Gherkin**
+```gherkin
+Given a fresh household with no months, Budget settings saved with 5-week incomes 3750 USD / 312500 CRC
+When I open New transaction, type "AutoMercado", 50000 CRC, date 2026-07-10, category Food, bank Cash, class Budgeted
+Then the date says "Goes to July 2026 — a new month will be created" and the rate is pre-filled
+When I Save
+Then I land on July 2026: 5 weeks (25 Jun – 29 Jul), income 3750 USD / 312500 CRC, one row ₡50,000.00 / $<50000 ÷ rate>
+```
+**Walkthrough:** **Settings → Budget** → save 5-week incomes `3750` USD and `312500` CRC. **Home →
+New transaction** (or nav **Months → New transaction**): fill the fields, pick the date
+`2026-07-10` → **Expected:** the "Goes to July 2026 — a new month will be created" hint under the
+date; the **Exchange rate** field pre-filled (or, without a key, the red hint asking for one — type
+`500`). **Save** → **Expected:** the **July 2026** page with 5 week badges, the income card showing
+3750 USD / 312500 CRC, and the row. Via Postman (**15 · Months → List months**) → 1 month with
+`week_count` 5; **Resolve a date** with `2026-05-30` → `is_new: true`, `month_number` 6 (June's
+window starts 28 May).
+
+### QA-LED-02 — Edit keeps the frozen rate; a date fix moves the transaction 🟠 (Web / API)
+**Gherkin**
+```gherkin
+Given the July 2026 transaction above (rate frozen at creation)
+When I Edit it, change the amount to 100000 and Save
+Then the $ amount doubles and the rate field was disabled (frozen) throughout
+When I Edit again and change the date to 2026-06-05
+Then I land on June 2026 (new, 4 weeks) and July 2026 no longer appears in Months
+```
+**Walkthrough:** on the month page → **Edit** → **Expected:** the rate input disabled with the
+"Frozen when the transaction was created" hint. Amount `100000` → **Save** → **Expected:** the row's
+$ column doubles (same rate). **Edit** → date `2026-06-05` → **Expected:** "Goes to June 2026 — a
+new month will be created" → **Save** → **Expected:** the **June 2026** page (4 weeks); nav
+**Months** → **Expected:** only June — July left with its last transaction. Via Postman
+(**16 · Transactions → Update transaction**) → `exchange_rate_used` unchanged in the response.
+
+### QA-LED-03 — Deleting the last transaction removes the month 🟠 (Web / API)
+**Gherkin**
+```gherkin
+Given June 2026 holds exactly one transaction
+When I click Delete, then Confirm delete
+Then I am taken back to Months and June 2026 is gone
+And GET /api/months/{id} returns 404
+```
+**Walkthrough:** on the month page → **Delete** → **Expected:** the button turns into **Confirm
+delete** (nothing is sent yet) → click it → **Expected:** "Transaction deleted." then the **Months**
+list without June and the empty-state text. Via Postman (**15 · Months → Get month**) with the old
+id → **Expected:** 404 `not_found`.
+
+### QA-LED-04 — Month income is editable; invalid input and foreign ids are refused 🟠 (Web / API)
+**Gherkin**
+```gherkin
+Given a month exists
+When I change its primary income to 1600000 CRC and Save
+Then "Income updated." and the values persist on reload
+When I PUT a negative amount or EUR via Postman
+Then 400 invalid_request
+When I PUT /api/months/{id}/income with an id from another household
+Then 404
+```
+**Walkthrough:** on the month page's **Income this month** card → primary `1600000`, currency
+**CRC** → **Save** → **Expected:** "Income updated."; reload → values kept. Via Postman (**15 ·
+Months → Update month income — invalid (400)**) → `invalid_request`. With an id copied from a
+*different* household's list → **Expected:** 404 (never 403 — no existence oracle). Also
+(**16 · Transactions → Create transaction — invalid (400)**) → `invalid_request` naming the field.
+
+---
+
 ## 11. Emails (Mailpit) — branding & content 🟠
 
 > **Delivery is asynchronous** (the outbox dispatcher) — emails land in Mailpit a few seconds after the
@@ -2359,6 +2433,7 @@ app fires no published events. (Published events via `IWebhookPublisher` also lo
 | Catalog: categories + banks (app CATALOG-1/2) | CAT-01..04 | `GET/POST /api/categories`, `PUT /api/categories/{id}`, same under `/api/banks` (409 `*_exists` / `*_exists_inactive` + `existing_id` + `existing_name`; uniform 404) |
 | Exchange rate (app FX-1) | FX-01..02 + `Api.Tests` (`ExchangeRateApiClientTests`, `ExchangeRateResolverTests`) | `GET /api/exchange-rate` (200 `{rate, source: live\|cache\|transaction, as_of}`; 503 `exchange_rate_unavailable`; 401 anonymous) |
 | Envelopes (app ENV-1) | ENV-01..02 | `GET/POST /api/envelopes`, `PUT /api/envelopes/{id}` (400 `invalid_request`; 409 `envelope_exists` / `envelope_exists_inactive` + `existing_id` + `existing_name`; uniform 404) |
+| Months & transactions (app LEDGER-1/2) | LED-01..04 + `Api.Tests` (`LedgerSliceTests`) | `GET /api/months`, `GET /api/months/resolve?date=`, `GET /api/months/{id}`, `PUT /api/months/{id}/income`, `GET /api/months/{id}/transactions`; `POST /api/transactions`, `GET/PUT/DELETE /api/transactions/{id}` (400 `invalid_request` / `exchange_rate_unavailable` / `derived_transaction`; uniform 404) |
 | Emails / branding | MAIL-01..04, I18N-04 | (SMTP via Mailpit) |
 | Tenant isolation / auth guards | SEC-01..05 | (all `[Authorize]` endpoints; write-stamping + reuse detection are automated) |
 | Platform health / readiness | SMK-07 | `GET /health`, `GET /health/ready` |
@@ -2467,6 +2542,10 @@ Record one row per executed case. Build = API/web commit SHA (`git rev-parse --s
 | QA-FX-02 | Web | | | | | |
 | QA-ENV-01 | Web | | | | | |
 | QA-ENV-02 | Web | | | | | |
+| QA-LED-01 | Web | | | | | |
+| QA-LED-02 | Web | | | | | |
+| QA-LED-03 | Web | | | | | |
+| QA-LED-04 | Web | | | | | |
 | … | | | | | | |
 
 **§14a adversarial / tenant-isolation (QA-ADV-*).** All rows are **Not-run** (blank) until executed.

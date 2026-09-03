@@ -120,6 +120,9 @@ public class ArchitectureTests
             nameof(Category),                               // CategoryDataContributor (app slice CATALOG-1)
             nameof(Bank),                                   // BankDataContributor (app slice CATALOG-2)
             nameof(Envelope),                               // EnvelopeDataContributor (app slice ENV-1)
+            nameof(Month),                                  // LedgerDataContributor (app slice LEDGER-1/2)
+            nameof(Week),                                   // LedgerDataContributor
+            nameof(Transaction),                            // LedgerDataContributor
             nameof(AuditEvent),                             // AuditDataContributor
             nameof(Subscription),                           // BillingDataContributor
             nameof(ApiKey),                                 // ApiKeyDataContributor

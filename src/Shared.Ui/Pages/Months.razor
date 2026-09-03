@@ -1,0 +1,75 @@
+@page "/months"
+@using System.Globalization
+@using System.Net.Http.Json
+@using System.Text.Json.Serialization
+@using Vuelto.Shared.Ui.Auth
+@inject AuthService Auth
+@inject NavigationManager Nav
+@inject HttpClient Http
+@inject IStringLocalizer<AppStrings> Localizer
+
+<PageTitle>@Localizer["Months_Title"]</PageTitle>
+
+@* LEDGER-1: the household's budget months, newest first (ADR-V005). Months exist only through transactions. *@
+<div class="settings-wrapper" data-testid="months-page">
+    <div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
+        <div>
+            <h1 class="h4 fw-bold mb-1">@Localizer["Months_Title"]</h1>
+            <p class="text-muted mb-0">@Localizer["Months_Subtitle"]</p>
+        </div>
+        <a class="btn btn-primary" href="/transactions/new" data-testid="months-new-tx">@Localizer["Months_NewTransaction"]</a>
+    </div>
+
+    @if (_error is not null)
+    {
+        <div class="alert alert-danger py-2" data-testid="months-error">@_error</div>
+    }
+
+    @if (_loading)
+    {
+        <div class="text-muted"><span class="spinner-border spinner-border-sm me-2"></span>@Localizer["Common_Loading"]</div>
+    }
+    else if (_months.Count == 0)
+    {
+        <p class="text-muted" data-testid="months-empty">@Localizer["Months_Empty"]</p>
+    }
+    else
+    {
+        <div class="list-group shadow-sm">
+            @foreach (var m in _months)
+            {
+                <a class="list-group-item list-group-item-action d-flex justify-content-between align-items-center gap-3" href="/months/@m.Id" data-testid="month-row">
+                    <div>
+                        <div class="fw-semibold">@MonthLabel(m.Year, m.MonthNumber)</div>
+                        <div class="small text-muted">@Localizer["Months_StartsOn", m.Week1StartDate.ToString("d", CultureInfo.CurrentCulture)]</div>
+                    </div>
+                    <span class="badge bg-primary-subtle text-primary-emphasis">@Localizer["Months_Weeks", m.WeekCount]</span>
+                </a>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private bool _loading = true;
+    private string? _error;
+    private List<MonthDto> _months = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
+        try { _months = await Http.GetFromJsonAsync<List<MonthDto>>("/api/months") ?? new(); }
+        catch { _error = Localizer["Months_LoadError"]; }
+        finally { _loading = false; }
+    }
+
+    private static string MonthLabel(int year, int month) =>
+        $"{CultureInfo.CurrentCulture.TextInfo.ToTitleCase(CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(month))} {year}";
+
+    private sealed record MonthDto(
+        [property: JsonPropertyName("id")] Guid Id,
+        [property: JsonPropertyName("year")] int Year,
+        [property: JsonPropertyName("month_number")] int MonthNumber,
+        [property: JsonPropertyName("week_count")] int WeekCount,
+        [property: JsonPropertyName("week1_start_date")] DateOnly Week1StartDate);
+}

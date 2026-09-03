@@ -3298,6 +3298,402 @@
           ]
         }
       ]
+    },
+    {
+      "name": "15 · Months",
+      "description": "LEDGER-1 (app slice P5a, ADR-V005): pay-cycle budget months. There is NO create route — a month appears when the first transaction lands in its anchor window (weeks materialized, income snapshotted from Budget settings) and leaves with its last transaction. Resolve answers for any date without writing. Any member may read and edit income.",
+      "item": [
+        {
+          "name": "List months",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/months",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "months"
+              ]
+            },
+            "description": "Newest first. A fresh household gets []. Captures the first id into {{monthId}}."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "const items = pm.response.json();",
+                  "if (Array.isArray(items) && items.length) pm.environment.set('monthId', items[0].id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Resolve a date",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/months/resolve?date=2026-05-30",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "months",
+                "resolve"
+              ],
+              "query": [
+                {
+                  "key": "date",
+                  "value": "2026-05-30"
+                }
+              ]
+            },
+            "description": "Which budget month a date belongs to — by anchor window, not calendar month (2026-05-30 → June under the default anchor). An uncovered date answers the month that WOULD be created with is_new=true and month_id=null; nothing is written. Missing date → 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"shape\", () => { const b = pm.response.json(); pm.expect(b).to.have.property('is_new'); pm.expect(b.month_number).to.be.within(1, 12); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get month",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/months/{{monthId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "months",
+                "{{monthId}}"
+              ]
+            },
+            "description": "The month with its materialized weeks (week_number, start_date, end_date). 404 not_found for another household's id or a month that left with its last transaction."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200 or 404 when no month yet\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));",
+                  "if (pm.response.code === 200) pm.test(\"weeks\", () => pm.expect(pm.response.json().weeks.length).to.be.within(4, 5));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update month income",
+          "request": {
+            "method": "PUT",
+            "url": {
+              "raw": "{{baseUrl}}/api/months/{{monthId}}/income",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "months",
+                "{{monthId}}",
+                "income"
+              ]
+            },
+            "description": "Both incomes stay editable after auto-creation (amount + currency each). 400 invalid_request for a negative amount or a currency other than CRC/USD; 404 for another household's id.",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"primary_income_amount\": 3750,\n  \"primary_income_currency\": \"USD\",\n  \"secondary_income_amount\": 312500,\n  \"secondary_income_currency\": \"CRC\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200 or 404 when no month yet\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update month income — invalid (400)",
+          "request": {
+            "method": "PUT",
+            "url": {
+              "raw": "{{baseUrl}}/api/months/{{monthId}}/income",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "months",
+                "{{monthId}}",
+                "income"
+              ]
+            },
+            "description": "A negative amount → 400 invalid_request (message names the rule). Same for an unknown currency.",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"primary_income_amount\": -1,\n  \"primary_income_currency\": \"USD\",\n  \"secondary_income_amount\": 0,\n  \"secondary_income_currency\": \"USD\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"400 (or 404 when no month yet)\", () => pm.expect(pm.response.code).to.be.oneOf([400, 404]));",
+                  "if (pm.response.code === 400) pm.test(\"error code\", () => pm.expect(pm.response.json().error).to.eql('invalid_request'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "List month transactions",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/months/{{monthId}}/transactions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "months",
+                "{{monthId}}",
+                "transactions"
+              ]
+            },
+            "description": "The month's rows newest first with category_name / bank_name resolved (inactive names still render — ADR-V008) and source (manual | email | refund_realization). 404 for an unknown month."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200 or 404 when no month yet\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "16 · Transactions",
+      "description": "LEDGER-2 (app slice P5a, ADR-V006/V007): money movement in both currencies at a frozen rate. POST validates everything, settles the rate (manual exchange_rate override wins, else the live → cache → last-transaction chain; nothing → 400 exchange_rate_unavailable), resolves or creates the month from transaction_date, derives amount_crc/amount_usd and freezes exchange_rate_used. PUT re-derives from the frozen rate (never sends a rate) and re-resolves the month on a date change; DELETE is hard and removes an emptied month. Rows with source != manual are read-only (400 derived_transaction). Uniform 404 for another household's id. Run 12 · Catalog first so {{categoryId}} and a bank exist.",
+      "item": [
+        {
+          "name": "Create transaction",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/transactions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "transactions"
+              ]
+            },
+            "description": "201 with the row (amounts derived, rate frozen, source manual, month_id of the resolved-or-created month). Replace bank_id with an id from 12 · Catalog → List banks. Captures {{transactionId}} and {{monthId}}.",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"payee\": \"AutoMercado\",\n  \"bank_id\": \"{{bankId}}\",\n  \"payment_method\": \"credit_card\",\n  \"original_amount\": 50000,\n  \"currency\": \"CRC\",\n  \"transaction_date\": \"2026-07-10\",\n  \"category_id\": \"{{categoryId}}\",\n  \"transaction_type\": \"budgeted\",\n  \"exchange_rate\": 500\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"201\", () => pm.response.to.have.status(201));",
+                  "const b = pm.response.json(); pm.environment.set('transactionId', b.id); pm.environment.set('monthId', b.month_id);",
+                  "pm.test(\"frozen rate\", () => pm.expect(b.exchange_rate_used).to.be.above(0));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create transaction — invalid (400)",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/transactions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "transactions"
+              ]
+            },
+            "description": "400 invalid_request; the message names the field (here: currency must be CRC or USD). Also 400: blank payee, amount ≤ 0, no date, unknown class/payment method, missing or unknown/inactive bank/category, exchange_rate ≤ 0, envelope rules (contribution needs an active envelope + bank_account; other classes must not carry one).",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"payee\": \"AutoMercado\",\n  \"bank_id\": \"{{bankId}}\",\n  \"original_amount\": 50000,\n  \"currency\": \"EUR\",\n  \"transaction_date\": \"2026-07-10\",\n  \"category_id\": \"{{categoryId}}\",\n  \"transaction_type\": \"budgeted\",\n  \"exchange_rate\": 500\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"error code\", () => pm.expect(pm.response.json().error).to.eql('invalid_request'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get transaction",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/transactions/{{transactionId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "transactions",
+                "{{transactionId}}"
+              ]
+            },
+            "description": "The row with both amounts and exchange_rate_used. 404 for another household's id."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update transaction",
+          "request": {
+            "method": "PUT",
+            "url": {
+              "raw": "{{baseUrl}}/api/transactions/{{transactionId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "transactions",
+                "{{transactionId}}"
+              ]
+            },
+            "description": "200 with the row; amounts re-derived from the FROZEN exchange_rate_used (a rate in the body is ignored — there is no field). A changed transaction_date re-resolves the month (creating the target, deleting the emptied source). 400 derived_transaction for a non-manual row; 404 for another household's id.",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"payee\": \"AutoMercado\",\n  \"bank_id\": \"{{bankId}}\",\n  \"payment_method\": \"credit_card\",\n  \"original_amount\": 100000,\n  \"currency\": \"CRC\",\n  \"transaction_date\": \"2026-07-10\",\n  \"category_id\": \"{{categoryId}}\",\n  \"transaction_type\": \"budgeted\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"rate unchanged\", () => pm.expect(pm.response.json().exchange_rate_used).to.eql(500));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete transaction",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/transactions/{{transactionId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "transactions",
+                "{{transactionId}}"
+              ]
+            },
+            "description": "204. Deleting a month's last transaction deletes the month and its weeks too (ADR-V005). 404 for an unknown or another household's id; 400 derived_transaction for a non-manual row."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"204\", () => pm.response.to.have.status(204));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
     }
   ]
 }

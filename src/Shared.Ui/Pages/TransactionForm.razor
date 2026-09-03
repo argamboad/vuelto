@@ -1,0 +1,268 @@
+@page "/transactions/new"
+@page "/transactions/{Id:guid}/edit"
+@using System.Globalization
+@using System.Net
+@using System.Net.Http.Json
+@using System.Text.Json.Serialization
+@using Vuelto.Shared.Ui.Auth
+@inject AuthService Auth
+@inject NavigationManager Nav
+@inject HttpClient Http
+@inject IStringLocalizer<AppStrings> Localizer
+
+<PageTitle>@(Id is null ? Localizer["Tx_NewTitle"] : Localizer["Tx_EditTitle"])</PageTitle>
+
+@* LEDGER-2: enter or edit a transaction (ADR-V006/V007). The date decides the month (banner shows
+   which, and whether it will be created); the rate is pre-filled from today's quote on create and
+   frozen on edit; both amounts are previewed from the rate. *@
+<div class="settings-wrapper" data-testid="tx-page">
+    <h1 class="h4 fw-bold mb-3">@(Id is null ? Localizer["Tx_NewTitle"] : Localizer["Tx_EditTitle"])</h1>
+
+    @if (_loading)
+    {
+        <div class="text-muted"><span class="spinner-border spinner-border-sm me-2"></span>@Localizer["Common_Loading"]</div>
+    }
+    else if (_notFound)
+    {
+        <div class="alert alert-warning" data-testid="tx-missing">@Localizer["Tx_NotFound"]</div>
+        <p><a href="/months">← @Localizer["Month_BackToMonths"]</a></p>
+    }
+    else if (_derived)
+    {
+        <div class="alert alert-warning" data-testid="tx-derived">@Localizer["Tx_Derived"]</div>
+        <p><a href="/months/@_monthId">← @Localizer["Tx_BackToMonth"]</a></p>
+    }
+    else
+    {
+        <div class="card shadow-sm" data-testid="tx-form">
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-12">
+                        <label class="form-label small fw-medium mb-1" for="tx-payee">@Localizer["Tx_Payee"]</label>
+                        <input class="form-control" id="tx-payee" data-testid="tx-payee" maxlength="200" disabled="@_saving" @bind="_payee" @bind:event="oninput" />
+                    </div>
+                    <div class="col-8 col-md-5">
+                        <label class="form-label small fw-medium mb-1" for="tx-amount">@Localizer["Tx_Amount"]</label>
+                        <input class="form-control" type="number" step="0.01" min="0" id="tx-amount" data-testid="tx-amount" disabled="@_saving" @bind="_amount" />
+                    </div>
+                    <div class="col-4 col-md-2">
+                        <label class="form-label small fw-medium mb-1" for="tx-currency">@Localizer["Tx_Currency"]</label>
+                        <select class="form-select" id="tx-currency" data-testid="tx-currency" disabled="@_saving" @bind="_currency"><option>CRC</option><option>USD</option></select>
+                    </div>
+                    <div class="col-12 col-md-5">
+                        <label class="form-label small fw-medium mb-1" for="tx-date">@Localizer["Tx_Date"]</label>
+                        <input class="form-control" type="date" id="tx-date" data-testid="tx-date" disabled="@_saving" value="@_date.ToString("yyyy-MM-dd")" @onchange="OnDateChanged" />
+                        @if (_resolved is not null)
+                        {
+                            <div class="form-text" data-testid="tx-resolve">
+                                @(_resolved.IsNew
+                                    ? Localizer["Tx_GoesToNew", MonthLabel(_resolved.Year, _resolved.MonthNumber)]
+                                    : Localizer["Tx_GoesTo", MonthLabel(_resolved.Year, _resolved.MonthNumber)])
+                            </div>
+                        }
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label class="form-label small fw-medium mb-1" for="tx-category">@Localizer["Tx_Category"]</label>
+                        <select class="form-select" id="tx-category" data-testid="tx-category" disabled="@_saving" @bind="_categoryId">
+                            <option value="">—</option>
+                            @foreach (var c in _categories) { <option value="@c.Id">@c.Name</option> }
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label class="form-label small fw-medium mb-1" for="tx-bank">@Localizer["Tx_Bank"]</label>
+                        <select class="form-select" id="tx-bank" data-testid="tx-bank" disabled="@_saving" @bind="_bankId">
+                            <option value="">—</option>
+                            @foreach (var b in _banks) { <option value="@b.Id">@b.Name</option> }
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label class="form-label small fw-medium mb-1" for="tx-method">@Localizer["Tx_PaymentMethod"]</label>
+                        <select class="form-select" id="tx-method" data-testid="tx-method" disabled="@_saving" @bind="_method">
+                            <option value="credit_card">@Localizer["Tx_CreditCard"]</option>
+                            <option value="bank_account">@Localizer["Tx_BankAccount"]</option>
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label class="form-label small fw-medium mb-1" for="tx-type">@Localizer["Tx_Class"]</label>
+                        <select class="form-select" id="tx-type" data-testid="tx-type" disabled="@_saving" @bind="_type">
+                            <option value="budgeted">@Localizer["Tx_Budgeted"]</option>
+                            <option value="extraordinary">@Localizer["Tx_Extraordinary"]</option>
+                            <option value="unplanned_essential">@Localizer["Tx_Unplanned"]</option>
+                            <option value="inflow">@Localizer["Tx_Inflow"]</option>
+                            <option value="envelope_contribution">@Localizer["Tx_EnvelopeContribution"]</option>
+                        </select>
+                    </div>
+                    @if (_type == "envelope_contribution")
+                    {
+                        <div class="col-12 col-md-6">
+                            <label class="form-label small fw-medium mb-1" for="tx-envelope">@Localizer["Tx_Envelope"]</label>
+                            <select class="form-select" id="tx-envelope" data-testid="tx-envelope" disabled="@_saving" @bind="_envelopeId">
+                                <option value="">—</option>
+                                @foreach (var e in _envelopes) { <option value="@e.Id">@e.Name</option> }
+                            </select>
+                            <div class="form-text">@Localizer["Tx_EnvelopeHint"]</div>
+                        </div>
+                    }
+                    <div class="col-12 col-md-6">
+                        <label class="form-label small fw-medium mb-1" for="tx-rate">@Localizer["Tx_Rate"]</label>
+                        <input class="form-control" type="number" step="0.0001" min="0" id="tx-rate" data-testid="tx-rate" disabled="@(_saving || Id is not null)" @bind="_rate" />
+                        <div class="form-text" data-testid="tx-rate-hint">
+                            @(Id is not null ? Localizer["Tx_RateFrozen"] : _rateUnavailable ? Localizer["Tx_RateUnavailable"] : Localizer["Tx_RateLive"])
+                        </div>
+                    </div>
+                    @if (_amount > 0 && _rate is > 0)
+                    {
+                        <div class="col-12 small text-muted" data-testid="tx-preview">
+                            @(_currency == "CRC"
+                                ? $"= ${(_amount / _rate.Value).ToString("N2", CultureInfo.CurrentCulture)}"
+                                : $"= ₡{(_amount * _rate.Value).ToString("N2", CultureInfo.CurrentCulture)}")
+                        </div>
+                    }
+                </div>
+
+                @if (_error is not null)
+                {
+                    <div class="alert alert-danger py-2 mt-3" data-testid="tx-error">@_error</div>
+                }
+
+                <div class="d-flex gap-2 mt-3">
+                    <button class="btn btn-primary" data-testid="tx-save" disabled="@_saving" @onclick="SaveAsync">@(_saving ? Localizer["Catalog_Saving"] : Localizer["Catalog_Save"])</button>
+                    <a class="btn btn-outline-secondary" href="@(_monthId is { } m ? $"/months/{m}" : "/months")" data-testid="tx-cancel">@Localizer["Catalog_Cancel"]</a>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public Guid? Id { get; set; }
+
+    private bool _loading = true;
+    private bool _saving;
+    private bool _notFound;
+    private bool _derived;
+    private bool _rateUnavailable;
+    private string? _error;
+    private Guid? _monthId;
+    private string _payee = "";
+    private decimal _amount;
+    private string _currency = "CRC";
+    private DateOnly _date = DateOnly.FromDateTime(DateTime.Today);
+    private string _categoryId = "";
+    private string _bankId = "";
+    private string _method = "credit_card";
+    private string _type = "budgeted";
+    private string _envelopeId = "";
+    private decimal? _rate;
+    private ResolveDto? _resolved;
+    private List<NamedDto> _categories = new();
+    private List<NamedDto> _banks = new();
+    private List<NamedDto> _envelopes = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
+        try
+        {
+            _categories = await Http.GetFromJsonAsync<List<NamedDto>>("/api/categories") ?? new();
+            _banks = await Http.GetFromJsonAsync<List<NamedDto>>("/api/banks") ?? new();
+            _envelopes = await Http.GetFromJsonAsync<List<NamedDto>>("/api/envelopes") ?? new();
+
+            if (Id is { } id)
+            {
+                var res = await Http.GetAsync($"/api/transactions/{id}");
+                if (res.StatusCode == HttpStatusCode.NotFound) { _notFound = true; return; }
+                var tx = (await res.Content.ReadFromJsonAsync<TxDto>())!;
+                _monthId = tx.MonthId; _payee = tx.Payee; _amount = tx.OriginalAmount; _currency = tx.Currency; _date = tx.TransactionDate;
+                _categoryId = tx.CategoryId.ToString(); _bankId = tx.BankId.ToString(); _method = tx.PaymentMethod; _type = tx.TransactionType;
+                _envelopeId = tx.EnvelopeId?.ToString() ?? ""; _rate = tx.ExchangeRateUsed;
+                _derived = tx.Source != "manual";
+            }
+            else
+            {
+                var res = await Http.GetAsync("/api/exchange-rate");
+                if (res.IsSuccessStatusCode) _rate = (await res.Content.ReadFromJsonAsync<RateDto>())?.Rate;
+                else _rateUnavailable = true;
+            }
+            await ResolveAsync();
+        }
+        catch { _error = Localizer["Tx_LoadError"]; }
+        finally { _loading = false; }
+    }
+
+    private async Task OnDateChanged(ChangeEventArgs e)
+    {
+        if (DateOnly.TryParse(e.Value?.ToString(), CultureInfo.InvariantCulture, out var d)) { _date = d; await ResolveAsync(); }
+    }
+
+    private async Task ResolveAsync()
+    {
+        try { _resolved = await Http.GetFromJsonAsync<ResolveDto>($"/api/months/resolve?date={_date:yyyy-MM-dd}"); }
+        catch { _resolved = null; }
+    }
+
+    private async Task SaveAsync()
+    {
+        _error = null;
+        if (string.IsNullOrWhiteSpace(_payee)) { _error = Localizer["Tx_Validation_Payee"]; return; }
+        if (_amount <= 0) { _error = Localizer["Tx_Validation_Amount"]; return; }
+        if (_categoryId == "") { _error = Localizer["Tx_Validation_Category"]; return; }
+        if (_bankId == "") { _error = Localizer["Tx_Validation_Bank"]; return; }
+        if (_type == "envelope_contribution" && _envelopeId == "") { _error = Localizer["Tx_Validation_Envelope"]; return; }
+        if (Id is null && _rate is null or <= 0) { _error = Localizer["Tx_Validation_Rate"]; return; }
+
+        _saving = true;
+        try
+        {
+            var body = new Dictionary<string, object?>
+            {
+                ["payee"] = _payee, ["bank_id"] = _bankId, ["payment_method"] = _method, ["original_amount"] = _amount,
+                ["currency"] = _currency, ["transaction_date"] = _date.ToString("yyyy-MM-dd"), ["category_id"] = _categoryId,
+                ["transaction_type"] = _type, ["envelope_id"] = _type == "envelope_contribution" ? _envelopeId : null,
+            };
+            if (Id is null) body["exchange_rate"] = _rate;
+
+            var res = Id is null
+                ? await Http.PostAsJsonAsync("/api/transactions", body)
+                : await Http.PutAsJsonAsync($"/api/transactions/{Id}", body);
+
+            if (res.IsSuccessStatusCode)
+            {
+                var saved = await res.Content.ReadFromJsonAsync<TxDto>();
+                Nav.NavigateTo($"/months/{saved!.MonthId}");
+            }
+            else
+            {
+                _error = (await res.Content.ReadFromJsonAsync<ErrorDto>())?.Message ?? Localizer["Tx_SaveError"];
+            }
+        }
+        catch { _error = Localizer["Tx_SaveError"]; }
+        finally { _saving = false; }
+    }
+
+    private static string MonthLabel(int year, int month) =>
+        $"{CultureInfo.CurrentCulture.TextInfo.ToTitleCase(CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(month))} {year}";
+
+    private sealed record NamedDto([property: JsonPropertyName("id")] Guid Id, [property: JsonPropertyName("name")] string Name);
+    private sealed record RateDto([property: JsonPropertyName("rate")] decimal Rate);
+    private sealed record ResolveDto(
+        [property: JsonPropertyName("month_id")] Guid? MonthId,
+        [property: JsonPropertyName("year")] int Year,
+        [property: JsonPropertyName("month_number")] int MonthNumber,
+        [property: JsonPropertyName("is_new")] bool IsNew);
+    private sealed record TxDto(
+        [property: JsonPropertyName("id")] Guid Id,
+        [property: JsonPropertyName("month_id")] Guid MonthId,
+        [property: JsonPropertyName("payee")] string Payee,
+        [property: JsonPropertyName("bank_id")] Guid BankId,
+        [property: JsonPropertyName("payment_method")] string PaymentMethod,
+        [property: JsonPropertyName("original_amount")] decimal OriginalAmount,
+        [property: JsonPropertyName("currency")] string Currency,
+        [property: JsonPropertyName("transaction_date")] DateOnly TransactionDate,
+        [property: JsonPropertyName("category_id")] Guid CategoryId,
+        [property: JsonPropertyName("exchange_rate_used")] decimal ExchangeRateUsed,
+        [property: JsonPropertyName("transaction_type")] string TransactionType,
+        [property: JsonPropertyName("source")] string Source,
+        [property: JsonPropertyName("envelope_id")] Guid? EnvelopeId);
+    private sealed record ErrorDto([property: JsonPropertyName("error")] string Error, [property: JsonPropertyName("message")] string Message);
+}
