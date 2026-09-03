@@ -49,7 +49,7 @@ public class LedgerSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
         var current = new TestCurrentTenant { TenantId = tenant };
         var clock = new FakeTimeProvider(T0);
         var months = new MonthHandler(new EfRepository<Month>(db), new EfRepository<Week>(db), new EfRepository<Transaction>(db), new EfRepository<BudgetSettings>(db), new WeekBoundaryService(), current, clock);
-        var transactions = new TransactionHandler(new EfRepository<Transaction>(db), new EfRepository<Category>(db), new EfRepository<Bank>(db), new EfRepository<Envelope>(db), months, new FixedRate(rate), current, clock, NullLogger<TransactionHandler>.Instance);
+        var transactions = new TransactionHandler(new EfRepository<Transaction>(db), new EfRepository<Refund>(db), new EfRepository<Category>(db), new EfRepository<Bank>(db), new EfRepository<Envelope>(db), months, new FixedRate(rate), current, clock, NullLogger<TransactionHandler>.Instance);
         return new Ctx(db, tenant, months, transactions, category.Id, bank.Id, envelope.Id);
     }
 
@@ -310,7 +310,7 @@ public class LedgerSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
         var b = await ContextAsync();
         await b.Transactions.CreateAsync(Create(b, Jun5), default);
 
-        var contributor = new LedgerDataContributor(new EfRepository<Month>(a.Db), new EfRepository<Week>(a.Db), new EfRepository<Transaction>(a.Db));
+        var contributor = new LedgerDataContributor(new EfRepository<Month>(a.Db), new EfRepository<Week>(a.Db), new EfRepository<Transaction>(a.Db), new EfRepository<Refund>(a.Db));
         Assert.Equal("ledger", contributor.ExportKey);
         Assert.True(await contributor.HasDataAsync(a.Tenant));
         Assert.NotNull(await contributor.ExportAsync(a.Tenant));

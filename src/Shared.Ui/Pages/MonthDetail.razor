@@ -129,6 +129,53 @@
                 </div>
             </div>
         }
+        <h2 class="h6 fw-bold mb-2 mt-4">@Localizer["Month_Refunds"]</h2>
+        @if (_refunds.Count == 0)
+        {
+            <p class="text-muted" data-testid="month-no-refunds">@Localizer["Month_NoRefunds"]</p>
+        }
+        else
+        {
+            <div class="card shadow-sm">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0" data-testid="month-refund-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">@Localizer["Tx_Date"]</th>
+                                <th scope="col">@Localizer["Tx_Payee"]</th>
+                                <th scope="col" class="text-end">%</th>
+                                <th scope="col" class="text-end">₡</th>
+                                <th scope="col" class="text-end">$</th>
+                                <th scope="col">@Localizer["Catalog_Status"]</th>
+                                <th scope="col" class="text-end"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var r in _refunds)
+                            {
+                                <tr data-testid="month-refund-row">
+                                    <td>@r.TransactionDate.ToString("d", CultureInfo.CurrentCulture)</td>
+                                    <td>@r.Payee</td>
+                                    <td class="text-end">@r.Percentage.ToString("N0", CultureInfo.CurrentCulture)%</td>
+                                    <td class="text-end">@r.AmountCrc.ToString("N2", CultureInfo.CurrentCulture)</td>
+                                    <td class="text-end">@r.AmountUsd.ToString("N2", CultureInfo.CurrentCulture)</td>
+                                    <td>
+                                        <span class="badge @(r.Status == "received" ? "bg-success-subtle text-success-emphasis" : "bg-warning-subtle text-warning-emphasis")" data-testid="refund-status">
+                                            @(r.Status == "received" ? Localizer["Refund_Received"] : Localizer["Refund_Pending"])
+                                        </span>
+                                    </td>
+                                    <td class="text-end">
+                                        <button class="btn btn-outline-primary btn-sm" data-testid="refund-toggle" disabled="@_saving" @onclick="() => FlipRefundAsync(r)">
+                                            @(r.Status == "received" ? Localizer["Refund_MarkPending"] : Localizer["Refund_MarkReceived"])
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
         <p class="mt-3"><a href="/months">← @Localizer["Month_BackToMonths"]</a></p>
     }
 </div>
@@ -142,6 +189,7 @@
     private string? _notice;
     private MonthDto? _month;
     private List<TxDto> _transactions = new();
+    private List<RefundDto> _refunds = new();
     private Guid? _confirmDelete;
     private decimal _primaryAmount;
     private string _primaryCurrency = "USD";
@@ -166,9 +214,25 @@
             _primaryAmount = _month!.PrimaryIncomeAmount; _primaryCurrency = _month.PrimaryIncomeCurrency;
             _secondaryAmount = _month.SecondaryIncomeAmount; _secondaryCurrency = _month.SecondaryIncomeCurrency;
             _transactions = await Http.GetFromJsonAsync<List<TxDto>>($"/api/months/{Id}/transactions") ?? new();
+            _refunds = await Http.GetFromJsonAsync<List<RefundDto>>($"/api/months/{Id}/refunds") ?? new();
         }
         catch { _error = Localizer["Month_LoadError"]; }
         finally { _loading = false; }
+    }
+
+    /// <summary>LEDGER-3: pending → received books the derived inflow; received → pending removes it. A lost concurrent flip is a 409.</summary>
+    private async Task FlipRefundAsync(RefundDto r)
+    {
+        _notice = null; _error = null; _saving = true;
+        try
+        {
+            var res = await Http.PutAsJsonAsync($"/api/refunds/{r.Id}", new { status = r.Status == "received" ? "pending" : "received" });
+            if (res.IsSuccessStatusCode) { _notice = Localizer["Refund_Updated"]; await LoadAsync(); }
+            else if (res.StatusCode == HttpStatusCode.Conflict) { _error = Localizer["Refund_Conflict"]; await LoadAsync(); }
+            else _error = Localizer["Refund_Error"];
+        }
+        catch { _error = Localizer["Refund_Error"]; }
+        finally { _saving = false; }
     }
 
     private async Task SaveIncome()
@@ -243,6 +307,15 @@
         [property: JsonPropertyName("amount_crc")] decimal AmountCrc,
         [property: JsonPropertyName("amount_usd")] decimal AmountUsd,
         [property: JsonPropertyName("source")] string Source);
+
+    private sealed record RefundDto(
+        [property: JsonPropertyName("id")] Guid Id,
+        [property: JsonPropertyName("payee")] string Payee,
+        [property: JsonPropertyName("transaction_date")] DateOnly TransactionDate,
+        [property: JsonPropertyName("percentage")] decimal Percentage,
+        [property: JsonPropertyName("amount_crc")] decimal AmountCrc,
+        [property: JsonPropertyName("amount_usd")] decimal AmountUsd,
+        [property: JsonPropertyName("status")] string Status);
 
     private sealed record ErrorDto(
         [property: JsonPropertyName("error")] string Error,

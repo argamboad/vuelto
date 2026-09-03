@@ -123,6 +123,7 @@ public class ArchitectureTests
             nameof(Month),                                  // LedgerDataContributor (app slice LEDGER-1/2)
             nameof(Week),                                   // LedgerDataContributor
             nameof(Transaction),                            // LedgerDataContributor
+            nameof(Refund),                                 // LedgerDataContributor (app slice LEDGER-3)
             nameof(AuditEvent),                             // AuditDataContributor
             nameof(Subscription),                           // BillingDataContributor
             nameof(ApiKey),                                 // ApiKeyDataContributor

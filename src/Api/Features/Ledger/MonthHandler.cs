@@ -139,13 +139,13 @@ public sealed class MonthHandler(
     }
 
     /// <summary>
-    /// Stages the removal of a month and its weeks when no transaction other than
-    /// <paramref name="leavingTransactionId"/> remains in it (ADR-V005: months exist only through
+    /// Stages the removal of a month and its weeks when no transaction other than the
+    /// <paramref name="leaving"/> ones remains in it (ADR-V005: months exist only through
     /// transactions). Returns whether the month was marked for removal. Not saved here.
     /// </summary>
-    public async Task<bool> RemoveIfEmptyAsync(Guid monthId, Guid leavingTransactionId, CancellationToken cancellationToken)
+    public async Task<bool> RemoveIfEmptyAsync(Guid monthId, IReadOnlyCollection<Guid> leaving, CancellationToken cancellationToken)
     {
-        if (await transactions.Query().AnyAsync(t => t.MonthId == monthId && t.Id != leavingTransactionId, cancellationToken))
+        if (await transactions.Query().AnyAsync(t => t.MonthId == monthId && !leaving.Contains(t.Id), cancellationToken))
             return false;
         var month = await months.Query().FirstOrDefaultAsync(m => m.Id == monthId, cancellationToken);
         if (month is null) return false;

@@ -54,7 +54,9 @@ public record CreateTransactionRequest(
     [property: JsonPropertyName("category_id")] Guid? CategoryId,
     [property: JsonPropertyName("transaction_type")] string? TransactionType,
     [property: JsonPropertyName("exchange_rate")] decimal? ExchangeRate,
-    [property: JsonPropertyName("envelope_id")] Guid? EnvelopeId);
+    [property: JsonPropertyName("envelope_id")] Guid? EnvelopeId,
+    [property: JsonPropertyName("refund_expected")] bool RefundExpected = false,
+    [property: JsonPropertyName("refund_percentage")] decimal? RefundPercentage = null);
 
 public record UpdateTransactionRequest(
     [property: JsonPropertyName("payee")] string? Payee,
@@ -65,7 +67,9 @@ public record UpdateTransactionRequest(
     [property: JsonPropertyName("transaction_date")] DateOnly? TransactionDate,
     [property: JsonPropertyName("category_id")] Guid? CategoryId,
     [property: JsonPropertyName("transaction_type")] string? TransactionType,
-    [property: JsonPropertyName("envelope_id")] Guid? EnvelopeId);
+    [property: JsonPropertyName("envelope_id")] Guid? EnvelopeId,
+    [property: JsonPropertyName("refund_expected")] bool RefundExpected = false,
+    [property: JsonPropertyName("refund_percentage")] decimal? RefundPercentage = null);
 
 public record TransactionResponse(
     [property: JsonPropertyName("id")] Guid Id,
@@ -82,12 +86,33 @@ public record TransactionResponse(
     [property: JsonPropertyName("exchange_rate_used")] decimal ExchangeRateUsed,
     [property: JsonPropertyName("transaction_type")] string TransactionType,
     [property: JsonPropertyName("source")] string Source,
-    [property: JsonPropertyName("envelope_id")] Guid? EnvelopeId)
+    [property: JsonPropertyName("envelope_id")] Guid? EnvelopeId,
+    [property: JsonPropertyName("refund_expected")] bool RefundExpected,
+    [property: JsonPropertyName("refund_percentage")] decimal? RefundPercentage)
 {
-    public static TransactionResponse From(Transaction t) => new(
+    public static TransactionResponse From(Transaction t, Refund? refund) => new(
         t.Id, t.MonthId, t.Payee, t.BankId, t.PaymentMethod, t.OriginalAmount, t.Currency, t.TransactionDate,
-        t.CategoryId, t.AmountCrc, t.AmountUsd, t.ExchangeRateUsed, t.TransactionType, t.Source, t.EnvelopeId);
+        t.CategoryId, t.AmountCrc, t.AmountUsd, t.ExchangeRateUsed, t.TransactionType, t.Source, t.EnvelopeId,
+        refund is not null, refund?.Percentage);
 }
+
+/// <summary>A month's expected refund (LEDGER-3): derived from its transaction; only <c>status</c> is edited directly.</summary>
+public record RefundResponse(
+    [property: JsonPropertyName("id")] Guid Id,
+    [property: JsonPropertyName("month_id")] Guid MonthId,
+    [property: JsonPropertyName("transaction_id")] Guid TransactionId,
+    [property: JsonPropertyName("payee")] string Payee,
+    [property: JsonPropertyName("transaction_date")] DateOnly TransactionDate,
+    [property: JsonPropertyName("percentage")] decimal Percentage,
+    [property: JsonPropertyName("amount_crc")] decimal AmountCrc,
+    [property: JsonPropertyName("amount_usd")] decimal AmountUsd,
+    [property: JsonPropertyName("status")] string Status,
+    [property: JsonPropertyName("inflow_transaction_id")] Guid? InflowTransactionId)
+{
+    public static RefundResponse From(Refund r) => new(r.Id, r.MonthId, r.TransactionId, r.Payee, r.TransactionDate, r.Percentage, r.AmountCrc, r.AmountUsd, r.Status, r.InflowTransactionId);
+}
+
+public record UpdateRefundStatusRequest([property: JsonPropertyName("status")] string? Status);
 
 /// <summary>A month's transaction row with the catalog names resolved — inactive names still render (ADR-V008).</summary>
 public record TransactionListItemResponse(

@@ -1503,6 +1503,18 @@ it on failure — identical semantics to the donor's. The donor's real-Postgres 
 *Rationale:* the in-memory value read earlier in a request is never the authority; only the
 conditional write is.
 
+*As built (P5b / LEDGER-3, 2026-09-03).* `RefundHandler.SetStatusAsync` opens an `IUnitOfWork`
+scope, inserts the derived inflow (so the FK target exists), then issues the guarded
+`ExecuteUpdateAsync(… WHERE Status = <the status this caller read>)`; zero rows means a concurrent
+flip won — the scope disposes without commit, the inflow rolls back with it, and the caller gets 409
+`refund_status_conflict`. The revert path claims the flip first and then removes the inflow (and an
+emptied month) inside the same scope. Proven on real Postgres with two independent contexts racing
+(`RefundSliceTests.ConcurrentMarkReceived_…`). The month get-or-create race, by contrast, needs no
+scope: the transaction path's single `SaveChanges` + detach-and-retry (ADR-V005 as-built) is the whole
+mechanism. Caveat carried as platform feedback F21: the platform's outer `EfTransactionScope` does not
+clear the change tracker on rollback (only the savepoint scope does), so a handler that retried
+*inside* a rolled-back outer scope would re-send stale entities — this slice never does.
+
 **ADR-V015 — Rebrand as built: code identity `vuelto.*`, display brand "¿Y el vuelto?", app id `com.perezosoft.vuelto`, the platform's Data Protection strings kept, Notes sample deleted, own Docker stack. (2026-09-02; Guide Phase 3, per platform ADR-019 + `REBRANDING.md`)**
 The platform's find/replace rebrand was applied end to end: solution `Vuelto.slnx`, every
 project/assembly and root namespace `vuelto.*` (the RCL's static-asset path is therefore
