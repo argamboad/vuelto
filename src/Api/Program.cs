@@ -9,6 +9,7 @@ using Vuelto.Api.Endpoints;
 using Vuelto.Api.Features.Budget;
 using Vuelto.Api.Features.Catalog;
 using Vuelto.Api.Features.Dashboard;
+using Vuelto.Api.Features.Email;
 using Vuelto.Api.Features.Envelopes;
 using Vuelto.Api.Features.Reports;
 using Vuelto.Api.Features.ExchangeRate;
@@ -20,6 +21,7 @@ using Vuelto.Core.Abstractions;
 using Vuelto.Core.Budget;
 using Vuelto.Infrastructure;
 using Vuelto.Infrastructure.ExchangeRate;
+using Vuelto.Infrastructure.Mail;
 using Vuelto.Infrastructure.Persistence;
 using Vuelto.Infrastructure.Vouchers;
 
@@ -119,6 +121,7 @@ builder.Services.AddScoped<ITenantDataContributor, CategoryDataContributor>();
 builder.Services.AddScoped<ITenantDataContributor, BankDataContributor>();
 builder.Services.AddExchangeRates(builder.Configuration);                             // FX-1 (no entity)
 builder.Services.AddVoucherParsing();                                                 // EMAIL-1 (pure parser library; no entity)
+builder.Services.AddMailIngestion(builder.Configuration);                             // EMAIL-2/3 (token protector, consent, Graph + Gmail readers)
 builder.Services.AddScoped<IExchangeRateResolver, ExchangeRateResolver>();
 builder.Services.AddScoped<IRecentRateSource, TransactionRecentRateSource>();          // LEDGER-2 fills the chain's last tier
 builder.Services.AddScoped<EnvelopeHandler>();                                         // ENV-1
@@ -135,6 +138,8 @@ builder.Services.AddScoped<ITenantDataContributor, VariableExpenseDataContributo
 builder.Services.AddSingleton<IDashboardSummaryService, DashboardSummaryService>();    // DASH-1 (pure Core calc)
 builder.Services.AddScoped<DashboardHandler>();
 builder.Services.AddScoped<ReportHandler>();                                            // REPORTS-1/2
+builder.Services.AddScoped<EmailConnectionHandler>();                                   // EMAIL-2 (user-keyed, ADR-V002)
+builder.Services.AddScoped<IUserDataContributor, EmailConnectionUserDataContributor>();
 
 // Caches + session (LinkTokenService uses IMemoryCache; session backed by distributed cache).
 builder.Services.AddMemoryCache();
@@ -346,6 +351,7 @@ app.MapLedger();         // LEDGER-1/2/3 (/api/months, /api/transactions, /api/r
 app.MapExpenses();       // EXPENSES-1 (/api/expenses/fixed, /api/expenses/variable)
 app.MapDashboard();      // DASH-1 (/api/months/{id}/summary)
 app.MapReports();        // REPORTS-1/2 (/api/reports/category-analysis, /api/reports/transactions/export)
+app.MapEmail();          // EMAIL-2/3 (/api/email/connections — user-scoped; the consent callback is the one anonymous route)
 // Billing is a platform controller (BillingController) — auto-mapped by MapControllers above.
 
 // PUBAPI (ADR-015): map key management + the public routes only when enabled — off ⇒ they don't exist.

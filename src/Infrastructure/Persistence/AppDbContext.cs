@@ -92,6 +92,7 @@ public class AppDbContext : DbContext, IDataProtectionKeyContext
     public DbSet<Refund> Refunds => Set<Refund>();
     public DbSet<FixedExpense> FixedExpenses => Set<FixedExpense>();
     public DbSet<VariableExpense> VariableExpenses => Set<VariableExpense>();
+    public DbSet<EmailConnection> EmailConnections => Set<EmailConnection>(); // EMAIL-2 (user-keyed, ADR-V002)
 
     // Tenant isolation is structural in BOTH directions: the global query filter (below)
     // scopes reads, and this interceptor scopes writes — stamping the current tenant onto

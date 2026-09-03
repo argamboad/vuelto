@@ -1662,6 +1662,70 @@ on local storage), `file_name`, `row_count`; open the URL **without** a token �
 
 ---
 
+## 10l. Web — Email inboxes: connect, filters & readers (app slice EMAIL-2/3) 🟠
+
+> Your inbox, not the household's (ADR-V002): read-only consent on the account you're signed in with,
+> tokens protected by the platform key ring (ADR-V016), one inbox per provider. Live consent needs the
+> platform's Microsoft/Google OAuth apps configured (`Authentication:*`) with the API callback
+> `https://<api>/api/email/connections/callback` registered as a redirect URI.
+
+### QA-EMAIL-01 — The Email settings page without credentials: honest errors, no dead ends 🟠 (Web / API)
+**Gherkin**
+```gherkin
+Given Authentication:Google:ClientId is empty on the API
+When I open Settings → Manage inboxes
+Then I see "No inbox connected yet." and the two Connect buttons
+When I click Connect Gmail
+Then "Gmail mail consent isn't configured on this server yet." and I stay on the page
+When I POST /api/email/connections with tokens (Postman)
+Then 400 use_consent_flow
+```
+**Walkthrough:** **Settings** → **Manage inboxes** (`/email`) → **Expected:** the empty message, **Connect
+Outlook** / **Connect Gmail**. Click **Connect Gmail** with no Google credentials → **Expected:** the red
+"isn't configured" message. Via Postman (**21 · Email inboxes → Create connection (refused, 400)**) →
+`use_consent_flow`; (**Authorize (unknown provider, 400)**) → `invalid_provider`; (**Suggested filters**) →
+the BAC/BN senders and subjects with the two bank presets.
+
+### QA-EMAIL-02 — Live consent round-trip (IdP boundary) and the pre-seeded connection 🟠 (Web)
+**Gherkin**
+```gherkin
+Given the API has Authentication:Microsoft (or Google) credentials and the callback URL is a registered redirect URI
+When I click Connect Outlook and approve read-only access on my signed-in account
+Then I land on /email?connected=microsoft with "Outlook connected…"
+And the inbox shows Outlook — my address · Active · Last checked: <now> · every 15 min
+And Edit shows sender notificacion@notificacionesbaccr.com, bncontacto@bncr.fi.cr and the three subject prefixes pre-filled, Unread only on
+When I click Connect Outlook again → /email?email_error=already_connected
+```
+**Walkthrough:** **Connect Outlook** → the Microsoft consent page (scopes: read your mail, offline access,
+your email) → **Accept** → **Expected:** back on `/email` with the green notice and the row. **Edit** →
+**Expected:** the pre-filled senders/subjects, **Unread only** on, interval `15`, **Import mail from** today.
+**Connect Outlook** again → **Expected:** "That provider is already connected." Cancel the consent page
+instead → **Expected:** `/email?email_error=consent_failed` and "Couldn't connect the inbox."
+
+### QA-EMAIL-03 — Edit with real folders, backfill rule, disconnect, and nothing leaks across users 🟠 (Web / API)
+**Gherkin**
+```gherkin
+Given a connected Outlook inbox
+When I Edit → Load folders
+Then my real folders appear as checkboxes, subfolders as Inbox/Vouchers
+When I tick Inbox/Vouchers, set interval 60, turn on "Fetch all unread (ignore date)", Save
+Then "Saved." and the row reads every 60 min; a reload keeps the folder
+When I set Import mail from to 7 days ago and Save → GET the connection: last_polled_at moved back 7 days
+When I set it to 3 days ago and Save → last_polled_at is still 7 days ago
+When I set interval 4 → "Polling interval must be between 5 and 1440 minutes."; clear both filters → "Provide at least one sender or subject filter."
+When another user GETs/PUTs/DELETEs my connection id → 404
+When I Disconnect → confirm → the inbox is gone; the API list is empty
+```
+**Walkthrough:** **Edit** → **Load folders** → **Expected:** the checkbox list (Graph: nested names with
+`/`). Tick a subfolder, interval `60`, **Fetch all unread** on → **Save** → **Expected:** "Saved.", "every
+60 min"; **F5** keeps it. Via Postman (**21 · Email inboxes → Get connection**) after each import-from
+save → **Expected:** `last_polled_at` follows a lower date and ignores a higher one. Interval `4` →
+**Save** → **Expected:** the interval message; blank both filter boxes → **Save** → **Expected:** the
+filters message. Second account (**Update connection** with the first user's id) → 404. **Disconnect** →
+**Yes, disconnect** → **Expected:** "Inbox disconnected…", empty list.
+
+---
+
 ## 11. Emails (Mailpit) — branding & content 🟠
 
 > **Delivery is asynchronous** (the outbox dispatcher) — emails land in Mailpit a few seconds after the
@@ -2649,6 +2713,7 @@ app fires no published events. (Published events via `IWebhookPublisher` also lo
 | Budget lines: fixed + variable (app EXPENSES-1) | EXP-01..03 | `GET/POST /api/expenses/{fixed\|variable}`, `PUT …/{id}`, `PUT …/order` (400 `invalid_request`; 409 `expense_exists` / `expense_exists_inactive` + `existing_id` + `existing_name`; uniform 404) |
 | Dashboard (app DASH-1) | DASH-01..02 + `Core.Tests` (`DashboardSummaryServiceTests`, 45 donor cases) + `Api.Tests` (`DashboardSliceTests`) | `GET /api/months/{id}/summary` (200 `{month, exchange_rate, rate_source, rate_as_of, rate_unavailable, summary}`; 401 anonymous; uniform 404) |
 | Reports: category analysis + CSV export (app REPORTS-1/2) | REP-01..02 + `Core.Tests` (`CategoryAnalysisCalculatorTests`, `TransactionCsvWriterTests`) + `Api.Tests` (`ReportSliceTests`) | `GET /api/reports/category-analysis`, `POST /api/reports/transactions/export` (`month_id` \| `from`+`to`; 400 `period_required` / `period_ambiguous` / `period_incomplete` / `period_invalid`; uniform 404; export → signed `download_url` served by `GET /api/files/{token}`) |
+| Email inboxes: connect + readers (app EMAIL-2/3) | EMAIL-01..03 + `Api.Tests` (`MailConsentServiceTests`, `EmailReaderTests`, `EmailConnectionSliceTests`) | `GET /api/email/connections` (+ `/{id}`, `/{id}/folders` 409 `needs_reconsent`), `GET …/authorize?provider=` (400 `invalid_provider` / `provider_not_configured`), anonymous `GET …/callback` (→ `/email?connected=` \| `?email_error=`), `GET …/suggested-filters`, `POST …` (400 `use_consent_flow`), `PUT /{id}` (400 `filters_required` / `invalid_interval`), `DELETE /{id}`; uniform 404 |
 | Emails / branding | MAIL-01..04, I18N-04 | (SMTP via Mailpit) |
 | Tenant isolation / auth guards | SEC-01..05 | (all `[Authorize]` endpoints; write-stamping + reuse detection are automated) |
 | Platform health / readiness | SMK-07 | `GET /health`, `GET /health/ready` |
@@ -2770,6 +2835,9 @@ Record one row per executed case. Build = API/web commit SHA (`git rev-parse --s
 | QA-DASH-02 | Web | | | | | |
 | QA-REP-01 | Web | | | | | |
 | QA-REP-02 | Web | | | | | |
+| QA-EMAIL-01 | Web | | | | | |
+| QA-EMAIL-02 | Web | | | | | |
+| QA-EMAIL-03 | Web | | | | | |
 | … | | | | | | |
 
 **§14a adversarial / tenant-isolation (QA-ADV-*).** All rows are **Not-run** (blank) until executed.

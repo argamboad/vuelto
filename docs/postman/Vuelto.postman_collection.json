@@ -4402,6 +4402,364 @@
           ]
         }
       ]
+    },
+    {
+      "name": "21 · Email inboxes",
+      "description": "EMAIL-2/3 (app slice P9b, ADR-V002/V016): the caller's read-only inbox connections — USER-keyed (survive leaving a household; erased with the account). Created ONLY through the consent round-trip: GET authorize → the IdP → the anonymous GET callback (the signed 15-minute state is its authorization) → /email?connected=… Tokens are protected by the platform Data Protection key ring and never returned. One inbox per provider. Unknown or another user's id → uniform 404.",
+      "item": [
+        {
+          "name": "List connections",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/email/connections",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "email",
+                "connections"
+              ]
+            },
+            "description": "200 [ { id, provider, account_email, status active|needs_reconsent, folders[], sender_filters[], subject_filters[], unread_only, ignore_cursor, import_from, polling_interval_minutes, last_polled_at, created_at } ] — never tokens. Captures the first id into {{emailConnectionId}}."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "const items = pm.response.json();",
+                  "pm.test(\"no tokens\", () => items.forEach(c => { pm.expect(c).to.not.have.property('access_token'); pm.expect(c).to.not.have.property('refresh_token'); }));",
+                  "if (items.length) pm.environment.set('emailConnectionId', items[0].id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Authorize (Google)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/email/connections/authorize?provider=google",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "email",
+                "connections",
+                "authorize"
+              ],
+              "query": [
+                {
+                  "key": "provider",
+                  "value": "google"
+                }
+              ]
+            },
+            "description": "200 { authorization_url } — the read-only consent URL (gmail.readonly + openid email, access_type=offline, prompt=consent, login_hint = your email, a signed state). Open it in a browser; the IdP returns to GET …/callback, which creates the connection and redirects to /email. 400 provider_not_configured when Authentication:Google has no ClientId on this API; 400 invalid_provider for anything but microsoft|google."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200 or 400 provider_not_configured\", () => pm.expect(pm.response.code).to.be.oneOf([200, 400]));",
+                  "if (pm.response.code === 400) pm.test(\"not configured\", () => pm.expect(pm.response.json().error).to.be.oneOf(['provider_not_configured']));",
+                  "else pm.test(\"consent url\", () => pm.expect(pm.response.json().authorization_url).to.include('accounts.google.com'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Authorize (unknown provider, 400)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/email/connections/authorize?provider=outlook",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "email",
+                "connections",
+                "authorize"
+              ],
+              "query": [
+                {
+                  "key": "provider",
+                  "value": "outlook"
+                }
+              ]
+            },
+            "description": "400 invalid_provider."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"error code\", () => pm.expect(pm.response.json().error).to.eql('invalid_provider'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Consent callback (anonymous, bad state → redirect)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/email/connections/callback?code=abc&state=not-a-state",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "email",
+                "connections",
+                "callback"
+              ],
+              "query": [
+                {
+                  "key": "code",
+                  "value": "abc"
+                },
+                {
+                  "key": "state",
+                  "value": "not-a-state"
+                }
+              ]
+            },
+            "description": "The IdP redirect target — anonymous (no bearer). A missing/tampered/expired state, or error=…, creates nothing and redirects to {{clientUrl}}/email?email_error=consent_failed (already_connected when the provider is connected twice). Postman follows redirects by default; disable it in the request settings to see the 302 + Location.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"redirected or followed to the client\", () => pm.expect([302, 200, 404]).to.include(pm.response.code));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Suggested filters",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/email/connections/suggested-filters",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "email",
+                "connections",
+                "suggested-filters"
+              ]
+            },
+            "description": "200 { sender_filters[] (verified BAC/BN From-addresses), subject_filters[] (the routing subject prefixes), banks[] { name, sender_filters, subject_filters } } — what the connect flow pre-seeds."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"presets\", () => pm.expect(pm.response.json().banks.map(b => b.name)).to.eql(['BAC', 'BN']));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create connection (refused, 400)",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/email/connections",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "email",
+                "connections"
+              ]
+            },
+            "description": "Always 400 use_consent_flow — tokens never arrive in a client body; only the consent callback creates connections.",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"provider\": \"google\",\n  \"access_token\": \"never\",\n  \"refresh_token\": \"never\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"error code\", () => pm.expect(pm.response.json().error).to.eql('use_consent_flow'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get connection",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/email/connections/{{emailConnectionId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "email",
+                "connections",
+                "{{emailConnectionId}}"
+              ]
+            },
+            "description": "200 with the connection (no tokens); 404 for an unknown or another user's id."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200 or 404 when none yet\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "List folders",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/email/connections/{{emailConnectionId}}/folders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "email",
+                "connections",
+                "{{emailConnectionId}}",
+                "folders"
+              ]
+            },
+            "description": "200 [ { id, name } ] — the account's real folders (Graph: subfolders as Inbox/Vouchers) or labels (Gmail), read live with the refresh-once rule; 409 needs_reconsent on a dead token; 404 unknown."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200, 409 or 404\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404, 409]));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update connection",
+          "request": {
+            "method": "PUT",
+            "url": {
+              "raw": "{{baseUrl}}/api/email/connections/{{emailConnectionId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "email",
+                "connections",
+                "{{emailConnectionId}}"
+              ]
+            },
+            "description": "200 with the connection. folders[] (provider ids), sender_filters[] / subject_filters[] (≥ 1 total → else 400 filters_required), unread_only, ignore_cursor (fetch all unread regardless of date), import_from (lowering it pulls last_polled_at back for a backfill; raising it never advances the cursor), polling_interval_minutes 5…1440 (else 400 invalid_interval). 404 for another user's id.",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"folders\": [],\n  \"sender_filters\": [\n    \"notificacion@notificacionesbaccr.com\",\n    \"bncontacto@bncr.fi.cr\"\n  ],\n  \"subject_filters\": [\n    \"Notificación de transacción\",\n    \"Voucher Digital\",\n    \"BN Conectividad le informa\"\n  ],\n  \"unread_only\": true,\n  \"ignore_cursor\": false,\n  \"import_from\": \"2026-06-01T00:00:00Z\",\n  \"polling_interval_minutes\": 15\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200 (or 404 when none yet)\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete connection",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/email/connections/{{emailConnectionId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "email",
+                "connections",
+                "{{emailConnectionId}}"
+              ]
+            },
+            "description": "204 — ingestion stops; already-imported transactions stay. 404 for an unknown or another user's id."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"204 or 404\", () => pm.expect(pm.response.code).to.be.oneOf([204, 404]));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
     }
   ]
 }
