@@ -440,6 +440,7 @@
         "type": "Project",
         "dependencies": {
           "AWSSDK.S3": "[4.0.100, )",
+          "HtmlAgilityPack": "[1.12.4, )",
           "MailKit": "[4.17.0, )",
           "Microsoft.AspNetCore.Authentication.Google": "[10.0.11, )",
           "Microsoft.AspNetCore.Authentication.MicrosoftAccount": "[10.0.11, )",
@@ -472,6 +473,12 @@
         "dependencies": {
           "Superpower": "3.0.0"
         }
+      },
+      "HtmlAgilityPack": {
+        "type": "CentralTransitive",
+        "requested": "[1.12.4, )",
+        "resolved": "1.12.4",
+        "contentHash": "ljqvBabvFwKoLniuoQKO8b5bJfJweKLs4fUNS/V5dsvpo0A8MlJqxxn9XVmP2DaskbUXty6IYaWAi1SArGIMeQ=="
       },
       "MailKit": {
         "type": "CentralTransitive",

@@ -21,6 +21,7 @@ using Vuelto.Core.Budget;
 using Vuelto.Infrastructure;
 using Vuelto.Infrastructure.ExchangeRate;
 using Vuelto.Infrastructure.Persistence;
+using Vuelto.Infrastructure.Vouchers;
 
 // Local dev: load secrets/config from the repo-root .env (the single local source of truth —
 // see docs/DECISIONS.md). TraversePath walks up to find it regardless of the working dir; the
@@ -117,6 +118,7 @@ builder.Services.AddScoped<BankCatalogHandler>();
 builder.Services.AddScoped<ITenantDataContributor, CategoryDataContributor>();
 builder.Services.AddScoped<ITenantDataContributor, BankDataContributor>();
 builder.Services.AddExchangeRates(builder.Configuration);                             // FX-1 (no entity)
+builder.Services.AddVoucherParsing();                                                 // EMAIL-1 (pure parser library; no entity)
 builder.Services.AddScoped<IExchangeRateResolver, ExchangeRateResolver>();
 builder.Services.AddScoped<IRecentRateSource, TransactionRecentRateSource>();          // LEDGER-2 fills the chain's last tier
 builder.Services.AddScoped<EnvelopeHandler>();                                         // ENV-1

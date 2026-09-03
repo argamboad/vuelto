@@ -15,6 +15,7 @@
 
   <ItemGroup>
     <PackageReference Include="AWSSDK.S3" />
+    <PackageReference Include="HtmlAgilityPack" />
     <PackageReference Include="MailKit" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.Google" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.MicrosoftAccount" />
