@@ -38,6 +38,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- EMAIL-1: real anonymized BAC/BN voucher bodies for RealVoucherFixtureTests. -->
+    <None Include="Vouchers\Fixtures\*.html" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\Core\Vuelto.Core.csproj" />
     <ProjectReference Include="..\..\src\Api\Vuelto.Api.csproj" />
     <ProjectReference Include="..\..\src\Infrastructure\Vuelto.Infrastructure.csproj" />
