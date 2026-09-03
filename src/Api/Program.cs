@@ -10,6 +10,7 @@ using Vuelto.Api.Features.Budget;
 using Vuelto.Api.Features.Catalog;
 using Vuelto.Api.Features.Dashboard;
 using Vuelto.Api.Features.Envelopes;
+using Vuelto.Api.Features.Reports;
 using Vuelto.Api.Features.ExchangeRate;
 using Vuelto.Api.Features.Expenses;
 using Vuelto.Api.Features.Ledger;
@@ -131,6 +132,7 @@ builder.Services.AddScoped<ITenantDataContributor, FixedExpenseDataContributor>(
 builder.Services.AddScoped<ITenantDataContributor, VariableExpenseDataContributor>();
 builder.Services.AddSingleton<IDashboardSummaryService, DashboardSummaryService>();    // DASH-1 (pure Core calc)
 builder.Services.AddScoped<DashboardHandler>();
+builder.Services.AddScoped<ReportHandler>();                                            // REPORTS-1/2
 
 // Caches + session (LinkTokenService uses IMemoryCache; session backed by distributed cache).
 builder.Services.AddMemoryCache();
@@ -341,6 +343,7 @@ app.MapEnvelopes();      // ENV-1
 app.MapLedger();         // LEDGER-1/2/3 (/api/months, /api/transactions, /api/refunds)
 app.MapExpenses();       // EXPENSES-1 (/api/expenses/fixed, /api/expenses/variable)
 app.MapDashboard();      // DASH-1 (/api/months/{id}/summary)
+app.MapReports();        // REPORTS-1/2 (/api/reports/category-analysis, /api/reports/transactions/export)
 // Billing is a platform controller (BillingController) — auto-mapped by MapControllers above.
 
 // PUBAPI (ADR-015): map key management + the public routes only when enabled — off ⇒ they don't exist.

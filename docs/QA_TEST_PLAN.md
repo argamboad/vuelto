@@ -1608,6 +1608,60 @@ unknown id → 404.
 
 ---
 
+## 10k. Web — Reports: category analysis & CSV export (app slice REPORTS-1/2) 🟠
+
+> Read-only reporting over the frozen transaction amounts (ADR-V004/V006). One period rule for both:
+> a month (its anchor window, ending on the last week's end date) or a `from`–`to` range. The CSV is
+> delivered through the platform's signed-link download (ADR-010), so it works on web and native alike.
+
+### QA-REP-01 — Category analysis by month shows budgets; a date range doesn't 🟠 (Web / API)
+**Gherkin**
+```gherkin
+Given June 2026 has Groceries budgeted ₡60,000 (a fixed line) and transactions: Groceries budgeted ₡8,000 total, Dining Discretionary ₡2,000, an Income (inflow) ₡9,000
+When I open Reports (nav)
+Then the newest month loads with "one budget month — budgets shown next to actuals"
+And Budgeted lists Groceries — Budgeted (month) ₡60,000.00 — Actual ₡8,000.00 in green, with a Total row
+And Discretionary lists Dining ₡2,000.00; Unplanned shows "Nothing in this class for the period."; the inflow appears nowhere
+When I switch Period to "Date range", set 2026-01-01 – 2026-06-30 and Load
+Then the note says "custom range — monthly budgets don't apply" and the Budgeted (month) column is gone
+When I set From 2026-06-30 and To 2026-06-01 and Load
+Then "From must not be after To" and nothing loads
+```
+**Walkthrough:** **Budget** → fixed `Supermarket` `60000` CRC on Groceries. **New transaction** ×3 →
+Groceries Budgeted `5000` (`2026-06-05`) and `3000` (`2026-06-12`), Dining Discretionary `2000`
+(`2026-06-10`), plus an **Income (inflow)** `9000`. Nav **Reports** → **Expected:** the month selector on
+the newest month; the Budgeted card with the budget column and the green actual; Dining under
+Discretionary; the inflow absent from every card. **Period** → **Date range** → From `2026-01-01`, To
+`2026-06-30` → **Load** → **Expected:** the multi-month note, no budget column, same totals. Reverse
+the dates → **Load** → **Expected:** the red order message. Via Postman (**20 · Reports → Category
+analysis (month)**) → 200 with `single_month: true` and `budgeted[0].budgeted_crc = 60000`; (**Category
+analysis — no period (400)**) → `period_required`.
+
+### QA-REP-02 — Export CSV downloads the shown period; the file has the fixed columns and 4-decimal rate 🟠 (Web / API)
+**Gherkin**
+```gherkin
+Given Reports shows June 2026 (three spending rows + one inflow)
+When I click Export CSV
+Then "CSV ready — 4 rows. Your download has started." and transactions-<today>.csv lands in Downloads
+And the file's first line is date,payee,category,class,amount_crc,amount_usd,exchange_rate_used,payment_method,bank,source
+And rows are newest first, amounts read like 5000.00 and 10.00, exchange_rate_used like 500.0000, no currency symbols
+When I open a month page and click Export CSV
+Then the same file downloads for that month
+When I POST the export with month_id of another household
+Then 404
+```
+**Walkthrough:** **Reports** → **Export CSV** → **Expected:** the green notice with the row count and the
+browser download (on Android/Windows: the OS share sheet). Open the file → **Expected:** the header line
+exactly as above; one line per transaction incl. the inflow (the export is the whole period, not just
+spending); `exchange_rate_used` with four decimals; payees containing commas/quotes are quoted. **Months**
+→ June → **Export CSV** → **Expected:** the same download and the notice under the header. Via Postman
+(**20 · Reports → Export transactions (CSV link)**) → 200 with `download_url` (relative `/api/files/{token}`
+on local storage), `file_name`, `row_count`; open the URL **without** a token → the CSV downloads
+(`Content-Disposition: attachment`); wait 15 minutes → 404 (link expired). Postman with a foreign
+`month_id` → 404.
+
+---
+
 ## 11. Emails (Mailpit) — branding & content 🟠
 
 > **Delivery is asynchronous** (the outbox dispatcher) — emails land in Mailpit a few seconds after the
@@ -2594,6 +2648,7 @@ app fires no published events. (Published events via `IWebhookPublisher` also lo
 | Expected refunds & realization (app LEDGER-3) | LED-05..06 + `Api.Tests` (`RefundSliceTests`, incl. the two-context concurrency proof) | `refund_expected` / `refund_percentage` on `POST/PUT /api/transactions`; `GET /api/months/{id}/refunds`; `PUT /api/refunds/{id}` (200; 400 `invalid_request`; 404; 409 `refund_status_conflict`) |
 | Budget lines: fixed + variable (app EXPENSES-1) | EXP-01..03 | `GET/POST /api/expenses/{fixed\|variable}`, `PUT …/{id}`, `PUT …/order` (400 `invalid_request`; 409 `expense_exists` / `expense_exists_inactive` + `existing_id` + `existing_name`; uniform 404) |
 | Dashboard (app DASH-1) | DASH-01..02 + `Core.Tests` (`DashboardSummaryServiceTests`, 45 donor cases) + `Api.Tests` (`DashboardSliceTests`) | `GET /api/months/{id}/summary` (200 `{month, exchange_rate, rate_source, rate_as_of, rate_unavailable, summary}`; 401 anonymous; uniform 404) |
+| Reports: category analysis + CSV export (app REPORTS-1/2) | REP-01..02 + `Core.Tests` (`CategoryAnalysisCalculatorTests`, `TransactionCsvWriterTests`) + `Api.Tests` (`ReportSliceTests`) | `GET /api/reports/category-analysis`, `POST /api/reports/transactions/export` (`month_id` \| `from`+`to`; 400 `period_required` / `period_ambiguous` / `period_incomplete` / `period_invalid`; uniform 404; export → signed `download_url` served by `GET /api/files/{token}`) |
 | Emails / branding | MAIL-01..04, I18N-04 | (SMTP via Mailpit) |
 | Tenant isolation / auth guards | SEC-01..05 | (all `[Authorize]` endpoints; write-stamping + reuse detection are automated) |
 | Platform health / readiness | SMK-07 | `GET /health`, `GET /health/ready` |
@@ -2713,6 +2768,8 @@ Record one row per executed case. Build = API/web commit SHA (`git rev-parse --s
 | QA-EXP-03 | Web | | | | | |
 | QA-DASH-01 | Web | | | | | |
 | QA-DASH-02 | Web | | | | | |
+| QA-REP-01 | Web | | | | | |
+| QA-REP-02 | Web | | | | | |
 | … | | | | | | |
 
 **§14a adversarial / tenant-isolation (QA-ADV-*).** All rows are **Not-run** (blank) until executed.

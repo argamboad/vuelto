@@ -1,0 +1,265 @@
+@page "/reports"
+@using System.Globalization
+@using System.Net
+@using System.Net.Http.Json
+@using System.Text.Json.Serialization
+@using Vuelto.Shared.Ui.Auth
+@inject AuthService Auth
+@inject NavigationManager Nav
+@inject HttpClient Http
+@inject IFileDownloadLauncher DownloadLauncher
+@inject IStringLocalizer<AppStrings> Localizer
+
+<PageTitle>@Localizer["Reports_Title"]</PageTitle>
+
+@* REPORTS-1/2: spend by category per class for a month or a date range, plus the CSV export of the same
+   period through the platform's download launcher (browser download / native share sheet). *@
+<div class="reports-wrapper" data-testid="reports-page">
+    <div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
+        <div>
+            <h1 class="h4 fw-bold mb-1">@Localizer["Reports_Title"]</h1>
+            <p class="text-muted mb-0 small">@Localizer["Reports_Subtitle"]</p>
+        </div>
+        <button class="btn btn-outline-primary" data-testid="rep-export" @onclick="ExportAsync" disabled="@(_exporting || _period is null)">
+            @(_exporting ? Localizer["Reports_Exporting"] : Localizer["Reports_ExportCsv"])
+        </button>
+    </div>
+
+    <div class="card shadow-sm mb-3">
+        <div class="card-body d-flex flex-wrap align-items-end gap-3">
+            <div>
+                <label class="form-label small mb-1">@Localizer["Reports_PeriodMode"]</label>
+                <select class="form-select form-select-sm" data-testid="rep-mode" value="@_mode" @onchange="OnModeChanged">
+                    <option value="month">@Localizer["Reports_ByMonth"]</option>
+                    <option value="range">@Localizer["Reports_DateRange"]</option>
+                </select>
+            </div>
+            @if (_mode == "month")
+            {
+                <div>
+                    <label class="form-label small mb-1">@Localizer["Reports_Month"]</label>
+                    <select class="form-select form-select-sm" data-testid="rep-month" value="@_monthId" @onchange="OnMonthChanged" disabled="@(_months.Count == 0)">
+                        @foreach (var m in _months)
+                        {
+                            <option value="@m.Id">@MonthLabel(m.Year, m.MonthNumber)</option>
+                        }
+                    </select>
+                </div>
+            }
+            else
+            {
+                <div>
+                    <label class="form-label small mb-1">@Localizer["Reports_From"]</label>
+                    <input type="date" class="form-control form-control-sm" data-testid="rep-from" @bind="_from" />
+                </div>
+                <div>
+                    <label class="form-label small mb-1">@Localizer["Reports_To"]</label>
+                    <input type="date" class="form-control form-control-sm" data-testid="rep-to" @bind="_to" />
+                </div>
+                <button class="btn btn-primary btn-sm" data-testid="rep-load" @onclick="LoadRangeAsync" disabled="@_loading">@Localizer["Reports_Load"]</button>
+            }
+        </div>
+    </div>
+
+    @if (_notice is not null)
+    {
+        <div class="alert @(_noticeOk ? "alert-success" : "alert-danger") py-2" data-testid="rep-notice">@_notice</div>
+    }
+
+    @if (_loading)
+    {
+        <div class="text-muted"><span class="spinner-border spinner-border-sm me-2"></span>@Localizer["Common_Loading"]</div>
+    }
+    else if (_months.Count == 0 && _mode == "month")
+    {
+        <div class="text-muted" data-testid="rep-no-months">@Localizer["Months_Empty"]</div>
+    }
+    else if (_report is not null)
+    {
+        <p class="small text-muted" data-testid="rep-period">
+            @Localizer["Reports_Period", _report.Period.From.ToString("d", CultureInfo.CurrentCulture), _report.Period.To.ToString("d", CultureInfo.CurrentCulture)]
+            · @(_report.SingleMonth ? Localizer["Reports_SingleMonthNote"] : Localizer["Reports_MultiMonthNote"])
+        </p>
+
+        @if (_report.Budgeted.Count == 0 && _report.Extraordinary.Count == 0 && _report.UnplannedEssential.Count == 0)
+        {
+            <div class="alert alert-info" data-testid="rep-empty">@Localizer["Reports_Empty"]</div>
+        }
+        else
+        {
+            <div class="row g-3">
+                <div class="col-12">@Section(Localizer["Tx_Budgeted"], _report.Budgeted, "rep-budgeted", _report.SingleMonth)</div>
+                <div class="col-12 col-lg-6">@Section(Localizer["Tx_Extraordinary"], _report.Extraordinary, "rep-extraordinary", false)</div>
+                <div class="col-12 col-lg-6">@Section(Localizer["Tx_Unplanned"], _report.UnplannedEssential, "rep-unplanned", false)</div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private string _mode = "month";
+    private List<MonthDto> _months = new();
+    private Guid _monthId;
+    private DateOnly? _from;
+    private DateOnly? _to;
+    private ReportDto? _report;
+    private bool _loading = true;
+    private bool _exporting;
+    private string? _notice;
+    private bool _noticeOk;
+
+    /// <summary>The period currently shown, as query string — the export always targets exactly what is on screen.</summary>
+    private string? _period;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
+        try
+        {
+            _months = await Http.GetFromJsonAsync<List<MonthDto>>("/api/months") ?? new();
+            if (_months.Count > 0)
+            {
+                _monthId = _months[0].Id; // newest first
+                await LoadAsync($"month_id={_monthId}");
+            }
+        }
+        catch { Fail(Localizer["Reports_LoadError"]); }
+        finally { _loading = false; }
+    }
+
+    private async Task OnModeChanged(ChangeEventArgs e)
+    {
+        _mode = e.Value?.ToString() ?? "month";
+        _report = null; _period = null; _notice = null;
+        if (_mode == "month" && _monthId != Guid.Empty) await LoadAsync($"month_id={_monthId}");
+    }
+
+    private async Task OnMonthChanged(ChangeEventArgs e)
+    {
+        if (!Guid.TryParse(e.Value?.ToString(), out var id)) return;
+        _monthId = id;
+        await LoadAsync($"month_id={id}");
+    }
+
+    private async Task LoadRangeAsync()
+    {
+        _notice = null;
+        if (_from is null || _to is null) { Fail(Localizer["Reports_DateRequired"]); return; }
+        if (_from > _to) { Fail(Localizer["Reports_DateOrder"]); return; }
+        await LoadAsync($"from={_from:yyyy-MM-dd}&to={_to:yyyy-MM-dd}");
+    }
+
+    private async Task LoadAsync(string period)
+    {
+        _loading = true; _notice = null;
+        try
+        {
+            var res = await Http.GetAsync($"/api/reports/category-analysis?{period}");
+            if (res.StatusCode == HttpStatusCode.BadRequest)
+            {
+                var err = await res.Content.ReadFromJsonAsync<ErrorDto>();
+                Fail(err?.Message ?? Localizer["Reports_LoadError"]);
+                _report = null; _period = null;
+                return;
+            }
+            res.EnsureSuccessStatusCode();
+            _report = await res.Content.ReadFromJsonAsync<ReportDto>();
+            _period = period;
+        }
+        catch { Fail(Localizer["Reports_LoadError"]); _report = null; _period = null; }
+        finally { _loading = false; }
+    }
+
+    private async Task ExportAsync()
+    {
+        if (_period is null || _exporting) return;
+        _exporting = true; _notice = null;
+        try
+        {
+            var res = await Http.PostAsync($"/api/reports/transactions/export?{_period}", null);
+            res.EnsureSuccessStatusCode();
+            var body = (await res.Content.ReadFromJsonAsync<ExportDto>())!;
+            var url = new Uri(Http.BaseAddress!, body.DownloadUrl).ToString();
+            await DownloadLauncher.LaunchAsync(url, body.FileName);
+            _notice = Localizer["Reports_ExportReady", body.RowCount]; _noticeOk = true;
+        }
+        catch { Fail(Localizer["Reports_ExportError"]); }
+        finally { _exporting = false; }
+    }
+
+    private void Fail(string message) { _notice = message; _noticeOk = false; }
+
+    private RenderFragment Section(string title, List<EntryDto> entries, string testId, bool showBudget) => __builder =>
+    {
+        <div class="card shadow-sm h-100" data-testid="@testId">
+            <div class="card-body">
+                <h2 class="h6 fw-bold mb-2">@title</h2>
+                @if (entries.Count == 0)
+                {
+                    <p class="text-muted small mb-0">@Localizer["Reports_NoneInClass"]</p>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead>
+                                <tr>
+                                    <th>@Localizer["Tx_Category"]</th>
+                                    @if (showBudget) { <th class="text-end">@Localizer["Reports_BudgetedCol"]</th> }
+                                    <th class="text-end">@Localizer["Reports_ActualCol"]</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var e in entries)
+                                {
+                                    <tr data-testid="rep-row">
+                                        <td>@e.CategoryName</td>
+                                        @if (showBudget) { <td class="text-end" data-testid="rep-budget">@(e.BudgetedCrc is null ? "—" : Budget(e.BudgetedCrc.Value, e.BudgetedUsd ?? 0))</td> }
+                                        <td class="text-end @(showBudget ? Tone(e) : null)" data-testid="rep-actual">@Money(e.TotalCrc, e.TotalUsd)</td>
+                                    </tr>
+                                }
+                                <tr class="fw-bold" data-testid="rep-total">
+                                    <td>@Localizer["Reports_Total"]</td>
+                                    @if (showBudget) { <td class="text-end">@Budget(entries.Sum(x => x.BudgetedCrc ?? 0), entries.Sum(x => x.BudgetedUsd ?? 0))</td> }
+                                    <td class="text-end">@Money(entries.Sum(x => x.TotalCrc), entries.Sum(x => x.TotalUsd))</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+    };
+
+    /// <summary>Semantic colour only when a budget exists: red over the CRC-side budget, green under.</summary>
+    private static string Tone(EntryDto e) => e.BudgetedCrc is null ? "" : e.TotalCrc > e.BudgetedCrc.Value ? "text-danger" : "text-success";
+
+    private static string Money(decimal crc, decimal usd) => $"₡{crc.ToString("N2", CultureInfo.CurrentCulture)} · ${usd.ToString("N2", CultureInfo.CurrentCulture)}";
+
+    /// <summary>Budgets are single-currency per line (EXPENSES-1) and the report carries no rate, so a one-sided sum shows only its native side.</summary>
+    private static string Budget(decimal crc, decimal usd) =>
+        usd == 0 && crc != 0 ? $"₡{crc.ToString("N2", CultureInfo.CurrentCulture)}"
+        : crc == 0 && usd != 0 ? $"${usd.ToString("N2", CultureInfo.CurrentCulture)}"
+        : Money(crc, usd);
+
+    private static string MonthLabel(int year, int month) =>
+        $"{CultureInfo.CurrentCulture.TextInfo.ToTitleCase(CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(month))} {year}";
+
+    private sealed record MonthDto([property: JsonPropertyName("id")] Guid Id, [property: JsonPropertyName("year")] int Year, [property: JsonPropertyName("month_number")] int MonthNumber);
+    private sealed record PeriodDto([property: JsonPropertyName("from")] DateOnly From, [property: JsonPropertyName("to")] DateOnly To);
+    private sealed record EntryDto(
+        [property: JsonPropertyName("category_id")] Guid CategoryId,
+        [property: JsonPropertyName("category_name")] string CategoryName,
+        [property: JsonPropertyName("total_crc")] decimal TotalCrc,
+        [property: JsonPropertyName("total_usd")] decimal TotalUsd,
+        [property: JsonPropertyName("budgeted_crc")] decimal? BudgetedCrc,
+        [property: JsonPropertyName("budgeted_usd")] decimal? BudgetedUsd);
+    private sealed record ReportDto(
+        [property: JsonPropertyName("period")] PeriodDto Period,
+        [property: JsonPropertyName("single_month")] bool SingleMonth,
+        [property: JsonPropertyName("budgeted")] List<EntryDto> Budgeted,
+        [property: JsonPropertyName("extraordinary")] List<EntryDto> Extraordinary,
+        [property: JsonPropertyName("unplanned_essential")] List<EntryDto> UnplannedEssential);
+    private sealed record ExportDto([property: JsonPropertyName("download_url")] string DownloadUrl, [property: JsonPropertyName("file_name")] string FileName, [property: JsonPropertyName("row_count")] int RowCount);
+    private sealed record ErrorDto([property: JsonPropertyName("error")] string Error, [property: JsonPropertyName("message")] string Message);
+}

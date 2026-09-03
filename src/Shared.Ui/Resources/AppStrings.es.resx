@@ -500,4 +500,29 @@
   <data name="Dash_Contributed" xml:space="preserve"><value>Aportado este mes</value></data>
   <data name="Dash_Remaining" xml:space="preserve"><value>Restante</value></data>
   <data name="Dash_BankMethod" xml:space="preserve"><value>Por banco y método de pago</value></data>
+  <data name="Nav_Reports" xml:space="preserve"><value>Reportes</value></data>
+  <data name="Reports_Title" xml:space="preserve"><value>Análisis por categoría</value></data>
+  <data name="Reports_Subtitle" xml:space="preserve"><value>A dónde se fue el dinero, por categoría y clase, en un mes o en cualquier rango de fechas.</value></data>
+  <data name="Reports_PeriodMode" xml:space="preserve"><value>Período</value></data>
+  <data name="Reports_ByMonth" xml:space="preserve"><value>Por mes</value></data>
+  <data name="Reports_DateRange" xml:space="preserve"><value>Rango de fechas</value></data>
+  <data name="Reports_Month" xml:space="preserve"><value>Mes</value></data>
+  <data name="Reports_From" xml:space="preserve"><value>Desde</value></data>
+  <data name="Reports_To" xml:space="preserve"><value>Hasta</value></data>
+  <data name="Reports_Load" xml:space="preserve"><value>Cargar</value></data>
+  <data name="Reports_Period" xml:space="preserve"><value>{0} – {1}</value></data>
+  <data name="Reports_SingleMonthNote" xml:space="preserve"><value>un mes de presupuesto: los presupuestos se muestran junto a lo real</value></data>
+  <data name="Reports_MultiMonthNote" xml:space="preserve"><value>rango personalizado: los presupuestos mensuales no aplican</value></data>
+  <data name="Reports_BudgetedCol" xml:space="preserve"><value>Presupuestado (mes)</value></data>
+  <data name="Reports_ActualCol" xml:space="preserve"><value>Real</value></data>
+  <data name="Reports_Total" xml:space="preserve"><value>Total</value></data>
+  <data name="Reports_NoneInClass" xml:space="preserve"><value>Nada en esta clase para el período.</value></data>
+  <data name="Reports_Empty" xml:space="preserve"><value>No hay gastos en este período.</value></data>
+  <data name="Reports_LoadError" xml:space="preserve"><value>No se pudo cargar el reporte. Intenta de nuevo.</value></data>
+  <data name="Reports_DateRequired" xml:space="preserve"><value>Elige ambas fechas.</value></data>
+  <data name="Reports_DateOrder" xml:space="preserve"><value>"Desde" no puede ser posterior a "Hasta".</value></data>
+  <data name="Reports_ExportCsv" xml:space="preserve"><value>Exportar CSV</value></data>
+  <data name="Reports_Exporting" xml:space="preserve"><value>Preparando…</value></data>
+  <data name="Reports_ExportReady" xml:space="preserve"><value>CSV listo: {0} filas. La descarga comenzó.</value></data>
+  <data name="Reports_ExportError" xml:space="preserve"><value>No se pudo exportar el CSV. Intenta de nuevo.</value></data>
 </root>

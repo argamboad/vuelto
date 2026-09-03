@@ -4248,6 +4248,160 @@
           ]
         }
       ]
+    },
+    {
+      "name": "20 · Reports",
+      "description": "REPORTS-1/2 (app slice P8, ADR-V004/V005/V006 + platform ADR-010): read-only reporting over the frozen transaction amounts. Category analysis groups the spending classes (budgeted / extraordinary / unplanned_essential — never inflow or envelope_contribution) by category; a single month also decorates budgeted entries with the catalog budget. The CSV export stores the file through IFileStorage and returns a 15-minute signed download_url (served anonymously by GET /api/files/{token}) — the same download affordance the household export uses, so web and MAUI share one path. Run 15 · Months first so {{monthId}} exists. Period: month_id (the month's anchor window — first week start to the LAST week's end date) OR from + to (yyyy-MM-dd, inclusive), never both, never neither → 400 period_required / period_ambiguous / period_incomplete / period_invalid. Unknown or another household's month_id → uniform 404.",
+      "item": [
+        {
+          "name": "Category analysis (month)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/category-analysis?month_id={{monthId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "category-analysis"
+              ],
+              "query": [
+                {
+                  "key": "month_id",
+                  "value": "{{monthId}}"
+                }
+              ]
+            },
+            "description": "200 { period {from, to}, single_month: true, budgeted[], extraordinary[], unplanned_essential[] }; each entry { category_id, category_name, total_crc, total_usd, budgeted_crc, budgeted_usd } — the budget fields are the sum of the active fixed + variable lines backing the category (null when none) and are present ONLY for a single month. Zero-spend categories are absent; sorted by name; names from the all-states catalog. Period: month_id (the month's anchor window — first week start to the LAST week's end date) OR from + to (yyyy-MM-dd, inclusive), never both, never neither → 400 period_required / period_ambiguous / period_incomplete / period_invalid. Unknown or another household's month_id → uniform 404."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200 (or 404 when no month yet)\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));",
+                  "if (pm.response.code === 200) { const r = pm.response.json();",
+                  "  pm.test(\"single month\", () => pm.expect(r.single_month).to.be.true);",
+                  "  pm.test(\"three class arrays\", () => pm.expect(r).to.have.all.keys('period', 'single_month', 'budgeted', 'extraordinary', 'unplanned_essential')); }"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Category analysis (date range)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/category-analysis?from=2026-01-01&to=2026-12-31",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "category-analysis"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "2026-01-01"
+                },
+                {
+                  "key": "to",
+                  "value": "2026-12-31"
+                }
+              ]
+            },
+            "description": "200 with single_month: false — budgeted_crc / budgeted_usd are null on every entry (a monthly budget does not multiply across arbitrary ranges)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "pm.test(\"range has no budgets\", () => { pm.expect(r.single_month).to.be.false; r.budgeted.forEach(e => pm.expect(e.budgeted_crc).to.be.null); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Category analysis — no period (400)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/category-analysis",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "category-analysis"
+              ]
+            },
+            "description": "No month_id and no range → 400 period_required. Also: month_id + from → period_ambiguous; only from → period_incomplete; from > to or a non-ISO date → period_invalid."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"error code\", () => pm.expect(pm.response.json().error).to.eql('period_required'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Export transactions (CSV link)",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/transactions/export?month_id={{monthId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "transactions",
+                "export"
+              ],
+              "query": [
+                {
+                  "key": "month_id",
+                  "value": "{{monthId}}"
+                }
+              ]
+            },
+            "description": "200 { download_url, file_name \"transactions-<today>.csv\", row_count, period, expires_in_seconds 900 }. Optional filters: category_id, class (normalized). The CSV (RFC 4180, UTF-8, CRLF): date,payee,category,class,amount_crc,amount_usd,exchange_rate_used,payment_method,bank,source — amounts 2 dp without symbols, exchange_rate_used 4 dp, dates yyyy-MM-dd, rows date desc then created desc, header-only when nothing matches (never 404). Open download_url WITHOUT a token: the signed link is the authorization; it expires after 15 minutes (then 404). Captures the link into {{exportUrl}}. Period: month_id (the month's anchor window — first week start to the LAST week's end date) OR from + to (yyyy-MM-dd, inclusive), never both, never neither → 400 period_required / period_ambiguous / period_incomplete / period_invalid. Unknown or another household's month_id → uniform 404."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200 (or 404 when no month yet)\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));",
+                  "if (pm.response.code === 200) { const r = pm.response.json();",
+                  "  pm.test(\"link + dated name\", () => { pm.expect(r.download_url).to.be.a('string'); pm.expect(r.file_name).to.match(/^transactions-\\d{4}-\\d{2}-\\d{2}\\.csv$/); });",
+                  "  pm.environment.set('exportUrl', r.download_url); }"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
     }
   ]
 }
