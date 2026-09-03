@@ -8,6 +8,7 @@ using Vuelto.Api.Configuration;
 using Vuelto.Api.Endpoints;
 using Vuelto.Api.Features.Budget;
 using Vuelto.Api.Features.Catalog;
+using Vuelto.Api.Features.Envelopes;
 using Vuelto.Api.Features.ExchangeRate;
 using Vuelto.Api.Observability;
 using Vuelto.Api.Services;
@@ -114,6 +115,8 @@ builder.Services.AddScoped<ITenantDataContributor, BankDataContributor>();
 builder.Services.AddExchangeRates(builder.Configuration);                             // FX-1 (no entity)
 builder.Services.AddScoped<IExchangeRateResolver, ExchangeRateResolver>();
 builder.Services.AddSingleton<IRecentRateSource, NoRecentRateSource>();                // P5 swaps in the transaction-backed source
+builder.Services.AddScoped<EnvelopeHandler>();                                         // ENV-1
+builder.Services.AddScoped<ITenantDataContributor, EnvelopeDataContributor>();
 
 // Caches + session (LinkTokenService uses IMemoryCache; session backed by distributed cache).
 builder.Services.AddMemoryCache();
@@ -320,6 +323,7 @@ app.MapGet("/api/version", () => Results.Ok(new
 app.MapBudgetSettings(); // BUDGET-1
 app.MapCatalog();        // CATALOG-1/2 (/api/categories, /api/banks)
 app.MapExchangeRate();   // FX-1
+app.MapEnvelopes();      // ENV-1
 // Billing is a platform controller (BillingController) — auto-mapped by MapControllers above.
 
 // PUBAPI (ADR-015): map key management + the public routes only when enabled — off ⇒ they don't exist.

@@ -349,7 +349,7 @@
   <data name="Catalog_Updated" xml:space="preserve"><value>Actualizado.</value></data>
   <data name="Catalog_Empty" xml:space="preserve"><value>Todavía no hay nada aquí.</value></data>
   <data name="Catalog_SettingsTitle" xml:space="preserve"><value>Catálogo</value></data>
-  <data name="Catalog_SettingsHint" xml:space="preserve"><value>Los nombres con los que tu hogar clasifica el dinero: categorías y bancos. Desactiva en lugar de borrar: el historial conserva sus etiquetas.</value></data>
+  <data name="Catalog_SettingsHint" xml:space="preserve"><value>Los nombres con los que tu hogar clasifica el dinero: categorías, bancos y sobres de ahorro. Desactiva en vez de borrar: el historial conserva sus etiquetas.</value></data>
   <data name="Catalog_ManageCategories" xml:space="preserve"><value>Administrar categorías</value></data>
   <data name="Catalog_ManageBanks" xml:space="preserve"><value>Administrar bancos</value></data>
   <data name="Catalog_BackToSettings" xml:space="preserve"><value>Volver a configuración</value></data>
@@ -359,4 +359,19 @@
   <data name="Fx_AsOf" xml:space="preserve"><value>al {0}</value></data>
   <data name="Fx_FromTransaction" xml:space="preserve"><value>de tu última transacción ({0})</value></data>
   <data name="Fx_Unavailable" xml:space="preserve"><value>Tipo de cambio no disponible — inténtalo más tarde</value></data>
+  <data name="Envelopes_Title" xml:space="preserve"><value>Sobres</value></data>
+  <data name="Envelopes_Subtitle" xml:space="preserve"><value>Ahorros para los gastos grandes del año: cuánto apartás y cuándo recordarlo. Compartidos por todo el hogar.</value></data>
+  <data name="Envelopes_New" xml:space="preserve"><value>Nuevo sobre</value></data>
+  <data name="Envelopes_NewTitle" xml:space="preserve"><value>Nuevo sobre</value></data>
+  <data name="Envelopes_EditTitle" xml:space="preserve"><value>Editar sobre</value></data>
+  <data name="Envelopes_LoadError" xml:space="preserve"><value>No se pudieron cargar los sobres. Recarga para intentar de nuevo.</value></data>
+  <data name="Envelopes_TargetCrc" xml:space="preserve"><value>Meta anual (₡)</value></data>
+  <data name="Envelopes_TargetUsd" xml:space="preserve"><value>Meta anual ($)</value></data>
+  <data name="Envelopes_Cadence" xml:space="preserve"><value>Recordatorio</value></data>
+  <data name="Envelopes_CadenceHint" xml:space="preserve"><value>Cada mes, o solo en los meses de 5 semanas: los meses del pago extra en que se rellenan los sobres.</value></data>
+  <data name="Envelopes_CadenceMonthly" xml:space="preserve"><value>Cada mes</value></data>
+  <data name="Envelopes_CadenceFiveWeek" xml:space="preserve"><value>Solo en meses de 5 semanas</value></data>
+  <data name="Envelopes_Negative" xml:space="preserve"><value>Las metas no pueden ser negativas.</value></data>
+  <data name="Envelopes_Empty" xml:space="preserve"><value>Aún no hay sobres: crea uno para el marchamo, la escuela o un viaje.</value></data>
+  <data name="Envelopes_SettingsLink" xml:space="preserve"><value>Administrar sobres</value></data>
 </root>

@@ -349,7 +349,7 @@
   <data name="Catalog_Updated" xml:space="preserve"><value>Updated.</value></data>
   <data name="Catalog_Empty" xml:space="preserve"><value>Nothing here yet.</value></data>
   <data name="Catalog_SettingsTitle" xml:space="preserve"><value>Catalog</value></data>
-  <data name="Catalog_SettingsHint" xml:space="preserve"><value>The names your household classifies money by: categories and banks. Deactivate instead of deleting — history keeps its labels.</value></data>
+  <data name="Catalog_SettingsHint" xml:space="preserve"><value>The names your household classifies money by: categories, banks and savings envelopes. Deactivate instead of deleting — history keeps its labels.</value></data>
   <data name="Catalog_ManageCategories" xml:space="preserve"><value>Manage categories</value></data>
   <data name="Catalog_ManageBanks" xml:space="preserve"><value>Manage banks</value></data>
   <data name="Catalog_BackToSettings" xml:space="preserve"><value>Back to settings</value></data>
@@ -359,4 +359,19 @@
   <data name="Fx_AsOf" xml:space="preserve"><value>as of {0}</value></data>
   <data name="Fx_FromTransaction" xml:space="preserve"><value>from your last transaction ({0})</value></data>
   <data name="Fx_Unavailable" xml:space="preserve"><value>Exchange rate unavailable — try again later</value></data>
+  <data name="Envelopes_Title" xml:space="preserve"><value>Envelopes</value></data>
+  <data name="Envelopes_Subtitle" xml:space="preserve"><value>Savings buckets for the big annual expenses — what you set aside, and when to be reminded. Shared by everyone in the household.</value></data>
+  <data name="Envelopes_New" xml:space="preserve"><value>New envelope</value></data>
+  <data name="Envelopes_NewTitle" xml:space="preserve"><value>New envelope</value></data>
+  <data name="Envelopes_EditTitle" xml:space="preserve"><value>Edit envelope</value></data>
+  <data name="Envelopes_LoadError" xml:space="preserve"><value>Couldn't load the envelopes. Refresh to try again.</value></data>
+  <data name="Envelopes_TargetCrc" xml:space="preserve"><value>Annual target (₡)</value></data>
+  <data name="Envelopes_TargetUsd" xml:space="preserve"><value>Annual target ($)</value></data>
+  <data name="Envelopes_Cadence" xml:space="preserve"><value>Reminder</value></data>
+  <data name="Envelopes_CadenceHint" xml:space="preserve"><value>Every month, or only on 5-week months — the extra-paycheck months when you top buckets up.</value></data>
+  <data name="Envelopes_CadenceMonthly" xml:space="preserve"><value>Every month</value></data>
+  <data name="Envelopes_CadenceFiveWeek" xml:space="preserve"><value>Only on 5-week months</value></data>
+  <data name="Envelopes_Negative" xml:space="preserve"><value>Targets cannot be negative.</value></data>
+  <data name="Envelopes_Empty" xml:space="preserve"><value>No envelopes yet — create one for the marchamo, school, or a trip.</value></data>
+  <data name="Envelopes_SettingsLink" xml:space="preserve"><value>Manage envelopes</value></data>
 </root>

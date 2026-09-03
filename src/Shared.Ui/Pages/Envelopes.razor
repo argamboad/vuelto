@@ -1,0 +1,273 @@
+@page "/envelopes"
+@using System.Globalization
+@using System.Net
+@using System.Net.Http.Json
+@using System.Text.Json.Serialization
+@using Vuelto.Shared.Ui.Auth
+@inject AuthService Auth
+@inject NavigationManager Nav
+@inject HttpClient Http
+@inject IStringLocalizer<AppStrings> Localizer
+
+<PageTitle>@Localizer["Envelopes_Title"]</PageTitle>
+
+@* ENV-1: the household's savings envelopes (ADR-V007/V008) — list, create, edit (targets + reminder
+   cadence), deactivate/reactivate, and the inactive-name-clash reactivation offer. *@
+<div class="settings-wrapper" data-testid="envelopes-page">
+    <div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
+        <div>
+            <h1 class="h4 fw-bold mb-1">@Localizer["Envelopes_Title"]</h1>
+            <p class="text-muted mb-0">@Localizer["Envelopes_Subtitle"]</p>
+        </div>
+        <button class="btn btn-primary" data-testid="env-new" disabled="@(_form is not null)" @onclick="OpenNew">@Localizer["Envelopes_New"]</button>
+    </div>
+
+    @if (_notice is not null)
+    {
+        <div class="alert alert-success py-2" data-testid="env-notice">@_notice</div>
+    }
+    @if (_error is not null)
+    {
+        <div class="alert alert-danger py-2" data-testid="env-error">@_error</div>
+    }
+
+    @if (_form is not null)
+    {
+        <div class="card shadow-sm mb-3" data-testid="env-form">
+            <div class="card-body">
+                <h2 class="h6 fw-bold mb-3">@(_form.Editing is null ? Localizer["Envelopes_NewTitle"] : Localizer["Envelopes_EditTitle"])</h2>
+                <div class="row g-3">
+                    <div class="col-12 col-md-6">
+                        <label class="form-label small fw-medium mb-1" for="env-name">@Localizer["Catalog_Name"]</label>
+                        <input class="form-control" id="env-name" data-testid="env-name" maxlength="100" disabled="@_saving" @bind="_form.Name" @bind:event="oninput" />
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label class="form-label small fw-medium mb-1" for="env-cadence">@Localizer["Envelopes_Cadence"]</label>
+                        <select class="form-select" id="env-cadence" data-testid="env-cadence" disabled="@_saving" @bind="_form.Cadence">
+                            <option value="monthly">@Localizer["Envelopes_CadenceMonthly"]</option>
+                            <option value="five_week_months">@Localizer["Envelopes_CadenceFiveWeek"]</option>
+                        </select>
+                        <div class="form-text">@Localizer["Envelopes_CadenceHint"]</div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <label class="form-label small fw-medium mb-1" for="env-crc">@Localizer["Envelopes_TargetCrc"]</label>
+                        <input class="form-control" type="number" step="0.01" min="0" id="env-crc" data-testid="env-crc" disabled="@_saving" @bind="_form.TargetCrc" />
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <label class="form-label small fw-medium mb-1" for="env-usd">@Localizer["Envelopes_TargetUsd"]</label>
+                        <input class="form-control" type="number" step="0.01" min="0" id="env-usd" data-testid="env-usd" disabled="@_saving" @bind="_form.TargetUsd" />
+                    </div>
+                    @if (_form.Editing is not null)
+                    {
+                        <div class="col-12 col-md-6 d-flex align-items-end">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="env-active" data-testid="env-active" disabled="@_saving" @bind="_form.IsActive" />
+                                <label class="form-check-label" for="env-active">@Localizer["Catalog_ActiveToggle"]</label>
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                @if (_form.Conflict is not null)
+                {
+                    <div class="alert alert-warning py-2 mt-3 d-flex align-items-center justify-content-between gap-2" data-testid="env-conflict">
+                        <span>@_form.Conflict.Message</span>
+                        <button class="btn btn-warning btn-sm" data-testid="env-reactivate" disabled="@_saving" @onclick="Reactivate">@Localizer["Catalog_Reactivate"]</button>
+                    </div>
+                }
+                else if (_form.Error is not null)
+                {
+                    <div class="alert alert-danger py-2 mt-3" data-testid="env-form-error">@_form.Error</div>
+                }
+
+                <div class="d-flex gap-2 mt-3">
+                    <button class="btn btn-primary" data-testid="env-save" disabled="@_saving" @onclick="Save">
+                        @(_saving ? Localizer["Catalog_Saving"] : _form.Editing is null ? Localizer["Catalog_Create"] : Localizer["Catalog_Save"])
+                    </button>
+                    <button class="btn btn-outline-secondary" data-testid="env-cancel" disabled="@_saving" @onclick="Cancel">@Localizer["Catalog_Cancel"]</button>
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (_loading)
+    {
+        <div class="text-muted"><span class="spinner-border spinner-border-sm me-2"></span>@Localizer["Common_Loading"]</div>
+    }
+    else if (_items.Count == 0)
+    {
+        <p class="text-muted" data-testid="env-empty">@Localizer["Envelopes_Empty"]</p>
+    }
+    else
+    {
+        <div class="card shadow-sm">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0" data-testid="env-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">@Localizer["Catalog_Name"]</th>
+                            <th scope="col" class="text-end">@Localizer["Envelopes_TargetCrc"]</th>
+                            <th scope="col" class="text-end">@Localizer["Envelopes_TargetUsd"]</th>
+                            <th scope="col">@Localizer["Envelopes_Cadence"]</th>
+                            <th scope="col">@Localizer["Catalog_Status"]</th>
+                            <th scope="col" class="text-end"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in _items)
+                        {
+                            <tr data-testid="env-row" class="@(item.IsActive ? null : "text-muted")">
+                                <td data-testid="env-row-name">@item.Name</td>
+                                <td class="text-end" data-testid="env-row-crc">₡@item.AnnualTargetCrc.ToString("N2", CultureInfo.CurrentCulture)</td>
+                                <td class="text-end" data-testid="env-row-usd">$@item.AnnualTargetUsd.ToString("N2", CultureInfo.CurrentCulture)</td>
+                                <td data-testid="env-row-cadence">@(item.ReminderCadence == "five_week_months" ? Localizer["Envelopes_CadenceFiveWeek"] : Localizer["Envelopes_CadenceMonthly"])</td>
+                                <td>
+                                    <span class="badge @(item.IsActive ? "bg-success-subtle text-success-emphasis" : "bg-secondary-subtle text-secondary-emphasis")">
+                                        @(item.IsActive ? Localizer["Catalog_Active"] : Localizer["Catalog_Inactive"])
+                                    </span>
+                                </td>
+                                <td class="text-end">
+                                    <button class="btn btn-outline-primary btn-sm" data-testid="env-edit" disabled="@(_form is not null)" @onclick="() => OpenEdit(item)">@Localizer["Catalog_Edit"]</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+    <p class="mt-3"><a href="/settings">← @Localizer["Catalog_BackToSettings"]</a></p>
+</div>
+
+@code {
+    private const string Endpoint = "/api/envelopes";
+
+    private bool _loading = true;
+    private bool _saving;
+    private string? _error;
+    private string? _notice;
+    private List<EnvelopeDto> _items = new();
+    private FormState? _form;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
+        await Load();
+    }
+
+    private async Task Load()
+    {
+        _loading = true;
+        try
+        {
+            _items = await Http.GetFromJsonAsync<List<EnvelopeDto>>($"{Endpoint}?include_inactive=true") ?? new();
+        }
+        catch { _error = Localizer["Envelopes_LoadError"]; }
+        finally { _loading = false; }
+    }
+
+    private void OpenNew() { _notice = null; _form = new FormState(null, "", 0m, 0m, "monthly", true); }
+
+    private void OpenEdit(EnvelopeDto item) { _notice = null; _form = new FormState(item, item.Name, item.AnnualTargetCrc, item.AnnualTargetUsd, item.ReminderCadence, item.IsActive); }
+
+    private void Cancel() => _form = null;
+
+    private static object Payload(FormState form, string name, bool isActive) => new
+    {
+        name,
+        annual_target_crc = form.TargetCrc,
+        annual_target_usd = form.TargetUsd,
+        reminder_cadence = form.Cadence,
+        is_active = isActive,
+    };
+
+    private async Task Save()
+    {
+        if (_form is not { } form) return;
+        form.Error = null; form.Conflict = null;
+        if (string.IsNullOrWhiteSpace(form.Name)) { form.Error = Localizer["Catalog_NameRequired"]; return; }
+        if (form.TargetCrc < 0 || form.TargetUsd < 0) { form.Error = Localizer["Envelopes_Negative"]; return; }
+
+        _saving = true;
+        try
+        {
+            var res = form.Editing is null
+                ? await Http.PostAsJsonAsync(Endpoint, Payload(form, form.Name, true))
+                : await Http.PutAsJsonAsync($"{Endpoint}/{form.Editing.Id}", Payload(form, form.Name, form.IsActive));
+
+            if (res.IsSuccessStatusCode)
+            {
+                _notice = form.Editing is null ? Localizer["Catalog_Saved"] : Localizer["Catalog_Updated"];
+                _form = null;
+                await Load();
+            }
+            else if (res.StatusCode == HttpStatusCode.Conflict)
+            {
+                var conflict = await res.Content.ReadFromJsonAsync<ConflictDto>();
+                if (conflict?.ExistingId is not null) form.Conflict = conflict;
+                else form.Error = conflict?.Message ?? Localizer["Catalog_NameExists"];
+            }
+            else if (res.StatusCode == HttpStatusCode.BadRequest)
+            {
+                var error = await res.Content.ReadFromJsonAsync<ConflictDto>();
+                form.Error = error?.Message ?? Localizer["Catalog_SaveError"];
+            }
+            else
+            {
+                form.Error = Localizer["Catalog_SaveError"];
+            }
+        }
+        catch { form.Error = Localizer["Catalog_SaveError"]; }
+        finally { _saving = false; }
+    }
+
+    /// <summary>Restores the existing entry under its stored name, with the targets and cadence just typed.</summary>
+    private async Task Reactivate()
+    {
+        if (_form is not { Conflict: { ExistingId: { } id } conflict } form) return;
+        _saving = true;
+        try
+        {
+            var res = await Http.PutAsJsonAsync($"{Endpoint}/{id}", Payload(form, conflict.ExistingName ?? form.Name, true));
+            if (res.IsSuccessStatusCode)
+            {
+                _notice = Localizer["Catalog_Updated"];
+                _form = null;
+                await Load();
+            }
+            else
+            {
+                form.Conflict = null;
+                form.Error = Localizer["Catalog_ReactivateError"];
+            }
+        }
+        catch { form.Conflict = null; form.Error = Localizer["Catalog_ReactivateError"]; }
+        finally { _saving = false; }
+    }
+
+    private sealed class FormState(EnvelopeDto? editing, string name, decimal targetCrc, decimal targetUsd, string cadence, bool isActive)
+    {
+        public EnvelopeDto? Editing { get; } = editing;
+        public string Name { get; set; } = name;
+        public decimal TargetCrc { get; set; } = targetCrc;
+        public decimal TargetUsd { get; set; } = targetUsd;
+        public string Cadence { get; set; } = cadence;
+        public bool IsActive { get; set; } = isActive;
+        public string? Error { get; set; }
+        public ConflictDto? Conflict { get; set; }
+    }
+
+    private sealed record EnvelopeDto(
+        [property: JsonPropertyName("id")] Guid Id,
+        [property: JsonPropertyName("name")] string Name,
+        [property: JsonPropertyName("annual_target_crc")] decimal AnnualTargetCrc,
+        [property: JsonPropertyName("annual_target_usd")] decimal AnnualTargetUsd,
+        [property: JsonPropertyName("reminder_cadence")] string ReminderCadence,
+        [property: JsonPropertyName("is_active")] bool IsActive);
+
+    private sealed record ConflictDto(
+        [property: JsonPropertyName("error")] string Error,
+        [property: JsonPropertyName("message")] string Message,
+        [property: JsonPropertyName("existing_id")] Guid? ExistingId,
+        [property: JsonPropertyName("existing_name")] string? ExistingName);
+}
