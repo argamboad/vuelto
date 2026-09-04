@@ -63,10 +63,7 @@
                     </div>
                     <div class="col-12 col-md-6">
                         <label class="form-label small fw-medium mb-1" for="tx-category">@Localizer["Tx_Category"]</label>
-                        <select class="form-select" id="tx-category" data-testid="tx-category" disabled="@_saving" @bind="_categoryId">
-                            <option value="">—</option>
-                            @foreach (var c in _categories) { <option value="@c.Id">@c.Name</option> }
-                        </select>
+                        <CategoryPicker Id="tx-category" TestId="tx-category" Categories="_categories" Disabled="@_saving" @bind-Value="_categoryId" OnCreated="AddCategory" />
                     </div>
                     <div class="col-12 col-md-6">
                         <label class="form-label small fw-medium mb-1" for="tx-bank">@Localizer["Tx_Bank"]</label>
@@ -175,8 +172,11 @@
     private decimal? _refundPercentage;
     private decimal? _rate;
     private ResolveDto? _resolved;
-    private List<NamedDto> _categories = new();
+    private List<CategoryOption> _categories = new();
     private List<NamedDto> _banks = new();
+
+    /// <summary>A category created from the picker joins the list so it can be picked again without a reload.</summary>
+    private void AddCategory(CategoryOption c) { if (_categories.All(x => x.Id != c.Id)) _categories.Add(c); }
     private List<NamedDto> _envelopes = new();
 
     protected override async Task OnInitializedAsync()
@@ -184,7 +184,7 @@
         if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
         try
         {
-            _categories = await Http.GetFromJsonAsync<List<NamedDto>>("/api/categories") ?? new();
+            _categories = await Http.GetFromJsonAsync<List<CategoryOption>>("/api/categories") ?? new();
             _banks = await Http.GetFromJsonAsync<List<NamedDto>>("/api/banks") ?? new();
             _envelopes = await Http.GetFromJsonAsync<List<NamedDto>>("/api/envelopes") ?? new();
 

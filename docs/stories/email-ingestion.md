@@ -296,7 +296,8 @@ each one
 **So that** a bank voucher becomes a real transaction only when I say so — through the same rules as a
 manual entry
 
-**Context / notes:** port of donor US-030 / US-033 / US-038 (as reversed by the owner: only category and
+**Context / notes:** each card's category picker is the shared `CategoryPicker` — a category can be created
+right on the card (**+ New**) and every other card on the queue lists it at once. port of donor US-030 / US-033 / US-038 (as reversed by the owner: only category and
 class are edited in the queue) + WU-3 A6. **Confirm is the only draft → transaction path** (ADR-V010).
 Feature slices may not reference each other (R7), so the Ledger's `TransactionHandler` implements a new
 **Core contract `ITransactionService`** (`CreateTransactionCommand` carries the provenance `Source`);

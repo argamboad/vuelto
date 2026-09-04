@@ -348,6 +348,10 @@
   <data name="Catalog_Saved" xml:space="preserve"><value>Creado.</value></data>
   <data name="Catalog_Updated" xml:space="preserve"><value>Actualizado.</value></data>
   <data name="Catalog_Empty" xml:space="preserve"><value>Todavía no hay nada aquí.</value></data>
+  <data name="Category_New" xml:space="preserve"><value>Nueva</value></data>
+  <data name="Category_NewTitle" xml:space="preserve"><value>Crear una categoría aquí mismo</value></data>
+  <data name="Category_NewPlaceholder" xml:space="preserve"><value>Nombre de la categoría</value></data>
+  <data name="Category_ReactivateExisting" xml:space="preserve"><value>Reactivar «{0}»</value></data>
   <data name="Catalog_SettingsTitle" xml:space="preserve"><value>Catálogo</value></data>
   <data name="Catalog_SettingsHint" xml:space="preserve"><value>Los nombres con los que tu hogar clasifica el dinero: categorías, bancos y sobres de ahorro. Desactiva en vez de borrar: el historial conserva sus etiquetas.</value></data>
   <data name="Catalog_ManageCategories" xml:space="preserve"><value>Administrar categorías</value></data>
