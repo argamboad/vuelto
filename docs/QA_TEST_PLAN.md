@@ -1458,7 +1458,7 @@ Then a "Refund expected" switch appears; switching it on shows a percentage fiel
 When I enter "Hospital", 50000 CRC, 30 %, and Save
 Then the month page lists an expected refund: Hospital · 30% · ₡15,000.00 · $<30> · Pending
 When I Edit the transaction to 80000 and Save
-Then the refund reads ₡40,000.00
+Then the refund reads ₡24,000.00 (30 % of 80,000)
 When I Edit it again, switch Refund expected off and Save
 Then the refund is gone
 ```
@@ -1467,7 +1467,7 @@ switch appears (it is absent for every other class). Switch it on → **Expected
 field; with `50000` and `30` the hint reads "Expected back: 15,000.00 CRC". Fill the rest and
 **Save** → **Expected:** the month page's **Expected refunds** table shows Hospital · 30% ·
 ₡15,000.00 · Pending with a **Mark received** button. **Edit** → amount `80000` → **Save** →
-**Expected:** the refund row reads ₡40,000.00. **Edit** → switch off → **Save** → **Expected:** "No
+**Expected:** the refund row reads ₡24,000.00. **Edit** → switch off → **Save** → **Expected:** "No
 refunds expected this month." Via Postman (**16 · Transactions → Create transaction**) with
 `refund_expected: true, refund_percentage: 150` → **Expected:** 400 `invalid_request` naming
 `refund_percentage`.

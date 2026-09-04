@@ -41,10 +41,18 @@ services:
         sync: false                 # REQUIRED — a Brevo-VERIFIED sender address, else sends are rejected
       - key: Email__Smtp__FromName
         value: "¿Y el vuelto?"           # display name on outgoing mail — rename per your brand
+      # ── App: live exchange rate (FX-1, ADR-V006) — without a key the app falls back to the household's last
+      #    transaction rate and otherwise reports "unavailable" (never invents one); free tier at app.exchangerate-api.com ──
+      - key: ExchangeRate__ApiKey
+        sync: false
       # ── Optional — uncomment/set to enable ──
       # - key: Authentication__Google__ClientId
       #   sync: false
       # - key: Authentication__Google__ClientSecret
+      #   sync: false
+      # - key: Authentication__Microsoft__ClientId      # also the mail-consent app for EMAIL-2 (Outlook inboxes)
+      #   sync: false
+      # - key: Authentication__Microsoft__ClientSecret
       #   sync: false
       # - key: PublicApi__Enabled
       #   value: "false"
