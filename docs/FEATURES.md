@@ -222,9 +222,12 @@ Flow:
    status `pending`. It is created/re-derived/removed by the transaction's create/update/delete —
    never edited directly except its status.
 2. `GET /api/months/{id}/refunds` lists the month's refunds; `PUT /api/refunds/{id}` flips
-   `pending → received`, which **auto-creates a derived `inflow` transaction** (same amounts and
-   rate, the source transaction's bank, `source = refund_realization`) and links it. Flipping back
-   removes the inflow.
+   `pending → received` with a `received_date` (default today, never before the purchase), which
+   **auto-creates a derived `inflow` transaction** (same amounts and rate, the source transaction's
+   bank, `source = refund_realization`) **dated that day and filed in that day's month** — the month
+   the money actually arrived in, auto-created if needed (ADR-V017). The refund stays listed under
+   its purchase's month, showing the received date and linking the inflow's month. Flipping back
+   removes the inflow (and its month if emptied).
 
 Notes: refunds are informational — never in expenses or balance; the realized inflow is what
 counts as income. The flip is a conditional update: concurrent flips create **exactly one** inflow

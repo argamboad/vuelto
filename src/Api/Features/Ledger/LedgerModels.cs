@@ -107,12 +107,17 @@ public record RefundResponse(
     [property: JsonPropertyName("amount_crc")] decimal AmountCrc,
     [property: JsonPropertyName("amount_usd")] decimal AmountUsd,
     [property: JsonPropertyName("status")] string Status,
-    [property: JsonPropertyName("inflow_transaction_id")] Guid? InflowTransactionId)
+    [property: JsonPropertyName("inflow_transaction_id")] Guid? InflowTransactionId,
+    [property: JsonPropertyName("received_date")] DateOnly? ReceivedDate = null,
+    [property: JsonPropertyName("inflow_month_id")] Guid? InflowMonthId = null)
 {
-    public static RefundResponse From(Refund r) => new(r.Id, r.MonthId, r.TransactionId, r.Payee, r.TransactionDate, r.Percentage, r.AmountCrc, r.AmountUsd, r.Status, r.InflowTransactionId);
+    /// <param name="inflowMonthId">The month the realized inflow lives in (ADR-V017) — null when pending or unknown to the caller.</param>
+    public static RefundResponse From(Refund r, Guid? inflowMonthId = null) =>
+        new(r.Id, r.MonthId, r.TransactionId, r.Payee, r.TransactionDate, r.Percentage, r.AmountCrc, r.AmountUsd, r.Status, r.InflowTransactionId, r.ReceivedDate, inflowMonthId);
 }
 
-public record UpdateRefundStatusRequest([property: JsonPropertyName("status")] string? Status);
+/// <summary><c>received_date</c> (only read for <c>received</c>) dates the inflow and picks its month; unset = today (ADR-V017).</summary>
+public record UpdateRefundStatusRequest([property: JsonPropertyName("status")] string? Status, [property: JsonPropertyName("received_date")] DateOnly? ReceivedDate = null);
 
 /// <summary>A month's transaction row with the catalog names resolved — inactive names still render (ADR-V008).</summary>
 public record TransactionListItemResponse(

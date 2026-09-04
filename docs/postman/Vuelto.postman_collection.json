@@ -3745,7 +3745,7 @@
                 "{{refundId}}"
               ]
             },
-            "description": "received → 200 with inflow_transaction_id set and a derived inflow in the month's transactions (read-only there: 400 derived_transaction). pending → 200, inflow removed. Same status → 200 no-op. 400 invalid_request for any other status; 404 for another household's id; 409 refund_status_conflict when a concurrent flip won (reload and retry).",
+            "description": "received → 200 with inflow_transaction_id, received_date and inflow_month_id set and a derived inflow dated received_date in THAT date's month (ADR-V017; unset received_date = today; before the transaction date → 400 invalid_request). The inflow is read-only there (400 derived_transaction). pending → 200, inflow removed (and its month if emptied). Same status → 200 no-op. 400 invalid_request for any other status; 404 for another household's id; 409 refund_status_conflict when a concurrent flip won (reload and retry).",
             "header": [
               {
                 "key": "Content-Type",
@@ -3754,7 +3754,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"status\": \"received\"\n}"
+              "raw": "{\n  \"status\": \"received\",\n  \"received_date\": \"2026-06-20\"\n}"
             }
           },
           "event": [

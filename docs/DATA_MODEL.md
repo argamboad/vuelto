@@ -179,6 +179,7 @@ An expected refund **derived** from an `unplanned_essential` transaction; only `
 - `payee`, `transaction_date`, `percentage`, `amount_crc`, `amount_usd`
 - `status` — `pending` | `received`
 - `inflow_transaction_id` (FK → Transaction, nullable, set-null) — the realized inflow, present ⇔ `received`
+- `received_date` (nullable) — the day the money landed, present ⇔ `received`; the inflow is dated with it and lives in **that** day's month, not necessarily the refund's (ADR-V017)
 
 ### MerchantCategoryMapping
 A user-maintained "merchant pattern → category (+ class)" suggestion rule.
@@ -302,6 +303,7 @@ erDiagram
         decimal percentage
         string status "pending | received"
         guid inflow_transaction_id "present iff received"
+        date received_date "present iff received - dates the inflow"
     }
     PENDING_VOUCHER {
         guid tenant_id

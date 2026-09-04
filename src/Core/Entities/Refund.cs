@@ -34,6 +34,12 @@ public class Refund : ITenantScoped
     /// <summary>The realized inflow, present ⇔ <see cref="Status"/> is <c>received</c>.</summary>
     public Guid? InflowTransactionId { get; set; }
 
+    /// <summary>
+    /// The day the money landed, present ⇔ <see cref="Status"/> is <c>received</c> (ADR-V017). The inflow
+    /// is dated with it and lives in the month that contains it — which may not be this refund's month.
+    /// </summary>
+    public DateOnly? ReceivedDate { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 }

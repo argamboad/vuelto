@@ -22,6 +22,7 @@ namespace Vuelto.Api.Tests.Features;
 public class RefundSliceTests(PostgresFixture fixture) : PostgresTestBase(fixture)
 {
     private static readonly DateTimeOffset T0 = new(2026, 9, 3, 12, 0, 0, TimeSpan.Zero);
+    private static readonly DateOnly Jun20 = new(2026, 6, 20); // received in the purchase's own month (the pre-ADR-V017 shape)
     private static readonly DateOnly Jun5 = new(2026, 6, 5);
 
     private sealed class FixedRate : IExchangeRateResolver
@@ -183,7 +184,7 @@ public class RefundSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
         var (tx, _) = await c.Transactions.CreateAsync(Unplanned(c, refund: true, pct: 50m), default); // 50,000 / 100 → 25,000 / 50
         var refundId = (await TheRefund(c)).Id;
 
-        var (updated, error) = await c.Refunds.SetStatusAsync(refundId, new("Received"), default);
+        var (updated, error) = await c.Refunds.SetStatusAsync(refundId, new("Received", Jun20), default);
 
         Assert.Null(error);
         Assert.Equal("received", updated!.Status);
@@ -199,14 +200,69 @@ public class RefundSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
     }
 
     [Fact]
+    public async Task MarkReceived_WithADateInALaterMonth_BooksTheInflowThere_AndRevertRetiresThatMonth()
+    {
+        // ADR-V017: the refund stays in June (its purchase's month); the money landed in July, so the
+        // inflow is dated July 3 and lives in July — auto-created like any transaction's month.
+        var c = await ContextAsync();
+        var (tx, _) = await c.Transactions.CreateAsync(Unplanned(c, refund: true, pct: 50m), default);
+        var refundId = (await TheRefund(c)).Id;
+        var jul3 = new DateOnly(2026, 7, 3);
+
+        var (updated, error) = await c.Refunds.SetStatusAsync(refundId, new("received", jul3), default);
+
+        Assert.Null(error);
+        Assert.Equal(("received", jul3), (updated!.Status, updated.ReceivedDate));
+        var inflow = Assert.Single(await Inflows(c));
+        Assert.Equal(jul3, inflow.TransactionDate);
+        Assert.NotEqual(tx!.MonthId, inflow.MonthId);
+        Assert.Equal(inflow.MonthId, updated.InflowMonthId);
+        var july = await c.Db.Months.SingleAsync(m => m.Id == inflow.MonthId);
+        Assert.Equal((2026, 7), (july.Year, july.MonthNumber));
+
+        // The refund still lists under June, pointing at July; June's transactions hold only the purchase.
+        var juneRefund = Assert.Single((await c.Refunds.ListForMonthAsync(tx.MonthId, default))!);
+        Assert.Equal((tx.MonthId, inflow.MonthId, jul3), (juneRefund.MonthId, juneRefund.InflowMonthId, juneRefund.ReceivedDate));
+        Assert.Single((await c.Transactions.ListForMonthAsync(tx.MonthId, default))!);
+        Assert.Single((await c.Transactions.ListForMonthAsync(inflow.MonthId, default))!, r => r.Source == "refund_realization");
+
+        // Back to pending: the inflow goes, and July — now empty — with it; the received date clears.
+        var (reverted, revertError) = await c.Refunds.SetStatusAsync(refundId, new("pending"), default);
+        Assert.Null(revertError);
+        Assert.Equal(("pending", (DateOnly?)null, (Guid?)null), (reverted!.Status, reverted.ReceivedDate, reverted.InflowMonthId));
+        Assert.Empty(await Inflows(c));
+        Assert.Null(await c.Db.Months.SingleOrDefaultAsync(m => m.Id == inflow.MonthId));
+        Assert.NotNull(await c.Db.Months.SingleOrDefaultAsync(m => m.Id == tx.MonthId));
+    }
+
+    [Fact]
+    public async Task MarkReceived_DefaultsToToday_AndRefusesADateBeforeThePurchase()
+    {
+        var c = await ContextAsync(); // clock = 2026-09-03; the purchase is June 5
+        await c.Transactions.CreateAsync(Unplanned(c, refund: true, pct: 50m), default);
+        var refundId = (await TheRefund(c)).Id;
+
+        var early = await c.Refunds.SetStatusAsync(refundId, new("received", new DateOnly(2026, 6, 4)), default);
+        Assert.Equal("invalid_request", early.Error!.Error);
+        Assert.Empty(await Inflows(c));
+
+        var (today, error) = await c.Refunds.SetStatusAsync(refundId, new("received"), default);
+        Assert.Null(error);
+        Assert.Equal(new DateOnly(2026, 9, 3), today!.ReceivedDate);
+        var inflow = Assert.Single(await Inflows(c));
+        Assert.Equal(new DateOnly(2026, 9, 3), inflow.TransactionDate);
+        Assert.Equal((2026, 9), await c.Db.Months.Where(m => m.Id == inflow.MonthId).Select(m => new ValueTuple<int, int>(m.Year, m.MonthNumber)).SingleAsync());
+    }
+
+    [Fact]
     public async Task MarkReceived_Twice_IsIdempotent_OneInflow()
     {
         var c = await ContextAsync();
         await c.Transactions.CreateAsync(Unplanned(c, refund: true, pct: 50m), default);
         var refundId = (await TheRefund(c)).Id;
 
-        await c.Refunds.SetStatusAsync(refundId, new("received"), default);
-        var (again, error) = await c.Refunds.SetStatusAsync(refundId, new("received"), default);
+        await c.Refunds.SetStatusAsync(refundId, new("received", Jun20), default);
+        var (again, error) = await c.Refunds.SetStatusAsync(refundId, new("received", Jun20), default);
 
         Assert.Null(error);
         Assert.Equal("received", again!.Status);
@@ -219,10 +275,10 @@ public class RefundSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
         var c = await ContextAsync();
         await c.Transactions.CreateAsync(Unplanned(c, refund: true, pct: 50m), default);
         var refundId = (await TheRefund(c)).Id;
-        await c.Refunds.SetStatusAsync(refundId, new("received"), default);
+        await c.Refunds.SetStatusAsync(refundId, new("received", Jun20), default);
         c.Db.ChangeTracker.Clear();
 
-        var (reverted, error) = await c.Refunds.SetStatusAsync(refundId, new("pending"), default);
+        var (reverted, error) = await c.Refunds.SetStatusAsync(refundId, new("pending", Jun20), default);
 
         Assert.Null(error);
         Assert.Equal(("pending", (Guid?)null), (reverted!.Status, reverted.InflowTransactionId));
@@ -239,7 +295,7 @@ public class RefundSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
         var refundId = (await TheRefund(c)).Id;
 
         Assert.Equal("invalid_request", (await c.Refunds.SetStatusAsync(refundId, new("maybe"), default)).Error!.Error);
-        Assert.Equal("not_found", (await c.Refunds.SetStatusAsync(Guid.CreateVersion7(), new("received"), default)).Error!.Error);
+        Assert.Equal("not_found", (await c.Refunds.SetStatusAsync(Guid.CreateVersion7(), new("received", Jun20), default)).Error!.Error);
     }
 
     [Fact]
@@ -247,7 +303,7 @@ public class RefundSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
     {
         var c = await ContextAsync();
         await c.Transactions.CreateAsync(Unplanned(c, refund: true, pct: 50m), default);
-        await c.Refunds.SetStatusAsync((await TheRefund(c)).Id, new("received"), default);
+        await c.Refunds.SetStatusAsync((await TheRefund(c)).Id, new("received", Jun20), default);
         var inflowId = Assert.Single(await Inflows(c)).Id;
 
         Assert.Equal("derived_transaction", (await c.Transactions.UpdateAsync(inflowId, Edit(c, type: "budgeted", refund: false, pct: null), default)).Error!.Error);
@@ -260,7 +316,7 @@ public class RefundSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
     {
         var c = await ContextAsync();
         var (tx, _) = await c.Transactions.CreateAsync(Unplanned(c, refund: true, pct: 50m), default);
-        await c.Refunds.SetStatusAsync((await TheRefund(c)).Id, new("received"), default);
+        await c.Refunds.SetStatusAsync((await TheRefund(c)).Id, new("received", Jun20), default);
         Assert.Equal(2, await c.Db.Transactions.CountAsync());
         c.Db.ChangeTracker.Clear();
 
@@ -276,7 +332,7 @@ public class RefundSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
     {
         var c = await ContextAsync();
         var (tx, _) = await c.Transactions.CreateAsync(Unplanned(c, refund: true, pct: 50m), default);
-        await c.Refunds.SetStatusAsync((await TheRefund(c)).Id, new("received"), default);
+        await c.Refunds.SetStatusAsync((await TheRefund(c)).Id, new("received", Jun20), default);
         c.Db.ChangeTracker.Clear();
 
         await c.Transactions.UpdateAsync(tx!.Id, Edit(c, amount: 80_000m), default); // refund → 40,000 / 80
@@ -291,7 +347,7 @@ public class RefundSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
     {
         var c = await ContextAsync();
         var (tx, _) = await c.Transactions.CreateAsync(Unplanned(c, refund: true, pct: 50m), default);
-        await c.Refunds.SetStatusAsync((await TheRefund(c)).Id, new("received"), default);
+        await c.Refunds.SetStatusAsync((await TheRefund(c)).Id, new("received", Jun20), default);
         c.Db.ChangeTracker.Clear();
 
         await c.Transactions.UpdateAsync(tx!.Id, Edit(c, refund: false, pct: null), default);
@@ -325,7 +381,7 @@ public class RefundSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
         var b = await ContextAsync();
 
         Assert.Null(await b.Refunds.ListForMonthAsync(tx!.MonthId, default));
-        Assert.Equal("not_found", (await b.Refunds.SetStatusAsync(refundId, new("received"), default)).Error!.Error);
+        Assert.Equal("not_found", (await b.Refunds.SetStatusAsync(refundId, new("received", Jun20), default)).Error!.Error);
         Assert.Equal("pending", (await TheRefund(a)).Status);
         Assert.Empty(await Inflows(a));
     }
@@ -340,8 +396,8 @@ public class RefundSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
         var two = Sibling(c);
 
         var results = await Task.WhenAll(
-            Task.Run(() => one.Refunds.SetStatusAsync(refundId, new("received"), default)),
-            Task.Run(() => two.Refunds.SetStatusAsync(refundId, new("received"), default)));
+            Task.Run(() => one.Refunds.SetStatusAsync(refundId, new("received", Jun20), default)),
+            Task.Run(() => two.Refunds.SetStatusAsync(refundId, new("received", Jun20), default)));
 
         Assert.Equal(1, results.Count(r => r.Error is null));
         Assert.Equal("refund_status_conflict", Assert.Single(results, r => r.Error is not null).Error!.Error);

@@ -41,7 +41,7 @@ public class RefundEndpointTests(IntegrationTestFactory factory)
         var refund = Assert.Single(refunds);
         Assert.Equal((25_000m, 50m, "pending"), (refund.AmountCrc, refund.AmountUsd, refund.Status));
 
-        var received = await client.PutAsJsonAsync($"/api/refunds/{refund.Id}", new { status = "received" });
+        var received = await client.PutAsJsonAsync($"/api/refunds/{refund.Id}", new { status = "received", received_date = "2026-06-20" }); // same month as the purchase
         Assert.Equal(HttpStatusCode.OK, received.StatusCode);
         var flipped = (await received.Content.ReadFromJsonAsync<RefundDto>())!;
         Assert.Equal("received", flipped.Status);
