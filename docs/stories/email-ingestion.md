@@ -329,6 +329,12 @@ Scenario: Confirm books the transaction through the ordinary create
   Then a transaction exists with source email, that payee/bank/amount/currency/date, ₡7,620 / $15.24, rate 500 frozen, credit_card
   And June 2026 was auto-created for it; the draft is confirmed with the transaction id; the tombstone remains; the count is 0
 
+Scenario: Confirm as an unplanned essential can carry the expected refund (LEDGER-3, owner request)
+  When I confirm the draft as unplanned_essential with refund_expected true, refund_percentage 30
+  Then the transaction exists as above and a pending refund of ₡2,286 / $4.57 (30 %) sits in its month
+  When I confirm with refund_expected true and no / an invalid percentage → 400 invalid_request, nothing written, the draft stays pending
+  When I confirm as budgeted with the flag → the flag is ignored, no refund (the manual form's rule)
+
 Scenario: Nothing partial, ever
   When the category or class is missing/invalid, or the amount is blank (0), or no rate resolves
   Then 400 (invalid_request / exchange_rate_unavailable), no transaction, no month, the draft stays pending

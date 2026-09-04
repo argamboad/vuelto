@@ -124,6 +124,42 @@ public class PendingVoucherSliceTests(PostgresFixture fixture) : PostgresTestBas
     }
 
     [Fact]
+    public async Task Confirm_AsUnplannedWithAPercentage_SpawnsThePendingRefund_WithTheManualRules()
+    {
+        var c = await ContextAsync();
+        var draft = await DraftAsync(c);
+
+        // The manual form's rules, through the same ledger create: an invalid percentage is refused and nothing is written.
+        Assert.Equal("invalid_request", (await c.Handler.ConfirmAsync(draft.Id, new(c.CategoryId, "unplanned_essential", RefundExpected: true, RefundPercentage: 150m), default)).Error!.Error);
+        Assert.Equal("invalid_request", (await c.Handler.ConfirmAsync(draft.Id, new(c.CategoryId, "unplanned_essential", RefundExpected: true), default)).Error!.Error);
+        Assert.Equal(0, await c.Db.Transactions.CountAsync());
+        Assert.Equal(PendingVoucherStatuses.Pending, (await ReloadAsync(c, draft.Id)).Status);
+
+        var (confirmed, error) = await c.Handler.ConfirmAsync(draft.Id, new(c.CategoryId, "unplanned_essential", RefundExpected: true, RefundPercentage: 30m), default);
+
+        Assert.Null(error);
+        var tx = await c.Db.Transactions.SingleAsync();
+        var refund = await c.Db.Refunds.SingleAsync();
+        // 30 % of ₡7,620 / $15.24 at the frozen rate, pending, in the voucher's month, bound to the booked transaction.
+        Assert.Equal((tx.Id, tx.MonthId, 30m, 2_286m, 4.57m, RefundStatuses.Pending, "TACO BELL PLAZA REAL C"),
+            (refund.TransactionId, refund.MonthId, refund.Percentage, refund.AmountCrc, refund.AmountUsd, refund.Status, refund.Payee));
+        Assert.Equal((PendingVoucherStatuses.Confirmed, confirmed!.TransactionId), ((await ReloadAsync(c, draft.Id)).Status, tx.Id));
+    }
+
+    [Fact]
+    public async Task Confirm_RefundFlagOnAnotherClass_IsIgnored_NoRefund()
+    {
+        var c = await ContextAsync();
+        var draft = await DraftAsync(c);
+
+        var (confirmed, error) = await c.Handler.ConfirmAsync(draft.Id, new(c.CategoryId, "budgeted", RefundExpected: true, RefundPercentage: 30m), default);
+
+        Assert.Null(error);
+        Assert.NotNull(confirmed);
+        Assert.Equal(0, await c.Db.Refunds.CountAsync());
+    }
+
+    [Fact]
     public async Task Confirm_AppliesOverrides_ForTheFieldsTheParserLeftBlank()
     {
         var c = await ContextAsync();

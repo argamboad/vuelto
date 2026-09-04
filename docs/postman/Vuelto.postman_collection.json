@@ -5049,7 +5049,7 @@
                 "confirm"
               ]
             },
-            "description": "200 { transaction_id, month_id, amount_crc, amount_usd, remembered } — books the transaction (source = email) through the ordinary create and flips the draft. category_id + transaction_class (budgeted|extraordinary|unplanned_essential) are required; payee / bank_id / payment_method / original_amount / currency / transaction_date override the parsed values (the UI opens only the blanks); remember_merchant creates a merchant rule (never overwrites). 400 invalid_request / exchange_rate_unavailable (nothing written, draft stays pending); 409 not_pending (already confirmed/discarded, or lost a concurrent confirm — its transaction rolled back); 404 unknown/foreign.",
+            "description": "200 { transaction_id, month_id, amount_crc, amount_usd, remembered } — books the transaction (source = email) through the ordinary create and flips the draft. category_id + transaction_class (budgeted|extraordinary|unplanned_essential) are required; payee / bank_id / payment_method / original_amount / currency / transaction_date override the parsed values (the UI opens only the blanks); remember_merchant creates a merchant rule (never overwrites); refund_expected + refund_percentage (0 < p ≤ 100) spawn the expected refund exactly like manual entry — only meaningful on unplanned_essential, ignored elsewhere. 400 invalid_request (incl. a bad percentage) / exchange_rate_unavailable (nothing written, draft stays pending); 409 not_pending (already confirmed/discarded, or lost a concurrent confirm — its transaction rolled back); 404 unknown/foreign.",
             "header": [
               {
                 "key": "Content-Type",
@@ -5058,7 +5058,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"category_id\": \"{{categoryId}}\",\n  \"transaction_class\": \"budgeted\",\n  \"remember_merchant\": true\n}"
+              "raw": "{\n  \"category_id\": \"{{categoryId}}\",\n  \"transaction_class\": \"budgeted\",\n  \"remember_merchant\": true,\n  \"refund_expected\": false,\n  \"refund_percentage\": null\n}"
             }
           },
           "event": [
