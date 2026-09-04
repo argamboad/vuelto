@@ -1,0 +1,139 @@
+@using System.Net
+@using System.Net.Http.Json
+@using System.Text.Json.Serialization
+@inject HttpClient Http
+@inject IStringLocalizer<AppStrings> Localizer
+
+@* A category select with "+ New" beside it: create a category right where a transaction is being
+   entered (manual form, review queue) instead of a round-trip through Settings. The page owns the
+   list (one fetch per page, shared by every picker on it); a created or reactivated category is handed
+   back through OnCreated and becomes the selection. Same rules as the Catalog page (CATALOG-1): a name
+   is required, an active clash simply selects the existing entry, an inactive clash offers Reactivate. *@
+<div class="d-flex gap-1 align-items-start">
+    <select class="form-select @(Size == "sm" ? "form-select-sm" : "")" id="@Id" data-testid="@TestId" disabled="@Disabled" value="@Value"
+            @onchange='e => ValueChanged.InvokeAsync(e.Value?.ToString() ?? "")'>
+        <option value="">@Placeholder</option>
+        @foreach (var c in Categories) { <option value="@c.Id">@c.Name</option> }
+    </select>
+    @if (!_creating)
+    {
+        <button type="button" class="btn btn-outline-secondary @(Size == "sm" ? "btn-sm" : "") text-nowrap" data-testid="@(TestId)-new"
+                disabled="@Disabled" title="@Localizer["Category_NewTitle"]" @onclick="Open">+ @Localizer["Category_New"]</button>
+    }
+</div>
+@if (_creating)
+{
+    <div class="mt-1 d-flex flex-wrap gap-1 align-items-center" data-testid="@(TestId)-new-form">
+        <input class="form-control form-control-sm w-auto" data-testid="@(TestId)-new-name" placeholder="@Localizer["Category_NewPlaceholder"]"
+               @bind="_name" @bind:event="oninput" @onkeydown="OnKeyDown" disabled="@_saving" />
+        <button type="button" class="btn btn-primary btn-sm" data-testid="@(TestId)-new-save" @onclick="CreateAsync" disabled="@_saving">@Localizer["Catalog_Create"]</button>
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-testid="@(TestId)-new-cancel" @onclick="Close" disabled="@_saving">@Localizer["Common_Cancel"]</button>
+        @if (_conflict is { ExistingId: not null } conflict)
+        {
+            <button type="button" class="btn btn-warning btn-sm" data-testid="@(TestId)-reactivate" @onclick="ReactivateAsync" disabled="@_saving">
+                @Localizer["Category_ReactivateExisting", conflict.ExistingName ?? _name]
+            </button>
+        }
+        @if (_error is not null) { <div class="small text-danger w-100" data-testid="@(TestId)-new-error">@_error</div> }
+    </div>
+}
+
+@code {
+    /// <summary>The selected category id as the page binds it (empty = none).</summary>
+    [Parameter] public string? Value { get; set; }
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+
+    /// <summary>The page's category list — shared by every picker on the page.</summary>
+    [Parameter] public IReadOnlyList<CategoryOption> Categories { get; set; } = [];
+
+    /// <summary>A category created or reactivated here — the page appends it to its list.</summary>
+    [Parameter] public EventCallback<CategoryOption> OnCreated { get; set; }
+
+    [Parameter] public string TestId { get; set; } = "category";
+    [Parameter] public string? Id { get; set; }
+    [Parameter] public string Placeholder { get; set; } = "—";
+    [Parameter] public string? Size { get; set; }
+    [Parameter] public bool Disabled { get; set; }
+
+    private bool _creating;
+    private bool _saving;
+    private string _name = "";
+    private string? _error;
+    private ConflictDto? _conflict;
+
+    private void Open() { _creating = true; _name = ""; _error = null; _conflict = null; }
+    private void Close() { _creating = false; _name = ""; _error = null; _conflict = null; }
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await CreateAsync();
+        else if (e.Key == "Escape") Close();
+    }
+
+    private async Task CreateAsync()
+    {
+        _error = null; _conflict = null;
+        var name = _name.Trim();
+        if (name.Length == 0) { _error = Localizer["Catalog_NameRequired"]; return; }
+
+        _saving = true;
+        try
+        {
+            var res = await Http.PostAsJsonAsync("/api/categories", new { name });
+            if (res.IsSuccessStatusCode)
+            {
+                var created = (await res.Content.ReadFromJsonAsync<EntryDto>())!;
+                await SelectAsync(new CategoryOption(created.Id, created.Name));
+            }
+            else if (res.StatusCode == HttpStatusCode.Conflict)
+            {
+                var conflict = await res.Content.ReadFromJsonAsync<ConflictDto>();
+                if (conflict?.ExistingId is not null)
+                {
+                    _conflict = conflict; // inactive clash — offer to bring it back
+                }
+                else if (Categories.FirstOrDefault(c => string.Equals(c.Name, name, StringComparison.OrdinalIgnoreCase)) is { } existing)
+                {
+                    await SelectAsync(existing, created: false); // active clash — it is already in the list; just pick it
+                }
+                else
+                {
+                    _error = conflict?.Message ?? Localizer["Catalog_NameExists"];
+                }
+            }
+            else _error = Localizer["Catalog_SaveError"];
+        }
+        catch { _error = Localizer["Catalog_SaveError"]; }
+        finally { _saving = false; }
+    }
+
+    private async Task ReactivateAsync()
+    {
+        if (_conflict is not { ExistingId: { } id } conflict) return;
+        _saving = true;
+        try
+        {
+            // Restore the entry as it was — its stored name, not the casing the user just typed.
+            var res = await Http.PutAsJsonAsync($"/api/categories/{id}", new { name = conflict.ExistingName ?? _name.Trim(), is_active = true });
+            if (res.IsSuccessStatusCode) await SelectAsync(new CategoryOption(id, conflict.ExistingName ?? _name.Trim()));
+            else { _conflict = null; _error = Localizer["Catalog_ReactivateError"]; }
+        }
+        catch { _conflict = null; _error = Localizer["Catalog_ReactivateError"]; }
+        finally { _saving = false; }
+    }
+
+    private async Task SelectAsync(CategoryOption option, bool created = true)
+    {
+        if (created) await OnCreated.InvokeAsync(option);
+        await ValueChanged.InvokeAsync(option.Id.ToString());
+        Close();
+    }
+
+    private sealed record EntryDto([property: JsonPropertyName("id")] Guid Id, [property: JsonPropertyName("name")] string Name);
+
+    private sealed record ConflictDto(
+        [property: JsonPropertyName("error")] string Error,
+        [property: JsonPropertyName("message")] string Message,
+        [property: JsonPropertyName("existing_id")] Guid? ExistingId,
+        [property: JsonPropertyName("existing_name")] string? ExistingName);
+}

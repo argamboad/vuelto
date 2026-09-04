@@ -34,6 +34,32 @@ public class ReviewPageTests : ComponentTestBase
     }
 
     [Fact]
+    public async Task Confirm_CanCreateTheCategoryInline_AndEveryCardSeesIt()
+    {
+        const string NewCatId = "cccccccc-0000-0000-0000-000000000009";
+        await SignInAsync();
+        StubQueue();
+        Http.On(HttpMethod.Post, "/api/categories", $$"""{"id":"{{NewCatId}}","name":"Viajes","is_active":true}""", HttpStatusCode.Created);
+        Http.On(HttpMethod.Post, $"/api/pending-vouchers/{V1}/confirm", $$"""{"transaction_id":"{{V1}}","month_id":"{{V1}}","amount_crc":7620,"amount_usd":15,"remembered":false}""");
+
+        var cut = Render<Review>();
+        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("[data-testid='review-voucher']").Count));
+
+        Card(cut, 0).QuerySelector("[data-testid='review-category-new']")!.Click();
+        Card(cut, 0).QuerySelector("[data-testid='review-category-new-name']")!.Input("Viajes");
+        Card(cut, 0).QuerySelector("[data-testid='review-category-new-save']")!.Click();
+
+        cut.WaitForAssertion(() => Assert.Equal(NewCatId, Card(cut, 0).QuerySelector("[data-testid='review-category']")!.GetAttribute("value")));
+        // The page's list is shared: the other card can pick it too.
+        Assert.Contains(Card(cut, 1).QuerySelectorAll("[data-testid='review-category'] option"), o => o.GetAttribute("value") == NewCatId);
+
+        Card(cut, 0).QuerySelector("[data-testid='review-confirm']")!.Click();
+        cut.WaitForAssertion(() => Assert.Contains("Review_Confirmed", cut.Find("[data-testid='review-notice']").TextContent));
+        var body = await Assert.Single(Http.Requests, r => r.Method == HttpMethod.Post && r.RequestUri!.AbsolutePath.StartsWith("/api/pending-vouchers")).Content!.ReadAsStringAsync();
+        Assert.Contains($"\"category_id\":\"{NewCatId}\"", body);
+    }
+
+    [Fact]
     public async Task Renders_Drafts_WithTheSuggestionPrefilled_AndOpensOnlyTheBlanks()
     {
         await SignInAsync();

@@ -71,7 +71,9 @@ Scenario: Month income is editable and validated
 **I want** to record money movement with its payee, bank, category, class and amount
 **So that** both currencies are captured faithfully at the rate of that day, forever
 
-**Context / notes:** `POST /api/transactions` validates everything first (payee, amount > 0, currency
+**Context / notes:** the form's category picker creates a category in place (**+ New** → the shared
+`CategoryPicker`, CATALOG-1 rules: active clash selects the existing entry, inactive clash offers
+Reactivate) so entering a transaction never detours through Settings. `POST /api/transactions` validates everything first (payee, amount > 0, currency
 CRC | USD, date, class, payment method, **required bank and category** that exist in the household and
 are active; an `envelope_contribution` needs an active envelope and `bank_account`, any other class
 must not carry an envelope), settles the rate (a manual `exchange_rate` override wins; else the

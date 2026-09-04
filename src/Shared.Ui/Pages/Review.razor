@@ -67,10 +67,7 @@
                                 @Localizer["Tx_Category"]
                                 @if (v.SuggestedCategoryId is not null) { <span class="badge text-bg-info ms-1" data-testid="review-suggested">@Localizer["Review_Suggested"]</span> }
                             </label>
-                            <select class="form-select form-select-sm" data-testid="review-category" @bind="v.Form.CategoryId">
-                                <option value="">@Localizer["Review_SelectCategory"]</option>
-                                @foreach (var c in _categories) { <option value="@c.Id">@c.Name</option> }
-                            </select>
+                            <CategoryPicker TestId="review-category" Size="sm" Placeholder="@Localizer["Review_SelectCategory"].Value" Categories="_categories" @bind-Value="v.Form.CategoryId" OnCreated="AddCategory" />
                         </div>
                         <div class="col-12 col-md-4">
                             <label class="form-label small mb-1">@Localizer["Tx_Class"]</label>
@@ -132,8 +129,11 @@
     private string? _notice;
     private bool _noticeOk;
     private List<VoucherDto> _vouchers = new();
-    private List<NamedDto> _categories = new();
+    private List<CategoryOption> _categories = new();
     private List<NamedDto> _banks = new();
+
+    /// <summary>A category created from any card's picker joins the shared list, so every card can pick it.</summary>
+    private void AddCategory(CategoryOption c) { if (_categories.All(x => x.Id != c.Id)) _categories.Add(c); }
 
     protected override async Task OnInitializedAsync()
     {
@@ -146,7 +146,7 @@
         _loading = true;
         try
         {
-            _categories = await Http.GetFromJsonAsync<List<NamedDto>>("/api/categories") ?? new();
+            _categories = await Http.GetFromJsonAsync<List<CategoryOption>>("/api/categories") ?? new();
             _banks = await Http.GetFromJsonAsync<List<NamedDto>>("/api/banks") ?? new();
             _vouchers = await Http.GetFromJsonAsync<List<VoucherDto>>("/api/pending-vouchers") ?? new();
             foreach (var v in _vouchers) v.InitForm();

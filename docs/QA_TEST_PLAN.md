@@ -1389,14 +1389,18 @@ And a PUT to an envelope id from another household returns 404
 **Gherkin**
 ```gherkin
 Given a fresh household with no months, Budget settings saved with 5-week incomes 3750 USD / 312500 CRC
-When I open New transaction, type "AutoMercado", 50000 CRC, date 2026-07-10, category Food, bank Cash, class Budgeted
+When I open New transaction, type "AutoMercado", 50000 CRC, date 2026-07-10, bank Cash, class Budgeted
+And I click "+ New" beside Category, type "Viajes" and Create
+Then "Viajes" is selected without leaving the form (it also appears under Settings → Categories); typing "viajes" again just selects it
 Then the date says "Goes to July 2026 — a new month will be created" and the rate is pre-filled
 When I Save
 Then I land on July 2026: 5 weeks (25 Jun – 29 Jul), income 3750 USD / 312500 CRC, one row ₡50,000.00 / $<50000 ÷ rate>
 ```
 **Walkthrough:** **Settings → Budget** → save 5-week incomes `3750` USD and `312500` CRC. **Home →
-New transaction** (or nav **Months → New transaction**): fill the fields, pick the date
-`2026-07-10` → **Expected:** the "Goes to July 2026 — a new month will be created" hint under the
+New transaction** (or nav **Months → New transaction**): fill the fields; beside **Category** click
+**+ New**, type `Viajes`, **Create** → **Expected:** the inline form closes and **Viajes** is selected
+(Enter also creates, Esc cancels; a blank name → "A name is required."; a name matching an inactive
+category offers **Reactivate “…”**). Pick the date `2026-07-10` → **Expected:** the "Goes to July 2026 — a new month will be created" hint under the
 date; the **Exchange rate** field pre-filled (or, without a key, the red hint asking for one — type
 `500`). **Save** → **Expected:** the **July 2026** page with 5 week badges, the income card showing
 3750 USD / 312500 CRC, and the row. Via Postman (**15 · Months → List months**) → 1 month with
@@ -1802,7 +1806,7 @@ on, and **Months** shows no new transaction yet.
 **Gherkin**
 ```gherkin
 Given a pending draft in the Review queue (header badge shows 1, dashboard banner says 1 waiting)
-When I pick a category and class, tick "Remember this merchant" and Confirm
+When I pick a category (or create one right there with "+ New" — every card on the queue then lists it) and class, tick "Remember this merchant" and Confirm
 Then "Confirmed and remembered", the draft leaves the queue, the badge disappears, and the month lists a transaction with source email and the voucher's amount, bank and date
 And Settings → Manage suggestions now has a rule for that merchant
 When I confirm the same draft again through the API
@@ -1817,7 +1821,8 @@ Then it leaves the queue; discarding it again → 409; the same email never re-s
 amber banner "1 voucher(s) … waiting for review → Review now" (even with no months yet) and the header
 **Review** link with a **1** badge. **Review** → **Expected:** the card shows merchant, ₡ amount, date,
 type, bank; category prefilled only when a rule matches; parsed fields read-only (a draft with blanks shows
-"Could not read: …" and opens exactly those fields). Pick a category, tick **Remember this merchant**,
+"Could not read: …" and opens exactly those fields). Pick a category — or **+ New** beside the picker, type
+a name, **Create** → **Expected:** selected on this card and offered on every other card — tick **Remember this merchant**,
 **Confirm** → **Expected:** the green notice, the card gone, the badge gone; **Months → that month** lists
 the transaction (source `email`); **Settings → Manage suggestions** has the new rule. Postman
 (**Confirm pending voucher** with the same `{{pendingVoucherId}}`) → **Expected:** 409 `not_pending`;
@@ -3315,3 +3320,13 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   another (the new "view" link, or any month-to-month link) changed the URL but kept the old month on
   screen until a reload — it now reloads when its route id changes (`MonthDetail_ReloadsWhenTheRouteIdChanges`).
   Suite count unchanged (180).
+
+- **Updated 2026-09-04** — **Inline category creation (owner request).** Categorising a voucher from the
+  queue or entering a manual transaction no longer needs a trip to Settings: a shared `CategoryPicker`
+  (select + **+ New**) replaces the plain selects on the transaction form and every review card. Create
+  posts to the existing categories endpoint and selects the result; an active clash selects the existing
+  entry, an inactive clash offers **Reactivate “<stored name>”** (the Catalog page's rules, reused); Enter
+  creates, Esc cancels. The page owns one category list per page, so a category created on one review card
+  is offered on all of them. No API, schema or Postman change. QA-LED-01 and QA-EMAIL-06 gain the inline
+  step; `CategoryPickerTests` (4), `NewTransaction_CanCreateACategoryInline_AndSavesWithIt`,
+  `Confirm_CanCreateTheCategoryInline_AndEveryCardSeesIt` pin it. Suite count unchanged (180).

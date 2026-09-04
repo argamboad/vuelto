@@ -143,6 +143,35 @@ public class LedgerPagesTests : ComponentTestBase
     }
 
     [Fact]
+    public async Task NewTransaction_CanCreateACategoryInline_AndSavesWithIt()
+    {
+        const string NewCatId = "bbbbbbbb-0000-0000-0000-000000000009";
+        await SignInAsync();
+        StubCatalogs();
+        Http.On(HttpMethod.Post, "/api/categories", $$"""{"id":"{{NewCatId}}","name":"Viajes","is_active":true}""", HttpStatusCode.Created);
+        Http.On(HttpMethod.Post, "/api/transactions", $$"""{"id":"{{TxId}}","month_id":"{{MonthId}}","payee":"Hotel","bank_id":"{{BankId}}","payment_method":"credit_card","original_amount":80000,"currency":"CRC","transaction_date":"2026-07-10","category_id":"{{NewCatId}}","exchange_rate_used":510.45,"transaction_type":"budgeted","source":"manual","envelope_id":null}""", HttpStatusCode.Created);
+
+        var cut = Render<TransactionForm>();
+        cut.WaitForAssertion(() => Assert.Equal("510.45", cut.Find("[data-testid='tx-rate']").GetAttribute("value")));
+
+        cut.Find("[data-testid='tx-category-new']").Click();
+        cut.Find("[data-testid='tx-category-new-name']").Input("Viajes");
+        cut.Find("[data-testid='tx-category-new-save']").Click();
+
+        // The new category is in the list and selected; the form saves with it.
+        cut.WaitForAssertion(() => Assert.Equal(NewCatId, cut.Find("[data-testid='tx-category']").GetAttribute("value")));
+        Assert.Contains(cut.FindAll("[data-testid='tx-category'] option"), o => o.GetAttribute("value") == NewCatId && o.TextContent == "Viajes");
+        cut.Find("[data-testid='tx-payee']").Input("Hotel");
+        cut.Find("[data-testid='tx-amount']").Change("80000");
+        cut.Find("[data-testid='tx-bank']").Change(BankId);
+        cut.Find("[data-testid='tx-save']").Click();
+
+        cut.WaitForAssertion(() => Assert.EndsWith($"/months/{MonthId}", Services.GetRequiredService<NavigationManager>().Uri));
+        var post = Assert.Single(Http.Requests, r => r.Method == HttpMethod.Post && r.RequestUri!.AbsolutePath == "/api/transactions");
+        Assert.Contains($"\"category_id\":\"{NewCatId}\"", await post.Content!.ReadAsStringAsync());
+    }
+
+    [Fact]
     public async Task MonthDetail_ReloadsWhenTheRouteIdChanges()
     {
         // A link from one month page to another (e.g. a refund's "booked in another month — view", ADR-V017)

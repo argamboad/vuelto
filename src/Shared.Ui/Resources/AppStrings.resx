@@ -348,6 +348,10 @@
   <data name="Catalog_Saved" xml:space="preserve"><value>Created.</value></data>
   <data name="Catalog_Updated" xml:space="preserve"><value>Updated.</value></data>
   <data name="Catalog_Empty" xml:space="preserve"><value>Nothing here yet.</value></data>
+  <data name="Category_New" xml:space="preserve"><value>New</value></data>
+  <data name="Category_NewTitle" xml:space="preserve"><value>Create a category right here</value></data>
+  <data name="Category_NewPlaceholder" xml:space="preserve"><value>Category name</value></data>
+  <data name="Category_ReactivateExisting" xml:space="preserve"><value>Reactivate “{0}”</value></data>
   <data name="Catalog_SettingsTitle" xml:space="preserve"><value>Catalog</value></data>
   <data name="Catalog_SettingsHint" xml:space="preserve"><value>The names your household classifies money by: categories, banks and savings envelopes. Deactivate instead of deleting — history keeps its labels.</value></data>
   <data name="Catalog_ManageCategories" xml:space="preserve"><value>Manage categories</value></data>
