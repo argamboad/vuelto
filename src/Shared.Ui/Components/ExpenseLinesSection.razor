@@ -4,6 +4,7 @@
 @using System.Text.Json.Serialization
 @inject HttpClient Http
 @inject IStringLocalizer<AppStrings> Localizer
+@inject IJSRuntime JS
 
 @* One budget-line list (fixed or variable — EXPENSES-1, ADR-V007/V008): ordered rows with move up/down,
    an inline create/edit form (single-currency budget, method, required category, optional bank, active
@@ -25,7 +26,7 @@
 
     @if (_form is not null)
     {
-        <div class="card shadow-sm mb-3" data-testid="exp-form">
+        <div class="card shadow-sm mb-3" data-testid="exp-form" @ref="_formCard" style="scroll-margin-top: 4.5rem;">
             <div class="card-body">
                 <h3 class="h6 fw-bold mb-3">@(_form.Editing is null ? Localizer["Budget_NewLine"] : Localizer["Budget_EditLine"])</h3>
                 <div class="row g-3">
@@ -43,10 +44,7 @@
                     </div>
                     <div class="col-12 col-md-4">
                         <label class="form-label small fw-medium mb-1" for="exp-category-@Kind">@Localizer["Tx_Category"]</label>
-                        <select class="form-select" id="exp-category-@Kind" data-testid="exp-category" disabled="@_saving" @bind="_form.CategoryId">
-                            <option value="">—</option>
-                            @foreach (var c in Categories) { <option value="@c.Id">@c.Name</option> }
-                        </select>
+                        <CategoryPicker Id="@($"exp-category-{Kind}")" TestId="exp-category" Categories="Categories" Disabled="@_saving" @bind-Value="_form.CategoryId" OnCreated="OnCategoryCreated" />
                         <div class="form-text">@Localizer["Budget_CategoryHint"]</div>
                     </div>
                     <div class="col-12 col-md-4">
@@ -160,8 +158,11 @@
     [Parameter, EditorRequired] public string TitleKey { get; set; } = "";
     [Parameter, EditorRequired] public string NewKey { get; set; } = "";
     /// <summary>Active categories and banks (all states) the page loaded once for both lists.</summary>
-    [Parameter] public IReadOnlyList<NamedItem> Categories { get; set; } = [];
+    [Parameter] public IReadOnlyList<CategoryOption> Categories { get; set; } = [];
     [Parameter] public IReadOnlyList<NamedItem> Banks { get; set; } = [];
+
+    /// <summary>A category created from this list's picker — the page appends it so the other list sees it too.</summary>
+    [Parameter] public EventCallback<CategoryOption> OnCategoryCreated { get; set; }
 
     public sealed record NamedItem([property: JsonPropertyName("id")] Guid Id, [property: JsonPropertyName("name")] string Name, [property: JsonPropertyName("is_active")] bool IsActive);
 
@@ -190,6 +191,18 @@
         _notice = null;
         var crc = item.BudgetCrc > 0;
         _form = new FormState(item, item.Name, crc ? item.BudgetCrc : item.BudgetUsd, crc ? "CRC" : "USD", item.CategoryId.ToString(), item.BankId?.ToString() ?? "", item.PaymentMethod, item.IsActive);
+        _scrollToForm = true; // the form card sits above the table — a row far down would leave it off-screen
+    }
+
+    private ElementReference _formCard;
+    private bool _scrollToForm;
+
+    /// <summary>After an Edit click, bring the whole form card into view (it renders above the row that was clicked).</summary>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_scrollToForm || _form is null) return;
+        _scrollToForm = false;
+        await JS.InvokeVoidAsync("appUi.scrollIntoView", _formCard, new { behavior = "smooth", block = "start" });
     }
 
     private static object Payload(FormState f, string name, bool isActive) => new

@@ -14,7 +14,8 @@
 to the category whose transactions count against it
 **So that** the dashboard (P7) can show budgeted vs actual per line and the household knows its baseline
 
-**Context / notes:** `FixedExpense` and `VariableExpense` are structurally identical tables served by
+**Context / notes:** the line form's category picker is the shared `CategoryPicker` (create a category
+in place; the page's list is shared by both sections). `FixedExpense` and `VariableExpense` are structurally identical tables served by
 one generic handler under `/api/expenses/fixed` and `/api/expenses/variable`. A line is a catalog entry
 (`IExpenseLine : ICatalogEntry`): unique name **per list**, case-insensitively (the same name may exist
 in both lists); deactivate instead of delete; the inactive clash offers **Reactivate** (restoring the

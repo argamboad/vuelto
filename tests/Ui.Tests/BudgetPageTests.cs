@@ -22,7 +22,7 @@ public class BudgetPageTests : ComponentTestBase
          {"id":"{{L3}}","name":"Old","budget_crc":5000,"budget_usd":0,"payment_method":"credit_card","category_id":"{{Cat2}}","bank_id":null,"sort_order":2,"is_active":false}]
         """;
 
-    private static readonly List<ExpenseLinesSection.NamedItem> Categories = [new(Guid.Parse(Cat1), "Housing", true), new(Guid.Parse(Cat2), "Entertainment", true)];
+    private static readonly List<CategoryOption> Categories = [new(Guid.Parse(Cat1), "Housing"), new(Guid.Parse(Cat2), "Entertainment")];
     private static readonly List<ExpenseLinesSection.NamedItem> Banks = [new(Guid.Parse(BankId), "BAC", true)];
 
     private IRenderedComponent<ExpenseLinesSection> RenderFixed() => Render<ExpenseLinesSection>(p => p
@@ -43,6 +43,55 @@ public class BudgetPageTests : ComponentTestBase
         Assert.Contains("$13.00", rows[1].TextContent); Assert.Contains("Budget_Unassigned", rows[1].TextContent);
         Assert.Contains("Catalog_Inactive", rows[2].TextContent);
         Assert.Contains("include_inactive=true", Assert.Single(Http.Requests, r => r.Method == HttpMethod.Get && r.RequestUri!.AbsolutePath == "/api/expenses/fixed").RequestUri!.Query);
+    }
+
+    [Fact]
+    public async Task Create_CanCreateTheCategoryInline_AndTheLineSavesWithIt()
+    {
+        const string NewCatId = "bbbbbbbb-0000-0000-0000-000000000009";
+        await SignInAsync();
+        var shared = new List<CategoryOption>(Categories); // the page's list, appended through OnCategoryCreated
+        Http.On(HttpMethod.Get, "/api/expenses/fixed", List);
+        Http.On(HttpMethod.Post, "/api/categories", $$"""{"id":"{{NewCatId}}","name":"Viajes","is_active":true}""", HttpStatusCode.Created);
+        Http.On(HttpMethod.Post, "/api/expenses/fixed", $$"""{"id":"{{L3}}","name":"Hotel","budget_crc":80000,"budget_usd":0,"payment_method":"credit_card","category_id":"{{NewCatId}}","bank_id":null,"sort_order":3,"is_active":true}""", HttpStatusCode.Created);
+
+        var cut = Render<ExpenseLinesSection>(p => p
+            .Add(x => x.Kind, "fixed").Add(x => x.TitleKey, "Budget_Fixed").Add(x => x.NewKey, "Budget_AddFixed")
+            .Add(x => x.Categories, shared).Add(x => x.Banks, Banks)
+            .Add(x => x.OnCategoryCreated, c => shared.Add(c)));
+        cut.WaitForElement("[data-testid='exp-new']").Click();
+
+        cut.Find("[data-testid='exp-category-new']").Click();
+        cut.Find("[data-testid='exp-category-new-name']").Input("Viajes");
+        cut.Find("[data-testid='exp-category-new-save']").Click();
+
+        cut.WaitForAssertion(() => Assert.Equal(NewCatId, cut.Find("[data-testid='exp-category']").GetAttribute("value")));
+        Assert.Contains(shared, c => c.Id == Guid.Parse(NewCatId) && c.Name == "Viajes");
+        cut.Find("[data-testid='exp-name']").Input("Hotel");
+        cut.Find("[data-testid='exp-amount']").Change("80000");
+        cut.Find("[data-testid='exp-save']").Click();
+
+        cut.WaitForElement("[data-testid='exp-notice']");
+        var post = Assert.Single(Http.Requests, r => r.Method == HttpMethod.Post && r.RequestUri!.AbsolutePath == "/api/expenses/fixed");
+        Assert.Contains($"\"category_id\":\"{NewCatId}\"", await post.Content!.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task Edit_ScrollsTheFormCardIntoView_NewDoesNot()
+    {
+        await SignInAsync();
+        Http.On(HttpMethod.Get, "/api/expenses/fixed", List);
+        var cut = RenderFixed();
+        cut.WaitForAssertion(() => Assert.Equal(3, cut.FindAll("[data-testid='exp-row']").Count));
+
+        // New opens right under its button — no scroll. Edit renders the card above the table, away from the row clicked.
+        cut.Find("[data-testid='exp-new']").Click();
+        Assert.DoesNotContain(JSInterop.Invocations, i => i.Identifier == "appUi.scrollIntoView");
+        cut.Find("[data-testid='exp-cancel']").Click();
+
+        cut.FindAll("[data-testid='exp-edit']")[1].Click();
+        cut.WaitForAssertion(() => Assert.Single(JSInterop.Invocations, i => i.Identifier == "appUi.scrollIntoView"));
+        Assert.Equal("Netflix", cut.Find("[data-testid='exp-name']").GetAttribute("value"));
     }
 
     [Fact]
