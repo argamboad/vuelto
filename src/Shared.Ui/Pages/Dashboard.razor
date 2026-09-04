@@ -127,6 +127,9 @@
                                             <tr data-testid="dash-other-row"><td>@c.CategoryName</td><td class="text-end">@Money(c.Actual)</td></tr>
                                         }
                                     </tbody>
+                                    <tfoot>
+                                        <tr class="fw-semibold border-top" data-testid="dash-other-total"><td>@Localizer["Dash_Total"]</td><td class="text-end">@Money(Sum(s.OtherSpending.Select(c => c.Actual)))</td></tr>
+                                    </tfoot>
                                 </table>
                             </div>
                         </div>
@@ -151,6 +154,9 @@
                                         </tr>
                                     }
                                 </tbody>
+                                <tfoot>
+                                    <tr class="fw-semibold border-top" data-testid="dash-week-total"><td>@Localizer["Dash_Total"]</td><td class="text-end">@Money(Sum(s.WeeklyBudgeted.Select(w => w.Total)))</td><td class="text-end">@Money(Sum(s.WeeklyExtraordinary.Select(w => w.Total)))</td></tr>
+                                </tfoot>
                             </table>
                         </div>
                     </div>
@@ -300,6 +306,10 @@
                                 <tr data-testid="dash-line-row"><td>@l.Name</td><td class="text-end">@Money(l.Budget)</td><td class="text-end @OverTone(l.Budget, l.Actual)" data-testid="dash-line-actual">@Money(l.Actual)</td></tr>
                             }
                         </tbody>
+                        @{ var budgetTotal = Sum(lines.Select(l => l.Budget)); var actualTotal = Sum(lines.Select(l => l.Actual)); }
+                        <tfoot>
+                            <tr class="fw-semibold border-top" data-testid="dash-lines-total"><td>@Localizer["Dash_Total"]</td><td class="text-end">@Money(budgetTotal)</td><td class="text-end @OverTone(budgetTotal, actualTotal)">@Money(actualTotal)</td></tr>
+                        </tfoot>
                     </table>
                 }
             </div>
@@ -311,6 +321,9 @@
         budget.Crc == 0 && budget.Usd == 0 ? "" : actual.Crc > budget.Crc ? "text-danger" : "text-success";
 
     private static string Tone(MoneyDto value) => value.Crc < 0 ? "text-danger" : "text-success";
+
+    /// <summary>Column totals for the tables — the sum of exactly the rows shown (each side in its own currency).</summary>
+    private static MoneyDto Sum(IEnumerable<MoneyDto> values) => values.Aggregate(new MoneyDto(0, 0), (acc, m) => new MoneyDto(acc.Crc + m.Crc, acc.Usd + m.Usd));
 
     private static string Money(MoneyDto m) => $"₡{m.Crc.ToString("N2", CultureInfo.CurrentCulture)} · ${m.Usd.ToString("N2", CultureInfo.CurrentCulture)}";
 

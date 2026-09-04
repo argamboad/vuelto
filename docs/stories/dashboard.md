@@ -14,7 +14,8 @@
 totals, balance, unplanned essentials, expected refunds, envelope reminders and the bank × method view
 **So that** I know where the money went and what is still committed before the month ends
 
-**Context / notes:** the calculation is a **pure Core service** (`DashboardSummaryService`) fed by the
+**Context / notes:** the four tables (fixed, variable, other spending, week by week) end with a **Total**
+row summed on the page from the rows shown. the calculation is a **pure Core service** (`DashboardSummaryService`) fed by the
 `Features/Dashboard` handler: the month, its weeks, its transactions and refunds, the active envelopes,
 both budget-line lists, and **all** categories and banks (a deactivated name still labels its row). Every
 figure is a ₡/$ pair rounded to 2 dp. **Actuals** sum each transaction's frozen amounts; **projections**
