@@ -1,0 +1,78 @@
+@using System.Globalization
+@inject IStringLocalizer<AppStrings> Localizer
+
+@* A donut of shares drawn as inline SVG arcs — no JS, no library, theme-aware through Bootstrap tokens.
+   Zero slices are skipped; an all-zero input says so instead of drawing nothing. The legend carries the
+   share and the amount, so the picture never replaces the numbers. *@
+<div class="chart-donut d-flex flex-wrap align-items-center gap-3" data-testid="@TestId">
+    @{ var total = Slices.Sum(s => Math.Max(s.Value, 0)); }
+    @if (total <= 0)
+    {
+        <p class="text-muted small mb-0">@Localizer["Chart_Empty"]</p>
+    }
+    else
+    {
+        <svg viewBox="0 0 @Size @Size" width="@Size" height="@Size" role="img" aria-label="@Title" style="flex: none;">
+            <title>@Title</title>
+            @{
+                var start = -90.0; // twelve o'clock
+                var visible = Slices.Where(s => s.Value > 0).ToList();
+            }
+            @if (visible.Count == 1)
+            {
+                <circle cx="@Center" cy="@Center" r="@Radius" fill="none" stroke="@visible[0].CssColor" stroke-width="@Thickness" data-testid="chart-slice" />
+            }
+            else
+            {
+                @foreach (var s in visible)
+                {
+                    var sweep = (double)(s.Value / total) * 360.0;
+                    var path = Arc(start, start + sweep);
+                    start += sweep;
+                    <path d="@path" fill="none" stroke="@s.CssColor" stroke-width="@Thickness" data-testid="chart-slice" />
+                }
+            }
+            <text x="@Center" y="@Center" text-anchor="middle" dominant-baseline="middle" fill="var(--bs-body-color)" style="font: 600 13px var(--bs-body-font-family);">@Format(total)</text>
+        </svg>
+        <ul class="list-unstyled small mb-0" data-testid="chart-legend">
+            @foreach (var s in Slices)
+            {
+                <li class="d-flex align-items-center gap-2 mb-1" data-testid="chart-legend-item">
+                    <span class="d-inline-block rounded-circle" style="width: 10px; height: 10px; background: @s.CssColor; flex: none;"></span>
+                    <span>@s.Label</span>
+                    <span class="text-muted ms-auto ps-3">@Format(s.Value) · @((total > 0 ? s.Value / total : 0).ToString("P0", CultureInfo.CurrentCulture))</span>
+                </li>
+            }
+        </ul>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<DonutSlice> Slices { get; set; } = [];
+    [Parameter] public string Currency { get; set; } = "CRC";
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public string TestId { get; set; } = "chart";
+
+    private const int Size = 150;
+    private const int Thickness = 22;
+    private const double Center = Size / 2.0;
+    private const double Radius = Size / 2.0 - Thickness / 2.0 - 2;
+
+    private static string Arc(double fromDeg, double toDeg)
+    {
+        // Keep a hair short of a full circle: SVG cannot draw a 360° arc as one path.
+        toDeg = Math.Min(toDeg, fromDeg + 359.999);
+        var (x1, y1) = Point(fromDeg);
+        var (x2, y2) = Point(toDeg);
+        var large = toDeg - fromDeg > 180 ? 1 : 0;
+        return string.Create(CultureInfo.InvariantCulture, $"M {x1:0.###} {y1:0.###} A {Radius:0.###} {Radius:0.###} 0 {large} 1 {x2:0.###} {y2:0.###}");
+    }
+
+    private static (double X, double Y) Point(double deg)
+    {
+        var rad = deg * Math.PI / 180.0;
+        return (Center + Radius * Math.Cos(rad), Center + Radius * Math.Sin(rad));
+    }
+
+    private string Format(decimal value) => (Currency == "USD" ? "$" : "₡") + value.ToString("N0", CultureInfo.CurrentCulture);
+}

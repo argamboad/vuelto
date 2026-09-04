@@ -533,6 +533,15 @@
   <data name="Reports_Exporting" xml:space="preserve"><value>Preparando…</value></data>
   <data name="Reports_ExportReady" xml:space="preserve"><value>CSV listo: {0} filas. La descarga comenzó.</value></data>
   <data name="Reports_ExportError" xml:space="preserve"><value>No se pudo exportar el CSV. Intenta de nuevo.</value></data>
+  <data name="Reports_View" xml:space="preserve"><value>Vista</value></data>
+  <data name="Reports_ViewTable" xml:space="preserve"><value>Tabla</value></data>
+  <data name="Reports_ViewChart" xml:space="preserve"><value>Gráfico</value></data>
+  <data name="Reports_ChartCurrency" xml:space="preserve"><value>Gráfico en</value></data>
+  <data name="Reports_ClassSplit" xml:space="preserve"><value>Gasto por clase</value></data>
+  <data name="Chart_Empty" xml:space="preserve"><value>No hay nada que graficar en este período.</value></data>
+  <data name="Chart_Actual" xml:space="preserve"><value>Real</value></data>
+  <data name="Chart_Budget" xml:space="preserve"><value>Presupuesto</value></data>
+  <data name="Chart_OverBudget" xml:space="preserve"><value>Sobre el presupuesto</value></data>
   <data name="Email_SettingsTitle" xml:space="preserve"><value>Bandejas de correo</value></data>
   <data name="Email_SettingsHint" xml:space="preserve"><value>Conecta tu bandeja de Outlook o Gmail para que los vouchers del banco se conviertan en borradores por revisar. Solo lectura, y es tuya, no del hogar.</value></data>
   <data name="Email_SettingsLink" xml:space="preserve"><value>Administrar bandejas</value></data>
