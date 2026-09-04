@@ -605,6 +605,11 @@
   <data name="Review_RateUnavailable" xml:space="preserve"><value>No hay tipo de cambio disponible ahora; intenta más tarde.</value></data>
   <data name="Review_ConfirmError" xml:space="preserve"><value>No se pudo actualizar este voucher. Intenta de nuevo.</value></data>
   <data name="Review_LoadError" xml:space="preserve"><value>No se pudo cargar la cola de revisión.</value></data>
+  <data name="Review_SyncAll" xml:space="preserve"><value>Sincronizar bandejas</value></data>
+  <data name="Review_SyncResult" xml:space="preserve"><value>Se sincronizaron {0} bandeja(s): {1} nuevos para revisar, {2} ya vistos, {3} no eran vouchers.</value></data>
+  <data name="Review_SyncReconsent" xml:space="preserve"><value>{0} bandeja(s) necesitan reconectarse: revisa Ajustes → Bandejas de correo.</value></data>
+  <data name="Review_SyncNoInboxes" xml:space="preserve"><value>Aún no hay bandejas conectadas: conecta una en Ajustes → Bandejas de correo.</value></data>
+  <data name="Review_SyncError" xml:space="preserve"><value>No se pudieron sincronizar tus bandejas. Intenta de nuevo.</value></data>
   <data name="Dash_ReviewBanner" xml:space="preserve"><value>{0} voucher(s) de tus bandejas esperan revisión.</value></data>
   <data name="Dash_ReviewLink" xml:space="preserve"><value>Revisar ahora</value></data>
   <data name="Mapping_Title" xml:space="preserve"><value>Sugerencias por comercio</value></data>

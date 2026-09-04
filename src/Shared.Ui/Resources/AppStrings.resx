@@ -605,6 +605,11 @@
   <data name="Review_RateUnavailable" xml:space="preserve"><value>No exchange rate is available right now — try again later.</value></data>
   <data name="Review_ConfirmError" xml:space="preserve"><value>Couldn't update this voucher. Try again.</value></data>
   <data name="Review_LoadError" xml:space="preserve"><value>Couldn't load the review queue.</value></data>
+  <data name="Review_SyncAll" xml:space="preserve"><value>Sync inboxes</value></data>
+  <data name="Review_SyncResult" xml:space="preserve"><value>Synced {0} inbox(es) — {1} new to review, {2} already seen, {3} not a voucher.</value></data>
+  <data name="Review_SyncReconsent" xml:space="preserve"><value>{0} inbox(es) need reconnecting — see Settings → Email inboxes.</value></data>
+  <data name="Review_SyncNoInboxes" xml:space="preserve"><value>No inboxes connected yet — connect one under Settings → Email inboxes.</value></data>
+  <data name="Review_SyncError" xml:space="preserve"><value>Couldn't sync your inboxes. Try again.</value></data>
   <data name="Dash_ReviewBanner" xml:space="preserve"><value>{0} voucher(s) from your inboxes are waiting for review.</value></data>
   <data name="Dash_ReviewLink" xml:space="preserve"><value>Review now</value></data>
   <data name="Mapping_Title" xml:space="preserve"><value>Merchant suggestions</value></data>

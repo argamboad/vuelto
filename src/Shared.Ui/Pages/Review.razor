@@ -17,12 +17,16 @@
    are shown read-only and open for editing only where the parser left a blank. Confirm books the transaction
    through the same create as manual entry; discard drops the draft (the dedup tombstone stays). *@
 <div class="review-wrapper" data-testid="review-page">
-    <div class="d-flex align-items-center gap-2 mb-1">
+    <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
         <h1 class="h4 fw-bold mb-0">@Localizer["Review_Title"]</h1>
         @if (_vouchers.Count > 0)
         {
             <span class="badge text-bg-primary" data-testid="review-count">@Localizer["Review_ToReview", _vouchers.Count]</span>
         }
+        @* Pull fresh vouchers from every connected inbox without a trip to Settings (EMAIL-4's Sync now, for all). *@
+        <button class="btn btn-outline-primary btn-sm ms-auto" data-testid="review-sync-all" disabled="@(_busy || _syncing)" @onclick="SyncAllAsync">
+            @(_syncing ? Localizer["Email_Syncing"] : Localizer["Review_SyncAll"])
+        </button>
     </div>
     <p class="text-muted mb-3">@Localizer["Review_Subtitle"]</p>
 
@@ -145,6 +149,7 @@
 @code {
     private bool _loading = true;
     private bool _busy;
+    private bool _syncing;
     private string? _notice;
     private bool _noticeOk;
     private List<VoucherDto> _vouchers = new();
@@ -243,6 +248,26 @@
         return $"{(amount.Value * v.Form.RefundPercentage.Value / 100m).ToString("N2", CultureInfo.CurrentCulture)} {currency}";
     }
 
+    /// <summary>Sync every inbox, then reload the queue and the header badge. A dead inbox is reported, never fatal.</summary>
+    private async Task SyncAllAsync()
+    {
+        _syncing = true; _notice = null;
+        try
+        {
+            var res = await Http.PostAsync("/api/email/connections/sync", null);
+            res.EnsureSuccessStatusCode();
+            var r = (await res.Content.ReadFromJsonAsync<SyncAllDto>())!;
+            if (r.SyncedInboxes == 0 && r.NeedsReconsent == 0) { Fail(Localizer["Review_SyncNoInboxes"]); return; }
+            var summary = Localizer["Review_SyncResult", r.SyncedInboxes, r.Staged, r.Duplicates, r.Unrecognized].Value;
+            if (r.NeedsReconsent > 0) { Fail(summary + " " + Localizer["Review_SyncReconsent", r.NeedsReconsent].Value); }
+            else Ok(summary);
+            await ReloadAsync();
+            ReviewQueue.NotifyChanged();
+        }
+        catch { Fail(Localizer["Review_SyncError"]); }
+        finally { _syncing = false; }
+    }
+
     private void Ok(string message) { _notice = message; _noticeOk = true; }
     private void Fail(string message) { _notice = message; _noticeOk = false; }
 
@@ -289,6 +314,12 @@
     }
 
     private sealed record NamedDto([property: JsonPropertyName("id")] Guid Id, [property: JsonPropertyName("name")] string Name);
+    private sealed record SyncAllDto(
+        [property: JsonPropertyName("synced_inboxes")] int SyncedInboxes,
+        [property: JsonPropertyName("needs_reconsent")] int NeedsReconsent,
+        [property: JsonPropertyName("staged")] int Staged,
+        [property: JsonPropertyName("duplicates")] int Duplicates,
+        [property: JsonPropertyName("unrecognized")] int Unrecognized);
     private sealed record ConfirmDto([property: JsonPropertyName("transaction_id")] Guid TransactionId, [property: JsonPropertyName("remembered")] bool Remembered);
     private sealed record ErrorDto([property: JsonPropertyName("error")] string Error, [property: JsonPropertyName("message")] string Message);
 }

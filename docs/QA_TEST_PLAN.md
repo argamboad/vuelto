@@ -1769,6 +1769,8 @@ When I click Sync now again
 Then "0 staged for review, 2 already seen" — the same emails never stage twice
 When the inbox needs reconnecting (token revoked at the provider)
 Then Sync now shows "Reconnect this inbox to sync it." and the row turns Needs reconnect
+When I click "Sync inboxes" on the Review queue instead
+Then every inbox is synced in one go: "Synced N inbox(es) — S new to review, D already seen, U not a voucher.", the queue refreshes, and a dead inbox is reported in the same notice without stopping the others
 ```
 **Walkthrough:** **Settings → Manage inboxes** → **Sync now** → **Expected:** the green summary with the
 counts; the emails stay **unread** in the mailbox. **Sync now** again → **Expected:** the same count now
@@ -1776,7 +1778,11 @@ under "already seen". Via Postman (**21 · Email inboxes → Sync now**) → 200
 unrecognized }`; (**Get connection**) → `last_polled_at` moved to the sync time. Revoke the app's access
 in the provider's account settings → **Sync now** → **Expected:** the reconnect message, badge **Needs
 reconnect**, Postman → 409 `needs_reconsent`. The drafts become visible in EMAIL-6's Review queue; until
-then confirm via SQL that `PendingVouchers` holds the rows with `status = pending`.
+then confirm via SQL that `PendingVouchers` holds the rows with `status = pending`. **Review → Sync inboxes**
+→ **Expected:** one notice with the summed counts across all inboxes (green; red with "N inbox(es) need
+reconnecting" when one is dead — the rest still synced), the queue and the header badge refreshed. Postman
+(**21 · Email inboxes → Sync all inboxes**) → 200 `{ synced_inboxes, needs_reconsent, staged, duplicates,
+unrecognized }`; with no inboxes → all zeros.
 
 ---
 
@@ -3355,3 +3361,11 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   the card carries a scroll margin so the fixed header never covers its title).
   QA-EXP-01 gains the step; `Create_CanCreateTheCategoryInline_AndTheLineSavesWithIt` and
   `Edit_ScrollsTheFormCardIntoView_NewDoesNot` pin it. Suite count unchanged (180).
+- **Updated 2026-09-04** — **"Sync inboxes" on the Review queue (owner request).** New
+  `POST /api/email/connections/sync` (`EmailConnectionHandler.SyncAllAsync`): runs EMAIL-4's staging over
+  every inbox of the caller in turn and sums the counts; a dead inbox is counted under `needs_reconsent`
+  (its row flagged) and never stops the others; no inboxes → zeros, not an error. The Review page gains the
+  button in its header: green summary, red when an inbox needs reconnecting, a hint when nothing is
+  connected; the queue and the header badge refresh afterwards. QA-EMAIL-04 gains the step; Postman
+  **Sync all inboxes**; `SyncAll_StagesEveryInboxOfTheCaller_*`, the anonymous/zero integration asserts and
+  the two `SyncAll_*` UI cases pin it. Suite count unchanged (180).

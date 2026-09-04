@@ -24,6 +24,7 @@ public class EmailEndpointTests(IntegrationTestFactory factory)
         Assert.Equal(HttpStatusCode.Unauthorized, (await anon.GetAsync("/api/email/connections")).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await anon.GetAsync("/api/email/connections/authorize?provider=google")).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await anon.GetAsync("/api/email/connections/suggested-filters")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await anon.PostAsync("/api/email/connections/sync", null)).StatusCode);
 
         var callback = await anon.GetAsync("/api/email/connections/callback?code=abc&state=not-a-state");
         Assert.Equal(HttpStatusCode.Redirect, callback.StatusCode);
@@ -38,6 +39,10 @@ public class EmailEndpointTests(IntegrationTestFactory factory)
         var client = _factory.CreateClientFor(member);
 
         Assert.Empty((await client.GetFromJsonAsync<List<ConnectionDto>>("/api/email/connections"))!);
+
+        var syncAll = await client.PostAsync("/api/email/connections/sync", null); // nothing connected: an honest zero summary, not an error
+        Assert.Equal(HttpStatusCode.OK, syncAll.StatusCode);
+        Assert.Contains("\"synced_inboxes\":0", await syncAll.Content.ReadAsStringAsync());
 
         var post = await client.PostAsJsonAsync("/api/email/connections", new { provider = "google", access_token = "x", refresh_token = "y" });
         Assert.Equal(HttpStatusCode.BadRequest, post.StatusCode);
