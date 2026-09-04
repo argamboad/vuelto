@@ -64,7 +64,10 @@ public record ConfirmVoucherRequest(
     [property: JsonPropertyName("original_amount")] decimal? OriginalAmount = null,
     [property: JsonPropertyName("currency")] string? Currency = null,
     [property: JsonPropertyName("transaction_date")] DateOnly? TransactionDate = null,
-    [property: JsonPropertyName("remember_merchant")] bool RememberMerchant = false);
+    [property: JsonPropertyName("remember_merchant")] bool RememberMerchant = false,
+    // LEDGER-3 on the queue: same rules as manual entry — only means something on an unplanned essential, needs 0 < p ≤ 100.
+    [property: JsonPropertyName("refund_expected")] bool RefundExpected = false,
+    [property: JsonPropertyName("refund_percentage")] decimal? RefundPercentage = null);
 
 public record ConfirmVoucherResponse(
     [property: JsonPropertyName("transaction_id")] Guid TransactionId,

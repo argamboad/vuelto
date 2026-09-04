@@ -61,6 +61,8 @@ public sealed class PendingVoucherHandler(
             CategoryId: categoryId,
             TransactionType: cls,
             ExchangeRate: null, // resolve + freeze the live rate, like manual entry (ADR-V006)
+            RefundExpected: r.RefundExpected, // the ledger validates the percentage and spawns the refund (LEDGER-3)
+            RefundPercentage: r.RefundPercentage,
             Source: TransactionSources.Email);
 
         // One boundary: create + guarded flip commit or roll back together (donor US-033 AC1).

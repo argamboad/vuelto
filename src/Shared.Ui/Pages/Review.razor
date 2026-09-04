@@ -77,6 +77,25 @@
                                 <option value="unplanned_essential">@Localizer["Tx_Unplanned"]</option>
                             </select>
                         </div>
+                        @if (v.Form.TransactionClass == "unplanned_essential")
+                        {
+                            @* Same as the manual form: an unplanned essential can carry an expected refund (LEDGER-3). *@
+                            <div class="col-12 col-md-4">
+                                <div class="form-check form-switch mt-md-4">
+                                    <input class="form-check-input" type="checkbox" id="review-refund-@v.Id" data-testid="review-refund-expected" @bind="v.Form.RefundExpected" />
+                                    <label class="form-check-label small" for="review-refund-@v.Id">@Localizer["Tx_RefundExpected"]</label>
+                                </div>
+                                @if (v.Form.RefundExpected)
+                                {
+                                    <input type="number" step="0.01" min="0" max="100" class="form-control form-control-sm mt-1" data-testid="review-refund-pct"
+                                           placeholder="@Localizer["Tx_RefundPercent"]" aria-label="@Localizer["Tx_RefundPercent"]" @bind="v.Form.RefundPercentage" />
+                                    @if (RefundPreview(v) is { } preview)
+                                    {
+                                        <div class="form-text" data-testid="review-refund-preview">@Localizer["Tx_RefundPreview", preview]</div>
+                                    }
+                                }
+                            </div>
+                        }
                         @if (v.Missing("Merchant"))
                         {
                             <div class="col-12 col-md-4">
@@ -171,6 +190,8 @@
                 original_amount = v.Missing("Amount") || v.Missing("Currency") ? v.Form.Amount : null,
                 currency = v.Missing("Amount") || v.Missing("Currency") ? v.Form.Currency : null,
                 transaction_date = v.Missing("Date") ? v.Form.Date : null,
+                refund_expected = v.Form.TransactionClass == "unplanned_essential" && v.Form.RefundExpected,
+                refund_percentage = v.Form.TransactionClass == "unplanned_essential" && v.Form.RefundExpected ? v.Form.RefundPercentage : null,
             };
             var res = await Http.PostAsJsonAsync($"/api/pending-vouchers/{v.Id}/confirm", body);
             if (res.StatusCode == HttpStatusCode.Conflict) { Fail(Localizer["Review_NotPending"]); await ReloadAsync(); return; }
@@ -212,6 +233,16 @@
         ? (v.Currency == "USD" ? "$" : "₡") + a.ToString("N2", CultureInfo.CurrentCulture)
         : "—";
 
+    /// <summary>"Expected back: …" from the amount the confirm will send — the voucher's own, or the typed one where the parser left a blank.</summary>
+    private static string? RefundPreview(VoucherDto v)
+    {
+        var editable = v.Missing("Amount") || v.Missing("Currency");
+        var amount = editable ? v.Form.Amount : v.Amount;
+        var currency = editable ? v.Form.Currency : v.Currency;
+        if (amount is not > 0 || v.Form.RefundPercentage is not > 0 || string.IsNullOrEmpty(currency)) return null;
+        return $"{(amount.Value * v.Form.RefundPercentage.Value / 100m).ToString("N2", CultureInfo.CurrentCulture)} {currency}";
+    }
+
     private void Ok(string message) { _notice = message; _noticeOk = true; }
     private void Fail(string message) { _notice = message; _noticeOk = false; }
 
@@ -220,6 +251,8 @@
         public string? CategoryId { get; set; }
         public string TransactionClass { get; set; } = "budgeted";
         public bool RememberMerchant { get; set; }
+        public bool RefundExpected { get; set; }
+        public decimal? RefundPercentage { get; set; }
         public string? Payee { get; set; }
         public decimal? Amount { get; set; }
         public string Currency { get; set; } = "CRC";

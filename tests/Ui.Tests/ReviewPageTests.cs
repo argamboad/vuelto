@@ -60,6 +60,55 @@ public class ReviewPageTests : ComponentTestBase
     }
 
     [Fact]
+    public async Task Confirm_AsUnplanned_OffersTheRefund_PreviewsIt_AndSendsItAlong()
+    {
+        await SignInAsync();
+        StubQueue();
+        Http.On(HttpMethod.Post, $"/api/pending-vouchers/{V1}/confirm", $$"""{"transaction_id":"{{V1}}","month_id":"{{V1}}","amount_crc":7620,"amount_usd":15,"remembered":false}""");
+
+        var cut = Render<Review>();
+        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("[data-testid='review-voucher']").Count));
+
+        // Suggested as extraordinary: no refund controls. Switch to Unplanned: the toggle appears, then the percentage + preview.
+        Assert.Null(Card(cut, 0).QuerySelector("[data-testid='review-refund-expected']"));
+        Card(cut, 0).QuerySelector("[data-testid='review-class']")!.Change("unplanned_essential");
+        Assert.Null(Card(cut, 0).QuerySelector("[data-testid='review-refund-pct']"));
+        Card(cut, 0).QuerySelector("[data-testid='review-refund-expected']")!.Change(true);
+        Card(cut, 0).QuerySelector("[data-testid='review-refund-pct']")!.Change("30");
+        Assert.Contains("Tx_RefundPreview[2,286.00 CRC]", Card(cut, 0).QuerySelector("[data-testid='review-refund-preview']")!.TextContent); // 30 % of the voucher's ₡7,620
+
+        Card(cut, 0).QuerySelector("[data-testid='review-confirm']")!.Click();
+
+        cut.WaitForAssertion(() => Assert.Contains("Review_Confirmed", cut.Find("[data-testid='review-notice']").TextContent));
+        var body = await Assert.Single(Http.Requests, r => r.Method == HttpMethod.Post && r.RequestUri!.AbsolutePath.StartsWith("/api/pending-vouchers")).Content!.ReadAsStringAsync();
+        Assert.Contains("\"refund_expected\":true", body);
+        Assert.Contains("\"refund_percentage\":30", body);
+    }
+
+    [Fact]
+    public async Task Confirm_OnAnotherClass_SendsNoRefund_EvenIfItWasToggledBefore()
+    {
+        await SignInAsync();
+        StubQueue();
+        Http.On(HttpMethod.Post, $"/api/pending-vouchers/{V1}/confirm", $$"""{"transaction_id":"{{V1}}","month_id":"{{V1}}","amount_crc":7620,"amount_usd":15,"remembered":false}""");
+
+        var cut = Render<Review>();
+        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("[data-testid='review-voucher']").Count));
+        Card(cut, 0).QuerySelector("[data-testid='review-class']")!.Change("unplanned_essential");
+        Card(cut, 0).QuerySelector("[data-testid='review-refund-expected']")!.Change(true);
+        Card(cut, 0).QuerySelector("[data-testid='review-refund-pct']")!.Change("30");
+        Card(cut, 0).QuerySelector("[data-testid='review-class']")!.Change("budgeted"); // changed their mind: the controls hide
+        Assert.Null(Card(cut, 0).QuerySelector("[data-testid='review-refund-expected']"));
+
+        Card(cut, 0).QuerySelector("[data-testid='review-confirm']")!.Click();
+
+        cut.WaitForAssertion(() => Assert.Contains("Review_Confirmed", cut.Find("[data-testid='review-notice']").TextContent));
+        var body = await Assert.Single(Http.Requests, r => r.Method == HttpMethod.Post && r.RequestUri!.AbsolutePath.StartsWith("/api/pending-vouchers")).Content!.ReadAsStringAsync();
+        Assert.Contains("\"refund_expected\":false", body);
+        Assert.Contains("\"refund_percentage\":null", body);
+    }
+
+    [Fact]
     public async Task Renders_Drafts_WithTheSuggestionPrefilled_AndOpensOnlyTheBlanks()
     {
         await SignInAsync();

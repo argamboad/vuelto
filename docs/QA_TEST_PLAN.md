@@ -1807,6 +1807,7 @@ on, and **Months** shows no new transaction yet.
 ```gherkin
 Given a pending draft in the Review queue (header badge shows 1, dashboard banner says 1 waiting)
 When I pick a category (or create one right there with "+ New" — every card on the queue then lists it) and class, tick "Remember this merchant" and Confirm
+And when the class is Unplanned, a "Refund expected" switch appears with a percentage and an "Expected back: …" preview; confirming with it books the transaction AND its pending refund in that month
 Then "Confirmed and remembered", the draft leaves the queue, the badge disappears, and the month lists a transaction with source email and the voucher's amount, bank and date
 And Settings → Manage suggestions now has a rule for that merchant
 When I confirm the same draft again through the API
@@ -1824,7 +1825,11 @@ type, bank; category prefilled only when a rule matches; parsed fields read-only
 "Could not read: …" and opens exactly those fields). Pick a category — or **+ New** beside the picker, type
 a name, **Create** → **Expected:** selected on this card and offered on every other card — tick **Remember this merchant**,
 **Confirm** → **Expected:** the green notice, the card gone, the badge gone; **Months → that month** lists
-the transaction (source `email`); **Settings → Manage suggestions** has the new rule. Postman
+the transaction (source `email`); **Settings → Manage suggestions** has the new rule. On another draft pick
+class **Unplanned** → **Expected:** a **Refund expected** switch; turn it on, type `30` → **Expected:**
+"Expected back: <30 % of the amount>"; **Confirm** → **Expected:** the month's **Expected refunds** table has
+the pending refund (Postman **Confirm pending voucher** with `refund_percentage: 150` → 400 `invalid_request`,
+draft still pending). Postman
 (**Confirm pending voucher** with the same `{{pendingVoucherId}}`) → **Expected:** 409 `not_pending`;
 **Months → transactions** still shows one row for it. Stage a second draft → **Review → Discard** →
 **Expected:** "Draft discarded.", queue empty; Postman **Discard pending voucher** → 409 `not_pending`;
@@ -3330,3 +3335,12 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   is offered on all of them. No API, schema or Postman change. QA-LED-01 and QA-EMAIL-06 gain the inline
   step; `CategoryPickerTests` (4), `NewTransaction_CanCreateACategoryInline_AndSavesWithIt`,
   `Confirm_CanCreateTheCategoryInline_AndEveryCardSeesIt` pin it. Suite count unchanged (180).
+- **Updated 2026-09-04** — **Expected refund on confirm (owner request).** Confirming a queued voucher as an
+  unplanned essential can now carry the refund the manual form offers: `POST /api/pending-vouchers/{id}/confirm`
+  takes `refund_expected` + `refund_percentage`, threaded into the same ledger create (its rules: 0 < p ≤ 100 or
+  400 `invalid_request` with nothing written; ignored on any other class), so the pending refund lands in the
+  voucher's month at once instead of after a confirm-then-edit detour. The review card shows the switch, the
+  percentage and the "Expected back" preview only while the class is Unplanned. QA-EMAIL-06 gains the step;
+  `Confirm_AsUnplannedWithAPercentage_SpawnsThePendingRefund_WithTheManualRules`,
+  `Confirm_RefundFlagOnAnotherClass_IsIgnored_NoRefund` and the two `Confirm_*Refund*` UI cases pin it. Suite
+  count unchanged (180).
