@@ -27,10 +27,8 @@
         <div class="collapse navbar-collapse @(_menuOpen ? "show" : "")">
             <ul class="navbar-nav me-auto ms-lg-4 mt-2 mt-lg-0">
                 <li class="nav-item">
-                    <NavLink class="nav-link" href="/" Match="NavLinkMatch.All">@Localizer["Nav_Home"]</NavLink>
-                </li>
-                <li class="nav-item">
-                    <NavLink class="nav-link" href="/dashboard" data-testid="nav-dashboard">@Localizer["Nav_Dashboard"]</NavLink>
+                    @* The dashboard is the root (no separate Home); /dashboard deep links still resolve to it. *@
+                    <NavLink class="nav-link" href="/" Match="NavLinkMatch.All" data-testid="nav-dashboard">@Localizer["Nav_Dashboard"]</NavLink>
                 </li>
                 <li class="nav-item">
                     <NavLink class="nav-link" href="/months" data-testid="nav-months">@Localizer["Nav_Months"]</NavLink>

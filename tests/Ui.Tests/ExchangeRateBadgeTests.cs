@@ -60,12 +60,15 @@ public class ExchangeRateBadgeTests : ComponentTestBase
     }
 
     [Fact]
-    public async Task Home_MountsTheBadge_ForASignedInMember()
+    public async Task Dashboard_MountsTheBadge_ForASignedInMember()
     {
+        // The badge moved with the welcome card's retirement: it sits on the dashboard (header and empty state).
         await SignInAsync();
         Http.On(HttpMethod.Get, "/api/exchange-rate", Live);
+        Http.On(HttpMethod.Get, "/api/months", "[]");
+        Http.On(HttpMethod.Get, "/api/pending-vouchers/count", """{"count":0}""");
 
-        var cut = Render<Home>();
+        var cut = Render<Dashboard>();
 
         cut.WaitForAssertion(() => Assert.Contains("510.45", cut.Find("[data-testid='fx-rate']").TextContent));
     }

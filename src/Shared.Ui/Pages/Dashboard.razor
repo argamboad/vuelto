@@ -31,7 +31,8 @@
     {
         <div class="text-center py-5" data-testid="dash-empty">
             <h1 class="h4 fw-bold mb-2">@Localizer["Dash_EmptyTitle"]</h1>
-            <p class="text-muted mb-4">@Localizer["Dash_EmptySubtitle"]</p>
+            <p class="text-muted mb-3">@Localizer["Dash_EmptySubtitle"]</p>
+            <div class="mb-4"><ExchangeRateBadge /></div>
             <a class="btn btn-primary" href="/transactions/new" data-testid="dash-new-tx">@Localizer["Months_NewTransaction"]</a>
         </div>
     }
@@ -58,6 +59,7 @@
                         <option value="@m.Id" selected="@(m.Id == _dash.Month.Id)">@MonthLabel(m.Year, m.MonthNumber)</option>
                     }
                 </select>
+                <div class="mt-2"><ExchangeRateBadge /></div>
             </div>
             <div class="d-flex gap-2">
                 <a class="btn btn-outline-primary" href="/months/@_dash.Month.Id" data-testid="dash-month-link">@Localizer["Dash_MonthDetails"]</a>

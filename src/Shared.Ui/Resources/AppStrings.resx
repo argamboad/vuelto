@@ -194,8 +194,6 @@
   <data name="Billing_ErrCheckout" xml:space="preserve"><value>Couldn't start checkout.</value></data>
   <data name="Billing_ErrPortal" xml:space="preserve"><value>Couldn't open the billing portal.</value></data>
   <data name="Nav_SignOut" xml:space="preserve"><value>Sign out</value></data>
-  <data name="Home_WelcomeBack" xml:space="preserve"><value>Welcome back, {0}!</value></data>
-  <data name="Home_SignedInTo" xml:space="preserve"><value>Signed in to the {0} household.</value></data>
   <data name="Home_HeroSubtitle" xml:space="preserve"><value>Sign in to get started with your household.</value></data>
   <data name="Home_SignInCta" xml:space="preserve"><value>Sign in</value></data>
   <data name="AuthCallback_Processing" xml:space="preserve"><value>Processing sign-in…</value></data>

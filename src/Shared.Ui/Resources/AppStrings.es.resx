@@ -194,8 +194,6 @@
   <data name="Billing_ErrCheckout" xml:space="preserve"><value>No se pudo iniciar el pago.</value></data>
   <data name="Billing_ErrPortal" xml:space="preserve"><value>No se pudo abrir el portal de facturación.</value></data>
   <data name="Nav_SignOut" xml:space="preserve"><value>Cerrar sesión</value></data>
-  <data name="Home_WelcomeBack" xml:space="preserve"><value>¡Bienvenido de nuevo, {0}!</value></data>
-  <data name="Home_SignedInTo" xml:space="preserve"><value>Has iniciado sesión en el hogar {0}.</value></data>
   <data name="Home_HeroSubtitle" xml:space="preserve"><value>Inicia sesión para empezar con tu hogar.</value></data>
   <data name="Home_SignInCta" xml:space="preserve"><value>Iniciar sesión</value></data>
   <data name="AuthCallback_Processing" xml:space="preserve"><value>Procesando el inicio de sesión…</value></data>
