@@ -27,13 +27,29 @@ public sealed class TransactionHandler(
     IExchangeRateResolver rates,
     ICurrentTenant tenant,
     TimeProvider clock,
-    ILogger<TransactionHandler> logger)
+    ILogger<TransactionHandler> logger) : ITransactionService
 {
     private const int MaxAttempts = 2; // one retry: a lost month-creation race finds the winner's month next time
 
     private sealed record Valid(string Payee, Guid BankId, string PaymentMethod, decimal Amount, string Currency, DateOnly Date, Guid CategoryId, string Type, Guid? EnvelopeId, decimal? RefundPercentage);
 
-    public async Task<(TransactionResponse? Transaction, ErrorResponse? Error)> CreateAsync(CreateTransactionRequest r, CancellationToken cancellationToken)
+    /// <summary>The manual create (LEDGER-2): <c>source = manual</c>.</summary>
+    public Task<(TransactionResponse? Transaction, ErrorResponse? Error)> CreateAsync(CreateTransactionRequest r, CancellationToken cancellationToken) =>
+        CreateAsync(new CreateTransactionCommand(r.Payee, r.BankId, r.PaymentMethod, r.OriginalAmount, r.Currency, r.TransactionDate, r.CategoryId, r.TransactionType, r.ExchangeRate, r.EnvelopeId, r.RefundExpected, r.RefundPercentage), cancellationToken);
+
+    /// <summary>
+    /// The Core contract (ADR-V010): the same create for another slice's caller — the review queue books a
+    /// confirmed voucher through here with <c>source = email</c>, inside its own unit-of-work scope.
+    /// </summary>
+    async Task<(TransactionCreated? Transaction, TransactionError? Error)> ITransactionService.CreateAsync(CreateTransactionCommand command, CancellationToken cancellationToken)
+    {
+        var (tx, error) = await CreateAsync(command, cancellationToken);
+        return tx is null
+            ? (null, new TransactionError(error!.Error, error.Message))
+            : (new TransactionCreated(tx.Id, tx.MonthId, tx.AmountCrc, tx.AmountUsd, tx.ExchangeRateUsed, tx.Source), null);
+    }
+
+    private async Task<(TransactionResponse? Transaction, ErrorResponse? Error)> CreateAsync(CreateTransactionCommand r, CancellationToken cancellationToken)
     {
         if (tenant.TenantId is not { } tenantId) return (null, NoTenant());
         var (v, invalid) = await ValidateAsync(r.Payee, r.BankId, r.PaymentMethod, r.OriginalAmount, r.Currency, r.TransactionDate, r.CategoryId, r.TransactionType, r.EnvelopeId, r.RefundExpected, r.RefundPercentage, cancellationToken);
@@ -57,7 +73,7 @@ public sealed class TransactionHandler(
                 TenantId = tenantId, MonthId = month.Id, BankId = v.BankId, CategoryId = v.CategoryId, EnvelopeId = v.EnvelopeId,
                 Payee = v.Payee, PaymentMethod = v.PaymentMethod, OriginalAmount = CurrencyMath.Round2(v.Amount), Currency = v.Currency,
                 TransactionDate = v.Date, AmountCrc = amountCrc, AmountUsd = amountUsd, ExchangeRateUsed = rate,
-                TransactionType = v.Type, Source = TransactionSources.Manual, CreatedAt = now, UpdatedAt = now,
+                TransactionType = v.Type, Source = r.Source, CreatedAt = now, UpdatedAt = now,
             };
             await transactions.AddAsync(tx, cancellationToken);
             var (refund, _) = await SyncRefundAsync(tx, v.RefundPercentage, now, cancellationToken); // a new row has nothing to remove

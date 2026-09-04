@@ -110,7 +110,7 @@
                                     <td class="text-end">@t.AmountCrc.ToString("N2", CultureInfo.CurrentCulture)</td>
                                     <td class="text-end">@t.AmountUsd.ToString("N2", CultureInfo.CurrentCulture)</td>
                                     <td class="text-end text-nowrap">
-                                        @if (t.Source == "manual")
+                                        @if (t.Source != "refund_realization")
                                         {
                                             <a class="btn btn-outline-primary btn-sm" href="/transactions/@t.Id/edit" data-testid="month-tx-edit">@Localizer["Catalog_Edit"]</a>
                                             @if (_confirmDelete == t.Id)

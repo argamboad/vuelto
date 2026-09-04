@@ -197,7 +197,7 @@
                 _categoryId = tx.CategoryId.ToString(); _bankId = tx.BankId.ToString(); _method = tx.PaymentMethod; _type = tx.TransactionType;
                 _envelopeId = tx.EnvelopeId?.ToString() ?? ""; _rate = tx.ExchangeRateUsed;
                 _refundExpected = tx.RefundExpected; _refundPercentage = tx.RefundPercentage;
-                _derived = tx.Source != "manual";
+                _derived = tx.Source == "refund_realization"; // only refund-derived inflows are read-only; email-booked rows are the user's own
             }
             else
             {

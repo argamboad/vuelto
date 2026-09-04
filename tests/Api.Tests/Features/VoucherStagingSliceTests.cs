@@ -89,7 +89,7 @@ public class VoucherStagingSliceTests(PostgresFixture fixture) : PostgresTestBas
     private static VoucherStagingService Service(Ctx c, IEmailReader reader, IVoucherParser parser) => new(
         [reader], parser, new TenantRepository(c.Db), c.Current, new EfRepository<User>(c.Db), new EfRepository<Bank>(c.Db),
         new EfRepository<PendingVoucher>(c.Db), new EfRepository<IngestedVoucher>(c.Db), new EfRepository<EmailConnection>(c.Db),
-        new FakeTimeProvider(Now), NullLogger<VoucherStagingService>.Instance);
+        new EfRepository<MerchantCategoryMapping>(c.Db), new FakeTimeProvider(Now), NullLogger<VoucherStagingService>.Instance);
 
     private static async Task<List<PendingVoucher>> DraftsAsync(Ctx c)
     {
@@ -262,6 +262,36 @@ public class VoucherStagingSliceTests(PostgresFixture fixture) : PostgresTestBas
     }
 
     // ---- the poll job ----
+
+    [Fact]
+    public async Task Staging_CopiesTheSuggestion_FromTheLongestMatchingRule_DefaultingTheClass()
+    {
+        // EMAIL-5: the rule is matched at staging and COPIED onto the draft — never applied (D4).
+        var c = await SeedAsync();
+        var conn = await ConnectionAsync(c);
+        Guid dining, groceries;
+        using (c.Current.EnterTenant(c.Tenant))
+        {
+            var dine = new Category { TenantId = c.Tenant, Name = "Dining", CreatedAt = Now, UpdatedAt = Now };
+            var groc = new Category { TenantId = c.Tenant, Name = "Groceries", CreatedAt = Now, UpdatedAt = Now };
+            c.Db.AddRange(dine, groc);
+            c.Db.Add(new MerchantCategoryMapping { TenantId = c.Tenant, MerchantPattern = "TACO", PatternKey = "taco", CategoryId = groc.Id, CreatedAt = Now, UpdatedAt = Now });
+            c.Db.Add(new MerchantCategoryMapping { TenantId = c.Tenant, MerchantPattern = "Taco Bell", PatternKey = "taco bell", CategoryId = dine.Id, SuggestedClass = "extraordinary", CreatedAt = Now, UpdatedAt = Now });
+            await c.Db.SaveChangesAsync();
+            c.Db.ChangeTracker.Clear();
+            (dining, groceries) = (dine.Id, groc.Id);
+        }
+        var other = Bac(auth: "111") with { Merchant = "SUPER TACO SAN JOSE" };
+        var unmatched = Bac(auth: "222") with { Merchant = "WALMART" };
+
+        var result = await Service(c, new FakeReader([Msg("m1"), Msg("m2"), Msg("m3")]), new FakeParser(m => m.MessageId switch { "m1" => Bac(), "m2" => other, _ => unmatched })).StageConnectionAsync(conn);
+
+        Assert.Equal(3, result.Staged);
+        var drafts = (await DraftsAsync(c)).ToDictionary(d => d.ProviderMessageId);
+        Assert.Equal((dining, "extraordinary"), (drafts["m1"].SuggestedCategoryId, drafts["m1"].SuggestedClass));   // "Taco Bell" beats "TACO" (longest wins)
+        Assert.Equal((groceries, "budgeted"), (drafts["m2"].SuggestedCategoryId, drafts["m2"].SuggestedClass));    // a rule without a class suggests the default
+        Assert.Equal((null, null), (drafts["m3"].SuggestedCategoryId, drafts["m3"].SuggestedClass));               // unmapped → blank, still staged
+    }
 
     [Fact]
     public async Task PollJob_StagesOnlyDueConnections_SurvivesAThrowingOne_AndPropagatesCancellation()

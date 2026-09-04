@@ -231,7 +231,129 @@ Scenario: Sync now
   When the inbox needs reconnecting → "Reconnect this inbox to sync it." (409)
 ```
 
-### EMAIL-5 — Merchant → category suggestions 🔲
-### EMAIL-6 — Review queue & confirm 🔲
+### EMAIL-5 — Merchant → category suggestions ✅
 
-*(EMAIL-5/6 are authored as they land — P10b.)*
+**As a** household member
+**I want** rules that say "vouchers from this merchant belong to this category (and class)"
+**So that** a staged voucher arrives in the review queue with the right category already picked — and I
+still confirm it
+
+**Context / notes:** port of donor US-029 (D4) + WU-5 B12. Household-scoped `MerchantCategoryMapping`
+(`ITenantScoped`, RLS in migration `AddMerchantCategoryMappings`): the pattern as typed plus a stored
+lower-cased `PatternKey` with a **unique `(TenantId, PatternKey)` index** — one rule per merchant text per
+household regardless of casing; the handler pre-checks (`409 mapping_exists`) and the index catches the
+concurrent race (same 409). **Matching is `MerchantMatcher` in Core** — case-insensitive "contains", the
+**longest** (most specific) pattern wins, ties by text — shared by staging and the slice so there is one
+definition. A rule may carry a `suggested_class` from `SuggestibleClasses` (the three spending classes) or
+none (→ `budgeted` at staging). Validation: non-blank pattern ≤ 200, a known class or none, a category
+that exists and is active in this household. **Staging (EMAIL-4) loads the household's rules once per
+connection and copies the match onto the draft** (`SuggestedCategoryId` + `SuggestedClass`) — never
+applied; unmapped merchants stay blank and still stage. Plain delete (the suggestion was copied, not
+FK'd). `MerchantMappingDataContributor` (`merchant_mappings`) wipes on dissolve and exports. Routes
+`/api/merchant-mappings` (list with category names — an inactive category still names its rule; create
+201; update; delete 204; uniform 404). UI: **Settings → Manage suggestions** (`/merchant-mappings`):
+add / edit / two-step delete. **Learn-on-confirm** (EMAIL-6) is this slice's create through
+`RememberAsync` — an existing rule is never overwritten.
+
+```gherkin
+Scenario: The longest matching rule suggests, and only suggests
+  Given rules "TACO" → Groceries (no class) and "Taco Bell" → Dining (extraordinary)
+  When a voucher from "TACO BELL PLAZA REAL C" is staged → suggested Dining / extraordinary
+  When a voucher from "SUPER TACO SAN JOSE" is staged → suggested Groceries / budgeted (the default class)
+  When a voucher from "WALMART" is staged → no suggestion, still staged
+  And no draft is ever confirmed by a rule
+
+Scenario: One rule per merchant text per household
+  Given a rule "AutoMercado"
+  When I create "AUTOMERCADO " → 409 mapping_exists; when two households race the same text → exactly one rule, the loser gets 409
+  When I rename another rule to "AUTOMERCADO" → 409; renaming the same rule to "AUTO MERCADO" → allowed
+  And another household never sees the rule (uniform 404), nor can it point a rule at my category (400)
+
+Scenario: Validation
+  Then a blank pattern, an unknown class ("inflow"), a missing/inactive/foreign category → 400 invalid_request; " Extraordinary " normalizes to extraordinary
+
+Scenario: Manage suggestions page
+  When I add "AUTOMERCADO" → Groceries → "Rule saved." and it lists with the category name
+  When I add it again → "A rule for this merchant already exists."
+  When I edit its class and delete it (two-step) → the list follows
+```
+
+**Out of scope:** learning without an explicit opt-in, ML/fuzzy matching, rules shared across households.
+
+**Definition of done:** tests first; Core.Tests (`MerchantMatcherTests`); Api.Tests
+(`MerchantMappingSliceTests` on Postgres incl. the race, the suggestion case in `VoucherStagingSliceTests`,
+`ReviewEndpointTests` over HTTP); Ui.Tests (`MerchantMappingsPageTests`); RLS gate green; arch `handled`
+entry; Postman folder 22; QA-EMAIL-05; merged.
+
+### EMAIL-6 — Review queue & confirm ✅
+
+**As a** household member
+**I want** to see the vouchers staged from my inboxes, pick the category and class, and confirm or discard
+each one
+**So that** a bank voucher becomes a real transaction only when I say so — through the same rules as a
+manual entry
+
+**Context / notes:** port of donor US-030 / US-033 / US-038 (as reversed by the owner: only category and
+class are edited in the queue) + WU-3 A6. **Confirm is the only draft → transaction path** (ADR-V010).
+Feature slices may not reference each other (R7), so the Ledger's `TransactionHandler` implements a new
+**Core contract `ITransactionService`** (`CreateTransactionCommand` carries the provenance `Source`);
+`Program.cs` binds it, and `PendingVoucherHandler` depends on the contract. Confirm: the draft must be
+`pending` (else `409 not_pending`); `category_id` + `transaction_class` (one of the three spending classes)
+are the user's decision; the command is the voucher's own data (payee = merchant, bank, amount, currency,
+date) with optional overrides — the UI opens a field **only where the parser left a blank**
+(`missing_fields`) — booked with `source = email` and no manual rate (the live rate resolves and freezes,
+like manual entry). **One boundary**: `IUnitOfWork.BeginTransactionAsync` → create → conditional
+`ExecuteUpdate pending → confirmed` (+ `ConfirmedTransactionId`) → commit. A ledger validation or
+`exchange_rate_unavailable` failure writes nothing and the draft stays pending; a second concurrent confirm
+loses the flip (0 rows), returns `not_pending`, and its scope disposes without commit — **the transaction
+and any month it created roll back**, so exactly one transaction ever exists. **Discard** is the same
+guarded flip to `discarded` (0 rows → 409 if the draft exists, else uniform 404), so it can never revert a
+draft a concurrent confirm just committed. The dedup tombstone is untouched by both — a re-fetched email
+never re-stages. `remember_merchant` runs **after** the commit through EMAIL-5's `RememberAsync`
+(non-critical, never overwrites). A booked `email` transaction is the user's own data: it is **editable and
+deletable** like a manual one (`TransactionSources.IsEditable`); only refund-derived inflows stay read-only
+— the walkthrough caught the month list labelling an email row "Derived from a refund". Routes `/api/pending-vouchers` (list pending newest mail first, `/count`,
+`/{id}/confirm`, `/{id}/discard`). UI: **Review** page (`/review`, nav item with a **count badge** that
+re-counts on every navigation), suggestion-prefilled category/class, parsed fields read-only, the blanks
+editable, remember-merchant opt-in, confirm/discard, 409 → "already handled — reloading"; **dashboard
+banner** "N voucher(s) waiting for review → Review now" (shown even before the first month exists).
+
+```gherkin
+Scenario: Confirm books the transaction through the ordinary create
+  Given a pending BAC draft TACO BELL ₡7,620 on 2026-06-13 resolved to BAC Credomatic, and a live rate of 500
+  When I confirm it as Dining / extraordinary
+  Then a transaction exists with source email, that payee/bank/amount/currency/date, ₡7,620 / $15.24, rate 500 frozen, credit_card
+  And June 2026 was auto-created for it; the draft is confirmed with the transaction id; the tombstone remains; the count is 0
+
+Scenario: Nothing partial, ever
+  When the category or class is missing/invalid, or the amount is blank (0), or no rate resolves
+  Then 400 (invalid_request / exchange_rate_unavailable), no transaction, no month, the draft stays pending
+
+Scenario: Exactly one transaction under a concurrent confirm
+  When two requests confirm the same draft at once
+  Then one succeeds; the other gets 409 not_pending and its transaction (and month) rolled back; the draft names the winner
+
+Scenario: Discard is a guarded flip
+  When I discard a pending draft → 204, status discarded, tombstone stays; confirming it → 409
+  When I discard a draft that was just confirmed → 409 not_pending and it stays confirmed
+  When the id is unknown or another household's → 404
+
+Scenario: The blanks are editable, the rest is not
+  Given a BN draft whose merchant, amount and currency could not be read
+  Then the queue shows "Could not read: Merchant, Amount, Currency" and opens payee, amount and currency; the date stays read-only
+  When I fill them and confirm → the overrides are sent; a parsed draft sends none
+
+Scenario: Learn on confirm
+  When I confirm with "Remember this merchant" → a rule merchant → category (+ class) is created; a second confirm of the same merchant never overwrites it
+
+Scenario: Badge and banner
+  Given 3 pending drafts → the header's Review link shows 3 and the dashboard banner says 3 are waiting (even with no months); at 0 or when the count can't be read, both are hidden
+```
+
+**Out of scope:** editing parsed fields the parser did read (owner decision — fix the mapping or discard and
+enter manually), bulk confirm, an audit of who confirmed what (Slice-8 candidate).
+
+**Definition of done:** tests first; Api.Tests (`PendingVoucherSliceTests` on Postgres incl. the
+two-context concurrency proof and the nothing-partial cases; `ReviewEndpointTests` over HTTP with a seeded
+draft and the rate resolved through the chain's last tier); Ui.Tests (`ReviewPageTests`, `ReviewBadgeTests`);
+`ITransactionService` bound in `Program.cs` (R7/R8 gates green); Postman folder 22; QA-EMAIL-06; merged.

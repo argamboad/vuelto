@@ -4792,6 +4792,319 @@
           ]
         }
       ]
+    },
+    {
+      "name": "22 · Review queue & merchant suggestions",
+      "description": "EMAIL-5/6 (app slice P10b, ADR-V010). HOUSEHOLD-scoped. Merchant → category rules only ever SUGGEST on a staged draft (case-insensitive contains, longest pattern wins; one rule per merchant text per household). The review queue is the ONLY draft → transaction path: confirm books the transaction through the same create as manual entry (month auto-created, live rate frozen, source = email) and flips the draft with a conditional update in one transaction — a concurrent second confirm gets 409 not_pending and its transaction rolls back; discard is the same guarded flip. Foreign ids → uniform 404. Needs a category id in {{categoryId}} (run 12 · Categories first).",
+      "item": [
+        {
+          "name": "List merchant rules",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/merchant-mappings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "merchant-mappings"
+              ]
+            },
+            "description": "200 [ { id, merchant_pattern, category_id, category_name, suggested_class } ] ordered by pattern. Captures the first id into {{merchantMappingId}}."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "const items = pm.response.json();",
+                  "if (items.length) pm.environment.set('merchantMappingId', items[0].id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create merchant rule",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/merchant-mappings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "merchant-mappings"
+              ]
+            },
+            "description": "201 with the rule (pattern trimmed; suggested_class budgeted|extraordinary|unplanned_essential or null). 400 invalid_request (blank pattern, unknown class, missing/inactive/foreign category); 409 mapping_exists when the same merchant text exists in any casing. Captures {{merchantMappingId}}.",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"merchant_pattern\": \"AUTOMERCADO\",\n  \"category_id\": \"{{categoryId}}\",\n  \"suggested_class\": \"budgeted\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"201 or 409 on rerun\", () => pm.expect(pm.response.code).to.be.oneOf([201, 409]));",
+                  "if (pm.response.code === 201) pm.environment.set('merchantMappingId', pm.response.json().id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create merchant rule (duplicate, 409)",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/merchant-mappings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "merchant-mappings"
+              ]
+            },
+            "description": "409 mapping_exists — 'automercado' clashes with 'AUTOMERCADO' (case-insensitive uniqueness per household).",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"merchant_pattern\": \"automercado\",\n  \"category_id\": \"{{categoryId}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"409\", () => pm.response.to.have.status(409));",
+                  "pm.test(\"error code\", () => pm.expect(pm.response.json().error).to.eql('mapping_exists'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update merchant rule",
+          "request": {
+            "method": "PUT",
+            "url": {
+              "raw": "{{baseUrl}}/api/merchant-mappings/{{merchantMappingId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "merchant-mappings",
+                "{{merchantMappingId}}"
+              ]
+            },
+            "description": "200 with the rule; 400 invalid_request; 409 mapping_exists when the new text clashes with ANOTHER rule; 404 unknown/foreign.",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"merchant_pattern\": \"Auto Mercado\",\n  \"category_id\": \"{{categoryId}}\",\n  \"suggested_class\": \"extraordinary\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200 or 404 when none yet\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete merchant rule",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/merchant-mappings/{{merchantMappingId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "merchant-mappings",
+                "{{merchantMappingId}}"
+              ]
+            },
+            "description": "204 — plain delete (a rule is copied onto drafts at staging, never referenced afterwards). 404 unknown/foreign."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"204 or 404\", () => pm.expect(pm.response.code).to.be.oneOf([204, 404]));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "List pending vouchers",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/pending-vouchers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "pending-vouchers"
+              ]
+            },
+            "description": "200 [ { id, parsed_bank, merchant, amount, currency, date, bank_id, card_number, authorization, reference, transaction_type, missing_fields[], suggested_category_id, suggested_class, received_at } ] — pending drafts only, newest mail first. Captures the first id into {{pendingVoucherId}}."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "const items = pm.response.json();",
+                  "if (items.length) pm.environment.set('pendingVoucherId', items[0].id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Count pending vouchers",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/pending-vouchers/count",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "pending-vouchers",
+                "count"
+              ]
+            },
+            "description": "200 { count } — what the header badge and the dashboard banner show."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"count\", () => pm.expect(pm.response.json().count).to.be.a('number'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Confirm pending voucher",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/pending-vouchers/{{pendingVoucherId}}/confirm",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "pending-vouchers",
+                "{{pendingVoucherId}}",
+                "confirm"
+              ]
+            },
+            "description": "200 { transaction_id, month_id, amount_crc, amount_usd, remembered } — books the transaction (source = email) through the ordinary create and flips the draft. category_id + transaction_class (budgeted|extraordinary|unplanned_essential) are required; payee / bank_id / payment_method / original_amount / currency / transaction_date override the parsed values (the UI opens only the blanks); remember_merchant creates a merchant rule (never overwrites). 400 invalid_request / exchange_rate_unavailable (nothing written, draft stays pending); 409 not_pending (already confirmed/discarded, or lost a concurrent confirm — its transaction rolled back); 404 unknown/foreign.",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"category_id\": \"{{categoryId}}\",\n  \"transaction_class\": \"budgeted\",\n  \"remember_merchant\": true\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200, 400, 404 or 409\", () => pm.expect(pm.response.code).to.be.oneOf([200, 400, 404, 409]));",
+                  "if (pm.response.code === 200) pm.test(\"booked\", () => pm.expect(pm.response.json().transaction_id).to.be.a('string'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Discard pending voucher",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/pending-vouchers/{{pendingVoucherId}}/discard",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "pending-vouchers",
+                "{{pendingVoucherId}}",
+                "discard"
+              ]
+            },
+            "description": "204 — the draft is discarded; the dedup tombstone stays so the same email never re-stages. 409 not_pending when a concurrent confirm/discard already actioned it; 404 unknown/foreign."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"204, 404 or 409\", () => pm.expect(pm.response.code).to.be.oneOf([204, 404, 409]));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
     }
   ]
 }

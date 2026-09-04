@@ -18,8 +18,8 @@ using Vuelto.Api.Features.Ledger;
 using Vuelto.Api.Observability;
 using Vuelto.Api.Services;
 using Vuelto.Core.Abstractions;
-using Vuelto.Core.Mail;
 using Vuelto.Core.Budget;
+using Vuelto.Core.Mail;
 using Vuelto.Infrastructure;
 using Vuelto.Infrastructure.ExchangeRate;
 using Vuelto.Infrastructure.Mail;
@@ -144,6 +144,10 @@ builder.Services.AddScoped<IUserDataContributor, EmailConnectionUserDataContribu
 builder.Services.AddScoped<IVoucherStagingService, VoucherStagingService>();          // EMAIL-4 (staging with the tenant hop)
 builder.Services.AddScoped<IScheduledJob, EmailPollJob>();                              // EMAIL-4 (poller on the platform scheduler)
 builder.Services.AddScoped<ITenantDataContributor, VoucherStagingDataContributor>();
+builder.Services.AddScoped<ITransactionService>(sp => sp.GetRequiredService<TransactionHandler>()); // ADR-V010: the Ledger create behind the Core contract (R7 — slices never reference each other)
+builder.Services.AddScoped<MerchantMappingHandler>();                                   // EMAIL-5 (household suggestion rules)
+builder.Services.AddScoped<ITenantDataContributor, MerchantMappingDataContributor>();
+builder.Services.AddScoped<PendingVoucherHandler>();                                    // EMAIL-6 (review queue: the only draft → transaction path)
 
 // Caches + session (LinkTokenService uses IMemoryCache; session backed by distributed cache).
 builder.Services.AddMemoryCache();
@@ -356,6 +360,8 @@ app.MapExpenses();       // EXPENSES-1 (/api/expenses/fixed, /api/expenses/varia
 app.MapDashboard();      // DASH-1 (/api/months/{id}/summary)
 app.MapReports();        // REPORTS-1/2 (/api/reports/category-analysis, /api/reports/transactions/export)
 app.MapEmail();          // EMAIL-2/3 (/api/email/connections — user-scoped; the consent callback is the one anonymous route)
+app.MapMerchantMappings(); // EMAIL-5 (/api/merchant-mappings)
+app.MapPendingVouchers();  // EMAIL-6 (/api/pending-vouchers — list, count, confirm, discard)
 // Billing is a platform controller (BillingController) — auto-mapped by MapControllers above.
 
 // PUBAPI (ADR-015): map key management + the public routes only when enabled — off ⇒ they don't exist.

@@ -572,4 +572,48 @@
   <data name="Email_SyncResult" xml:space="preserve"><value>Sincronización lista: {0} para revisar, {1} ya vistos, {2} no eran vouchers.</value></data>
   <data name="Email_SyncError" xml:space="preserve"><value>No se pudo sincronizar esta bandeja. Intenta de nuevo.</value></data>
   <data name="Email_ReconnectToSync" xml:space="preserve"><value>Reconecta esta bandeja para sincronizarla.</value></data>
+  <data name="Nav_Review" xml:space="preserve"><value>Revisar</value></data>
+  <data name="Review_Title" xml:space="preserve"><value>Cola de revisión</value></data>
+  <data name="Review_Subtitle" xml:space="preserve"><value>Los vouchers del banco que llegan a tus bandejas esperan aquí hasta que los confirmes. Nada toca el presupuesto hasta entonces.</value></data>
+  <data name="Review_Empty" xml:space="preserve"><value>Nada por revisar: todos los borradores de tus bandejas están procesados.</value></data>
+  <data name="Review_ToReview" xml:space="preserve"><value>{0} por revisar</value></data>
+  <data name="Review_UnknownMerchant" xml:space="preserve"><value>Comercio desconocido</value></data>
+  <data name="Review_Missing" xml:space="preserve"><value>No se pudo leer:</value></data>
+  <data name="Review_Suggested" xml:space="preserve"><value>Sugerido</value></data>
+  <data name="Review_SelectCategory" xml:space="preserve"><value>Elige una categoría</value></data>
+  <data name="Review_RememberMerchant" xml:space="preserve"><value>Recordar este comercio → categoría</value></data>
+  <data name="Review_Confirm" xml:space="preserve"><value>Confirmar</value></data>
+  <data name="Review_Discard" xml:space="preserve"><value>Descartar</value></data>
+  <data name="Review_Received" xml:space="preserve"><value>Recibido {0}</value></data>
+  <data name="Review_Confirmed" xml:space="preserve"><value>Confirmado: la transacción ya está en tu presupuesto.</value></data>
+  <data name="Review_ConfirmedRemembered" xml:space="preserve"><value>Confirmado y recordado: este comercio se sugerirá la próxima vez.</value></data>
+  <data name="Review_Discarded" xml:space="preserve"><value>Borrador descartado.</value></data>
+  <data name="Review_CategoryRequired" xml:space="preserve"><value>Elige una categoría primero.</value></data>
+  <data name="Review_NotPending" xml:space="preserve"><value>Este voucher ya fue procesado; recargando la cola.</value></data>
+  <data name="Review_RateUnavailable" xml:space="preserve"><value>No hay tipo de cambio disponible ahora; intenta más tarde.</value></data>
+  <data name="Review_ConfirmError" xml:space="preserve"><value>No se pudo actualizar este voucher. Intenta de nuevo.</value></data>
+  <data name="Review_LoadError" xml:space="preserve"><value>No se pudo cargar la cola de revisión.</value></data>
+  <data name="Dash_ReviewBanner" xml:space="preserve"><value>{0} voucher(s) de tus bandejas esperan revisión.</value></data>
+  <data name="Dash_ReviewLink" xml:space="preserve"><value>Revisar ahora</value></data>
+  <data name="Mapping_Title" xml:space="preserve"><value>Sugerencias por comercio</value></data>
+  <data name="Mapping_Subtitle" xml:space="preserve"><value>Reglas que prellenan la categoría (y la clase) de los vouchers de un comercio. Solo sugieren: tú siempre confirmas.</value></data>
+  <data name="Mapping_SettingsTitle" xml:space="preserve"><value>Sugerencias por comercio</value></data>
+  <data name="Mapping_SettingsHint" xml:space="preserve"><value>Enséñale a la cola de revisión a qué categoría pertenece cada comercio. Las reglas son del hogar.</value></data>
+  <data name="Mapping_SettingsLink" xml:space="preserve"><value>Administrar sugerencias</value></data>
+  <data name="Mapping_Pattern" xml:space="preserve"><value>El comercio contiene</value></data>
+  <data name="Mapping_Class" xml:space="preserve"><value>Clase sugerida</value></data>
+  <data name="Mapping_NoClass" xml:space="preserve"><value>Presupuestado (predeterminado)</value></data>
+  <data name="Mapping_Add" xml:space="preserve"><value>Agregar una regla</value></data>
+  <data name="Mapping_Edit" xml:space="preserve"><value>Editar</value></data>
+  <data name="Mapping_Save" xml:space="preserve"><value>Guardar</value></data>
+  <data name="Mapping_Delete" xml:space="preserve"><value>Eliminar</value></data>
+  <data name="Mapping_DeleteConfirm" xml:space="preserve"><value>Sí, eliminar</value></data>
+  <data name="Mapping_Hint" xml:space="preserve"><value>La coincidencia ignora mayúsculas; si varias reglas coinciden, gana la más larga.</value></data>
+  <data name="Mapping_Empty" xml:space="preserve"><value>Aún no hay reglas. Confirma un voucher con "Recordar este comercio" o agrega una aquí.</value></data>
+  <data name="Mapping_Required" xml:space="preserve"><value>Escribe el texto del comercio y elige una categoría.</value></data>
+  <data name="Mapping_Exists" xml:space="preserve"><value>Ya existe una regla para este comercio.</value></data>
+  <data name="Mapping_Saved" xml:space="preserve"><value>Regla guardada.</value></data>
+  <data name="Mapping_Deleted" xml:space="preserve"><value>Regla eliminada.</value></data>
+  <data name="Mapping_Error" xml:space="preserve"><value>No se pudo guardar la regla. Intenta de nuevo.</value></data>
+  <data name="Mapping_LoadError" xml:space="preserve"><value>No se pudieron cargar las reglas.</value></data>
 </root>
