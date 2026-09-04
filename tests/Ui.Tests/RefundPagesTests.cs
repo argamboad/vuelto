@@ -88,12 +88,44 @@ public class RefundPagesTests : ComponentTestBase
         Assert.Contains("Refund_Pending", row.TextContent);
         Assert.Contains("Refund_MarkReceived", cut.Find("[data-testid='refund-toggle']").TextContent);
 
+        // The received date defaults to today and can't precede the purchase; the pick rides along on the flip (ADR-V017).
+        var dateInput = cut.Find("[data-testid='refund-received-date']");
+        Assert.Equal("2026-06-05", dateInput.GetAttribute("min"));
+        Assert.Equal(DateTime.Today.ToString("yyyy-MM-dd"), dateInput.GetAttribute("value"));
+        dateInput.Change("2026-07-03");
         cut.Find("[data-testid='refund-toggle']").Click();
 
         cut.WaitForElement("[data-testid='month-notice']");
         var put = Assert.Single(Http.Requests, r => r.Method == HttpMethod.Put);
         Assert.EndsWith($"/api/refunds/{RefundId}", put.RequestUri!.AbsolutePath);
-        Assert.Contains("\"status\":\"received\"", await put.Content!.ReadAsStringAsync());
+        var body = await put.Content!.ReadAsStringAsync();
+        Assert.Contains("\"status\":\"received\"", body);
+        Assert.Contains("\"received_date\":\"2026-07-03\"", body);
+    }
+
+    [Fact]
+    public async Task MonthDetail_ReceivedRefund_ShowsTheDate_AndLinksTheMonthTheInflowLandedIn()
+    {
+        const string JulyId = "aaaaaaaa-0000-0000-0000-000000000007";
+        await SignInAsync();
+        Http.On(HttpMethod.Get, $"/api/months/{MonthId}", $$"""{"id":"{{MonthId}}","year":2026,"month_number":6,"week_count":4,"week1_start_date":"2026-05-28","primary_income_amount":0,"primary_income_currency":"USD","secondary_income_amount":0,"secondary_income_currency":"USD","weeks":[{"week_number":1,"start_date":"2026-05-28","end_date":"2026-06-03"}]}""");
+        Http.On(HttpMethod.Get, $"/api/months/{MonthId}/transactions", "[]");
+        Http.On(HttpMethod.Get, $"/api/months/{MonthId}/refunds", $$"""[{"id":"{{RefundId}}","month_id":"{{MonthId}}","transaction_id":"dddddddd-0000-0000-0000-000000000004","payee":"Hospital","transaction_date":"2026-06-05","percentage":30,"amount_crc":15000,"amount_usd":30,"status":"received","inflow_transaction_id":"dddddddd-0000-0000-0000-000000000009","received_date":"2026-07-03","inflow_month_id":"{{JulyId}}"}]""");
+        Http.On(HttpMethod.Put, $"/api/refunds/{RefundId}", $$"""{"id":"{{RefundId}}","status":"pending"}""");
+
+        var cut = Render<MonthDetail>(p => p.Add(x => x.Id, Guid.Parse(MonthId)));
+
+        cut.WaitForAssertion(() => Assert.Single(cut.FindAll("[data-testid='month-refund-row']")));
+        Assert.Contains("Refund_ReceivedOn[", cut.Find("[data-testid='refund-status']").TextContent); // the date rendered in the culture format
+        Assert.EndsWith($"/months/{JulyId}", cut.Find("[data-testid='refund-inflow-month']").GetAttribute("href"));
+        Assert.Empty(cut.FindAll("[data-testid='refund-received-date']")); // no date picker on a received row
+        Assert.Contains("Refund_MarkPending", cut.Find("[data-testid='refund-toggle']").TextContent);
+
+        cut.Find("[data-testid='refund-toggle']").Click();
+        cut.WaitForElement("[data-testid='month-notice']");
+        var body = await Assert.Single(Http.Requests, r => r.Method == HttpMethod.Put).Content!.ReadAsStringAsync();
+        Assert.Contains("\"status\":\"pending\"", body);
+        Assert.DoesNotContain("received_date", body);
     }
 
     [Fact]

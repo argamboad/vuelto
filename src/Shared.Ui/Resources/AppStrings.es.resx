@@ -447,6 +447,10 @@
   <data name="Refund_Updated" xml:space="preserve"><value>Reembolso actualizado.</value></data>
   <data name="Refund_Conflict" xml:space="preserve"><value>Alguien cambió este reembolso al mismo tiempo: la lista se recargó, intenta de nuevo.</value></data>
   <data name="Refund_Error" xml:space="preserve"><value>No se pudo actualizar el reembolso. Intenta de nuevo.</value></data>
+  <data name="Refund_ReceivedDate" xml:space="preserve"><value>Recibido el</value></data>
+  <data name="Refund_ReceivedOn" xml:space="preserve"><value>Recibido el {0}</value></data>
+  <data name="Refund_ViewInflowMonth" xml:space="preserve"><value>registrado en otro mes — ver</value></data>
+  <data name="Refund_DateInvalid" xml:space="preserve"><value>La fecha de recepción no puede ser anterior a la compra.</value></data>
   <data name="Nav_Budget" xml:space="preserve"><value>Presupuesto</value></data>
   <data name="Budget_Title" xml:space="preserve"><value>Líneas de presupuesto</value></data>
   <data name="Budget_Subtitle" xml:space="preserve"><value>Lo que el hogar planea gastar cada mes: la base con la que el tablero compara el gasto real. Compartido por todo el hogar.</value></data>

@@ -132,9 +132,12 @@ transaction's frozen amounts (2 dp), status `pending`, one per transaction. The 
 any other class (ignored, never an error). The refund **follows its transaction**: re-derived on every
 edit (amounts, payee, date, month), removed when the flag clears or the class changes, deleted with
 the transaction. The only thing edited directly is its **status**: `PUT /api/refunds/{id}` with
-`received` books a derived `inflow` transaction — same amounts, the source's frozen rate, bank,
-category and payment method, `source = refund_realization`, in the refund's month — and links it;
-`pending` removes the inflow (and its month if emptied). Same status is a no-op. The flip is a
+`received` (+ optional `received_date`, default today, never before the purchase) books a derived
+`inflow` transaction — same amounts, the source's frozen rate, bank, category and payment method,
+`source = refund_realization`, **dated the day the money landed and filed in that day's month**
+(auto-created like any transaction's month; the refund itself stays in its purchase's month and
+reports `received_date` + `inflow_month_id` — ADR-V017) — and links it; `pending` removes the inflow
+(and its month if emptied). Same status is a no-op. The flip is a
 **conditional update inside a unit-of-work scope** (ADR-V014): two concurrent flips book exactly one
 inflow; the loser gets 409 `refund_status_conflict`. A realized refund's inflow **tracks re-derived
 amounts** when the source is edited and disappears when the refund is dropped — never orphaned income.
@@ -161,12 +164,22 @@ Scenario: The refund follows its transaction
   When I DELETE the transaction → the refund (and the emptied month) are gone
 
 Scenario: Marking received books a derived inflow
-  When I PUT /api/refunds/{id} { status: "received" }
+  When I PUT /api/refunds/{id} { status: "received", received_date: "2026-06-20" }
   Then an inflow exists: 15000 CRC / 30 USD, exchange_rate_used 500, the source's bank and category,
-       source "refund_realization", and the refund carries inflow_transaction_id
+       source "refund_realization", dated 2026-06-20, and the refund carries inflow_transaction_id,
+       received_date and inflow_month_id
   And PUT / DELETE on that inflow is 400 "derived_transaction"
   When I PUT { status: "received" } again → nothing changes (one inflow)
   When I PUT { status: "pending" } → the inflow is gone, the source stays
+
+Scenario: The money lands in a later month (ADR-V017)
+  Given the June purchase above with a pending refund
+  When I PUT { status: "received", received_date: "2026-07-03" }
+  Then the inflow is dated 2026-07-03 and lives in July (created if needed); June's transactions hold only the purchase
+  And GET /api/months/{june}/refunds still lists the refund, with received_date 2026-07-03 and inflow_month_id = July
+  When I PUT { status: "received" } with no date → the inflow is dated today
+  When I PUT { status: "received", received_date: "2026-06-04" } (before the purchase) → 400 "invalid_request"
+  When I PUT { status: "pending" } → the inflow is gone, and July with it if that emptied it
 
 Scenario: A realized refund's inflow follows the source
   Given a received refund (inflow 25000)

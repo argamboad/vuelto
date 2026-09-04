@@ -143,6 +143,28 @@ public class LedgerPagesTests : ComponentTestBase
     }
 
     [Fact]
+    public async Task MonthDetail_ReloadsWhenTheRouteIdChanges()
+    {
+        // A link from one month page to another (e.g. a refund's "booked in another month — view", ADR-V017)
+        // keeps the component alive with a new Id — the page must fetch the new month, not keep the old one.
+        const string OtherId = "aaaaaaaa-0000-0000-0000-000000000007";
+        await SignInAsync();
+        Http.On(HttpMethod.Get, $"/api/months/{MonthId}", $$"""{"id":"{{MonthId}}","year":2026,"month_number":6,"week_count":4,"week1_start_date":"2026-05-28","primary_income_amount":3000,"primary_income_currency":"USD","secondary_income_amount":0,"secondary_income_currency":"USD","weeks":[{"week_number":1,"start_date":"2026-05-28","end_date":"2026-06-03"}]}""");
+        Http.On(HttpMethod.Get, $"/api/months/{MonthId}/transactions", "[]");
+        Http.On(HttpMethod.Get, $"/api/months/{OtherId}", $$"""{"id":"{{OtherId}}","year":2026,"month_number":7,"week_count":5,"week1_start_date":"2026-06-25","primary_income_amount":3750,"primary_income_currency":"USD","secondary_income_amount":0,"secondary_income_currency":"USD","weeks":[{"week_number":1,"start_date":"2026-06-25","end_date":"2026-07-01"}]}""");
+        Http.On(HttpMethod.Get, $"/api/months/{OtherId}/transactions", "[]");
+
+        var cut = Render<MonthDetail>(p => p.Add(x => x.Id, Guid.Parse(MonthId)));
+        cut.WaitForElement("[data-testid='month-no-tx']");
+        Assert.Contains("June 2026", cut.Find("[data-testid='month-title']").TextContent);
+
+        cut.Render(p => p.Add(x => x.Id, Guid.Parse(OtherId)));
+
+        cut.WaitForAssertion(() => Assert.Contains("July 2026", cut.Find("[data-testid='month-title']").TextContent));
+        Assert.Single(Http.Requests, r => r.Method == HttpMethod.Get && r.RequestUri!.AbsolutePath == $"/api/months/{OtherId}");
+    }
+
+    [Fact]
     public async Task MonthDetail_SavesIncome()
     {
         await SignInAsync();

@@ -1601,3 +1601,22 @@ stays user-keyed (ADR-V002) with an `IUserDataContributor` for erasure. **Conseq
 the consent service are R76-allowlisted senders with fixed provider hosts (Graph's `nextLink` is followed
 only while it stays on graph.microsoft.com); `.env.example` gains nothing; a Data Protection key-ring
 reset (never done in normal operation) would invalidate stored mail tokens — users simply reconnect.
+
+**ADR-V017 — A realized refund is income in the month the money lands, not the month of the purchase. (2026-09-04; owner decision, supersedes the donor's ADR-0020 placement rule)**
+The donor booked the derived `inflow` into the refund's own month with the purchase's date, so a
+refund received in October raised September's income after the fact and October never saw the money.
+Once the inflow became a real transaction (P5b) it should follow the rule every transaction follows:
+its own date decides its month. `PUT /api/refunds/{id}` with `received` now takes a `received_date`
+(default today; a date before the purchase is 400 `invalid_request`); the inflow is dated with it and
+filed through the ordinary anchor-window resolution — the month is auto-created when needed, exactly
+like a manual transaction, and retired on revert if that emptied it. The `Refund` row keeps its
+purchase's month (so the purchase still explains itself there) and gains `received_date`; the API
+reports `inflow_month_id` so the month page can label the row "Received on …" and link the month the
+money landed in. Money semantics are unchanged: same amounts, the purchase's frozen rate, bank and
+category; the dashboard already counted only pending refunds as informational and realized ones as
+income wherever their inflow lives. *Rationale:* income should land in the month it arrives, and a
+month already lived through must not change after the fact. *Consequences:* migration
+`AddRefundReceivedDate` (nullable, no RLS change); `RefundHandler.SetStatusAsync` now runs the
+month get-or-create inside its unit-of-work scope and reports a lost month-creation race as the same
+409 `refund_status_conflict` the guarded flip uses (retry finds the winner's month); rows realized
+before this ADR keep their purchase-month inflow and a null `received_date`.

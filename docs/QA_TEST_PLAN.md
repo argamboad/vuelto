@@ -1475,21 +1475,33 @@ refunds expected this month." Via Postman (**16 · Transactions → Create trans
 ### QA-LED-06 — Marking a refund received books an inflow; reverting removes it 🟠 (Web / API)
 **Gherkin**
 ```gherkin
-Given an expected refund of ₡15,000.00 (Pending)
-When I click Mark received
-Then the badge turns Received and the transactions table gains an Income (inflow) row of ₡15,000.00 marked "Derived from a refund — read-only"
+Given an expected refund of ₡15,000.00 (Pending) on a purchase in this month
+And the Received on date next to Mark received defaults to today and refuses a date before the purchase
+When I keep a date inside this month and click Mark received
+Then the badge reads "Received <date>" and the transactions table gains an Income (inflow) row of ₡15,000.00 on that date, marked "Derived from a refund — read-only"
 And that row has no Edit/Delete buttons
 When I click Back to pending
 Then the inflow row disappears and the badge is Pending again
+When I pick a date in the NEXT month and click Mark received
+Then the badge reads "Received <date>" with a "booked in another month — view" link, this month's table has NO inflow row, and the linked month (created if needed) holds it
+When I click Back to pending → the inflow is gone, and that month with it if it was otherwise empty
 ```
-**Walkthrough:** on the month page → **Mark received** → **Expected:** "Refund updated.", the badge
-**Received**, the button now **Back to pending**, and a new **Income (inflow)** row with the refund's
-amounts whose actions column says "Derived from a refund — read-only". Via Postman
+**Walkthrough:** on the month page, the pending row shows **Received on** (today) next to **Mark
+received**; the date input's minimum is the purchase date. **Mark received** → **Expected:** "Refund
+updated.", the badge **Received <today>**, the button now **Back to pending**, and a new **Income
+(inflow)** row dated today with the refund's amounts whose actions column says "Derived from a refund —
+read-only". Via Postman
 (**16 · Transactions → Delete transaction**) with that inflow's id → **Expected:** 400
 `derived_transaction`. **Back to pending** → **Expected:** the inflow row is gone, the badge
 **Pending**. Via Postman (**17 · Refunds → Update refund status**) send `received` twice →
 **Expected:** 200 both times, one inflow in **List month transactions**. With an id copied from a
 *different* household → **Expected:** 404. (The concurrent-flip 409 is proven by `Api.Tests`.)
+**Cross-month (ADR-V017):** **Back to pending**, pick a **Received on** date in the *next* month →
+**Mark received** → **Expected:** the badge "Received <date>" plus **booked in another month — view**;
+this month's transactions table has no inflow; the link opens the next month (auto-created if it did
+not exist) with the inflow row dated as picked. Postman **Update refund status** with `received_date`
+before the purchase → **Expected:** 400 `invalid_request`. **Back to pending** → **Expected:** the
+inflow is gone and the next month too if it held nothing else.
 
 ---
 
@@ -3290,3 +3302,16 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   id is never presented. QA-EMAIL-03 updated; `Folders_RowShowsTheNames_AndCancelDropsTheDraft` + the
   reshaped `Edit_LoadsFolders_AndPutsTheSettings` + `BackfillFolderNames_ResolvesLegacyIdsOnce_AndLeavesDeadTokensAlone`
   pin it. Suite count unchanged (180).
+- **Updated 2026-09-04** — **ADR-V017: a realized refund lands in the month the money arrives.** The
+  donor's placement rule booked the derived inflow into the purchase's month with the purchase's date,
+  rewriting a past month's income. `PUT /api/refunds/{id}` now takes `received_date` (default today;
+  before the purchase → 400); the inflow is dated with it and filed in that day's month through the
+  ordinary anchor-window resolution (auto-created, retired on revert if emptied). The refund stays under
+  its purchase's month with `received_date` + `inflow_month_id`; the month page gains a **Received on**
+  date next to **Mark received**, a "Received <date>" badge and a link to the inflow's month. QA-LED-06
+  extended (cross-month branch); `MarkReceived_WithADateInALaterMonth_*`, `MarkReceived_DefaultsToToday_*`
+  and the two `MonthDetail_*Refund*` UI cases pin it. Found by the walkthrough and fixed in the same
+  change: the month page loaded only once per component instance, so a link from one month page to
+  another (the new "view" link, or any month-to-month link) changed the URL but kept the old month on
+  screen until a reload — it now reloads when its route id changes (`MonthDetail_ReloadsWhenTheRouteIdChanges`).
+  Suite count unchanged (180).

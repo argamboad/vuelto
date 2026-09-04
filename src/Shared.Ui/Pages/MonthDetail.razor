@@ -165,11 +165,24 @@
                                     <td class="text-end">@r.AmountCrc.ToString("N2", CultureInfo.CurrentCulture)</td>
                                     <td class="text-end">@r.AmountUsd.ToString("N2", CultureInfo.CurrentCulture)</td>
                                     <td>
+                                        @* Received: the day the money landed; the inflow lives in that day's month (ADR-V017). *@
                                         <span class="badge @(r.Status == "received" ? "bg-success-subtle text-success-emphasis" : "bg-warning-subtle text-warning-emphasis")" data-testid="refund-status">
-                                            @(r.Status == "received" ? Localizer["Refund_Received"] : Localizer["Refund_Pending"])
+                                            @(r.Status == "received"
+                                                ? (r.ReceivedDate is { } d ? Localizer["Refund_ReceivedOn", d.ToString("d", CultureInfo.CurrentCulture)] : Localizer["Refund_Received"])
+                                                : Localizer["Refund_Pending"])
                                         </span>
+                                        @if (r.Status == "received" && r.InflowMonthId is { } other && other != Id)
+                                        {
+                                            <a class="small ms-2" href="/months/@other" data-testid="refund-inflow-month">@Localizer["Refund_ViewInflowMonth"]</a>
+                                        }
                                     </td>
-                                    <td class="text-end">
+                                    <td class="text-end text-nowrap">
+                                        @if (r.Status != "received")
+                                        {
+                                            <label class="small text-muted me-1" for="received-@r.Id">@Localizer["Refund_ReceivedDate"]</label>
+                                            <input type="date" id="received-@r.Id" class="form-control form-control-sm d-inline-block w-auto me-2" data-testid="refund-received-date"
+                                                   min="@r.TransactionDate.ToString("yyyy-MM-dd")" @bind:get="ReceivedDateFor(r)" @bind:set="v => _receivedDates[r.Id] = v" />
+                                        }
                                         <button class="btn btn-outline-primary btn-sm" data-testid="refund-toggle" disabled="@_saving" @onclick="() => FlipRefundAsync(r)">
                                             @(r.Status == "received" ? Localizer["Refund_MarkPending"] : Localizer["Refund_MarkReceived"])
                                         </button>
@@ -215,11 +228,17 @@
     private MonthDto? _month;
     private List<TxDto> _transactions = new();
     private List<RefundDto> _refunds = new();
+    private readonly Dictionary<Guid, DateOnly> _receivedDates = new();
+
+    /// <summary>The date to book a pending refund on — today unless the user picked one (never before the purchase).</summary>
+    private DateOnly ReceivedDateFor(RefundDto r) => _receivedDates.TryGetValue(r.Id, out var d) ? d : DateOnly.FromDateTime(DateTime.Today);
     private Guid? _confirmDelete;
     private decimal _primaryAmount;
     private string _primaryCurrency = "USD";
     private decimal _secondaryAmount;
     private string _secondaryCurrency = "USD";
+
+    private Guid? _loadedId;
 
     protected override async Task OnInitializedAsync()
     {
@@ -227,9 +246,16 @@
         await LoadAsync();
     }
 
+    /// <summary>A link from one month to another keeps this component alive with a new Id — reload for it.</summary>
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!_loading && _loadedId is { } loaded && loaded != Id) { _notice = null; _error = null; await LoadAsync(); }
+    }
+
     private async Task LoadAsync()
     {
         _loading = true;
+        _loadedId = Id;
         try
         {
             var res = await Http.GetAsync($"/api/months/{Id}");
@@ -251,9 +277,13 @@
         _notice = null; _error = null; _saving = true;
         try
         {
-            var res = await Http.PutAsJsonAsync($"/api/refunds/{r.Id}", new { status = r.Status == "received" ? "pending" : "received" });
-            if (res.IsSuccessStatusCode) { _notice = Localizer["Refund_Updated"]; await LoadAsync(); }
+            var toReceived = r.Status != "received";
+            var res = toReceived
+                ? await Http.PutAsJsonAsync($"/api/refunds/{r.Id}", new { status = "received", received_date = ReceivedDateFor(r) })
+                : await Http.PutAsJsonAsync($"/api/refunds/{r.Id}", new { status = "pending" });
+            if (res.IsSuccessStatusCode) { _notice = Localizer["Refund_Updated"]; _receivedDates.Remove(r.Id); await LoadAsync(); }
             else if (res.StatusCode == HttpStatusCode.Conflict) { _error = Localizer["Refund_Conflict"]; await LoadAsync(); }
+            else if (res.StatusCode == HttpStatusCode.BadRequest) _error = Localizer["Refund_DateInvalid"];
             else _error = Localizer["Refund_Error"];
         }
         catch { _error = Localizer["Refund_Error"]; }
@@ -340,7 +370,9 @@
         [property: JsonPropertyName("percentage")] decimal Percentage,
         [property: JsonPropertyName("amount_crc")] decimal AmountCrc,
         [property: JsonPropertyName("amount_usd")] decimal AmountUsd,
-        [property: JsonPropertyName("status")] string Status);
+        [property: JsonPropertyName("status")] string Status,
+        [property: JsonPropertyName("received_date")] DateOnly? ReceivedDate = null,
+        [property: JsonPropertyName("inflow_month_id")] Guid? InflowMonthId = null);
 
     private sealed record ErrorDto(
         [property: JsonPropertyName("error")] string Error,
