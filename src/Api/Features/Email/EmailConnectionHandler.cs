@@ -78,7 +78,9 @@ public sealed class EmailConnectionHandler(IRepository<EmailConnection> connecti
         if (request.PollingIntervalMinutes is < MinIntervalMinutes or > MaxIntervalMinutes)
             return (null, new ErrorResponse("invalid_interval", $"Polling interval must be between {MinIntervalMinutes} and {MaxIntervalMinutes} minutes."));
 
-        connection.Folders = Clean(request.Folders);
+        var folders = CleanFolders(request.Folders, connection);
+        connection.Folders = folders.Select(f => f.Id).ToArray();
+        connection.FolderNames = folders.Select(f => f.Name).ToArray();
         connection.SenderFilters = senders;
         connection.SubjectFilters = subjects;
         connection.UnreadOnly = request.UnreadOnly;
@@ -109,4 +111,25 @@ public sealed class EmailConnectionHandler(IRepository<EmailConnection> connecti
 
     private static string[] Clean(string[]? values) =>
         (values ?? []).Where(v => !string.IsNullOrWhiteSpace(v)).Select(v => v.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+
+    /// <summary>
+    /// Trims + de-duplicates folders by id (case-insensitive, first wins). A blank name keeps the name
+    /// already stored for that id, so a client that only knows ids never erases a captured name.
+    /// </summary>
+    private static List<(string Id, string Name)> CleanFolders(ConnectionFolder[]? values, EmailConnection existing)
+    {
+        var known = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        for (var i = 0; i < existing.Folders.Length && i < existing.FolderNames.Length; i++) known[existing.Folders[i]] = existing.FolderNames[i];
+
+        var result = new List<(string Id, string Name)>();
+        foreach (var f in values ?? [])
+        {
+            if (f is null || string.IsNullOrWhiteSpace(f.Id)) continue;
+            var id = f.Id.Trim();
+            if (result.Any(r => string.Equals(r.Id, id, StringComparison.OrdinalIgnoreCase))) continue;
+            var name = string.IsNullOrWhiteSpace(f.Name) ? known.GetValueOrDefault(id, "") : f.Name.Trim();
+            result.Add((id, name));
+        }
+        return result;
+    }
 }

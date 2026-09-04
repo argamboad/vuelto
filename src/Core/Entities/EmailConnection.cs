@@ -31,6 +31,13 @@ public class EmailConnection
     /// <summary>Mail folders/labels to scan (provider ids); empty = the inbox.</summary>
     public string[] Folders { get; set; } = [];
 
+    /// <summary>
+    /// Display names for <see cref="Folders"/>, index-aligned (provider ids are opaque — Graph folder ids,
+    /// Gmail <c>Label_n</c>). Captured when the user applies a selection so the page can show what is
+    /// scanned without another provider round-trip; readers never use them.
+    /// </summary>
+    public string[] FolderNames { get; set; } = [];
+
     /// <summary>Senders that identify voucher mail; pushed into the provider query.</summary>
     public string[] SenderFilters { get; set; } = [];
 

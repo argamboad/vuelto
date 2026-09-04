@@ -38,7 +38,7 @@ public class EmailConnectionSliceTests(PostgresFixture fixture) : PostgresTestBa
     private static NewEmailConnection Valid(string provider = EmailProviders.Microsoft, string[]? senders = null, string[]? subjects = null, string access = "access-123", string refresh = "refresh-456") =>
         new(provider, "user@example.com", access, refresh, T0.AddHours(1), senders ?? [], subjects ?? ["Notificación de transacción"]);
 
-    private static UpdateEmailConnectionRequest Edit(string[]? subjects = null, int interval = 15, DateTimeOffset? importFrom = null, string[]? folders = null, bool unread = true, bool ignoreCursor = false) =>
+    private static UpdateEmailConnectionRequest Edit(string[]? subjects = null, int interval = 15, DateTimeOffset? importFrom = null, ConnectionFolder[]? folders = null, bool unread = true, bool ignoreCursor = false) =>
         new(folders, null, subjects ?? ["x"], unread, ignoreCursor, importFrom, interval);
 
     [Fact]
@@ -96,10 +96,18 @@ public class EmailConnectionSliceTests(PostgresFixture fixture) : PostgresTestBa
         var c = await ContextAsync();
         var created = (await c.Handler.CreateAsync(c.UserId, Valid(), default)).Connection!;
 
-        var (updated, error) = await c.Handler.UpdateAsync(c.UserId, created.Id, Edit(subjects: ["Voucher Digital"], interval: 30, folders: ["Inbox", " Vouchers ", "inbox"], unread: false, ignoreCursor: true), default);
+        var (updated, error) = await c.Handler.UpdateAsync(c.UserId, created.Id, Edit(subjects: ["Voucher Digital"], interval: 30,
+            folders: [new("Inbox", "Inbox"), new(" id-vouchers ", " Inbox/Vouchers "), new("inbox", "dupe"), new("  ", "blank id")], unread: false, ignoreCursor: true), default);
         Assert.Null(error);
         Assert.Equal((false, true, 30), (updated!.UnreadOnly, updated.IgnoreCursor, updated.PollingIntervalMinutes));
-        Assert.Equal(["Inbox", "Vouchers"], updated.Folders); // trimmed, de-duplicated case-insensitively
+        Assert.Equal(["Inbox", "id-vouchers"], updated.Folders); // trimmed, de-duplicated case-insensitively by id
+        Assert.Equal(["Inbox", "Inbox/Vouchers"], updated.FolderNames); // names ride along, index-aligned
+        Assert.Equal([("Inbox", "Inbox"), ("id-vouchers", "Inbox/Vouchers")], ConnectionFolder.From(updated).Select(f => (f.Id, f.Name)));
+
+        // Ids without names keep the captured name; an id never named answers with itself.
+        var (renamed, _) = await c.Handler.UpdateAsync(c.UserId, created.Id, Edit(subjects: ["Voucher Digital"], folders: [new("id-vouchers", null), new("Label_7", "")]), default);
+        Assert.Equal(["Inbox/Vouchers", ""], renamed!.FolderNames);
+        Assert.Equal([("id-vouchers", "Inbox/Vouchers"), ("Label_7", "Label_7")], ConnectionFolder.From(renamed).Select(f => (f.Id, f.Name)));
         Assert.Equal(["Voucher Digital"], updated.SubjectFilters);
 
         Assert.Equal("invalid_interval", (await c.Handler.UpdateAsync(c.UserId, created.Id, Edit(interval: 4), default)).Error!.Error);

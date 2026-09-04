@@ -89,6 +89,8 @@ unconfigured provider answers 400 `provider_not_configured`. `POST /api/email/co
 (`use_consent_flow`) so tokens never arrive in a client body. Defaults: unread-only, `import_from` = now,
 cursor = `import_from`, 15-minute interval, the verified BAC/BN senders + subject prefixes pre-seeded.
 Rules: one inbox per provider per user (`connection_exists`), at least one sender or subject filter,
+folders travel as `{id, name}` pairs (the name is captured at pick time so the page can say what is
+scanned without a provider round-trip; readers use the id),
 interval 5…1440 minutes, lowering `import_from` pulls the cursor back (backfill) while raising it never
 advances the cursor (that would silently skip un-imported mail). Tokens are never returned; another
 user's id is a uniform 404.
@@ -103,7 +105,7 @@ Scenario: Connect an inbox
   And the browser lands on /email?connected=google
   When the callback arrives with a tampered, expired or missing state, or with error=access_denied
   Then nothing is created and the browser lands on /email?email_error=consent_failed
-  When I connect the same provider twice → /email?email_error=already_connected
+  And once a provider is connected its Connect button is disabled (one inbox per provider); a second consent for it by hand → /email?email_error=already_connected
 
 Scenario: Only the consent flow creates connections
   When I POST /api/email/connections with tokens → 400 use_consent_flow

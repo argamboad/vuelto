@@ -10,7 +10,7 @@ public record EmailConnectionResponse(
     [property: JsonPropertyName("provider")] string Provider,
     [property: JsonPropertyName("account_email")] string? AccountEmail,
     [property: JsonPropertyName("status")] string Status,
-    [property: JsonPropertyName("folders")] string[] Folders,
+    [property: JsonPropertyName("folders")] ConnectionFolder[] Folders,
     [property: JsonPropertyName("sender_filters")] string[] SenderFilters,
     [property: JsonPropertyName("subject_filters")] string[] SubjectFilters,
     [property: JsonPropertyName("unread_only")] bool UnreadOnly,
@@ -21,13 +21,24 @@ public record EmailConnectionResponse(
     [property: JsonPropertyName("created_at")] DateTimeOffset CreatedAt)
 {
     public static EmailConnectionResponse From(EmailConnection c) => new(
-        c.Id, c.Provider, c.AccountEmail, c.Status, c.Folders, c.SenderFilters, c.SubjectFilters,
+        c.Id, c.Provider, c.AccountEmail, c.Status, ConnectionFolder.From(c), c.SenderFilters, c.SubjectFilters,
         c.UnreadOnly, c.IgnoreCursor, c.ImportFrom, c.PollingIntervalMinutes, c.LastPolledAt, c.CreatedAt);
+}
+
+/// <summary>
+/// A scanned folder as the client sees it: the provider id the readers use plus the display name captured
+/// when it was picked. A row saved before names were stored answers with its id as the name.
+/// </summary>
+public record ConnectionFolder([property: JsonPropertyName("id")] string Id, [property: JsonPropertyName("name")] string? Name)
+{
+    public static ConnectionFolder[] From(EmailConnection c) => c.Folders
+        .Select((id, i) => new ConnectionFolder(id, i < c.FolderNames.Length && !string.IsNullOrWhiteSpace(c.FolderNames[i]) ? c.FolderNames[i] : id))
+        .ToArray();
 }
 
 /// <summary>Editable scan settings — no token fields (tokens change only through reconnect).</summary>
 public record UpdateEmailConnectionRequest(
-    [property: JsonPropertyName("folders")] string[]? Folders,
+    [property: JsonPropertyName("folders")] ConnectionFolder[]? Folders,
     [property: JsonPropertyName("sender_filters")] string[]? SenderFilters,
     [property: JsonPropertyName("subject_filters")] string[]? SubjectFilters,
     [property: JsonPropertyName("unread_only")] bool UnreadOnly = true,

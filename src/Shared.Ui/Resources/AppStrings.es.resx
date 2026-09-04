@@ -546,7 +546,10 @@
   <data name="Email_Folders" xml:space="preserve"><value>Carpetas a revisar</value></data>
   <data name="Email_LoadFolders" xml:space="preserve"><value>Cargar carpetas</value></data>
   <data name="Email_FoldersDefault" xml:space="preserve"><value>Bandeja de entrada (predeterminado). Carga las carpetas para elegir otras.</value></data>
-  <data name="Email_FoldersSelected" xml:space="preserve"><value>{0} carpeta(s) seleccionada(s). Carga las carpetas para cambiar.</value></data>
+  <data name="Email_ApplyFolders" xml:space="preserve"><value>Aplicar</value></data>
+  <data name="Email_FoldersRow" xml:space="preserve"><value>Carpetas: {0}</value></data>
+  <data name="Email_InboxDefault" xml:space="preserve"><value>Bandeja de entrada (predeterminada)</value></data>
+  <data name="Email_NoFoldersFound" xml:space="preserve"><value>El proveedor no devolvió carpetas.</value></data>
   <data name="Email_SenderFilters" xml:space="preserve"><value>Filtros de remitente</value></data>
   <data name="Email_SubjectFilters" xml:space="preserve"><value>Filtros de asunto</value></data>
   <data name="Email_FiltersHint" xml:space="preserve"><value>Separados por coma. Se requiere al menos un remitente o asunto; solo se trae el correo que coincide.</value></data>
