@@ -59,6 +59,42 @@ public class ReportsPageTests : ComponentTestBase
     }
 
     [Fact]
+    public async Task ChartView_DrawsTheSameRows_WithBudgetOverlays_TheClassDonut_AndACurrencySwitch()
+    {
+        await SignInAsync();
+        Http.On(HttpMethod.Get, "/api/months", Months);
+        Http.On(HttpMethod.Get, "/api/reports/category-analysis", SingleMonth);
+
+        var cut = Render<Reports>();
+        cut.WaitForElement("[data-testid='rep-budgeted'] [data-testid='rep-row']"); // table by default (no stored preference)
+        Assert.Empty(cut.FindAll("[data-testid='rep-donut']"));
+
+        cut.Find("[data-testid='rep-view-chart']").Click();
+
+        // Same five budgeted rows as bars, sorted by size; only ₡-budgeted lines get a ₡ budget overlay.
+        cut.WaitForAssertion(() => Assert.Equal(5, cut.FindAll("[data-testid='rep-budgeted-chart'] [data-testid='chart-bar']").Count));
+        Assert.Empty(cut.FindAll("[data-testid='rep-budgeted'] [data-testid='rep-row']")); // the table is replaced, not duplicated
+        var bars = cut.FindAll("[data-testid='rep-budgeted-chart'] [data-testid='chart-bar']");
+        Assert.Contains("Housing", bars[0].TextContent); // largest first (70,000)
+        Assert.Equal("true", bars[0].GetAttribute("data-over"));
+        Assert.Equal(2, cut.FindAll("[data-testid='rep-budgeted-chart'] [data-testid='chart-budget']").Count); // Groceries + Housing have ₡ budgets; the $ lines and "Other" do not
+        Assert.Contains("₡", cut.Find("[data-testid='rep-budgeted-chart-total']").TextContent);
+        Assert.Equal(3, cut.FindAll("[data-testid='rep-donut'] [data-testid='chart-legend-item']").Count);
+        Assert.Equal(2, cut.FindAll("[data-testid='rep-donut'] [data-testid='chart-slice']").Count); // budgeted + extraordinary; unplanned is empty
+        Assert.Contains("Reports_NoneInClass", cut.Find("[data-testid='rep-unplanned']").TextContent);
+        Assert.Contains(JSInterop.Invocations, i => i.Identifier == "appUi.setPref"); // remembered per device
+
+        // Dollars: values re-label, and now only the $-budgeted lines carry an overlay.
+        cut.Find("[data-testid='rep-cur-usd']").Click();
+        cut.WaitForAssertion(() => Assert.Contains("$", cut.Find("[data-testid='rep-budgeted-chart-total']").TextContent));
+        Assert.Equal(4, cut.FindAll("[data-testid='rep-budgeted-chart'] [data-testid='chart-budget']").Count); // the two Streaming lines + Groceries/Housing, whose fixture carries a $ side too
+        Assert.Contains("$25.00", cut.FindAll("[data-testid='rep-budgeted-chart'] [data-testid='chart-value']").Select(v => v.TextContent).First(t => t.Contains("25")));
+
+        cut.Find("[data-testid='rep-view-table']").Click();
+        cut.WaitForAssertion(() => Assert.Equal(5, cut.FindAll("[data-testid='rep-budgeted'] [data-testid='rep-row']").Count)); // and back
+    }
+
+    [Fact]
     public async Task RangeMode_ValidatesDates_ThenLoadsWithoutBudgetColumns()
     {
         await SignInAsync();

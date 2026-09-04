@@ -105,3 +105,29 @@ ordering/filters/header-only/isolation/stored key + link lifetime) + HTTP (401, 
 anonymous download of the signed link with the exact CSV); bUnit (newest month + columns + tone, range
 validation + load, export POST + launcher, empty state, month-page export); no entity, no migration; Postman
 folder; QA-REP-01..02 + regenerated PDFs; EN/ES resx; nav entry; merged, app working.
+
+### REPORTS-3 — Charts for the category analysis *(owner request, 2026-09-04)* ✅
+
+**As a** household member
+**I want** to see the category analysis as pictures as well as numbers
+**So that** the shape of a month — what dominates, what is over budget — is visible at a glance
+
+**Context / notes:** presentation only — the report endpoint is unchanged. Charts are **inline SVG**
+components in `Shared.Ui/Components/Charts` (no JS library; same markup on web and MAUI; colours from
+Bootstrap tokens so dark mode follows; bUnit can assert every bar). A **View: Table / Chart** toggle
+and a **₡/$** switch sit in the period card, remembered **per device** (`appUi.getPref/setPref` in
+`js/ui.js`; never account data). Chart view: a **Spend by class** donut (budgeted / discretionary /
+unplanned, with shares) and one **horizontal bar chart per class**, largest first; on the budgeted
+class a line's budget is a muted track under the actual, which turns red past it — judged in the
+line's own currency, so a $-budgeted line carries a track only while the chart is in $. The total is
+printed under each chart. Tables are untouched.
+
+```gherkin
+Scenario: Chart view draws the same rows
+  Given the July report is on screen as tables
+  When I click View → Chart
+  Then the budgeted class shows one bar per category, largest first, with a budget track where the line is ₡-budgeted
+  And an over-budget actual is red, the total is printed under the chart, and a donut splits the spend by class
+  When I click $ → the bars, totals and donut are in dollars, and only $-budgeted lines keep a track
+  When I reload → the view and currency are as I left them (this device only)
+```

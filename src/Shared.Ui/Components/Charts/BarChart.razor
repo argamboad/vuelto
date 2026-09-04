@@ -1,0 +1,72 @@
+@using System.Globalization
+@inject IStringLocalizer<AppStrings> Localizer
+
+@* Horizontal bars drawn as inline SVG — no JS, no library, same markup on web and MAUI, theme-aware through
+   Bootstrap's CSS tokens. One currency per chart (the caller picks the side). A bar with a budget shows the
+   budget as a muted track and the actual on top: indigo under budget, red past it. Every scale value is
+   computed from the rows shown, so the longest bar always spans the full track. *@
+<div class="chart-bars" data-testid="@TestId">
+    @if (Items.Count == 0)
+    {
+        <p class="text-muted small mb-0">@Localizer["Chart_Empty"]</p>
+    }
+    else
+    {
+        var rows = Items.Count;
+        var height = rows * RowHeight + Padding * 2;
+        <svg viewBox="0 0 @Width @height" width="100%" height="@height" role="img" aria-label="@Title" style="font: 12px var(--bs-body-font-family); display: block;">
+            <title>@Title</title>
+            @for (var i = 0; i < rows; i++)
+            {
+                var item = Items[i];
+                var y = Padding + i * RowHeight;
+                var barY = y + (RowHeight - BarThickness) / 2;
+                var actualW = Scaled(item.Value);
+                var over = item.Budget is { } b && b > 0 && item.Value > b;
+                <g data-testid="chart-bar" data-over="@(over ? "true" : "false")">
+                    <text x="@(LabelWidth - 8)" y="@(y + RowHeight / 2)" text-anchor="end" dominant-baseline="middle" fill="var(--bs-body-color)">@Ellipsis(item.Label)</text>
+                    <rect x="@LabelWidth" y="@barY" width="@TrackWidth" height="@BarThickness" rx="3" fill="var(--bs-secondary-bg)" />
+                    @if (item.Budget is { } budget && budget > 0)
+                    {
+                        <rect x="@LabelWidth" y="@barY" width="@Scaled(budget)" height="@BarThickness" rx="3" fill="var(--bs-tertiary-color)" opacity="0.45" data-testid="chart-budget" />
+                    }
+                    <rect x="@LabelWidth" y="@(barY + 2)" width="@actualW" height="@(BarThickness - 4)" rx="2" fill="@(over ? "var(--bs-danger)" : "var(--bs-primary)")" data-testid="chart-actual" />
+                    <text x="@(LabelWidth + TrackWidth + 8)" y="@(y + RowHeight / 2)" dominant-baseline="middle" fill="var(--bs-body-color)" data-testid="chart-value">@Format(item.Value)</text>
+                </g>
+            }
+        </svg>
+        @if (Items.Any(i => i.Budget is > 0))
+        {
+            <div class="small text-muted mt-1" data-testid="chart-legend">
+                <span class="d-inline-block me-3"><span class="d-inline-block align-middle me-1" style="width: 12px; height: 8px; background: var(--bs-primary);"></span>@Localizer["Chart_Actual"]</span>
+                <span class="d-inline-block me-3"><span class="d-inline-block align-middle me-1" style="width: 12px; height: 8px; background: var(--bs-tertiary-color); opacity: .45;"></span>@Localizer["Chart_Budget"]</span>
+                <span class="d-inline-block"><span class="d-inline-block align-middle me-1" style="width: 12px; height: 8px; background: var(--bs-danger);"></span>@Localizer["Chart_OverBudget"]</span>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<BarItem> Items { get; set; } = [];
+    /// <summary>"CRC" or "USD" — only the symbol on the value labels; the numbers are the caller's.</summary>
+    [Parameter] public string Currency { get; set; } = "CRC";
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public string TestId { get; set; } = "chart";
+
+    private const int Width = 640;
+    private const int LabelWidth = 170;
+    private const int ValueWidth = 130;
+    private const int TrackWidth = Width - LabelWidth - ValueWidth;
+    private const int RowHeight = 28;
+    private const int BarThickness = 16;
+    private const int Padding = 6;
+
+    /// <summary>The longest bar (actual or budget) spans the track; everything else is proportional.</summary>
+    private decimal Max => Math.Max(Items.Max(i => Math.Max(i.Value, i.Budget ?? 0)), 0.01m);
+
+    private string Scaled(decimal value) => ((double)(TrackWidth * Math.Max(value, 0) / Max)).ToString("0.##", CultureInfo.InvariantCulture);
+
+    private string Format(decimal value) => (Currency == "USD" ? "$" : "₡") + value.ToString("N2", CultureInfo.CurrentCulture);
+
+    private static string Ellipsis(string label) => label.Length <= 22 ? label : label[..21] + "…";
+}

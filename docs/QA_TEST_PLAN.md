@@ -1646,6 +1646,8 @@ Then the note says "custom range — monthly budgets don't apply" and the Budget
 When I set From 2026-06-30 and To 2026-06-01 and Load
 Then "From must not be after To" and nothing loads
 And a line budgeted in dollars is judged in dollars: $18.99 spent against $18.99 is green, $25 is red (never red just because its colón side is above ₡0)
+When I switch View to Chart
+Then each class shows the same rows as horizontal bars (largest first) with the budget as a muted track and the actual on top — red past it — plus a "Spend by class" donut with shares; the ₡/$ switch redraws in the other currency; the choice is remembered on this device
 ```
 **Walkthrough:** **Budget** → fixed `Supermarket` `60000` CRC on Groceries. **New transaction** ×3 →
 Groceries Budgeted `5000` (`2026-06-05`) and `3000` (`2026-06-12`), Dining Discretionary `2000`
@@ -3388,3 +3390,12 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   against ₡0 and painted every dollar line red. The tone now follows the currency the line is budgeted
   in (₡ budget → compare ₡, $ budget → compare $; no budget → no tone). QA-REP-01 gains the line;
   `ReportsPageTests` covers a dollar line under and over. Suite count unchanged (180).
+- **Updated 2026-09-04** — **REPORTS-3: charts (owner request).** The category analysis gains a
+  **Table / Chart** view and a **₡/$** switch (remembered per device via `appUi.getPref/setPref`,
+  never account data). Charts are **inline SVG components** (`Components/Charts`: `BarChart`,
+  `DonutChart`) — no JS library, same markup on web and MAUI, theme-aware through Bootstrap tokens,
+  assertable in bUnit: one horizontal bar chart per class (largest first; a budgeted line shows its
+  budget as a muted track and turns red past it — in the line's own currency, so a $ line only gets a
+  track when the chart is in $) with the total underneath, and a "Spend by class" donut with shares.
+  The tables are unchanged and the report API is untouched. QA-REP-01 gains the chart steps;
+  `ChartComponentsTests` (3) + `ReportsPageTests.ChartView_*` pin it. Suite count unchanged (180).
