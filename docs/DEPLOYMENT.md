@@ -299,7 +299,8 @@ widening trust. Leave `Proxy__Enabled=false` (the default) whenever there's no p
 You have been running the app locally for a while and the household is real: categories, banks, budget
 lines, months and weeks, transactions with their frozen rates, refunds, merchant rules, the review queue.
 When staging or production comes up you do not start over — you carry the household across with
-`tools/snapshot-household.sql`. No page, no menu, no API route: it is a psql script.
+`tools/snapshot-household.sql`. No page, no menu, no API route: it is a psql script. **Full runbook —
+what comes across, the dry run, troubleshooting: [`tools/README.md`](../tools/README.md).**
 
 1. **Snapshot on the source** (the database that holds the household; `-Atq` keeps the output raw):
 

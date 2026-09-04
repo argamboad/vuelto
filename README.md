@@ -29,6 +29,10 @@ repo is following.
 
 ## Run it locally
 
+Operator tools (hidden — no page, no route), e.g. moving your household to another server:
+[`tools/README.md`](tools/README.md).
+
+
 ```bash
 cp .env.example .env            # then fill it — at minimum Jwt__Secret (any ≥32-char string)
 docker compose up -d db mail    # Postgres 17 on :5434 + Mailpit on :1026 (SMTP) / :8026 (UI)
