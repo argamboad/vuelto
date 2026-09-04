@@ -1521,6 +1521,7 @@ inflow is gone and the next month too if it held nothing else.
 Given I am on Budget (nav) in a fresh household
 Then both sections show "No lines yet"
 When I add fixed "Mortgage", 300000 CRC, category Housing, bank BAC, Bank account, and Create
+And "+ New" beside Category creates a category in place (it is then offered on the other list too)
 Then it appears with ₡300,000.00 · Housing · BAC · Bank account · Active
 When I add variable "Netflix", 13 USD, category Entertainment, no bank, Credit card
 Then it appears with $13.00 · Entertainment · Unassigned
@@ -1529,8 +1530,9 @@ Then the form shows "that category already backs another budget line" and nothin
 ```
 **Walkthrough:** nav **Budget** → **Expected:** "No lines yet — add the first one." under both
 headings. **New fixed line** → name `Mortgage`, **Monthly budget** `300000` **CRC**, **Category**
-Housing, **Bank** BAC, **Payment method** Bank account → **Create** → **Expected:** "Created." and
-the row. **New variable line** → `Netflix`, `13` **USD**, Entertainment, bank left **Unassigned**,
+Housing (or **+ New** → type a name → **Create** → **Expected:** selected in place, and listed on the
+other section's picker as well), **Bank** BAC, **Payment method** Bank account → **Create** → **Expected:**
+"Created." and the row. **Edit** on any row → **Expected:** the page scrolls so the whole form card is in view. **New variable line** → `Netflix`, `13` **USD**, Entertainment, bank left **Unassigned**,
 Credit card → **Create** → **Expected:** the row shows $13.00 and "Unassigned". **New fixed line** →
 `Rent`, `50000` CRC, category **Housing** → **Create** → **Expected:** the red message about the
 category already backing another line. Via Postman (**18 · Expenses → Create fixed expense —
@@ -3344,3 +3346,12 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   `Confirm_AsUnplannedWithAPercentage_SpawnsThePendingRefund_WithTheManualRules`,
   `Confirm_RefundFlagOnAnotherClass_IsIgnored_NoRefund` and the two `Confirm_*Refund*` UI cases pin it. Suite
   count unchanged (180).
+- **Updated 2026-09-04** — **Inline category creation on Budget lines (owner request, follow-up to the
+  transaction form / review queue).** `ExpenseLinesSection` uses the shared `CategoryPicker`; the Budget
+  page owns the category list and appends what either section creates, so a category created on the
+  fixed list is offered on the variable list at once. Also (owner walkthrough): **Edit** on a line now
+  scrolls the form card into view — it renders above the table, so a row far down left it off-screen
+  (new shared `js/ui.js` helper `appUi.scrollIntoView`, loaded by BOTH hosts' index.html like `theme.js`;
+  the card carries a scroll margin so the fixed header never covers its title).
+  QA-EXP-01 gains the step; `Create_CanCreateTheCategoryInline_AndTheLineSavesWithIt` and
+  `Edit_ScrollsTheFormCardIntoView_NewDoesNot` pin it. Suite count unchanged (180).

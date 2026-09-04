@@ -26,23 +26,26 @@
         {
             <div class="alert alert-danger py-2" data-testid="budget-error">@_error</div>
         }
-        <ExpenseLinesSection Kind="fixed" TitleKey="Budget_Fixed" NewKey="Budget_AddFixed" Categories="_categories" Banks="_banks" />
-        <ExpenseLinesSection Kind="variable" TitleKey="Budget_Variable" NewKey="Budget_AddVariable" Categories="_categories" Banks="_banks" />
+        <ExpenseLinesSection Kind="fixed" TitleKey="Budget_Fixed" NewKey="Budget_AddFixed" Categories="_categories" Banks="_banks" OnCategoryCreated="AddCategory" />
+        <ExpenseLinesSection Kind="variable" TitleKey="Budget_Variable" NewKey="Budget_AddVariable" Categories="_categories" Banks="_banks" OnCategoryCreated="AddCategory" />
     }
 </div>
 
 @code {
     private bool _loading = true;
     private string? _error;
-    private List<ExpenseLinesSection.NamedItem> _categories = new();
+    private List<CategoryOption> _categories = new();
     private List<ExpenseLinesSection.NamedItem> _banks = new();
+
+    /// <summary>A category created inline on either list joins the shared list, so both lists can pick it.</summary>
+    private void AddCategory(CategoryOption c) { if (_categories.All(x => x.Id != c.Id)) _categories.Add(c); }
 
     protected override async Task OnInitializedAsync()
     {
         if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
         try
         {
-            _categories = await Http.GetFromJsonAsync<List<ExpenseLinesSection.NamedItem>>("/api/categories") ?? new();
+            _categories = await Http.GetFromJsonAsync<List<CategoryOption>>("/api/categories") ?? new();
             _banks = await Http.GetFromJsonAsync<List<ExpenseLinesSection.NamedItem>>("/api/banks?include_inactive=true") ?? new(); // all states: a deactivated bank still names its line
         }
         catch { _error = Localizer["Budget_LoadError"]; }
