@@ -1,0 +1,261 @@
+@page "/review"
+@using System.Globalization
+@using System.Net
+@using System.Net.Http.Json
+@using System.Text.Json.Serialization
+@using Vuelto.Shared.Ui.Auth
+@inject AuthService Auth
+@inject NavigationManager Nav
+@inject HttpClient Http
+@inject ReviewQueueNotifier ReviewQueue
+@inject IStringLocalizer<AppStrings> Localizer
+
+<PageTitle>@Localizer["Review_Title"]</PageTitle>
+
+@* EMAIL-6: the review queue (ADR-V010). A staged voucher is inert until confirmed here — the user decides the
+   category and class (prefilled from the household's merchant rules, never applied silently); the parsed fields
+   are shown read-only and open for editing only where the parser left a blank. Confirm books the transaction
+   through the same create as manual entry; discard drops the draft (the dedup tombstone stays). *@
+<div class="review-wrapper" data-testid="review-page">
+    <div class="d-flex align-items-center gap-2 mb-1">
+        <h1 class="h4 fw-bold mb-0">@Localizer["Review_Title"]</h1>
+        @if (_vouchers.Count > 0)
+        {
+            <span class="badge text-bg-primary" data-testid="review-count">@Localizer["Review_ToReview", _vouchers.Count]</span>
+        }
+    </div>
+    <p class="text-muted mb-3">@Localizer["Review_Subtitle"]</p>
+
+    @if (_notice is not null)
+    {
+        <div class="alert @(_noticeOk ? "alert-success" : "alert-danger") py-2" data-testid="review-notice">@_notice</div>
+    }
+
+    @if (_loading)
+    {
+        <div class="text-muted"><span class="spinner-border spinner-border-sm me-2"></span>@Localizer["Common_Loading"]</div>
+    }
+    else if (_vouchers.Count == 0)
+    {
+        <div class="card shadow-sm"><div class="card-body text-muted" data-testid="review-empty">@Localizer["Review_Empty"]</div></div>
+    }
+    else
+    {
+        @foreach (var v in _vouchers)
+        {
+            <div class="card shadow-sm mb-3" data-testid="review-voucher">
+                <div class="card-body">
+                    <div class="d-flex align-items-start justify-content-between flex-wrap gap-2">
+                        <div>
+                            <div class="fw-semibold" data-testid="review-merchant">@(v.Merchant ?? Localizer["Review_UnknownMerchant"].Value)</div>
+                            <div class="small text-muted">
+                                @(v.Date?.ToString("d", CultureInfo.CurrentCulture) ?? "—") · @(v.TransactionType ?? "—") · @BankName(v.BankId)
+                                @if (v.ReceivedAt is { } at) { <span> · @Localizer["Review_Received", at.ToLocalTime().ToString("g", CultureInfo.CurrentCulture)]</span> }
+                            </div>
+                        </div>
+                        <div class="text-end fw-semibold fs-5" data-testid="review-amount">@Money(v)</div>
+                    </div>
+
+                    @if (v.MissingFields.Length > 0)
+                    {
+                        <div class="alert alert-warning py-1 px-2 small mt-2 mb-2" data-testid="review-missing">@Localizer["Review_Missing"] @string.Join(", ", v.MissingFields)</div>
+                    }
+
+                    <div class="row g-2 mt-1">
+                        <div class="col-12 col-md-4">
+                            <label class="form-label small mb-1">
+                                @Localizer["Tx_Category"]
+                                @if (v.SuggestedCategoryId is not null) { <span class="badge text-bg-info ms-1" data-testid="review-suggested">@Localizer["Review_Suggested"]</span> }
+                            </label>
+                            <select class="form-select form-select-sm" data-testid="review-category" @bind="v.Form.CategoryId">
+                                <option value="">@Localizer["Review_SelectCategory"]</option>
+                                @foreach (var c in _categories) { <option value="@c.Id">@c.Name</option> }
+                            </select>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <label class="form-label small mb-1">@Localizer["Tx_Class"]</label>
+                            <select class="form-select form-select-sm" data-testid="review-class" @bind="v.Form.TransactionClass">
+                                <option value="budgeted">@Localizer["Tx_Budgeted"]</option>
+                                <option value="extraordinary">@Localizer["Tx_Extraordinary"]</option>
+                                <option value="unplanned_essential">@Localizer["Tx_Unplanned"]</option>
+                            </select>
+                        </div>
+                        @if (v.Missing("Merchant"))
+                        {
+                            <div class="col-12 col-md-4">
+                                <label class="form-label small mb-1">@Localizer["Tx_Payee"]</label>
+                                <input class="form-control form-control-sm" data-testid="review-payee" @bind="v.Form.Payee" />
+                            </div>
+                        }
+                        @if (v.Missing("Amount") || v.Missing("Currency"))
+                        {
+                            <div class="col-8 col-md-3">
+                                <label class="form-label small mb-1">@Localizer["Tx_Amount"]</label>
+                                <input type="number" step="0.01" min="0" class="form-control form-control-sm" data-testid="review-amount-input" @bind="v.Form.Amount" />
+                            </div>
+                            <div class="col-4 col-md-1">
+                                <label class="form-label small mb-1">&nbsp;</label>
+                                <select class="form-select form-select-sm" data-testid="review-currency" @bind="v.Form.Currency">
+                                    <option value="CRC">₡</option>
+                                    <option value="USD">$</option>
+                                </select>
+                            </div>
+                        }
+                        @if (v.Missing("Date"))
+                        {
+                            <div class="col-12 col-md-4">
+                                <label class="form-label small mb-1">@Localizer["Tx_Date"]</label>
+                                <input type="date" class="form-control form-control-sm" data-testid="review-date" @bind="v.Form.Date" />
+                            </div>
+                        }
+                    </div>
+
+                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mt-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="remember-@v.Id" data-testid="review-remember" @bind="v.Form.RememberMerchant" disabled="@(v.Merchant is null)" />
+                            <label class="form-check-label small" for="remember-@v.Id">@Localizer["Review_RememberMerchant"]</label>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-sm btn-outline-danger" data-testid="review-discard" @onclick="() => DiscardAsync(v)" disabled="@_busy">@Localizer["Review_Discard"]</button>
+                            <button class="btn btn-sm btn-primary" data-testid="review-confirm" @onclick="() => ConfirmAsync(v)" disabled="@_busy">@Localizer["Review_Confirm"]</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private bool _loading = true;
+    private bool _busy;
+    private string? _notice;
+    private bool _noticeOk;
+    private List<VoucherDto> _vouchers = new();
+    private List<NamedDto> _categories = new();
+    private List<NamedDto> _banks = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _categories = await Http.GetFromJsonAsync<List<NamedDto>>("/api/categories") ?? new();
+            _banks = await Http.GetFromJsonAsync<List<NamedDto>>("/api/banks") ?? new();
+            _vouchers = await Http.GetFromJsonAsync<List<VoucherDto>>("/api/pending-vouchers") ?? new();
+            foreach (var v in _vouchers) v.InitForm();
+        }
+        catch { Fail(Localizer["Review_LoadError"]); }
+        finally { _loading = false; }
+    }
+
+    private async Task ConfirmAsync(VoucherDto v)
+    {
+        if (string.IsNullOrEmpty(v.Form.CategoryId)) { Fail(Localizer["Review_CategoryRequired"]); return; }
+        _busy = true; _notice = null;
+        try
+        {
+            // Overrides go only where the parser left a blank — everything else is the voucher's own data.
+            var body = new
+            {
+                category_id = v.Form.CategoryId,
+                transaction_class = v.Form.TransactionClass,
+                remember_merchant = v.Form.RememberMerchant,
+                payee = v.Missing("Merchant") && !string.IsNullOrWhiteSpace(v.Form.Payee) ? v.Form.Payee : null,
+                original_amount = v.Missing("Amount") || v.Missing("Currency") ? v.Form.Amount : null,
+                currency = v.Missing("Amount") || v.Missing("Currency") ? v.Form.Currency : null,
+                transaction_date = v.Missing("Date") ? v.Form.Date : null,
+            };
+            var res = await Http.PostAsJsonAsync($"/api/pending-vouchers/{v.Id}/confirm", body);
+            if (res.StatusCode == HttpStatusCode.Conflict) { Fail(Localizer["Review_NotPending"]); await ReloadAsync(); return; }
+            if (res.StatusCode == HttpStatusCode.BadRequest)
+            {
+                var err = await res.Content.ReadFromJsonAsync<ErrorDto>();
+                Fail(err?.Error == "exchange_rate_unavailable" ? Localizer["Review_RateUnavailable"] : err?.Message ?? Localizer["Review_ConfirmError"]);
+                return;
+            }
+            res.EnsureSuccessStatusCode();
+            var result = await res.Content.ReadFromJsonAsync<ConfirmDto>();
+            Ok(result?.Remembered == true ? Localizer["Review_ConfirmedRemembered"] : Localizer["Review_Confirmed"]);
+            ReviewQueue.NotifyChanged();
+            await ReloadAsync();
+        }
+        catch { Fail(Localizer["Review_ConfirmError"]); }
+        finally { _busy = false; }
+    }
+
+    private async Task DiscardAsync(VoucherDto v)
+    {
+        _busy = true; _notice = null;
+        try
+        {
+            var res = await Http.PostAsync($"/api/pending-vouchers/{v.Id}/discard", null);
+            if (res.StatusCode == HttpStatusCode.Conflict) { Fail(Localizer["Review_NotPending"]); await ReloadAsync(); return; }
+            res.EnsureSuccessStatusCode();
+            Ok(Localizer["Review_Discarded"]);
+            ReviewQueue.NotifyChanged();
+            await ReloadAsync();
+        }
+        catch { Fail(Localizer["Review_ConfirmError"]); }
+        finally { _busy = false; }
+    }
+
+    private string BankName(Guid? id) => _banks.FirstOrDefault(b => b.Id == id)?.Name ?? "—";
+
+    private static string Money(VoucherDto v) => v.Amount is { } a
+        ? (v.Currency == "USD" ? "$" : "₡") + a.ToString("N2", CultureInfo.CurrentCulture)
+        : "—";
+
+    private void Ok(string message) { _notice = message; _noticeOk = true; }
+    private void Fail(string message) { _notice = message; _noticeOk = false; }
+
+    private sealed class FormModel
+    {
+        public string? CategoryId { get; set; }
+        public string TransactionClass { get; set; } = "budgeted";
+        public bool RememberMerchant { get; set; }
+        public string? Payee { get; set; }
+        public decimal? Amount { get; set; }
+        public string Currency { get; set; } = "CRC";
+        public DateOnly? Date { get; set; }
+    }
+
+    private sealed class VoucherDto
+    {
+        [JsonPropertyName("id")] public Guid Id { get; set; }
+        [JsonPropertyName("merchant")] public string? Merchant { get; set; }
+        [JsonPropertyName("amount")] public decimal? Amount { get; set; }
+        [JsonPropertyName("currency")] public string? Currency { get; set; }
+        [JsonPropertyName("date")] public DateOnly? Date { get; set; }
+        [JsonPropertyName("bank_id")] public Guid? BankId { get; set; }
+        [JsonPropertyName("transaction_type")] public string? TransactionType { get; set; }
+        [JsonPropertyName("missing_fields")] public string[] MissingFields { get; set; } = [];
+        [JsonPropertyName("suggested_category_id")] public Guid? SuggestedCategoryId { get; set; }
+        [JsonPropertyName("suggested_class")] public string? SuggestedClass { get; set; }
+        [JsonPropertyName("received_at")] public DateTimeOffset? ReceivedAt { get; set; }
+
+        [JsonIgnore] public FormModel Form { get; } = new();
+
+        public bool Missing(string field) => MissingFields.Contains(field, StringComparer.OrdinalIgnoreCase);
+
+        public void InitForm()
+        {
+            Form.CategoryId = SuggestedCategoryId?.ToString();
+            Form.TransactionClass = string.IsNullOrEmpty(SuggestedClass) ? "budgeted" : SuggestedClass;
+            Form.Payee = Merchant;
+            Form.Amount = Amount;
+            Form.Currency = Currency ?? "CRC";
+            Form.Date = Date;
+        }
+    }
+
+    private sealed record NamedDto([property: JsonPropertyName("id")] Guid Id, [property: JsonPropertyName("name")] string Name);
+    private sealed record ConfirmDto([property: JsonPropertyName("transaction_id")] Guid TransactionId, [property: JsonPropertyName("remembered")] bool Remembered);
+    private sealed record ErrorDto([property: JsonPropertyName("error")] string Error, [property: JsonPropertyName("message")] string Message);
+}

@@ -15,6 +15,14 @@
 @* DASH-1: the month at a glance (ADR-V004/V006/V007). Actuals are frozen per transaction; projections use the
    resolved rate; when no rate resolves the projections are blocked, never guessed. Green under budget, red over. *@
 <div class="dash-wrapper" data-testid="dash-page">
+    @if (_reviewCount > 0)
+    {
+        @* EMAIL-6: drafts waiting in the review queue — shown even before the first month exists. *@
+        <div class="alert alert-warning d-flex align-items-center justify-content-between flex-wrap gap-2 py-2" data-testid="dash-review-banner">
+            <span>@Localizer["Dash_ReviewBanner", _reviewCount]</span>
+            <a class="btn btn-sm btn-warning" href="/review" data-testid="dash-review-link">@Localizer["Dash_ReviewLink"]</a>
+        </div>
+    }
     @if (_loading)
     {
         <div class="text-muted"><span class="spinner-border spinner-border-sm me-2"></span>@Localizer["Common_Loading"]</div>
@@ -219,6 +227,7 @@
 
     private bool _loading = true;
     private string? _error;
+    private int _reviewCount;
     private List<MonthDto> _months = new();
     private DashDto? _dash;
 
@@ -227,6 +236,12 @@
         if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
         try
         {
+            try
+            {
+                var count = await Http.GetAsync("/api/pending-vouchers/count");
+                _reviewCount = count.IsSuccessStatusCode ? (await count.Content.ReadFromJsonAsync<CountDto>())?.Count ?? 0 : 0;
+            }
+            catch { _reviewCount = 0; } // the banner is a courtesy, never a blocker
             _months = await Http.GetFromJsonAsync<List<MonthDto>>("/api/months") ?? new();
             if (_months.Count == 0) return;
             var id = Id is { } given && _months.Any(m => m.Id == given) ? given : _months[0].Id; // newest first
@@ -340,4 +355,5 @@
         [property: JsonPropertyName("rate_as_of")] DateTimeOffset? RateAsOf,
         [property: JsonPropertyName("rate_unavailable")] bool RateUnavailable,
         [property: JsonPropertyName("summary")] SummaryDto? Summary);
+    private sealed record CountDto([property: JsonPropertyName("count")] int Count);
 }

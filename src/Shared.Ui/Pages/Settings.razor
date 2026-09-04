@@ -108,6 +108,15 @@
         </div>
     </div>
 
+    @* ── Merchant suggestions (EMAIL-5) — household rules that prefill the review queue. ── *@
+    <div class="card shadow-sm mt-4" data-testid="mapping-card">
+        <div class="card-body">
+            <h2 class="h6 fw-bold mb-1">@Localizer["Mapping_SettingsTitle"]</h2>
+            <p class="small text-muted mb-3">@Localizer["Mapping_SettingsHint"]</p>
+            <a class="btn btn-outline-primary btn-sm" href="/merchant-mappings" data-testid="mapping-link">@Localizer["Mapping_SettingsLink"]</a>
+        </div>
+    </div>
+
     @* ── Notification preferences (NOTIFY-2, ADR-013) ── *@
     <NotificationPrefsCard />
 

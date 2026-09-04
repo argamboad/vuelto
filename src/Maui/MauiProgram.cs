@@ -101,6 +101,7 @@ public static class MauiProgram
 		// Fired by the window's Resumed lifecycle event (App.CreateWindow) so pages can refresh
 		// after an external round-trip returns to the app (NATIVE-4, G2).
 		builder.Services.AddSingleton<AppResumeNotifier>();
+		builder.Services.AddSingleton<ReviewQueueNotifier>(); // EMAIL-6: the header badge re-counts when the queue changes
 
 #if DEBUG
 		builder.Services.AddBlazorWebViewDeveloperTools();

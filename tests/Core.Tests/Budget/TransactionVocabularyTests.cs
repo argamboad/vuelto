@@ -39,7 +39,7 @@ public class TransactionVocabularyTests
 
     [Theory]
     [InlineData("manual", true)]
-    [InlineData("email", false)]
+    [InlineData("email", true)]
     [InlineData("refund_realization", false)]
-    public void Sources_OnlyManualIsEditable(string source, bool editable) => Assert.Equal(editable, TransactionSources.IsEditable(source));
+    public void Sources_OnlyRefundDerivedRowsAreReadOnly(string source, bool editable) => Assert.Equal(editable, TransactionSources.IsEditable(source));
 }

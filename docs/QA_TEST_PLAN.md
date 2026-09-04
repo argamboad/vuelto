@@ -1753,6 +1753,61 @@ then confirm via SQL that `PendingVouchers` holds the rows with `status = pendin
 
 ---
 
+## 10n. Web — Email ingestion: suggestions & review queue (app slice EMAIL-5/6) 🟠
+
+> The staged drafts (QA-EMAIL-04) become transactions only here. Merchant rules prefill the queue; the user
+> always confirms. Can be run without a live inbox by staging a draft row directly (see the note in
+> QA-EMAIL-06) — the confirm path is identical.
+
+### QA-EMAIL-05 — Merchant rules suggest, never apply, and are unique per household 🟠 (Web / API)
+**Gherkin**
+```gherkin
+Given Settings → Manage suggestions
+When I add "AUTOMERCADO" → Groceries and "Taco Bell" → Dining / Extraordinary
+Then both list with their category; adding "automercado" again says "A rule for this merchant already exists."
+When a voucher from "TACO BELL PLAZA REAL C" is staged
+Then the Review queue shows it with Dining / Extraordinary prefilled and a "Suggested" badge — but it is NOT a transaction until I confirm
+```
+**Walkthrough:** **Settings → Manage suggestions** → add the two rules → **Expected:** the table shows
+pattern, category, class. Add `automercado` (lower-case) → **Expected:** the red notice, no new row. Edit
+"Taco Bell" → class Budgeted → save → the row follows; delete it (two-step) → gone. Via Postman
+(**22 · Review queue & merchant suggestions → Create merchant rule** twice) → 201 then 409
+`mapping_exists`; **List merchant rules** → `category_name` filled. Stage a matching voucher (Sync now with
+a real email, or the SQL row from QA-EMAIL-06 with `merchant = 'TACO BELL PLAZA REAL C'`) →
+**Review** → **Expected:** the category select already shows the mapped category, the "Suggested" badge is
+on, and **Months** shows no new transaction yet.
+
+### QA-EMAIL-06 — Review queue: confirm books the transaction once, discard never reverts a confirm 🟠 (Web / API)
+**Gherkin**
+```gherkin
+Given a pending draft in the Review queue (header badge shows 1, dashboard banner says 1 waiting)
+When I pick a category and class, tick "Remember this merchant" and Confirm
+Then "Confirmed and remembered", the draft leaves the queue, the badge disappears, and the month lists a transaction with source email and the voucher's amount, bank and date
+And Settings → Manage suggestions now has a rule for that merchant
+When I confirm the same draft again through the API
+Then 409 not_pending, and no second transaction exists
+When I discard another pending draft
+Then it leaves the queue; discarding it again → 409; the same email never re-stages on the next Sync now
+```
+**Walkthrough:** need a pending draft — either QA-EMAIL-04 with a real email, or stage one directly
+(dev only): `INSERT INTO "PendingVouchers" (…)` with your household's `TenantId`, a `BankId` from
+`"Banks"`, `Status = 'pending'`, `Merchant`, `Amount`, `Currency = 'CRC'`, `Date`, `Fingerprint`,
+`ProviderMessageId`, `ParsedBank = 'Bac'`, `MissingFields = '{}'`. Open **Dashboard** → **Expected:** the
+amber banner "1 voucher(s) … waiting for review → Review now" (even with no months yet) and the header
+**Review** link with a **1** badge. **Review** → **Expected:** the card shows merchant, ₡ amount, date,
+type, bank; category prefilled only when a rule matches; parsed fields read-only (a draft with blanks shows
+"Could not read: …" and opens exactly those fields). Pick a category, tick **Remember this merchant**,
+**Confirm** → **Expected:** the green notice, the card gone, the badge gone; **Months → that month** lists
+the transaction (source `email`); **Settings → Manage suggestions** has the new rule. Postman
+(**Confirm pending voucher** with the same `{{pendingVoucherId}}`) → **Expected:** 409 `not_pending`;
+**Months → transactions** still shows one row for it. Stage a second draft → **Review → Discard** →
+**Expected:** "Draft discarded.", queue empty; Postman **Discard pending voucher** → 409 `not_pending`;
+**Sync now** (or re-staging the same fingerprint) → not re-staged (the tombstone). Also: with the rate
+provider blocked (unset the API key and no prior transaction), **Confirm** → **Expected:** "No exchange
+rate is available right now", the draft stays in the queue, nothing in Months.
+
+---
+
 ## 11. Emails (Mailpit) — branding & content 🟠
 
 > **Delivery is asynchronous** (the outbox dispatcher) — emails land in Mailpit a few seconds after the
@@ -2742,6 +2797,8 @@ app fires no published events. (Published events via `IWebhookPublisher` also lo
 | Reports: category analysis + CSV export (app REPORTS-1/2) | REP-01..02 + `Core.Tests` (`CategoryAnalysisCalculatorTests`, `TransactionCsvWriterTests`) + `Api.Tests` (`ReportSliceTests`) | `GET /api/reports/category-analysis`, `POST /api/reports/transactions/export` (`month_id` \| `from`+`to`; 400 `period_required` / `period_ambiguous` / `period_incomplete` / `period_invalid`; uniform 404; export → signed `download_url` served by `GET /api/files/{token}`) |
 | Email inboxes: connect + readers (app EMAIL-2/3) | EMAIL-01..03 + `Api.Tests` (`MailConsentServiceTests`, `EmailReaderTests`, `EmailConnectionSliceTests`) | `GET /api/email/connections` (+ `/{id}`, `/{id}/folders` 409 `needs_reconsent`), `GET …/authorize?provider=` (400 `invalid_provider` / `provider_not_configured`), anonymous `GET …/callback` (→ `/email?connected=` \| `?email_error=`), `GET …/suggested-filters`, `POST …` (400 `use_consent_flow`), `PUT /{id}` (400 `filters_required` / `invalid_interval`), `DELETE /{id}`; uniform 404 |
 | Email ingestion: staging + dedup (app EMAIL-4) | EMAIL-04 + `Core.Tests` (`VoucherFingerprintTests`) + `Api.Tests` (`VoucherStagingSliceTests` incl. the poll job) | `POST /api/email/connections/{id}/sync` (200 `{staged, duplicates, unrecognized}`; 409 `needs_reconsent`; uniform 404); the `email-poll` scheduled job |
+| Email ingestion: merchant suggestions (app EMAIL-5) | EMAIL-05 + `Core.Tests` (`MerchantMatcherTests`) + `Api.Tests` (`MerchantMappingSliceTests` incl. the race, `VoucherStagingSliceTests` suggestion case, `ReviewEndpointTests`) + `Ui.Tests` (`MerchantMappingsPageTests`) | `GET/POST /api/merchant-mappings`, `PUT/DELETE …/{id}` (400 `invalid_request`; 409 `mapping_exists`; uniform 404) |
+| Email ingestion: review queue + confirm (app EMAIL-6) | EMAIL-06 + `Api.Tests` (`PendingVoucherSliceTests` incl. the two-context concurrency proof, `ReviewEndpointTests`) + `Ui.Tests` (`ReviewPageTests`, `ReviewBadgeTests`) | `GET /api/pending-vouchers` (+ `/count`), `POST …/{id}/confirm` (200 `{transaction_id, month_id, amount_crc, amount_usd, remembered}`; 400 `invalid_request` / `exchange_rate_unavailable`; 409 `not_pending`), `POST …/{id}/discard` (204; 409 `not_pending`); uniform 404 |
 | Emails / branding | MAIL-01..04, I18N-04 | (SMTP via Mailpit) |
 | Tenant isolation / auth guards | SEC-01..05 | (all `[Authorize]` endpoints; write-stamping + reuse detection are automated) |
 | Platform health / readiness | SMK-07 | `GET /health`, `GET /health/ready` |
@@ -2867,6 +2924,8 @@ Record one row per executed case. Build = API/web commit SHA (`git rev-parse --s
 | QA-EMAIL-02 | Web | | | | | |
 | QA-EMAIL-03 | Web | | | | | |
 | QA-EMAIL-04 | Web | | | | | |
+| QA-EMAIL-05 | Web | | | | | |
+| QA-EMAIL-06 | Web | | | | | |
 | … | | | | | | |
 
 **§14a adversarial / tenant-isolation (QA-ADV-*).** All rows are **Not-run** (blank) until executed.

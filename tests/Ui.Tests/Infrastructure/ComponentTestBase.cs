@@ -45,6 +45,7 @@ public abstract class ComponentTestBase : BunitContext
         Services.AddSingleton<IFileDownloadLauncher>(Downloads); // pages with a download (Household export, Reports CSV) inject it
         Services.AddSingleton<IStringLocalizer<AppStrings>>(new FakeStringLocalizer());
         Services.AddSingleton<AppResumeNotifier>(); // pages that refresh on app-resume (Billing) inject it
+        Services.AddSingleton<ReviewQueueNotifier>(); // the header badge + the Review page (EMAIL-6)
 
         // bUnit ships a fake NavigationManager (assert via Services.GetRequiredService<NavigationManager>())
         // and a JSInterop (JSInterop.Mode = Loose so unmatched JS calls no-op rather than throw).

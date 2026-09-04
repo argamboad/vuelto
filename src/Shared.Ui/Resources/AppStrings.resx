@@ -572,4 +572,48 @@
   <data name="Email_SyncResult" xml:space="preserve"><value>Sync done — {0} staged for review, {1} already seen, {2} not a voucher.</value></data>
   <data name="Email_SyncError" xml:space="preserve"><value>Couldn't sync this inbox. Try again.</value></data>
   <data name="Email_ReconnectToSync" xml:space="preserve"><value>Reconnect this inbox to sync it.</value></data>
+  <data name="Nav_Review" xml:space="preserve"><value>Review</value></data>
+  <data name="Review_Title" xml:space="preserve"><value>Review queue</value></data>
+  <data name="Review_Subtitle" xml:space="preserve"><value>Bank vouchers from your inboxes wait here until you confirm them. Nothing touches the budget until you do.</value></data>
+  <data name="Review_Empty" xml:space="preserve"><value>Nothing to review — every draft from your inboxes is handled.</value></data>
+  <data name="Review_ToReview" xml:space="preserve"><value>{0} to review</value></data>
+  <data name="Review_UnknownMerchant" xml:space="preserve"><value>Unknown merchant</value></data>
+  <data name="Review_Missing" xml:space="preserve"><value>Could not read:</value></data>
+  <data name="Review_Suggested" xml:space="preserve"><value>Suggested</value></data>
+  <data name="Review_SelectCategory" xml:space="preserve"><value>Choose a category</value></data>
+  <data name="Review_RememberMerchant" xml:space="preserve"><value>Remember this merchant → category</value></data>
+  <data name="Review_Confirm" xml:space="preserve"><value>Confirm</value></data>
+  <data name="Review_Discard" xml:space="preserve"><value>Discard</value></data>
+  <data name="Review_Received" xml:space="preserve"><value>Received {0}</value></data>
+  <data name="Review_Confirmed" xml:space="preserve"><value>Confirmed — the transaction is in your budget.</value></data>
+  <data name="Review_ConfirmedRemembered" xml:space="preserve"><value>Confirmed and remembered — this merchant will be suggested next time.</value></data>
+  <data name="Review_Discarded" xml:space="preserve"><value>Draft discarded.</value></data>
+  <data name="Review_CategoryRequired" xml:space="preserve"><value>Choose a category first.</value></data>
+  <data name="Review_NotPending" xml:space="preserve"><value>This voucher was already handled — reloading the queue.</value></data>
+  <data name="Review_RateUnavailable" xml:space="preserve"><value>No exchange rate is available right now — try again later.</value></data>
+  <data name="Review_ConfirmError" xml:space="preserve"><value>Couldn't update this voucher. Try again.</value></data>
+  <data name="Review_LoadError" xml:space="preserve"><value>Couldn't load the review queue.</value></data>
+  <data name="Dash_ReviewBanner" xml:space="preserve"><value>{0} voucher(s) from your inboxes are waiting for review.</value></data>
+  <data name="Dash_ReviewLink" xml:space="preserve"><value>Review now</value></data>
+  <data name="Mapping_Title" xml:space="preserve"><value>Merchant suggestions</value></data>
+  <data name="Mapping_Subtitle" xml:space="preserve"><value>Rules that prefill the category (and class) for vouchers from a merchant. They only suggest — you always confirm.</value></data>
+  <data name="Mapping_SettingsTitle" xml:space="preserve"><value>Merchant suggestions</value></data>
+  <data name="Mapping_SettingsHint" xml:space="preserve"><value>Teach the review queue which category a merchant belongs to. Rules are shared by the household.</value></data>
+  <data name="Mapping_SettingsLink" xml:space="preserve"><value>Manage suggestions</value></data>
+  <data name="Mapping_Pattern" xml:space="preserve"><value>Merchant contains</value></data>
+  <data name="Mapping_Class" xml:space="preserve"><value>Suggested class</value></data>
+  <data name="Mapping_NoClass" xml:space="preserve"><value>Budgeted (default)</value></data>
+  <data name="Mapping_Add" xml:space="preserve"><value>Add a rule</value></data>
+  <data name="Mapping_Edit" xml:space="preserve"><value>Edit</value></data>
+  <data name="Mapping_Save" xml:space="preserve"><value>Save</value></data>
+  <data name="Mapping_Delete" xml:space="preserve"><value>Delete</value></data>
+  <data name="Mapping_DeleteConfirm" xml:space="preserve"><value>Yes, delete</value></data>
+  <data name="Mapping_Hint" xml:space="preserve"><value>Matching ignores case; when several rules match, the longest one wins.</value></data>
+  <data name="Mapping_Empty" xml:space="preserve"><value>No rules yet. Confirm a voucher with "Remember this merchant" or add one here.</value></data>
+  <data name="Mapping_Required" xml:space="preserve"><value>Enter the merchant text and choose a category.</value></data>
+  <data name="Mapping_Exists" xml:space="preserve"><value>A rule for this merchant already exists.</value></data>
+  <data name="Mapping_Saved" xml:space="preserve"><value>Rule saved.</value></data>
+  <data name="Mapping_Deleted" xml:space="preserve"><value>Rule deleted.</value></data>
+  <data name="Mapping_Error" xml:space="preserve"><value>Couldn't save the rule. Try again.</value></data>
+  <data name="Mapping_LoadError" xml:space="preserve"><value>Couldn't load the rules.</value></data>
 </root>

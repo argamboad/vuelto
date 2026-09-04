@@ -29,6 +29,7 @@ public sealed class VoucherStagingService(
     IRepository<PendingVoucher> pendingVouchers,
     IRepository<IngestedVoucher> ingestedVouchers,
     IRepository<EmailConnection> connections,
+    IRepository<MerchantCategoryMapping> mappings,
     TimeProvider clock,
     ILogger<VoucherStagingService> logger) : IVoucherStagingService
 {
@@ -62,6 +63,7 @@ public sealed class VoucherStagingService(
         {
             var locale = (await users.Query().Where(u => u.Id == connection.UserId).Select(u => u.Locale).FirstOrDefaultAsync(cancellationToken));
             var bankIds = await ResolveBankIdsAsync(householdId.Value, locale, cancellationToken);
+            var rules = await mappings.Query().ToListAsync(cancellationToken); // EMAIL-5: the household's suggestion rules, matched in memory
 
             foreach (var message in fetch.Messages)
             {
@@ -81,12 +83,14 @@ public sealed class VoucherStagingService(
                     var effectiveFingerprint = fingerprint ?? Guid.CreateVersion7().ToString("N"); // no dedup possible: always stage
 
                     var now = clock.GetUtcNow();
+                    var rule = MerchantMatcher.Resolve(rules, parsed.Merchant); // a suggestion is copied onto the draft, never applied (D4)
                     var draft = new PendingVoucher
                     {
                         TenantId = householdId.Value, EmailConnectionId = connection.Id, ProviderMessageId = message.MessageId, Fingerprint = effectiveFingerprint,
                         ParsedBank = parsed.Bank.ToString(), BankId = bankIds.For(parsed.Bank), Merchant = parsed.Merchant, Amount = parsed.Amount,
                         Currency = parsed.Currency, Date = parsed.Date, CardNumber = parsed.CardNumber, Authorization = parsed.Authorization,
                         Reference = parsed.Reference, TransactionType = parsed.TransactionType, MissingFields = parsed.MissingFields.ToArray(),
+                        SuggestedCategoryId = rule?.CategoryId, SuggestedClass = rule is null ? null : rule.SuggestedClass ?? SuggestibleClasses.Default,
                         Status = PendingVoucherStatuses.Pending, ReceivedAt = message.ReceivedAt, CreatedAt = now, UpdatedAt = now,
                     };
                     var tombstone = new IngestedVoucher { TenantId = householdId.Value, Fingerprint = effectiveFingerprint, PendingVoucherId = draft.Id, CreatedAt = now };

@@ -1461,6 +1461,20 @@ encryption, isolation and unit-of-work this needs.
 > platform scheduler (no bespoke `BackgroundService`). The donor's cursor rules (transient hold, 7-day poison
 > drop, saturation resume) carried over verbatim. A stored token that no longer unprotects flags the
 > connection `needs_reconsent` instead of failing the cycle (ADR-V016).
+>
+> **As built (P10b, 2026-09-04):** the review queue and the merchant rules live in the same Email slice.
+> Slices may not reference each other (R7), so "the same `TransactionService.CreateAsync`" became a **Core
+> contract `ITransactionService`** (`Vuelto.Core.Budget`; `CreateTransactionCommand` carries the provenance
+> `Source`) that the Ledger's `TransactionHandler` implements and `Program.cs` binds — the queue depends on
+> the contract, never on the Ledger namespace. Confirm runs the create + the conditional `pending →
+> confirmed` flip inside one `IUnitOfWork` scope; the loser of a concurrent confirm sees 0 rows, returns
+> `not_pending`, and its scope disposes without commit so its transaction (and any month it created) rolls
+> back. Discard is the same guarded flip. Merchant rules are matched by the pure `MerchantMatcher`
+> (case-insensitive contains, longest wins) shared by staging and the slice; uniqueness per household is a
+> stored lower-cased `PatternKey` under a unique index (the donor's functional `lower()` index, expressed in
+> the EF model). The queue edits only the category and class (the owner's reversal of donor US-038);
+> fields the parser could not read are the one exception and open for entry. A booked `email` transaction
+> is editable and deletable like a manual one (`IsEditable` excludes only `refund_realization`).
 
 **ADR-V011 — UI is rebuilt in the platform's Bootstrap RCL; MudBlazor is not brought over; brand tokens are indigo + gold. (2026-09-02; port decision D1)**
 The donor's 6,382 razor lines (MudBlazor 9) are rewritten page by page, in slice order, as

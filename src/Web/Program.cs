@@ -46,6 +46,7 @@ builder.Services.AddSingleton<IFileDownloadLauncher, BrowserFileDownloadLauncher
 // Never notified on web — external flows return via a full redirect (fresh page load); the
 // registration only satisfies the shared pages' injection (see AppResumeNotifier).
 builder.Services.AddSingleton<AppResumeNotifier>();
+builder.Services.AddSingleton<ReviewQueueNotifier>(); // EMAIL-6: the header badge re-counts when the queue changes
 
 // Web session store: the browser owns the HttpOnly refresh cookie, so this is a no-op.
 builder.Services.AddSingleton<ISessionStore, CookieSessionStore>();

@@ -1,0 +1,212 @@
+@page "/merchant-mappings"
+@using System.Net
+@using System.Net.Http.Json
+@using System.Text.Json.Serialization
+@using Vuelto.Shared.Ui.Auth
+@inject AuthService Auth
+@inject NavigationManager Nav
+@inject HttpClient Http
+@inject IStringLocalizer<AppStrings> Localizer
+
+<PageTitle>@Localizer["Mapping_Title"]</PageTitle>
+
+@* EMAIL-5: the household's merchant → category rules. A rule only ever SUGGESTS on a staged voucher (the review
+   queue prefills it); matching is case-insensitive "contains" and the longest matching rule wins. *@
+<div class="mapping-wrapper" data-testid="mapping-page">
+    <h1 class="h4 fw-bold mb-1">@Localizer["Mapping_Title"]</h1>
+    <p class="text-muted mb-3">@Localizer["Mapping_Subtitle"]</p>
+
+    @if (_notice is not null)
+    {
+        <div class="alert @(_noticeOk ? "alert-success" : "alert-danger") py-2" data-testid="mapping-notice">@_notice</div>
+    }
+
+    <div class="card shadow-sm mb-3">
+        <div class="card-body">
+            <h2 class="h6 fw-bold mb-2">@(_editingId is null ? Localizer["Mapping_Add"] : Localizer["Mapping_Edit"])</h2>
+            <div class="row g-2 align-items-end">
+                <div class="col-12 col-md-5">
+                    <label class="form-label small mb-1" for="mapping-pattern">@Localizer["Mapping_Pattern"]</label>
+                    <input class="form-control form-control-sm" id="mapping-pattern" data-testid="mapping-pattern" @bind="_form.Pattern" placeholder="AUTOMERCADO" />
+                </div>
+                <div class="col-12 col-md-3">
+                    <label class="form-label small mb-1" for="mapping-category">@Localizer["Tx_Category"]</label>
+                    <select class="form-select form-select-sm" id="mapping-category" data-testid="mapping-category" @bind="_form.CategoryId">
+                        <option value="">@Localizer["Review_SelectCategory"]</option>
+                        @foreach (var c in _categories) { <option value="@c.Id">@c.Name</option> }
+                    </select>
+                </div>
+                <div class="col-12 col-md-2">
+                    <label class="form-label small mb-1" for="mapping-class">@Localizer["Mapping_Class"]</label>
+                    <select class="form-select form-select-sm" id="mapping-class" data-testid="mapping-class" @bind="_form.SuggestedClass">
+                        <option value="">@Localizer["Mapping_NoClass"]</option>
+                        <option value="budgeted">@Localizer["Tx_Budgeted"]</option>
+                        <option value="extraordinary">@Localizer["Tx_Extraordinary"]</option>
+                        <option value="unplanned_essential">@Localizer["Tx_Unplanned"]</option>
+                    </select>
+                </div>
+                <div class="col-12 col-md-2 d-flex gap-2">
+                    <button class="btn btn-primary btn-sm" data-testid="mapping-save" @onclick="SaveAsync" disabled="@_busy">@Localizer["Mapping_Save"]</button>
+                    @if (_editingId is not null)
+                    {
+                        <button class="btn btn-outline-secondary btn-sm" data-testid="mapping-cancel" @onclick="ResetForm">@Localizer["Common_Cancel"]</button>
+                    }
+                </div>
+            </div>
+            <div class="form-text">@Localizer["Mapping_Hint"]</div>
+        </div>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="text-muted"><span class="spinner-border spinner-border-sm me-2"></span>@Localizer["Common_Loading"]</div>
+    }
+    else if (_rules.Count == 0)
+    {
+        <p class="text-muted" data-testid="mapping-empty">@Localizer["Mapping_Empty"]</p>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-sm align-middle">
+                <thead><tr><th>@Localizer["Mapping_Pattern"]</th><th>@Localizer["Tx_Category"]</th><th>@Localizer["Mapping_Class"]</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var r in _rules)
+                    {
+                        <tr data-testid="mapping-row">
+                            <td class="fw-semibold">@r.MerchantPattern</td>
+                            <td>@(r.CategoryName ?? "—")</td>
+                            <td>@ClassLabel(r.SuggestedClass)</td>
+                            <td class="text-end text-nowrap">
+                                <button class="btn btn-sm btn-outline-primary" data-testid="mapping-edit" @onclick="() => Edit(r)">@Localizer["Mapping_Edit"]</button>
+                                @if (_confirmDelete == r.Id)
+                                {
+                                    <button class="btn btn-sm btn-danger" data-testid="mapping-delete-confirm" @onclick="() => DeleteAsync(r)" disabled="@_busy">@Localizer["Mapping_DeleteConfirm"]</button>
+                                    <button class="btn btn-sm btn-outline-secondary" @onclick="() => _confirmDelete = null">@Localizer["Common_Cancel"]</button>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-sm btn-outline-danger" data-testid="mapping-delete" @onclick="() => _confirmDelete = r.Id">@Localizer["Mapping_Delete"]</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@code {
+    private bool _loading = true;
+    private bool _busy;
+    private string? _notice;
+    private bool _noticeOk;
+    private Guid? _editingId;
+    private Guid? _confirmDelete;
+    private List<RuleDto> _rules = new();
+    private List<NamedDto> _categories = new();
+    private readonly FormModel _form = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _categories = await Http.GetFromJsonAsync<List<NamedDto>>("/api/categories") ?? new();
+            _rules = await Http.GetFromJsonAsync<List<RuleDto>>("/api/merchant-mappings") ?? new();
+        }
+        catch { Fail(Localizer["Mapping_LoadError"]); }
+        finally { _loading = false; }
+    }
+
+    private void Edit(RuleDto r)
+    {
+        _editingId = r.Id;
+        _form.Pattern = r.MerchantPattern;
+        _form.CategoryId = r.CategoryId.ToString();
+        _form.SuggestedClass = r.SuggestedClass ?? "";
+        _notice = null;
+    }
+
+    private void ResetForm()
+    {
+        _editingId = null;
+        _form.Pattern = ""; _form.CategoryId = ""; _form.SuggestedClass = "";
+    }
+
+    private async Task SaveAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_form.Pattern) || string.IsNullOrEmpty(_form.CategoryId)) { Fail(Localizer["Mapping_Required"]); return; }
+        _busy = true; _notice = null;
+        try
+        {
+            var body = new { merchant_pattern = _form.Pattern.Trim(), category_id = _form.CategoryId, suggested_class = string.IsNullOrEmpty(_form.SuggestedClass) ? null : _form.SuggestedClass };
+            var res = _editingId is { } id
+                ? await Http.PutAsJsonAsync($"/api/merchant-mappings/{id}", body)
+                : await Http.PostAsJsonAsync("/api/merchant-mappings", body);
+            if (res.StatusCode == HttpStatusCode.Conflict) { Fail(Localizer["Mapping_Exists"]); return; }
+            if (res.StatusCode == HttpStatusCode.BadRequest)
+            {
+                var err = await res.Content.ReadFromJsonAsync<ErrorDto>();
+                Fail(err?.Message ?? Localizer["Mapping_Error"]);
+                return;
+            }
+            res.EnsureSuccessStatusCode();
+            ResetForm();
+            Ok(Localizer["Mapping_Saved"]);
+            await ReloadAsync();
+        }
+        catch { Fail(Localizer["Mapping_Error"]); }
+        finally { _busy = false; }
+    }
+
+    private async Task DeleteAsync(RuleDto r)
+    {
+        _busy = true; _notice = null;
+        try
+        {
+            var res = await Http.DeleteAsync($"/api/merchant-mappings/{r.Id}");
+            res.EnsureSuccessStatusCode();
+            _confirmDelete = null;
+            if (_editingId == r.Id) ResetForm();
+            Ok(Localizer["Mapping_Deleted"]);
+            await ReloadAsync();
+        }
+        catch { Fail(Localizer["Mapping_Error"]); }
+        finally { _busy = false; }
+    }
+
+    private string ClassLabel(string? cls) => cls switch
+    {
+        "budgeted" => Localizer["Tx_Budgeted"],
+        "extraordinary" => Localizer["Tx_Extraordinary"],
+        "unplanned_essential" => Localizer["Tx_Unplanned"],
+        _ => Localizer["Mapping_NoClass"],
+    };
+
+    private void Ok(string message) { _notice = message; _noticeOk = true; }
+    private void Fail(string message) { _notice = message; _noticeOk = false; }
+
+    private sealed class FormModel
+    {
+        public string Pattern { get; set; } = "";
+        public string CategoryId { get; set; } = "";
+        public string SuggestedClass { get; set; } = "";
+    }
+
+    private sealed record RuleDto(
+        [property: JsonPropertyName("id")] Guid Id,
+        [property: JsonPropertyName("merchant_pattern")] string MerchantPattern,
+        [property: JsonPropertyName("category_id")] Guid CategoryId,
+        [property: JsonPropertyName("category_name")] string? CategoryName,
+        [property: JsonPropertyName("suggested_class")] string? SuggestedClass);
+    private sealed record NamedDto([property: JsonPropertyName("id")] Guid Id, [property: JsonPropertyName("name")] string Name);
+    private sealed record ErrorDto([property: JsonPropertyName("error")] string Error, [property: JsonPropertyName("message")] string Message);
+}
