@@ -38,6 +38,47 @@ public class EmailConnectionSliceTests(PostgresFixture fixture) : PostgresTestBa
     private static NewEmailConnection Valid(string provider = EmailProviders.Microsoft, string[]? senders = null, string[]? subjects = null, string access = "access-123", string refresh = "refresh-456") =>
         new(provider, "user@example.com", access, refresh, T0.AddHours(1), senders ?? [], subjects ?? ["Notificación de transacción"]);
 
+    private sealed class FakeFolderReader(EmailFoldersResult result) : IEmailReader
+    {
+        public string Provider => EmailProviders.Microsoft;
+        public int Calls;
+        public Task<EmailFetchResult> FetchAsync(EmailConnection connection, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<EmailFoldersResult> ListFoldersAsync(EmailConnection connection, CancellationToken cancellationToken = default) { Calls++; return Task.FromResult(result); }
+    }
+
+    [Fact]
+    public async Task BackfillFolderNames_ResolvesLegacyIdsOnce_AndLeavesDeadTokensAlone()
+    {
+        var c = await ContextAsync();
+        var created = (await c.Handler.CreateAsync(c.UserId, Valid(), default)).Connection!;
+        created.Folders = ["id-inbox", "id-vouchers", "id-gone"]; // a row from before names were stored
+        created.FolderNames = [];
+        c.Db.Update(created); await c.Db.SaveChangesAsync(); c.Db.ChangeTracker.Clear();
+
+        // Dead token: nothing changes, nothing is written; the client gets nulls, never ids.
+        var dead = new FakeFolderReader(EmailFoldersResult.Reconsent);
+        var row = await c.Handler.GetAsync(c.UserId, created.Id, default);
+        Assert.False(await c.Handler.BackfillFolderNamesAsync(row!, [dead], default));
+        Assert.Empty(row!.FolderNames);
+        Assert.All(ConnectionFolder.From(row), f => Assert.Null(f.Name));
+
+        // Live provider: known ids get their names, an id the provider no longer lists stays unnamed.
+        var live = new FakeFolderReader(EmailFoldersResult.Ok([new("id-inbox", "Inbox"), new("id-vouchers", "Inbox/Vouchers")]));
+        Assert.True(await c.Handler.BackfillFolderNamesAsync(row, [live], default));
+        c.Db.ChangeTracker.Clear();
+        var stored = await c.Db.EmailConnections.SingleAsync(x => x.Id == created.Id);
+        Assert.Equal(["Inbox", "Inbox/Vouchers", ""], stored.FolderNames);
+        Assert.Equal([("id-inbox", "Inbox"), ("id-vouchers", "Inbox/Vouchers"), ("id-gone", (string?)null)], ConnectionFolder.From(stored).Select(f => (f.Id, f.Name)));
+
+        // Once named, reads never touch the provider again (only the still-unnamed id would, on the next read).
+        stored.Folders = ["id-inbox", "id-vouchers"]; stored.FolderNames = ["Inbox", "Inbox/Vouchers"];
+        c.Db.Update(stored); await c.Db.SaveChangesAsync(); c.Db.ChangeTracker.Clear();
+        var named = await c.Handler.GetAsync(c.UserId, created.Id, default);
+        var untouched = new FakeFolderReader(EmailFoldersResult.Ok([]));
+        Assert.False(await c.Handler.BackfillFolderNamesAsync(named!, [untouched], default));
+        Assert.Equal(0, untouched.Calls);
+    }
+
     private static UpdateEmailConnectionRequest Edit(string[]? subjects = null, int interval = 15, DateTimeOffset? importFrom = null, ConnectionFolder[]? folders = null, bool unread = true, bool ignoreCursor = false) =>
         new(folders, null, subjects ?? ["x"], unread, ignoreCursor, importFrom, interval);
 
@@ -107,7 +148,7 @@ public class EmailConnectionSliceTests(PostgresFixture fixture) : PostgresTestBa
         // Ids without names keep the captured name; an id never named answers with itself.
         var (renamed, _) = await c.Handler.UpdateAsync(c.UserId, created.Id, Edit(subjects: ["Voucher Digital"], folders: [new("id-vouchers", null), new("Label_7", "")]), default);
         Assert.Equal(["Inbox/Vouchers", ""], renamed!.FolderNames);
-        Assert.Equal([("id-vouchers", "Inbox/Vouchers"), ("Label_7", "Label_7")], ConnectionFolder.From(renamed).Select(f => (f.Id, f.Name)));
+        Assert.Equal([("id-vouchers", "Inbox/Vouchers"), ("Label_7", (string?)null)], ConnectionFolder.From(renamed).Select(f => (f.Id, f.Name)));
         Assert.Equal(["Voucher Digital"], updated.SubjectFilters);
 
         Assert.Equal("invalid_interval", (await c.Handler.UpdateAsync(c.UserId, created.Id, Edit(interval: 4), default)).Error!.Error);

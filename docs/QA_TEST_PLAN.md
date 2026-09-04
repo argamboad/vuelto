@@ -3284,5 +3284,9 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   Graph ids / Gmail `Label_n`). Folders now travel as `{id, name}` pairs (`EmailConnection.FolderNames`,
   migration `AddEmailConnectionFolderNames`; readers still use the id): the edit form shows the selection as
   chips, the list opens under them with **Apply** (adopt the draft) / **Cancel** (drop it), and the collapsed
-  row carries a **Folders:** line. QA-EMAIL-03 updated; `Folders_RowShowsTheNames_AndCancelDropsTheDraft` +
-  the reshaped `Edit_LoadsFolders_AndPutsTheSettings` pin it. Suite count unchanged (180).
+  row carries a **Folders:** line. Rows saved before names were stored are **back-filled once** from the
+  provider's folder list on the next read (`BackfillFolderNamesAsync`, best effort); a name the server
+  cannot resolve (dead token) is `null` on the wire and shows an "Unnamed folder" placeholder — the opaque
+  id is never presented. QA-EMAIL-03 updated; `Folders_RowShowsTheNames_AndCancelDropsTheDraft` + the
+  reshaped `Edit_LoadsFolders_AndPutsTheSettings` + `BackfillFolderNames_ResolvesLegacyIdsOnce_AndLeavesDeadTokensAlone`
+  pin it. Suite count unchanged (180).

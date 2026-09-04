@@ -25,10 +25,12 @@ public static class EmailEndpoints
     {
         var group = app.MapTenantFeatureGroup("/api/email/connections");
 
-        group.MapGet("/", async (ClaimsPrincipal user, EmailConnectionHandler handler, CancellationToken ct) =>
+        group.MapGet("/", async (ClaimsPrincipal user, EmailConnectionHandler handler, IEnumerable<IEmailReader> readers, CancellationToken ct) =>
         {
             if (user.GetUserId() is not { } uid) return Results.Unauthorized();
-            return Results.Ok((await handler.ListAsync(uid, ct)).Select(EmailConnectionResponse.From).ToList());
+            var list = await handler.ListAsync(uid, ct);
+            foreach (var c in list) await handler.BackfillFolderNamesAsync(c, readers, ct); // legacy rows: ids → names, once
+            return Results.Ok(list.Select(EmailConnectionResponse.From).ToList());
         });
 
         // GET /authorize?provider=microsoft|google → the read-only consent URL, biased to the signed-in account.
@@ -85,11 +87,13 @@ public static class EmailEndpoints
             user.GetUserId() is null ? Results.Unauthorized()
                 : Results.BadRequest(new ErrorResponse("use_consent_flow", "Email connections are created through the OAuth consent flow — start with GET /authorize.")));
 
-        group.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal user, EmailConnectionHandler handler, CancellationToken ct) =>
+        group.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal user, EmailConnectionHandler handler, IEnumerable<IEmailReader> readers, CancellationToken ct) =>
         {
             if (user.GetUserId() is not { } uid) return Results.Unauthorized();
             var c = await handler.GetAsync(uid, id, ct);
-            return c is null ? NotFound() : Results.Ok(EmailConnectionResponse.From(c));
+            if (c is null) return NotFound();
+            await handler.BackfillFolderNamesAsync(c, readers, ct);
+            return Results.Ok(EmailConnectionResponse.From(c));
         });
 
         // GET /{id}/folders — the account's real folders/labels for the picker (409 needs_reconsent on a dead token).

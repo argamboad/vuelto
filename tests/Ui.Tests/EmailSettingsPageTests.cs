@@ -124,6 +124,14 @@ public class EmailSettingsPageTests : ComponentTestBase
         Assert.Equal("Email_FoldersRow[Inbox]", rows[0].TextContent.Trim());
         Assert.Equal("Email_FoldersRow[Email_InboxDefault]", rows[1].TextContent.Trim());
 
+        // A name the server could not resolve (dead token) shows the placeholder, never the opaque id.
+        Http.On(HttpMethod.Get, "/api/email/connections", List.Replace("""{"id":"id-inbox","name":"Inbox"}""", """{"id":"AQMkADAwATIwMTAw","name":null}"""));
+        var unnamed = Render<EmailSettings>();
+        unnamed.WaitForAssertion(() => Assert.Equal(2, unnamed.FindAll("[data-testid='email-folders-row']").Count));
+        Assert.Equal("Email_FoldersRow[Email_FolderUnnamed]", unnamed.FindAll("[data-testid='email-folders-row']")[0].TextContent.Trim());
+        unnamed.FindAll("[data-testid='email-edit']")[0].Click();
+        Assert.Equal("Email_FolderUnnamed", Assert.Single(unnamed.FindAll("[data-testid='email-folder-chip']")).TextContent.Trim());
+
         cut.FindAll("[data-testid='email-edit']")[0].Click();
         cut.Find("[data-testid='email-load-folders']").Click();
         cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("[data-testid='email-folder']").Count));
