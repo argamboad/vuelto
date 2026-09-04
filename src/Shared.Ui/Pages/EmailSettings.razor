@@ -47,6 +47,7 @@
                                     @Localizer["Email_LastPolled"] @(c.LastPolledAt?.ToLocalTime().ToString("g", CultureInfo.CurrentCulture) ?? Localizer["Email_Never"].Value)
                                     · @Localizer["Email_Every", c.PollingIntervalMinutes]
                                 </div>
+                                <div class="small text-muted" data-testid="email-folders-row">@Localizer["Email_FoldersRow", FolderSummary(c.Folders)]</div>
                             </div>
                             <div class="d-flex align-items-center gap-2 flex-wrap">
                                 <span class="badge @(c.Status == "active" ? "text-bg-success" : "text-bg-warning")" data-testid="email-status">
@@ -73,28 +74,55 @@
                         @if (_editingId == c.Id)
                         {
                             <div class="mt-3" data-testid="email-edit-form">
+                                @* Folders: the chips are what is scanned (names captured at pick time); "Load folders" opens the
+                                   provider's list, Apply/Cancel close it. Nothing reaches the server until Save. *@
                                 <div class="d-flex align-items-center justify-content-between mb-1">
                                     <label class="form-label small mb-0">@Localizer["Email_Folders"]</label>
-                                    <button class="btn btn-sm btn-link p-0" data-testid="email-load-folders" @onclick="() => LoadFoldersAsync(c)" disabled="@_loadingFolders">@Localizer["Email_LoadFolders"]</button>
+                                    @if (!_pickerOpen)
+                                    {
+                                        <button class="btn btn-sm btn-link p-0" data-testid="email-load-folders" @onclick="() => LoadFoldersAsync(c)" disabled="@_loadingFolders">@Localizer["Email_LoadFolders"]</button>
+                                    }
+                                </div>
+                                <div class="d-flex flex-wrap gap-1 mb-2" data-testid="email-folder-chips">
+                                    @if (_selectedFolders.Count == 0)
+                                    {
+                                        <span class="small text-muted" data-testid="email-no-folders">@Localizer["Email_FoldersDefault"]</span>
+                                    }
+                                    else
+                                    {
+                                        @foreach (var f in _selectedFolders)
+                                        {
+                                            <span class="badge rounded-pill text-bg-light border fw-normal" data-testid="email-folder-chip">@f.Name</span>
+                                        }
+                                    }
                                 </div>
                                 @if (_loadingFolders)
                                 {
                                     <div class="small text-muted mb-2"><span class="spinner-border spinner-border-sm me-1"></span>@Localizer["Common_Loading"]</div>
                                 }
-                                else if (_folderOptions.Count == 0)
+                                else if (_pickerOpen)
                                 {
-                                    <p class="small text-muted mb-2" data-testid="email-no-folders">@(_selectedFolders.Count == 0 ? Localizer["Email_FoldersDefault"] : Localizer["Email_FoldersSelected", _selectedFolders.Count])</p>
-                                }
-                                else
-                                {
-                                    <div class="border rounded p-2 mb-2" style="max-height: 200px; overflow-y: auto;">
-                                        @foreach (var f in _folderOptions)
+                                    <div class="border rounded p-2 mb-2" data-testid="email-folder-picker">
+                                        @if (_folderOptions.Count == 0)
                                         {
-                                            <div class="form-check">
-                                                <input class="form-check-input" type="checkbox" id="folder-@f.Id.GetHashCode()" data-testid="email-folder" checked="@_selectedFolders.Contains(f.Id)" @onchange="e => ToggleFolder(f.Id, e.Value is true)" />
-                                                <label class="form-check-label small" for="folder-@f.Id.GetHashCode()">@f.Name</label>
+                                            <p class="small text-muted mb-2" data-testid="email-no-folder-options">@Localizer["Email_NoFoldersFound"]</p>
+                                        }
+                                        else
+                                        {
+                                            <div style="max-height: 200px; overflow-y: auto;">
+                                                @foreach (var f in _folderOptions)
+                                                {
+                                                    <div class="form-check">
+                                                        <input class="form-check-input" type="checkbox" id="folder-@f.Id.GetHashCode()" data-testid="email-folder" checked="@_draftFolders.Contains(f.Id)" @onchange="e => ToggleFolder(f.Id, e.Value is true)" />
+                                                        <label class="form-check-label small" for="folder-@f.Id.GetHashCode()">@f.Name</label>
+                                                    </div>
+                                                }
                                             </div>
                                         }
+                                        <div class="d-flex gap-2 mt-2">
+                                            <button class="btn btn-primary btn-sm" data-testid="email-folders-apply" @onclick="ApplyFolders">@Localizer["Email_ApplyFolders"]</button>
+                                            <button class="btn btn-outline-secondary btn-sm" data-testid="email-folders-cancel" @onclick="() => _pickerOpen = false">@Localizer["Common_Cancel"]</button>
+                                        </div>
                                     </div>
                                 }
                                 <div class="row g-2">
@@ -138,8 +166,10 @@
                 <h2 class="h6 fw-bold mb-2">@Localizer["Email_ConnectSection"]</h2>
                 <p class="small text-muted mb-2">@Localizer["Email_ConnectHint"]</p>
                 <div class="d-flex flex-wrap gap-2">
-                    <button class="btn btn-outline-primary" data-testid="email-connect-microsoft" @onclick='() => ConnectAsync("microsoft")' disabled="@_busy">@Localizer["Email_ConnectOutlook"]</button>
-                    <button class="btn btn-outline-primary" data-testid="email-connect-google" @onclick='() => ConnectAsync("google")' disabled="@_busy">@Localizer["Email_ConnectGmail"]</button>
+                    @* One inbox per provider (EMAIL-2): a provider that already has a connection greys out — its row's
+                       Reconnect button is the only way back through consent. *@
+                    <button class="btn btn-outline-primary" data-testid="email-connect-microsoft" @onclick='() => ConnectAsync("microsoft")' disabled="@(_busy || IsConnected("microsoft"))">@Localizer["Email_ConnectOutlook"]</button>
+                    <button class="btn btn-outline-primary" data-testid="email-connect-google" @onclick='() => ConnectAsync("google")' disabled="@(_busy || IsConnected("google"))">@Localizer["Email_ConnectGmail"]</button>
                 </div>
             </div>
         </div>
@@ -156,8 +186,12 @@
     private Guid? _syncingId;
     private Guid? _confirmDisconnect;
     private List<ConnectionDto> _connections = new();
+
+    private bool IsConnected(string provider) => _connections.Any(c => string.Equals(c.Provider, provider, StringComparison.OrdinalIgnoreCase));
     private List<FolderDto> _folderOptions = new();
-    private HashSet<string> _selectedFolders = new(StringComparer.OrdinalIgnoreCase);
+    private List<FolderDto> _selectedFolders = new();
+    private HashSet<string> _draftFolders = new(StringComparer.OrdinalIgnoreCase);
+    private bool _pickerOpen;
     private readonly EditModel _edit = new();
 
     protected override async Task OnInitializedAsync()
@@ -231,8 +265,9 @@
         _edit.IgnoreCursor = c.IgnoreCursor;
         _edit.Interval = c.PollingIntervalMinutes;
         _edit.ImportFrom = _edit.OriginalImportFrom = DateOnly.FromDateTime(c.ImportFrom.ToLocalTime().DateTime);
-        _selectedFolders = new HashSet<string>(c.Folders, StringComparer.OrdinalIgnoreCase);
+        _selectedFolders = c.Folders.ToList();
         _folderOptions = new();
+        _pickerOpen = false;
         await Task.CompletedTask;
     }
 
@@ -245,6 +280,8 @@
             if (res.StatusCode == HttpStatusCode.Conflict) { Fail(Localizer["Email_ReconnectToListFolders"]); return; }
             res.EnsureSuccessStatusCode();
             _folderOptions = await res.Content.ReadFromJsonAsync<List<FolderDto>>() ?? new();
+            _draftFolders = new HashSet<string>(_selectedFolders.Select(f => f.Id), StringComparer.OrdinalIgnoreCase);
+            _pickerOpen = true;
         }
         catch { Fail(Localizer["Email_LoadError"]); }
         finally { _loadingFolders = false; }
@@ -252,8 +289,18 @@
 
     private void ToggleFolder(string id, bool on)
     {
-        if (on) _selectedFolders.Add(id); else _selectedFolders.Remove(id);
+        if (on) _draftFolders.Add(id); else _draftFolders.Remove(id);
     }
+
+    /// <summary>Apply = the draft becomes the selection (names from the provider's list); Cancel just closes.</summary>
+    private void ApplyFolders()
+    {
+        _selectedFolders = _folderOptions.Where(o => _draftFolders.Contains(o.Id)).ToList();
+        _pickerOpen = false;
+    }
+
+    private string FolderSummary(FolderDto[] folders) =>
+        folders.Length == 0 ? Localizer["Email_InboxDefault"].Value : string.Join(", ", folders.Select(f => f.Name));
 
     private async Task SaveAsync(ConnectionDto c)
     {
@@ -262,7 +309,7 @@
         {
             var body = new
             {
-                folders = _selectedFolders.ToArray(),
+                folders = _selectedFolders.Select(f => new { id = f.Id, name = f.Name }).ToArray(),
                 sender_filters = Split(_edit.Senders),
                 subject_filters = Split(_edit.Subjects),
                 unread_only = _edit.UnreadOnly,
@@ -338,7 +385,7 @@
         [property: JsonPropertyName("provider")] string Provider,
         [property: JsonPropertyName("account_email")] string? AccountEmail,
         [property: JsonPropertyName("status")] string Status,
-        [property: JsonPropertyName("folders")] string[] Folders,
+        [property: JsonPropertyName("folders")] FolderDto[] Folders,
         [property: JsonPropertyName("sender_filters")] string[] SenderFilters,
         [property: JsonPropertyName("subject_filters")] string[] SubjectFilters,
         [property: JsonPropertyName("unread_only")] bool UnreadOnly,

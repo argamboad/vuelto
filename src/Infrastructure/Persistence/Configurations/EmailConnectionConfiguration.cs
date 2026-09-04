@@ -16,6 +16,7 @@ public class EmailConnectionConfiguration : IEntityTypeConfiguration<EmailConnec
         c.Property(x => x.RefreshToken).IsRequired();
         c.Property(x => x.Status).HasMaxLength(30).IsRequired();
         c.Property(x => x.Folders).IsRequired();
+        c.Property(x => x.FolderNames).IsRequired();
         c.Property(x => x.SenderFilters).IsRequired();
         c.Property(x => x.SubjectFilters).IsRequired();
         c.HasIndex(x => new { x.UserId, x.Provider }).IsUnique();

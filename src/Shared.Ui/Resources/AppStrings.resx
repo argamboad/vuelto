@@ -546,7 +546,10 @@
   <data name="Email_Folders" xml:space="preserve"><value>Folders to scan</value></data>
   <data name="Email_LoadFolders" xml:space="preserve"><value>Load folders</value></data>
   <data name="Email_FoldersDefault" xml:space="preserve"><value>Inbox (default). Load folders to pick others.</value></data>
-  <data name="Email_FoldersSelected" xml:space="preserve"><value>{0} folder(s) selected. Load folders to change.</value></data>
+  <data name="Email_ApplyFolders" xml:space="preserve"><value>Apply</value></data>
+  <data name="Email_FoldersRow" xml:space="preserve"><value>Folders: {0}</value></data>
+  <data name="Email_InboxDefault" xml:space="preserve"><value>Inbox (default)</value></data>
+  <data name="Email_NoFoldersFound" xml:space="preserve"><value>The provider returned no folders.</value></data>
   <data name="Email_SenderFilters" xml:space="preserve"><value>Sender filters</value></data>
   <data name="Email_SubjectFilters" xml:space="preserve"><value>Subject filters</value></data>
   <data name="Email_FiltersHint" xml:space="preserve"><value>Comma-separated. At least one sender or subject is required; only matching mail is fetched.</value></data>

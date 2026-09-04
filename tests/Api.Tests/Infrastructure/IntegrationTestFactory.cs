@@ -9,7 +9,10 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using OtpNet;
 using Vuelto.Api.Services;
 using Vuelto.Core.Entities;
+using Microsoft.Extensions.Options;
+using Vuelto.Core.Mail;
 using Vuelto.Infrastructure;
+using Vuelto.Infrastructure.ExchangeRate;
 using Vuelto.Infrastructure.Persistence;
 using Testcontainers.PostgreSql;
 
@@ -95,6 +98,14 @@ public sealed class IntegrationTestFactory : WebApplicationFactory<Program>, IAs
             services.RemoveAll<DbContextOptions<AppDbContext>>();
             services.RemoveAll<AppDbContext>();
             services.AddDbContext<AppDbContext>(o => o.UseNpgsql(RuntimeConnectionString));
+
+            // Fresh-checkout posture regardless of the developer's .env (Program loads it into the process
+            // environment before any factory hook runs, so a config override is too late for settings
+            // built at registration): no mail-consent apps, no live rate provider. The suite asserts the
+            // "not configured" branches and must never reach a real IdP or spend the FX quota.
+            services.RemoveAll<MailConsentSettings>();
+            services.AddSingleton(new MailConsentSettings());
+            services.RemoveAll<IConfigureOptions<ExchangeRateSettings>>();
 
             // Swap the External (OAuth carrier) cookie scheme's handler for a test one that authenticates
             // from headers — so the OAuth callback's [Authorize(External)] can be driven without a real

@@ -4714,7 +4714,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"folders\": [],\n  \"sender_filters\": [\n    \"notificacion@notificacionesbaccr.com\",\n    \"bncontacto@bncr.fi.cr\"\n  ],\n  \"subject_filters\": [\n    \"Notificación de transacción\",\n    \"Voucher Digital\",\n    \"BN Conectividad le informa\"\n  ],\n  \"unread_only\": true,\n  \"ignore_cursor\": false,\n  \"import_from\": \"2026-06-01T00:00:00Z\",\n  \"polling_interval_minutes\": 15\n}"
+              "raw": "{\n  \"folders\": [\n    { \"id\": \"inbox\", \"name\": \"Inbox\" }\n  ],\n  \"sender_filters\": [\n    \"notificacion@notificacionesbaccr.com\",\n    \"bncontacto@bncr.fi.cr\"\n  ],\n  \"subject_filters\": [\n    \"Notificación de transacción\",\n    \"Voucher Digital\",\n    \"BN Conectividad le informa\"\n  ],\n  \"unread_only\": true,\n  \"ignore_cursor\": false,\n  \"import_from\": \"2026-06-01T00:00:00Z\",\n  \"polling_interval_minutes\": 15\n}"
             }
           },
           "event": [

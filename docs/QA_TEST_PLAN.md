@@ -1694,31 +1694,40 @@ When I click Connect Outlook and approve read-only access on my signed-in accoun
 Then I land on /email?connected=microsoft with "Outlook connected…"
 And the inbox shows Outlook — my address · Active · Last checked: <now> · every 15 min
 And Edit shows sender notificacion@notificacionesbaccr.com, bncontacto@bncr.fi.cr and the three subject prefixes pre-filled, Unread only on
-When I click Connect Outlook again → /email?email_error=already_connected
+And the Connect Outlook button is greyed out (one inbox per provider); re-running the consent URL by hand → /email?email_error=already_connected
 ```
 **Walkthrough:** **Connect Outlook** → the Microsoft consent page (scopes: read your mail, offline access,
 your email) → **Accept** → **Expected:** back on `/email` with the green notice and the row. **Edit** →
 **Expected:** the pre-filled senders/subjects, **Unread only** on, interval `15`, **Import mail from** today.
-**Connect Outlook** again → **Expected:** "That provider is already connected." Cancel the consent page
-instead → **Expected:** `/email?email_error=consent_failed` and "Couldn't connect the inbox."
+**Expected:** the **Connect Outlook** button is now **disabled** (Connect Gmail stays live); the row's
+**Reconnect** is the only way back through consent. Paste the consent URL from before into the address bar
+and approve again → **Expected:** "That provider is already connected." (the API guard behind the greyed
+button). Cancel the consent page instead → **Expected:** `/email?email_error=consent_failed` and
+"Couldn't connect the inbox."
 
 ### QA-EMAIL-03 — Edit with real folders, backfill rule, disconnect, and nothing leaks across users 🟠 (Web / API)
 **Gherkin**
 ```gherkin
 Given a connected Outlook inbox
+And the row reads Folders: Inbox (default)
 When I Edit → Load folders
-Then my real folders appear as checkboxes, subfolders as Inbox/Vouchers
-When I tick Inbox/Vouchers, set interval 60, turn on "Fetch all unread (ignore date)", Save
-Then "Saved." and the row reads every 60 min; a reload keeps the folder
+Then my real folders appear as checkboxes, subfolders as Inbox/Vouchers, and the Load folders link hides
+When I tick Inbox/Vouchers and click Apply
+Then the list closes and the chips read Inbox, Inbox/Vouchers (Cancel instead would drop the tick)
+When I set interval 60, turn on "Fetch all unread (ignore date)", Save
+Then "Saved.", the row reads every 60 min and Folders: Inbox, Inbox/Vouchers; a reload keeps both
 When I set Import mail from to 7 days ago and Save → GET the connection: last_polled_at moved back 7 days
 When I set it to 3 days ago and Save → last_polled_at is still 7 days ago
 When I set interval 4 → "Polling interval must be between 5 and 1440 minutes."; clear both filters → "Provide at least one sender or subject filter."
 When another user GETs/PUTs/DELETEs my connection id → 404
 When I Disconnect → confirm → the inbox is gone; the API list is empty
 ```
-**Walkthrough:** **Edit** → **Load folders** → **Expected:** the checkbox list (Graph: nested names with
-`/`). Tick a subfolder, interval `60`, **Fetch all unread** on → **Save** → **Expected:** "Saved.", "every
-60 min"; **F5** keeps it. Via Postman (**21 · Email inboxes → Get connection**) after each import-from
+**Walkthrough:** the collapsed row reads **Folders: Inbox (default)**. **Edit** → **Load folders** →
+**Expected:** the checkbox list (Graph: nested names with `/`) with **Apply** / **Cancel** under it, the
+chips above it unchanged. Tick a subfolder → **Cancel** → **Expected:** list closed, chips unchanged. **Load
+folders** → tick it → **Apply** → **Expected:** list closed, chips `Inbox`, `Inbox/Vouchers`. Interval `60`,
+**Fetch all unread** on → **Save** → **Expected:** "Saved.", "every 60 min", the row's **Folders:** line
+names both; **F5** keeps them. Via Postman (**21 · Email inboxes → Get connection**) after each import-from
 save → **Expected:** `last_polled_at` follows a lower date and ignores a higher one. Interval `4` →
 **Save** → **Expected:** the interval message; blank both filter boxes → **Save** → **Expected:** the
 filters message. Second account (**Update connection** with the first user's id) → 404. **Disconnect** →
@@ -3264,3 +3273,16 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   TTL guard; interrupted links land on Settings' banner). New **QA-AND-15** (on-device kill test;
   renumbered from the branch's QA-AND-14 — that slot went to THEME-1's restart test in the interim).
   Suite 149 → **150** cases.
+- **Updated 2026-09-04** — **Email settings: Connect greys out once a provider is connected.** The
+  page always rendered both Connect buttons, so a second Outlook/Gmail attempt only surfaced as the
+  `already_connected` bounce. With the one-inbox-per-provider rule (EMAIL-2) now reflected in the UI, the
+  button is disabled while a connection for that provider exists (the row's **Reconnect** is the way back
+  through consent); the API guard is unchanged and stays reachable by re-running a consent URL. QA-EMAIL-02
+  Gherkin + walkthrough updated; `EmailSettingsPageTests.Connect_IsDisabled_ForAProviderThatIsAlreadyConnected`
+  pins it. **Folder picker: Apply/Cancel + named chips.** "Load folders" used to leave the checklist open
+  until Save, and the selection read only as a count because a connection stored provider ids alone (opaque
+  Graph ids / Gmail `Label_n`). Folders now travel as `{id, name}` pairs (`EmailConnection.FolderNames`,
+  migration `AddEmailConnectionFolderNames`; readers still use the id): the edit form shows the selection as
+  chips, the list opens under them with **Apply** (adopt the draft) / **Cancel** (drop it), and the collapsed
+  row carries a **Folders:** line. QA-EMAIL-03 updated; `Folders_RowShowsTheNames_AndCancelDropsTheDraft` +
+  the reshaped `Edit_LoadsFolders_AndPutsTheSettings` pin it. Suite count unchanged (180).
