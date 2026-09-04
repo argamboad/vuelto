@@ -22,3 +22,6 @@ node_modules/
 
 # MAUI lockfile — excluded by design (NATIVE-1): platform-conditional restore makes it churn
 src/Maui/packages.lock.json
+
+# personal dev seed (owner-only, never committed)
+my-seed.sql

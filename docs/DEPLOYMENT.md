@@ -150,6 +150,13 @@ Per provider:
 Because `Proxy__Enabled=true`, the app sees the real `https` scheme behind Render's proxy, so the
 generated redirect URIs match what you register. Render redeploys on the env change; the buttons then work.
 
+5. **Mail consent (EMAIL-2) reuses the same app registrations.** Connecting an inbox on `/email` sends the
+   user to the provider with the read-only mail scopes and returns to the **API's** callback, so register a
+   second redirect URI per provider: `https://<host>/api/email/connections/callback`. Google additionally
+   needs the Gmail API enabled on the project and the `gmail.readonly` scope on the consent screen;
+   Microsoft needs the `Mail.Read` + `offline_access` delegated permissions. Without these the "Connect"
+   buttons answer `provider_not_configured` / the IdP refuses — nothing else breaks.
+
 ## 6. Continuous deployment (DEPLOY-3, optional)
 
 By default you deploy by pushing to the branch Render tracks. To instead gate deploys on **green CI** and
@@ -205,7 +212,8 @@ run an automated post-deploy smoke, wire the pipeline in `.github/workflows/ci.y
 | `Proxy__ForwardLimit` | rarely | proxy hops to trust, from the right (default `1`) (§8) |
 | `PORT` | platform-set | Render provides it; image defaults to 8080 |
 | `Auth__AllowedOrigins` | no | leave empty — single-origin needs no CORS |
-| `Authentication__Google/Microsoft__*` | optional | enable OAuth |
+| `Authentication__Google/Microsoft__*` | optional | enable OAuth sign-in **and** the read-only mail consent for the same provider (EMAIL-2) |
+| `ExchangeRate__ApiKey` | recommended (app) | free key from app.exchangerate-api.com; unset ⇒ the household's last transaction rate, else "unavailable" — never a fabricated rate (ADR-V006) |
 | `PublicApi__Enabled`, `Webhooks__Enabled` | optional | default off |
 | `Admin__StaffEmails__0…` | optional | platform-staff allowlist |
 | `ConnectionStrings__Migrations` | prod (two-role RLS) | owner/migrator connection — startup migrations do DDL (§7) |

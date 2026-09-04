@@ -178,7 +178,17 @@ deferred items without an explicit decision.
 - Seed data — **minimal by design** (donor owner decision): `SeedCatalog` holds ~7 example
   categories and Cash + 8 Costa Rican banks (en/es, stable keys), seeded lazily on the first
   catalog read in the caller's locale; **no** default expense lines. The owner's personal data
-  loads from a gitignored SQL script after a local DB reset (to be re-authored for this schema).
+  loads from the gitignored `my-seed.sql` at the repo root after a local DB reset (re-authored for
+  this schema 2026-09-04 — P11: fixed user/household ids, 61 categories, 9 banks, 18 budget lines,
+  5 merchant rules; `docker exec -i vuelto-db-1 psql -U dev -d dev_db < my-seed.sql`).
+- **Port parity reached (P0–P10b merged, PRs #1–#17).** P11 closed the repo side 2026-09-04:
+  localization sweep (566 keys, EN/ES parity, zero missing — `LocalizationKeyCoverageTests` gate),
+  app-slice QA pass recorded in `docs/qa-runs/2026-09-run-log.md` (29/32 ✅; FX-01, EMAIL-02,
+  EMAIL-04 await the owner's credentials), `render.yaml` + `DEPLOYMENT.md` carry the app's keys
+  (`ExchangeRate__ApiKey`, Microsoft consent, the mail-consent callback URI). **Staging itself is the
+  owner's external checklist** (Neon, Render blueprint, Brevo, OAuth apps, the deploy hook + base URL
+  secrets) — until it is green the old Vercel/Railway/Supabase deployment stays up. Then the roadmap
+  resumes as ordinary slices (data-driven bank definitions, deployment follow-ups, platform freebies).
 - Concrete schema (EF Core migrations) — generated from `docs/DATA_MODEL.md`.
 - **User stories: generated per-epic at build time**, under `docs/stories/` (one file per epic).
 - Non-web framework: **decided and built** — MAUI Blazor Hybrid ships all four native shells
