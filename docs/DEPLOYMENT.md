@@ -294,6 +294,43 @@ widening trust. Leave `Proxy__Enabled=false` (the default) whenever there's no p
 
 ---
 
+## 9. Move your household to another server (snapshot — operator tool, hidden)
+
+You have been running the app locally for a while and the household is real: categories, banks, budget
+lines, months and weeks, transactions with their frozen rates, refunds, merchant rules, the review queue.
+When staging or production comes up you do not start over — you carry the household across with
+`tools/snapshot-household.sql`. No page, no menu, no API route: it is a psql script. **Full runbook —
+what comes across, the dry run, troubleshooting: [`tools/README.md`](../tools/README.md).**
+
+1. **Snapshot on the source** (the database that holds the household; `-Atq` keeps the output raw):
+
+   ```bash
+   docker exec -i vuelto-db-1 psql -U dev -d dev_db -Atq -v email=you@example.com -f - < tools/snapshot-household.sql > my-household.sql
+   ```
+
+   The file is plain SQL: one `INSERT … SELECT * FROM json_populate_recordset(…)` per table, in
+   foreign-key order, **ids preserved**, every statement `ON CONFLICT DO NOTHING`, wrapped in one
+   transaction. A comment above each statement says how many rows it carries.
+2. **Deploy the target first** — the API creates the schema on its first start (§4 / §7).
+3. **Restore as the owner / migrations role** (the runtime role is fenced by RLS, §7), once:
+
+   ```bash
+   psql "<Neon owner connection string>" -f my-household.sql
+   ```
+
+4. **Sign in with the same email.** The OTP sign-in finds the pre-seeded user (same id), so the
+   membership, the household and everything under it are already yours. A Google/Microsoft login link
+   comes across too (same app registration ⇒ same subject).
+5. **Reconnect the inbox(es).** OAuth tokens are encrypted with the *source* server's Data Protection
+   key ring and are deliberately left out — **Settings → Email inboxes → Connect** again on the target.
+   The dedup tombstones do come across, so a re-sync never re-stages what you already handled.
+
+Not carried on purpose: billing/subscription state (belongs to the target's Stripe), API keys, audit
+events, outbox, invitations, usage counters, webhooks, MFA enrolment and recovery codes, sessions,
+notifications. Re-running the file is a no-op. `HouseholdSnapshotTests` proves the round-trip on a real
+Postgres and fails the build if a tenant-scoped table is ever added without being listed as included
+or excluded in the script.
+
 ## Prod, later
 
 When a downstream app has real users, repeat §1–§5 as a second Render service fed from `main` (an
