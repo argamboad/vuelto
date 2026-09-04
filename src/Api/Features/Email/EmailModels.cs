@@ -63,6 +63,14 @@ public record SyncResultResponse(
     [property: JsonPropertyName("duplicates")] int Duplicates,
     [property: JsonPropertyName("unrecognized")] int Unrecognized);
 
+/// <summary>"Sync all inboxes" summary (EMAIL-4, from the Review queue): every connection of the caller, staged in turn.</summary>
+public record SyncAllResultResponse(
+    [property: JsonPropertyName("synced_inboxes")] int SyncedInboxes,
+    [property: JsonPropertyName("needs_reconsent")] int NeedsReconsent,
+    [property: JsonPropertyName("staged")] int Staged,
+    [property: JsonPropertyName("duplicates")] int Duplicates,
+    [property: JsonPropertyName("unrecognized")] int Unrecognized);
+
 public record AuthorizeResponse([property: JsonPropertyName("authorization_url")] string AuthorizationUrl);
 
 public record FolderResponse([property: JsonPropertyName("id")] string Id, [property: JsonPropertyName("name")] string Name);

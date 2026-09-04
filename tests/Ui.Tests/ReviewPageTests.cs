@@ -109,6 +109,44 @@ public class ReviewPageTests : ComponentTestBase
     }
 
     [Fact]
+    public async Task SyncAll_PostsOnce_ShowsTheSummary_ReloadsTheQueue_AndPokesTheBadge()
+    {
+        await SignInAsync();
+        StubQueue();
+        Http.On(HttpMethod.Post, "/api/email/connections/sync", """{"synced_inboxes":2,"needs_reconsent":0,"staged":3,"duplicates":5,"unrecognized":1}""");
+        var notified = false;
+        Services.GetRequiredService<ReviewQueueNotifier>().Changed += () => notified = true;
+
+        var cut = Render<Review>();
+        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("[data-testid='review-voucher']").Count));
+        cut.Find("[data-testid='review-sync-all']").Click();
+
+        cut.WaitForAssertion(() => Assert.Contains("Review_SyncResult[2, 3, 5, 1]", cut.Find("[data-testid='review-notice']").TextContent));
+        Assert.Single(Http.Requests, r => r.Method == HttpMethod.Post && r.RequestUri!.AbsolutePath == "/api/email/connections/sync");
+        Assert.Equal(2, Http.Requests.Count(r => r.Method == HttpMethod.Get && r.RequestUri!.AbsolutePath == "/api/pending-vouchers")); // reloaded
+        Assert.True(notified);
+        Assert.Contains("alert-success", cut.Find("[data-testid='review-notice']").ClassName);
+    }
+
+    [Fact]
+    public async Task SyncAll_ReportsDeadInboxes_AndNoInboxes_AsWarnings()
+    {
+        await SignInAsync();
+        StubQueue();
+        Http.On(HttpMethod.Post, "/api/email/connections/sync", """{"synced_inboxes":1,"needs_reconsent":1,"staged":0,"duplicates":2,"unrecognized":0}""");
+
+        var cut = Render<Review>();
+        cut.WaitForElement("[data-testid='review-sync-all']").Click();
+        cut.WaitForAssertion(() => Assert.Contains("Review_SyncReconsent[1]", cut.Find("[data-testid='review-notice']").TextContent));
+        Assert.Contains("Review_SyncResult[1, 0, 2, 0]", cut.Find("[data-testid='review-notice']").TextContent);
+        Assert.Contains("alert-danger", cut.Find("[data-testid='review-notice']").ClassName);
+
+        Http.On(HttpMethod.Post, "/api/email/connections/sync", """{"synced_inboxes":0,"needs_reconsent":0,"staged":0,"duplicates":0,"unrecognized":0}""");
+        cut.Find("[data-testid='review-sync-all']").Click();
+        cut.WaitForAssertion(() => Assert.Contains("Review_SyncNoInboxes", cut.Find("[data-testid='review-notice']").TextContent));
+    }
+
+    [Fact]
     public async Task Renders_Drafts_WithTheSuggestionPrefilled_AndOpensOnlyTheBlanks()
     {
         await SignInAsync();

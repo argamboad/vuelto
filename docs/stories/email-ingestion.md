@@ -231,6 +231,12 @@ Scenario: The poller
 
 Scenario: Sync now
   When I click Sync now on my inbox → "Sync done — N staged for review, M already seen, K not a voucher."
+
+Scenario: Sync every inbox from the Review queue (owner request)
+  When I click "Sync inboxes" on the Review queue (POST /api/email/connections/sync)
+  Then every one of my inboxes is staged in turn and I see "Synced N inbox(es) — S new to review, D already seen, U not a voucher."; the queue and the header badge refresh
+  When one inbox needs reconnecting → the summary adds "1 inbox(es) need reconnecting" and the others still synced
+  When I have no inboxes → "No inboxes connected yet" (200 with zeros on the API)
   When the inbox needs reconnecting → "Reconnect this inbox to sync it." (409)
 ```
 

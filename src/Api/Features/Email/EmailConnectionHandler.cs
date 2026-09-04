@@ -139,6 +139,23 @@ public sealed class EmailConnectionHandler(IRepository<EmailConnection> connecti
     private static bool HasMissingFolderNames(EmailConnection c) =>
         c.FolderNames.Length < c.Folders.Length || c.FolderNames.Take(c.Folders.Length).Any(string.IsNullOrWhiteSpace);
 
+    /// <summary>
+    /// "Sync all": stages every one of the caller's inboxes in turn (each its own read → parse → dedup pass)
+    /// and sums the counts. A dead inbox is counted under needs-reconsent (the staging pass flags the row)
+    /// and never stops the others.
+    /// </summary>
+    public async Task<SyncAllResultResponse> SyncAllAsync(Guid userId, IVoucherStagingService staging, CancellationToken cancellationToken)
+    {
+        int synced = 0, reconsent = 0, staged = 0, duplicates = 0, unrecognized = 0;
+        foreach (var connection in await ListAsync(userId, cancellationToken))
+        {
+            var result = await staging.StageConnectionAsync(connection, cancellationToken);
+            if (result.NeedsReconsent) { reconsent++; continue; }
+            synced++; staged += result.Staged; duplicates += result.Duplicates; unrecognized += result.Unrecognized;
+        }
+        return new SyncAllResultResponse(synced, reconsent, staged, duplicates, unrecognized);
+    }
+
     /// <summary>Removes the connection (stops ingestion; imported transactions stay). False = not found for this user.</summary>
     public async Task<bool> DeleteAsync(Guid userId, Guid id, CancellationToken cancellationToken)
     {

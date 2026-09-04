@@ -118,6 +118,13 @@ public static class EmailEndpoints
             return c is null ? NotFound() : Results.Ok(EmailConnectionResponse.From(c));
         });
 
+        // POST /sync — "Sync all inboxes" (the Review queue's button): every connection of the caller, one summary.
+        group.MapPost("/sync", async (ClaimsPrincipal user, EmailConnectionHandler handler, IVoucherStagingService staging, CancellationToken ct) =>
+        {
+            if (user.GetUserId() is not { } uid) return Results.Unauthorized();
+            return Results.Ok(await handler.SyncAllAsync(uid, staging, ct));
+        });
+
         // POST /{id}/sync — "Sync now": stage this connection's matching mail immediately (EMAIL-4).
         group.MapPost("/{id:guid}/sync", async (Guid id, ClaimsPrincipal user, EmailConnectionHandler handler, IVoucherStagingService staging, CancellationToken ct) =>
         {

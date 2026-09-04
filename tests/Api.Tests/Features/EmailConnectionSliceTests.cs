@@ -79,6 +79,35 @@ public class EmailConnectionSliceTests(PostgresFixture fixture) : PostgresTestBa
         Assert.Equal(0, untouched.Calls);
     }
 
+    private sealed class FakeStaging(Func<EmailConnection, StagingResult> stage) : IVoucherStagingService
+    {
+        public List<Guid> Staged { get; } = [];
+        public Task<StagingResult> StageConnectionAsync(EmailConnection connection, CancellationToken cancellationToken = default)
+        {
+            Staged.Add(connection.Id);
+            return Task.FromResult(stage(connection));
+        }
+    }
+
+    [Fact]
+    public async Task SyncAll_StagesEveryInboxOfTheCaller_SumsTheCounts_AndCountsDeadOnes()
+    {
+        var c = await ContextAsync();
+        var outlook = (await c.Handler.CreateAsync(c.UserId, Valid(EmailProviders.Microsoft), default)).Connection!;
+        var gmail = (await c.Handler.CreateAsync(c.UserId, Valid(EmailProviders.Google), default)).Connection!;
+        var other = (await c.Handler.CreateAsync(c.OtherUserId, Valid(EmailProviders.Microsoft), default)).Connection!;
+
+        var staging = new FakeStaging(conn => conn.Id == gmail.Id ? StagingResult.Reconsent : new StagingResult(2, 1, 3, false));
+        var result = await c.Handler.SyncAllAsync(c.UserId, staging, default);
+
+        Assert.Equal((1, 1, 2, 1, 3), (result.SyncedInboxes, result.NeedsReconsent, result.Staged, result.Duplicates, result.Unrecognized));
+        Assert.Equal(new[] { gmail.Id, outlook.Id }.Order(), staging.Staged.Order()); // both of mine; never another user's
+        Assert.DoesNotContain(other.Id, staging.Staged);
+
+        var none = await c.Handler.SyncAllAsync(Guid.CreateVersion7(), staging, default);
+        Assert.Equal((0, 0), (none.SyncedInboxes, none.NeedsReconsent));
+    }
+
     private static UpdateEmailConnectionRequest Edit(string[]? subjects = null, int interval = 15, DateTimeOffset? importFrom = null, ConnectionFolder[]? folders = null, bool unread = true, bool ignoreCursor = false) =>
         new(folders, null, subjects ?? ["x"], unread, ignoreCursor, importFrom, interval);
 

@@ -4762,6 +4762,37 @@
           ]
         },
         {
+          "name": "Sync all inboxes",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/email/connections/sync",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "email",
+                "connections",
+                "sync"
+              ]
+            },
+            "description": "EMAIL-4 (the Review queue's \"Sync inboxes\" button): runs Sync now on EVERY inbox of the caller, one after another, and sums the counts. 200 { synced_inboxes, needs_reconsent, staged, duplicates, unrecognized } — a dead inbox is counted under needs_reconsent (its row is flagged) and never stops the others; no inboxes → all zeros, not an error."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"summary\", () => pm.expect(pm.response.json()).to.have.all.keys('synced_inboxes', 'needs_reconsent', 'staged', 'duplicates', 'unrecognized'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
           "name": "Delete connection",
           "request": {
             "method": "DELETE",
