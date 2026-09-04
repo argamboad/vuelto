@@ -1590,6 +1590,7 @@ And Other spending lists Dining ₡10,000.00; Unplanned essentials shows ₡10,0
 And Week by week shows the mortgage in week 2; By bank and payment method shows BAC / Bank account budget ₡350,000 actual ₡300,000
 When I Edit Mortgage's budget down to ₡250,000 and reload the dashboard
 Then Mortgage's actual turns red (over budget) and Pending budgeted drops to ₡0.00
+And the Fixed, Variable, Other spending and Week by week tables each end with a Total row (the sum of the rows shown; the lines total keeps the over/under colour)
 ```
 **Walkthrough:** **Budget** → add fixed `Mortgage` `350000` CRC, Housing, BAC, Bank account. **New
 transaction** → `Bank`, `300000` CRC, Housing, BAC, Bank account, `2026-06-05`, Budgeted → **Save**.
@@ -3369,3 +3370,8 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   connected; the queue and the header badge refresh afterwards. QA-EMAIL-04 gains the step; Postman
   **Sync all inboxes**; `SyncAll_StagesEveryInboxOfTheCaller_*`, the anonymous/zero integration asserts and
   the two `SyncAll_*` UI cases pin it. Suite count unchanged (180).
+- **Updated 2026-09-04** — **Dashboard total rows (owner request).** The Fixed expenses, Variable expenses,
+  Other spending and Week by week tables end with a **Total** row — the sum of exactly the rows shown, each
+  side in its own currency, computed on the page from the summary already served (no API change); the
+  lines total carries the same over/under tone as its rows. QA-DASH-01 gains the line; the totals are
+  asserted in `DashboardPageTests`. Suite count unchanged (180).

@@ -57,6 +57,17 @@ public class DashboardPageTests : ComponentTestBase
 
         Assert.Contains("Dining", cut.Find("[data-testid='dash-other']").TextContent);
         Assert.Equal(2, cut.FindAll("[data-testid='dash-week-row']").Count);
+
+        // Total rows: the sum of exactly the rows shown, each side in its own currency; the lines total keeps the over/under tone.
+        var fixedTotal = cut.Find("[data-testid='dash-fixed'] [data-testid='dash-lines-total']");
+        Assert.Contains("₡365,000.00 · $730.00", fixedTotal.TextContent); // Mortgage 350,000 + Water 15,000
+        Assert.Contains("₡318,000.00 · $636.00", fixedTotal.TextContent); // 300,000 + 18,000 actual
+        Assert.Contains("text-success", fixedTotal.QuerySelectorAll("td")[2].ClassName); // under budget overall
+        Assert.Empty(cut.FindAll("[data-testid='dash-variable'] [data-testid='dash-lines-total']")); // no lines → no table, no total
+        Assert.Contains("₡10,000.00 · $20.00", cut.Find("[data-testid='dash-other-total']").TextContent);
+        var weekTotal = cut.Find("[data-testid='dash-week-total']").QuerySelectorAll("td");
+        Assert.Contains("₡300,000.00 · $600.00", weekTotal[1].TextContent);
+        Assert.Contains("₡0.00 · $0.00", weekTotal[2].TextContent);
         Assert.Contains("Marchamo", cut.Find("[data-testid='dash-envelopes']").TextContent);
         var bankRows = cut.FindAll("[data-testid='dash-bank-row']");
         Assert.Contains("BAC", bankRows[0].TextContent);
