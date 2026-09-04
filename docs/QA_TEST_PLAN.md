@@ -989,7 +989,7 @@ Then the app loads in Spanish
    browser. On a mismatch the app persists the saved locale and reloads once.
 
 ### QA-I18N-03 — In-app UI is fully translated (no English leaks) 🟢 (Web)
-**Walkthrough:** in Spanish, walk Home → Household → Settings → invite flow. **Expected:** all
+**Walkthrough:** in Spanish, walk Dashboard (the root) → Household → Settings → invite flow. **Expected:** all
 visible labels/buttons/validation/status messages are Spanish; flag any English string that leaks.
 
 ### QA-I18N-04 — Email language matches the requester's UI language 🟠 (Web)
@@ -1300,18 +1300,19 @@ from a *different* household's list → **Expected:** 404 (never 403 — no exis
 > household's last transaction → unavailable. The app never invents a rate. Provider key:
 > `ExchangeRate__ApiKey` in `.env` (unset in a fresh checkout).
 
-### QA-FX-01 — Home shows today's live rate 🟠 (Web / API)
+### QA-FX-01 — The dashboard shows today's live rate 🟠 (Web / API)
 **Gherkin**
 ```gherkin
 Given ExchangeRate__ApiKey is set in .env and the API was restarted
-When I open Home
-Then I see "Today's rate ₡<rate> per $1" with a green "live" badge
+When I open the app (the root is the dashboard)
+Then I see "Today's rate ₡<rate> per $1" with a green "live" badge under the month selector (or on the empty state before the first month)
 And GET /api/exchange-rate returns 200 { rate, source: "live", as_of }
 When I reload within the hour
 Then the same as_of comes back (cached — no second provider call)
 ```
 **Walkthrough:** set `ExchangeRate__ApiKey=<your free-tier key>` in `.env`, restart the API, open
-**Home** → **Expected:** the rate line under the welcome text with the green **live** badge; a
+the app (**Dashboard** is the root) → **Expected:** the rate line under the month selector — or on the
+empty state before the first month — with the green **live** badge; a
 plausible value (≈ 500–560 colones per dollar in 2026). Via Postman (**13 · Exchange rate → Get
 exchange rate**) → **Expected:** 200 with `rate` > 0, `source` = `live`, `as_of` ≈ now. Send it again
 → **Expected:** identical `as_of` (served from the one-hour cache). Without a token → 401.
@@ -1320,11 +1321,11 @@ exchange rate**) → **Expected:** 200 with `rate` > 0, `source` = `live`, `as_o
 **Gherkin**
 ```gherkin
 Given ExchangeRate__ApiKey is unset (fresh checkout) and the household has no transactions
-When I open Home
+When I open the app (the dashboard)
 Then I see the red "Exchange rate unavailable — try again later" badge and no number
 And GET /api/exchange-rate returns 503 { error: "exchange_rate_unavailable", message: "…" }
 ```
-**Walkthrough:** comment out `ExchangeRate__ApiKey` in `.env`, restart the API, open **Home** →
+**Walkthrough:** comment out `ExchangeRate__ApiKey` in `.env`, restart the API, open the **Dashboard** →
 **Expected:** the red badge, no rate figure. Via Postman (**13 · Exchange rate → Get exchange
 rate**) → **Expected:** 503 with the shared error shape and `error` = `exchange_rate_unavailable`.
 Restore the key and restart → QA-FX-01 passes again. (The stale-cache and last-transaction tiers are
@@ -1396,7 +1397,7 @@ Then the date says "Goes to July 2026 — a new month will be created" and the r
 When I Save
 Then I land on July 2026: 5 weeks (25 Jun – 29 Jul), income 3750 USD / 312500 CRC, one row ₡50,000.00 / $<50000 ÷ rate>
 ```
-**Walkthrough:** **Settings → Budget** → save 5-week incomes `3750` USD and `312500` CRC. **Home →
+**Walkthrough:** **Settings → Budget** → save 5-week incomes `3750` USD and `312500` CRC. **Dashboard →
 New transaction** (or nav **Months → New transaction**): fill the fields; beside **Category** click
 **+ New**, type `Viajes`, **Create** → **Expected:** the inline form closes and **Viajes** is selected
 (Enter also creates, Esc cancels; a blank name → "A name is required."; a name matching an inactive
@@ -2101,13 +2102,13 @@ with web.
 ### QA-AND-07 — Hardware back navigates in-app history 🔴 (Android)
 **Gherkin**
 ```gherkin
-Given I am signed in on Android and have navigated Home → Household → Settings
+Given I am signed in on Android and have navigated Dashboard (the root) → Household → Settings
 When I press the hardware/gesture back button repeatedly
 Then it walks back through the app's pages and only leaves the app at the root
 ```
 **Walkthrough**
-1. Navigate **Home → Household → Settings** (three distinct pages).
-2. Press **back**. **Expected:** Settings → Household. Again: → Home.
+1. Navigate **Dashboard (root) → Household → Settings** (three distinct pages).
+2. Press **back**. **Expected:** Settings → Household. Again: → the Dashboard.
 3. Press **back at Home (root)**. **Expected:** the app backgrounds/exits — the default, but only
    at the root. *(Before NATIVE-4, any back press exited the app.)*
 4. Note: a full WebView reload (e.g. the language switch) restarts the in-page history — back
@@ -3399,3 +3400,11 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   track when the chart is in $) with the total underneath, and a "Spend by class" donut with shares.
   The tables are unchanged and the report API is untouched. QA-REP-01 gains the chart steps;
   `ChartComponentsTests` (3) + `ReportsPageTests.ChartView_*` pin it. Suite count unchanged (180).
+- **Updated 2026-09-04** — **The dashboard is the home page (owner decision).** The signed-in welcome card
+  (greeting, household name, three buttons) is gone: the root `/` renders the Dashboard for a signed-in
+  member (its own empty state for a fresh household), the public hero stays for anonymous visitors, the
+  **Home** nav item is removed and **Dashboard** points at `/` (`/dashboard` deep links still resolve). The
+  exchange-rate badge moved to the dashboard header (under the month selector) and its empty state.
+  QA-FX-01/02, QA-I18N-03, QA-LED-01 and QA-AND-04 wording updated ("Home" → the dashboard);
+  `HomePageTests.SignedIn_TheRootIsTheDashboard` + `ExchangeRateBadgeTests.Dashboard_MountsTheBadge_*`
+  pin it. Suite count unchanged (180).

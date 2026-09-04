@@ -24,17 +24,23 @@ public class HomePageTests : ComponentTestBase
     }
 
     [Fact]
-    public async Task SignedIn_ShowsWelcomeWithTheDisplayName()
+    public async Task SignedIn_TheRootIsTheDashboard()
     {
+        // The root IS the dashboard for a signed-in member (no welcome card in between): a fresh household
+        // lands on the dashboard's own empty state, with the rate badge and the "new transaction" call.
         await SignInAsync(name: "Ada Lovelace", tenantName: "Test Household");
+        Http.On(HttpMethod.Get, "/api/months", "[]");
+        Http.On(HttpMethod.Get, "/api/pending-vouchers/count", """{"count":0}""");
+        Http.On(HttpMethod.Get, "/api/exchange-rate", """{"rate":510.45,"source":"live","as_of":"2026-09-03T12:00:00+00:00"}""");
 
         var cut = Render<Home>();
 
-        // Home_WelcomeBack is a parameterized key; the fake localizer echoes the argument, so the display
-        // name flowing from the JWT through AuthService into the component is observable.
-        Assert.Contains("Home_WelcomeBack[Ada Lovelace]", cut.Markup);
-        Assert.Contains("Home_SignedInTo[Test Household]", cut.Markup);
+        cut.WaitForElement("[data-testid='dash-empty']");
+        Assert.NotNull(cut.Find("[data-testid='dash-page']"));
+        Assert.NotNull(cut.Find("[data-testid='dash-new-tx']"));
+        cut.WaitForAssertion(() => Assert.Contains("510.45", cut.Find("[data-testid='fx-rate']").TextContent));
         Assert.DoesNotContain("Home_SignInCta", cut.Markup);
+        Assert.DoesNotContain("Home_WelcomeBack", cut.Markup);
     }
 
     [Fact]
