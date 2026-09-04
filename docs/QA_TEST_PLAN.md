@@ -1645,6 +1645,7 @@ When I switch Period to "Date range", set 2026-01-01 – 2026-06-30 and Load
 Then the note says "custom range — monthly budgets don't apply" and the Budgeted (month) column is gone
 When I set From 2026-06-30 and To 2026-06-01 and Load
 Then "From must not be after To" and nothing loads
+And a line budgeted in dollars is judged in dollars: $18.99 spent against $18.99 is green, $25 is red (never red just because its colón side is above ₡0)
 ```
 **Walkthrough:** **Budget** → fixed `Supermarket` `60000` CRC on Groceries. **New transaction** ×3 →
 Groceries Budgeted `5000` (`2026-06-05`) and `3000` (`2026-06-12`), Dining Discretionary `2000`
@@ -3382,3 +3383,8 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   tokens are left out on purpose (key-ring bound: reconnect on the target); billing/ops tables too. No
   page, no route, no QA case: `HouseholdSnapshotTests` proves the round-trip on Postgres and gates the
   table list. Suite count unchanged (180).
+- **Updated 2026-09-04** — **Reports: over/under tone in the line's own currency (owner walkthrough).**
+  A budget line is single-currency, so the category analysis compared a $18.99 line's *colón* actual
+  against ₡0 and painted every dollar line red. The tone now follows the currency the line is budgeted
+  in (₡ budget → compare ₡, $ budget → compare $; no budget → no tone). QA-REP-01 gains the line;
+  `ReportsPageTests` covers a dollar line under and over. Suite count unchanged (180).

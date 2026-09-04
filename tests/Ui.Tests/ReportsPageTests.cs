@@ -16,7 +16,9 @@ public class ReportsPageTests : ComponentTestBase
         {"period":{"from":"2026-06-25","to":"2026-07-29"},"single_month":true,
          "budgeted":[{"category_id":"bbbbbbbb-0000-0000-0000-000000000001","category_name":"Groceries","total_crc":8000,"total_usd":16,"budgeted_crc":60000,"budgeted_usd":120},
                      {"category_id":"bbbbbbbb-0000-0000-0000-000000000002","category_name":"Housing","total_crc":70000,"total_usd":140,"budgeted_crc":60000,"budgeted_usd":120},
-                     {"category_id":"bbbbbbbb-0000-0000-0000-000000000003","category_name":"Other","total_crc":100,"total_usd":0.2,"budgeted_crc":null,"budgeted_usd":null}],
+                     {"category_id":"bbbbbbbb-0000-0000-0000-000000000003","category_name":"Other","total_crc":100,"total_usd":0.2,"budgeted_crc":null,"budgeted_usd":null},
+                     {"category_id":"bbbbbbbb-0000-0000-0000-000000000005","category_name":"Streaming - Disney","total_crc":8604.87,"total_usd":18.99,"budgeted_crc":0,"budgeted_usd":18.99},
+                     {"category_id":"bbbbbbbb-0000-0000-0000-000000000006","category_name":"Streaming - Extra","total_crc":11000,"total_usd":25,"budgeted_crc":0,"budgeted_usd":18.99}],
          "extraordinary":[{"category_id":"bbbbbbbb-0000-0000-0000-000000000004","category_name":"Dining","total_crc":2000,"total_usd":4,"budgeted_crc":null,"budgeted_usd":null}],
          "unplanned_essential":[]}
         """;
@@ -41,12 +43,14 @@ public class ReportsPageTests : ComponentTestBase
         Assert.Contains("Reports_SingleMonthNote", cut.Find("[data-testid='rep-period']").TextContent);
 
         var rows = cut.FindAll("[data-testid='rep-budgeted'] [data-testid='rep-row']");
-        Assert.Equal(3, rows.Count);
+        Assert.Equal(5, rows.Count);
         var actuals = cut.FindAll("[data-testid='rep-budgeted'] [data-testid='rep-actual']");
         Assert.Contains("text-success", actuals[0].ClassName); // Groceries under budget
         Assert.Contains("text-danger", actuals[1].ClassName);  // Housing over
         Assert.DoesNotContain("text-success", actuals[2].ClassName); // no line → no tone
         Assert.DoesNotContain("text-danger", actuals[2].ClassName);
+        Assert.Contains("text-success", actuals[3].ClassName); // a $18.99 line judged in dollars: $18.99 spent is not over (its ₡ side vs ₡0 used to paint it red)
+        Assert.Contains("text-danger", actuals[4].ClassName);  // $25 spent against $18.99 IS over
         Assert.Contains("—", cut.FindAll("[data-testid='rep-budget']")[2].TextContent);
         Assert.Contains("₡120,000.00", cut.Find("[data-testid='rep-budgeted'] [data-testid='rep-total']").TextContent); // budget total
         Assert.Contains("Dining", cut.Find("[data-testid='rep-extraordinary']").TextContent);
