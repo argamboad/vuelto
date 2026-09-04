@@ -99,6 +99,46 @@ public sealed class EmailConnectionHandler(IRepository<EmailConnection> connecti
         return (connection, null);
     }
 
+    /// <summary>
+    /// Rows saved before folder names were stored carry ids alone. On read, resolve the missing names once
+    /// from the provider's folder list and persist them, so an opaque id never reaches the page. Best
+    /// effort: a dead token (needs reconsent), an unknown provider or a provider error leaves the row as
+    /// is — the client then shows an "unnamed" placeholder, never the id. Returns true when names changed.
+    /// </summary>
+    public async Task<bool> BackfillFolderNamesAsync(EmailConnection connection, IEnumerable<IEmailReader> readers, CancellationToken cancellationToken)
+    {
+        if (!HasMissingFolderNames(connection)) return false;
+        var reader = readers.FirstOrDefault(r => r.Provider == connection.Provider);
+        if (reader is null) return false;
+
+        EmailFoldersResult listed;
+        try { listed = await reader.ListFoldersAsync(connection, cancellationToken); }
+        catch (Exception ex) when (ex is not OperationCanceledException) { return false; }
+        if (listed.NeedsReconsent) return false;
+
+        var byId = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var f in listed.Folders) byId.TryAdd(f.Id, f.Name);
+
+        var names = new string[connection.Folders.Length];
+        var changed = false;
+        for (var i = 0; i < names.Length; i++)
+        {
+            var stored = i < connection.FolderNames.Length ? connection.FolderNames[i] : "";
+            names[i] = !string.IsNullOrWhiteSpace(stored) ? stored : byId.GetValueOrDefault(connection.Folders[i], "");
+            changed |= names[i] != stored;
+        }
+        if (!changed && names.Length == connection.FolderNames.Length) return false;
+
+        connection.FolderNames = names;
+        connection.UpdatedAt = clock.GetUtcNow();
+        connections.Update(connection);
+        await connections.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
+    private static bool HasMissingFolderNames(EmailConnection c) =>
+        c.FolderNames.Length < c.Folders.Length || c.FolderNames.Take(c.Folders.Length).Any(string.IsNullOrWhiteSpace);
+
     /// <summary>Removes the connection (stops ingestion; imported transactions stay). False = not found for this user.</summary>
     public async Task<bool> DeleteAsync(Guid userId, Guid id, CancellationToken cancellationToken)
     {

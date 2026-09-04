@@ -92,7 +92,7 @@
                                     {
                                         @foreach (var f in _selectedFolders)
                                         {
-                                            <span class="badge rounded-pill text-bg-light border fw-normal" data-testid="email-folder-chip">@f.Name</span>
+                                            <span class="badge rounded-pill text-bg-light border fw-normal" data-testid="email-folder-chip">@FolderLabel(f)</span>
                                         }
                                     }
                                 </div>
@@ -300,7 +300,10 @@
     }
 
     private string FolderSummary(FolderDto[] folders) =>
-        folders.Length == 0 ? Localizer["Email_InboxDefault"].Value : string.Join(", ", folders.Select(f => f.Name));
+        folders.Length == 0 ? Localizer["Email_InboxDefault"].Value : string.Join(", ", folders.Select(FolderLabel));
+
+    /// <summary>A name the server could not resolve (dead token) shows a placeholder — never the opaque id.</summary>
+    private string FolderLabel(FolderDto f) => string.IsNullOrWhiteSpace(f.Name) ? Localizer["Email_FolderUnnamed"].Value : f.Name;
 
     private async Task SaveAsync(ConnectionDto c)
     {
@@ -394,7 +397,7 @@
         [property: JsonPropertyName("polling_interval_minutes")] int PollingIntervalMinutes,
         [property: JsonPropertyName("last_polled_at")] DateTimeOffset? LastPolledAt);
     private sealed record SyncDto([property: JsonPropertyName("staged")] int Staged, [property: JsonPropertyName("duplicates")] int Duplicates, [property: JsonPropertyName("unrecognized")] int Unrecognized);
-    private sealed record FolderDto([property: JsonPropertyName("id")] string Id, [property: JsonPropertyName("name")] string Name);
+    private sealed record FolderDto([property: JsonPropertyName("id")] string Id, [property: JsonPropertyName("name")] string? Name);
     private sealed record AuthorizeDto([property: JsonPropertyName("authorization_url")] string AuthorizationUrl);
     private sealed record ErrorDto([property: JsonPropertyName("error")] string Error, [property: JsonPropertyName("message")] string Message);
 }

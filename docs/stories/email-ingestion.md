@@ -90,7 +90,8 @@ unconfigured provider answers 400 `provider_not_configured`. `POST /api/email/co
 cursor = `import_from`, 15-minute interval, the verified BAC/BN senders + subject prefixes pre-seeded.
 Rules: one inbox per provider per user (`connection_exists`), at least one sender or subject filter,
 folders travel as `{id, name}` pairs (the name is captured at pick time so the page can say what is
-scanned without a provider round-trip; readers use the id),
+scanned without a provider round-trip, back-filled once from the provider for rows that predate it, `null`
+when unresolvable — never the id; readers use the id),
 interval 5…1440 minutes, lowering `import_from` pulls the cursor back (backfill) while raising it never
 advances the cursor (that would silently skip un-imported mail). Tokens are never returned; another
 user's id is a uniform 404.

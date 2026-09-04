@@ -27,12 +27,13 @@ public record EmailConnectionResponse(
 
 /// <summary>
 /// A scanned folder as the client sees it: the provider id the readers use plus the display name captured
-/// when it was picked. A row saved before names were stored answers with its id as the name.
+/// when it was picked (or back-filled from the provider on read). A name the server could not resolve is
+/// <c>null</c> — the client shows a placeholder; the opaque id is never presented as a name.
 /// </summary>
 public record ConnectionFolder([property: JsonPropertyName("id")] string Id, [property: JsonPropertyName("name")] string? Name)
 {
     public static ConnectionFolder[] From(EmailConnection c) => c.Folders
-        .Select((id, i) => new ConnectionFolder(id, i < c.FolderNames.Length && !string.IsNullOrWhiteSpace(c.FolderNames[i]) ? c.FolderNames[i] : id))
+        .Select((id, i) => new ConnectionFolder(id, i < c.FolderNames.Length && !string.IsNullOrWhiteSpace(c.FolderNames[i]) ? c.FolderNames[i] : null))
         .ToArray();
 }
 

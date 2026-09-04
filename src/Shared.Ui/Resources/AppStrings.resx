@@ -550,6 +550,7 @@
   <data name="Email_FoldersRow" xml:space="preserve"><value>Folders: {0}</value></data>
   <data name="Email_InboxDefault" xml:space="preserve"><value>Inbox (default)</value></data>
   <data name="Email_NoFoldersFound" xml:space="preserve"><value>The provider returned no folders.</value></data>
+  <data name="Email_FolderUnnamed" xml:space="preserve"><value>Unnamed folder (reconnect to refresh)</value></data>
   <data name="Email_SenderFilters" xml:space="preserve"><value>Sender filters</value></data>
   <data name="Email_SubjectFilters" xml:space="preserve"><value>Subject filters</value></data>
   <data name="Email_FiltersHint" xml:space="preserve"><value>Comma-separated. At least one sender or subject is required; only matching mail is fetched.</value></data>
