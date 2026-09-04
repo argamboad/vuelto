@@ -232,7 +232,14 @@
     };
 
     /// <summary>Semantic colour only when a budget exists: red over the CRC-side budget, green under.</summary>
-    private static string Tone(EntryDto e) => e.BudgetedCrc is null ? "" : e.TotalCrc > e.BudgetedCrc.Value ? "text-danger" : "text-success";
+    /// <summary>Over/under in the line's OWN currency: a budget is single-currency (the other side is 0), so a $18.99 line
+    /// must be judged on dollars — comparing its colón actual against ₡0 painted every dollar line red.</summary>
+    private static string Tone(EntryDto e) => e switch
+    {
+        { BudgetedCrc: > 0 } => e.TotalCrc > e.BudgetedCrc.Value ? "text-danger" : "text-success",
+        { BudgetedUsd: > 0 } => e.TotalUsd > e.BudgetedUsd.Value ? "text-danger" : "text-success",
+        _ => "",
+    };
 
     private static string Money(decimal crc, decimal usd) => $"₡{crc.ToString("N2", CultureInfo.CurrentCulture)} · ${usd.ToString("N2", CultureInfo.CurrentCulture)}";
 
