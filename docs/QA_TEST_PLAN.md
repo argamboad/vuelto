@@ -3375,3 +3375,10 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   side in its own currency, computed on the page from the summary already served (no API change); the
   lines total carries the same over/under tone as its rows. QA-DASH-01 gains the line; the totals are
   asserted in `DashboardPageTests`. Suite count unchanged (180).
+- **Updated 2026-09-04** — **Household snapshot (hidden operator tool, owner request).**
+  `tools/snapshot-household.sql` writes one household — the members' identity rows plus every budget
+  table, ids preserved, FK order, `ON CONFLICT DO NOTHING` — as a restorable SQL file, so a household
+  built up locally moves to staging/production without starting over (`docs/DEPLOYMENT.md` §9). Inbox
+  tokens are left out on purpose (key-ring bound: reconnect on the target); billing/ops tables too. No
+  page, no route, no QA case: `HouseholdSnapshotTests` proves the round-trip on Postgres and gates the
+  table list. Suite count unchanged (180).

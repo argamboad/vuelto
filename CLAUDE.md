@@ -181,6 +181,10 @@ deferred items without an explicit decision.
   loads from the gitignored `my-seed.sql` at the repo root after a local DB reset (re-authored for
   this schema 2026-09-04 — P11: fixed user/household ids, 61 categories, 9 banks, 18 budget lines,
   5 merchant rules; `docker exec -i vuelto-db-1 psql -U dev -d dev_db < my-seed.sql`).
+- **Carry the household to staging/prod (hidden operator tool):** `tools/snapshot-household.sql` — snapshot one
+  household (identity + every budget table, ids preserved, FK order, idempotent) from the source DB as a
+  SQL file and restore it once on the target as the owner role; inboxes are reconnected there (tokens are
+  key-ring bound). `docs/DEPLOYMENT.md` §9; `HouseholdSnapshotTests` = round-trip + table-list gate.
 - **Port parity reached (P0–P10b merged, PRs #1–#17).** P11 closed the repo side 2026-09-04:
   localization sweep (566 keys, EN/ES parity, zero missing — `LocalizationKeyCoverageTests` gate),
   app-slice QA pass recorded in `docs/qa-runs/2026-09-run-log.md` (29/32 ✅; FX-01, EMAIL-02,
