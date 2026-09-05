@@ -25,6 +25,7 @@ public sealed class ReportHandler(
     IRepository<FixedExpense> fixedExpenses,
     IRepository<VariableExpense> variableExpenses,
     IFileStorage files,
+    IExchangeRateResolver rates,
     TimeProvider clock)
 {
     public static readonly TimeSpan LinkLifetime = TimeSpan.FromMinutes(15);
@@ -63,16 +64,42 @@ public sealed class ReportHandler(
     {
         var rows = await InPeriod(period).ToListAsync(cancellationToken);
         var names = await categories.Query().ToDictionaryAsync(c => c.Id, c => c.Name, cancellationToken); // all states
+        var bankNames = await banks.Query().ToDictionaryAsync(b => b.Id, b => b.Name, cancellationToken);  // all states
 
         List<IExpenseLine>? lines = null;
+        MoneyPair? income = null, budgetTotal = null;
         if (period.SingleMonth)
         {
             lines = [];
             lines.AddRange(await fixedExpenses.Query().Where(l => l.IsActive).ToListAsync(cancellationToken));
             lines.AddRange(await variableExpenses.Query().Where(l => l.IsActive).ToListAsync(cancellationToken));
+
+            // Income vs spend / vs budget (REPORTS-3): the dashboard's definitions, at the rate resolved through the
+            // ADR-V006 chain. No rate → neither number (the spend report still answers); never a partial figure.
+            var month = await months.Query().FirstOrDefaultAsync(m => m.Id == period.MonthId, cancellationToken);
+            if (month is not null && await rates.ResolveAsync(cancellationToken) is { } resolved)
+            {
+                income = IncomeCalculator.Calculate(month, rows, resolved.Rate).Total;
+                budgetTotal = BudgetTotals.Planned(lines, resolved.Rate);
+            }
         }
 
-        return CategoryAnalysisResponse.From(CategoryAnalysisCalculator.Calculate(rows, names, period.From, period.To, lines));
+        return CategoryAnalysisResponse.From(CategoryAnalysisCalculator.Calculate(rows, names, period.From, period.To, lines, bankNames), income, budgetTotal);
+    }
+
+    public const int TrendDefaultCount = 12, TrendMaxCount = 36;
+
+    /// <summary>The last <paramref name="count"/> months (by anchor date), oldest first, with income at today's rate and spend (REPORTS-4).</summary>
+    public async Task<MonthsTrendResponse> TrendAsync(int count, CancellationToken cancellationToken)
+    {
+        count = Math.Clamp(count, 1, TrendMaxCount);
+        var recent = await months.Query().OrderByDescending(m => m.Week1StartDate).Take(count).ToListAsync(cancellationToken);
+        var ids = recent.Select(m => m.Id).ToList();
+        var rows = await transactions.Query().Where(t => ids.Contains(t.MonthId)).ToListAsync(cancellationToken);
+        var resolved = recent.Count > 0 ? await rates.ResolveAsync(cancellationToken) : null;
+
+        var trend = MonthTrendCalculator.Calculate(recent, rows, resolved?.Rate);
+        return new MonthsTrendResponse(trend.Select(MonthTrendResponse.From).ToList(), resolved is not null);
     }
 
     /// <summary>Every matching transaction (unpaginated), date desc then created desc, as a stored CSV behind a 15-minute signed link.</summary>

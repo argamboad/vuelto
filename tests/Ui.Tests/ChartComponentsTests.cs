@@ -45,6 +45,35 @@ public class ChartComponentsTests : ComponentTestBase
     }
 
     [Fact]
+    public void LineChart_StepsThroughThePoints_DrawsThePlan_AndClampsToday()
+    {
+        var from = new DateOnly(2026, 6, 25); var to = new DateOnly(2026, 7, 29);
+        var points = new List<LinePoint> { new(new DateOnly(2026, 6, 26), 8000m), new(new DateOnly(2026, 7, 3), 78000m) };
+
+        var cut = Render<LineChart>(p => p.Add(x => x.Points, points).Add(x => x.Plan, 150000m).Add(x => x.From, from).Add(x => x.To, to)
+            .Add(x => x.Today, new DateOnly(2026, 7, 15)).Add(x => x.TestId, "l"));
+
+        Assert.Equal(2, cut.FindAll("[data-testid='chart-point']").Count);
+        Assert.Single(cut.FindAll("[data-testid='chart-plan']"));
+        var line = cut.Find("[data-testid='chart-line']");
+        Assert.Contains("var(--bs-primary)", line.GetAttribute("stroke")); // under the plan
+        var today = cut.Find("[data-testid='chart-today']");
+        Assert.Equal(today.GetAttribute("x1"), today.GetAttribute("x2"));
+        Assert.Contains("₡150,000", cut.Markup); // the y-axis top is the plan when it is the largest value
+        Assert.Contains("Chart_Plan", cut.Find("[data-testid='chart-legend']").TextContent);
+
+        // Past the plan → red; no plan → no plan line and no plan legend; today beyond the period sits on the right edge.
+        var over = Render<LineChart>(p => p.Add(x => x.Points, new List<LinePoint> { new(new DateOnly(2026, 7, 3), 200000m) }).Add(x => x.Plan, 150000m)
+            .Add(x => x.From, from).Add(x => x.To, to).Add(x => x.Today, new DateOnly(2026, 9, 5)).Add(x => x.TestId, "l"));
+        Assert.Contains("var(--bs-danger)", over.Find("[data-testid='chart-line']").GetAttribute("stroke"));
+        var noPlan = Render<LineChart>(p => p.Add(x => x.Points, points).Add(x => x.From, from).Add(x => x.To, to).Add(x => x.TestId, "l"));
+        Assert.Empty(noPlan.FindAll("[data-testid='chart-plan']"));
+        Assert.DoesNotContain("Chart_Plan", noPlan.Find("[data-testid='chart-legend']").TextContent);
+        var empty = Render<LineChart>(p => p.Add(x => x.Points, new List<LinePoint>()).Add(x => x.From, from).Add(x => x.To, to).Add(x => x.TestId, "l"));
+        Assert.Contains("Chart_Empty", empty.Markup);
+    }
+
+    [Fact]
     public void DonutChart_DrawsOneArcPerNonZeroSlice_WithSharesInTheLegend()
     {
         var cut = Render<DonutChart>(p => p
@@ -57,6 +86,12 @@ public class ChartComponentsTests : ComponentTestBase
         Assert.Contains("75", legend[0].TextContent); // 300k of 400k
         Assert.Contains("25", legend[1].TextContent);
         Assert.Contains("₡400,000", cut.Find("svg text").TextContent); // the total in the hole
+
+        // The hole can say something other than the sum — the reference the ring is measured against (income).
+        var referenced = Render<DonutChart>(p => p
+            .Add(x => x.Slices, new List<DonutSlice> { new("Spent", 300000m, "red"), new("Remaining", 100000m, "grey") })
+            .Add(x => x.CenterText, "₡400,000 income").Add(x => x.TestId, "d"));
+        Assert.Equal("₡400,000 income", referenced.Find("[data-testid='chart-center']").TextContent);
 
         var single = Render<DonutChart>(p => p.Add(x => x.Slices, new List<DonutSlice> { new("Only", 5m, "red") }).Add(x => x.TestId, "d"));
         Assert.Single(single.FindAll("circle[data-testid='chart-slice']")); // a lone slice is a full ring, not a degenerate arc

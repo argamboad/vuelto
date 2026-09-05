@@ -24,19 +24,79 @@ public record CategorySpendResponse(
     public static CategorySpendResponse From(CategorySpendEntry e) => new(e.CategoryId, e.CategoryName, e.TotalCrc, e.TotalUsd, e.BudgetedCrc, e.BudgetedUsd);
 }
 
-/// <summary><c>GET /api/reports/category-analysis</c>. Budget columns are present only when <c>single_month</c> is true.</summary>
+/// <summary>A dual-currency amount on the report wire (own record — slices never share DTOs, R7).</summary>
+public record ReportMoneyResponse([property: JsonPropertyName("crc")] decimal Crc, [property: JsonPropertyName("usd")] decimal Usd)
+{
+    public static ReportMoneyResponse From(MoneyPair p) => new(p.Crc, p.Usd);
+}
+
+/// <summary>Spend of one bank or payment method over the period (REPORTS-4). <c>key</c> is the bank id or the method code.</summary>
+public record GroupSpendResponse(
+    [property: JsonPropertyName("key")] string Key,
+    [property: JsonPropertyName("label")] string Label,
+    [property: JsonPropertyName("total_crc")] decimal TotalCrc,
+    [property: JsonPropertyName("total_usd")] decimal TotalUsd)
+{
+    public static GroupSpendResponse From(GroupSpendEntry e) => new(e.Key, e.Label, e.TotalCrc, e.TotalUsd);
+}
+
+/// <summary>Spend of one day (REPORTS-4, the pace line); days without spend are absent.</summary>
+public record DaySpendResponse(
+    [property: JsonPropertyName("date")] DateOnly Date,
+    [property: JsonPropertyName("total_crc")] decimal TotalCrc,
+    [property: JsonPropertyName("total_usd")] decimal TotalUsd)
+{
+    public static DaySpendResponse From(DaySpendEntry e) => new(e.Date, e.TotalCrc, e.TotalUsd);
+}
+
+/// <summary>One month of <c>GET /api/reports/months-trend</c> (REPORTS-4). <c>income</c> is null when no rate could be resolved.</summary>
+public record MonthTrendResponse(
+    [property: JsonPropertyName("month_id")] Guid MonthId,
+    [property: JsonPropertyName("year")] int Year,
+    [property: JsonPropertyName("month_number")] int MonthNumber,
+    [property: JsonPropertyName("income")] ReportMoneyResponse? Income,
+    [property: JsonPropertyName("spend")] ReportMoneyResponse Spend)
+{
+    public static MonthTrendResponse From(MonthTrendEntry e) => new(e.MonthId, e.Year, e.MonthNumber,
+        e.Income is null ? null : ReportMoneyResponse.From(e.Income), ReportMoneyResponse.From(e.Spend));
+}
+
+/// <summary><c>GET /api/reports/months-trend?count=</c>: the household's last <c>count</c> months, oldest first.</summary>
+public record MonthsTrendResponse(
+    [property: JsonPropertyName("months")] IReadOnlyList<MonthTrendResponse> Months,
+    [property: JsonPropertyName("rate_available")] bool RateAvailable);
+
+/// <summary>
+/// <c>GET /api/reports/category-analysis</c>. Budget columns are present only when <c>single_month</c> is true.
+/// <c>income</c> (REPORTS-3) is the month's income — configured incomes at today's rate plus inflows, the
+/// dashboard's own definition — and is <c>null</c> for a date range (income is per month) or when no rate
+/// can be resolved (ADR-V006 chain exhausted); spend totals never depend on it. <c>budget_total</c> is the
+/// sum of every active budget line converted at the same rate (each line is single-currency), null in the
+/// same cases.
+/// </summary>
 public record CategoryAnalysisResponse(
     [property: JsonPropertyName("period")] ReportPeriodResponse Period,
     [property: JsonPropertyName("single_month")] bool SingleMonth,
     [property: JsonPropertyName("budgeted")] IReadOnlyList<CategorySpendResponse> Budgeted,
     [property: JsonPropertyName("extraordinary")] IReadOnlyList<CategorySpendResponse> Extraordinary,
-    [property: JsonPropertyName("unplanned_essential")] IReadOnlyList<CategorySpendResponse> UnplannedEssential)
+    [property: JsonPropertyName("unplanned_essential")] IReadOnlyList<CategorySpendResponse> UnplannedEssential,
+    [property: JsonPropertyName("income")] ReportMoneyResponse? Income,
+    [property: JsonPropertyName("budget_total")] ReportMoneyResponse? BudgetTotal,
+    [property: JsonPropertyName("by_bank")] IReadOnlyList<GroupSpendResponse> ByBank,
+    [property: JsonPropertyName("by_method")] IReadOnlyList<GroupSpendResponse> ByMethod,
+    [property: JsonPropertyName("spend_by_day")] IReadOnlyList<DaySpendResponse>? SpendByDay)
 {
-    public static CategoryAnalysisResponse From(CategoryAnalysis a) => new(
+    /// <summary><c>spend_by_day</c> only for a single month (the pace line is a month picture; a long range would ship hundreds of rows for nothing).</summary>
+    public static CategoryAnalysisResponse From(CategoryAnalysis a, MoneyPair? income, MoneyPair? budgetTotal) => new(
         new ReportPeriodResponse(a.From, a.To), a.SingleMonth,
         a.Budgeted.Select(CategorySpendResponse.From).ToList(),
         a.Extraordinary.Select(CategorySpendResponse.From).ToList(),
-        a.UnplannedEssential.Select(CategorySpendResponse.From).ToList());
+        a.UnplannedEssential.Select(CategorySpendResponse.From).ToList(),
+        income is null ? null : ReportMoneyResponse.From(income),
+        budgetTotal is null ? null : ReportMoneyResponse.From(budgetTotal),
+        a.ByBank.Select(GroupSpendResponse.From).ToList(),
+        a.ByMethod.Select(GroupSpendResponse.From).ToList(),
+        a.SingleMonth ? a.ByDay.Select(DaySpendResponse.From).ToList() : null);
 }
 
 /// <summary>

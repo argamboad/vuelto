@@ -1,0 +1,93 @@
+@using System.Globalization
+@inject IStringLocalizer<AppStrings> Localizer
+
+@* Cumulative pace as inline SVG — no JS, no library, theme-aware through Bootstrap tokens. The actual is a step
+   line through the day points (a day with no spend keeps the previous total); the plan is the straight line from
+   zero at the first day to the plan total at the last day; "today" is a dashed marker, clamped to the period so a
+   past month reads "all elapsed" and a future one "nothing elapsed". One currency per chart. *@
+<div class="chart-line" data-testid="@TestId">
+    @if (Points.Count == 0 && Plan <= 0)
+    {
+        <p class="text-muted small mb-0">@Localizer["Chart_Empty"]</p>
+    }
+    else
+    {
+        var max = Math.Max(Math.Max(Points.Count > 0 ? Points.Max(p => p.Value) : 0m, Plan), 0.01m);
+        var days = Math.Max((To.DayNumber - From.DayNumber), 1);
+        var todayX = X(Clamp(Today), days);
+        <svg viewBox="0 0 @Width @Height" width="100%" height="@Height" role="img" aria-label="@Title" style="font: 11px var(--bs-body-font-family); display: block;">
+            <title>@Title</title>
+            <line x1="@Left" y1="@Top" x2="@Left" y2="@(Top + PlotH)" stroke="var(--bs-border-color)" />
+            <line x1="@Left" y1="@(Top + PlotH)" x2="@(Left + PlotW)" y2="@(Top + PlotH)" stroke="var(--bs-border-color)" />
+            <text x="@(Left - 6)" y="@Top" text-anchor="end" dominant-baseline="middle" fill="var(--bs-secondary-color)">@Format(max)</text>
+            <text x="@(Left - 6)" y="@(Top + PlotH)" text-anchor="end" dominant-baseline="middle" fill="var(--bs-secondary-color)">0</text>
+            <text x="@Left" y="@(Height - 4)" fill="var(--bs-secondary-color)">@From.ToString("d MMM", CultureInfo.CurrentCulture)</text>
+            <text x="@(Left + PlotW)" y="@(Height - 4)" text-anchor="end" fill="var(--bs-secondary-color)">@To.ToString("d MMM", CultureInfo.CurrentCulture)</text>
+            @if (Plan > 0)
+            {
+                <line x1="@Left" y1="@(Top + PlotH)" x2="@(Left + PlotW)" y2="@Y(Plan, max)" stroke="var(--bs-tertiary-color)" stroke-width="2" stroke-dasharray="6 4" data-testid="chart-plan" />
+            }
+            @if (Points.Count > 0)
+            {
+                <polyline points="@StepPath(days, max)" fill="none" stroke="@(Over(max) ? "var(--bs-danger)" : "var(--bs-primary)")" stroke-width="2.5" stroke-linejoin="round" data-testid="chart-line" />
+                @foreach (var p in Points)
+                {
+                    <circle cx="@X(p.Date, days)" cy="@Y(p.Value, max)" r="3" fill="@(Over(max) ? "var(--bs-danger)" : "var(--bs-primary)")" data-testid="chart-point"><title>@p.Date.ToString("d", CultureInfo.CurrentCulture) · @Format(p.Value)</title></circle>
+                }
+            }
+            <line x1="@todayX" y1="@Top" x2="@todayX" y2="@(Top + PlotH)" stroke="var(--bs-warning)" stroke-width="1.5" stroke-dasharray="3 3" data-testid="chart-today" />
+            <text x="@todayX" y="@(Top - 4)" text-anchor="middle" fill="var(--bs-warning)">@Localizer["Chart_Today"]</text>
+        </svg>
+        <div class="small text-muted mt-1" data-testid="chart-legend">
+            <span class="d-inline-block me-3"><span class="d-inline-block align-middle me-1" style="width: 12px; height: 3px; background: var(--bs-primary);"></span>@Localizer["Chart_Actual"]</span>
+            @if (Plan > 0)
+            {
+                <span class="d-inline-block me-3"><span class="d-inline-block align-middle me-1" style="width: 12px; height: 0; border-top: 2px dashed var(--bs-tertiary-color);"></span>@Localizer["Chart_Plan"]</span>
+            }
+            <span class="d-inline-block"><span class="d-inline-block align-middle me-1" style="width: 12px; height: 0; border-top: 2px dashed var(--bs-warning);"></span>@Localizer["Chart_Today"]</span>
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>Cumulative totals, one per day that had spend, ascending by date (the component draws steps between them).</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<LinePoint> Points { get; set; } = [];
+    /// <summary>The plan total the straight line climbs to at <see cref="To"/>; 0 or less draws no plan line.</summary>
+    [Parameter] public decimal Plan { get; set; }
+    [Parameter, EditorRequired] public DateOnly From { get; set; }
+    [Parameter, EditorRequired] public DateOnly To { get; set; }
+    [Parameter] public DateOnly Today { get; set; } = DateOnly.FromDateTime(DateTime.Today);
+    [Parameter] public string Currency { get; set; } = "CRC";
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public string TestId { get; set; } = "chart";
+
+    private const int Width = 640, Height = 220, Left = 70, Top = 18, Right = 12, Bottom = 22;
+    private const int PlotW = Width - Left - Right, PlotH = Height - Top - Bottom;
+
+    private DateOnly Clamp(DateOnly d) => d < From ? From : d > To ? To : d;
+
+    private string X(DateOnly d, int days) => ((double)Left + (double)PlotW * (d.DayNumber - From.DayNumber) / days).ToString("0.##", CultureInfo.InvariantCulture);
+
+    private string Y(decimal value, decimal max) => ((double)Top + (double)PlotH * (1 - (double)(Math.Max(value, 0) / max))).ToString("0.##", CultureInfo.InvariantCulture);
+
+    /// <summary>Steps: hold the previous total until the next day with spend, then rise — starting from zero on the first day.</summary>
+    private string StepPath(int days, decimal max)
+    {
+        var parts = new List<string> { $"{X(From, days)},{Y(0, max)}" };
+        decimal previous = 0;
+        foreach (var p in Points)
+        {
+            parts.Add($"{X(p.Date, days)},{Y(previous, max)}");
+            parts.Add($"{X(p.Date, days)},{Y(p.Value, max)}");
+            previous = p.Value;
+        }
+        var last = Points[^1];
+        parts.Add($"{X(Clamp(Today) > last.Date ? Clamp(Today) : last.Date, days)},{Y(last.Value, max)}");
+        return string.Join(" ", parts);
+    }
+
+    /// <summary>Red when the latest total is already past the plan.</summary>
+    private bool Over(decimal max) => Plan > 0 && Points.Count > 0 && Points[^1].Value > Plan;
+
+    private string Format(decimal value) => (Currency == "USD" ? "$" : "₡") + value.ToString("N0", CultureInfo.CurrentCulture);
+}

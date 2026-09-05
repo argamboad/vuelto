@@ -1649,6 +1649,11 @@ Then "From must not be after To" and nothing loads
 And a line budgeted in dollars is judged in dollars: $18.99 spent against $18.99 is green, $25 is red (never red just because its colón side is above ₡0)
 When I switch View to Chart
 Then each class shows the same rows as horizontal bars (largest first) with the budget as a muted track and the actual on top — red past it — plus a "Spend by class" donut with shares; the ₡/$ switch redraws in the other currency; the choice is remembered on this device
+And beside it an "Income vs spend" donut: the same class slices plus a muted Remaining slice, the month's income in the hole (income = configured incomes at today's rate + inflows, as on the dashboard); overspent → no Remaining and a red "Over income by ₡…"; in Date-range mode the income card is absent
+And an "Income vs budget" donut: Budget lines (every active line, a $ line converted at today's rate) and Uncommitted, the income in the hole; a plan above the income → no Uncommitted and a red "Budget exceeds income by ₡…"; absent in Date-range mode too
+And a "Pace" line: cumulative spend stepping through the days that had spend, the straight plan line to the budget total, a dashed Today marker, and the caption "N% of the month elapsed · M% of the plan spent" (month mode only)
+And "Month by month": one bar per month, oldest first, spend on an income track, red for a month that spent more than its income (month mode only; loaded on entering Chart view)
+And "Spend by bank" and "Card vs account" donuts under them — present in Date-range mode as well
 ```
 **Walkthrough:** **Budget** → fixed `Supermarket` `60000` CRC on Groceries. **New transaction** ×3 →
 Groceries Budgeted `5000` (`2026-06-05`) and `3000` (`2026-06-12`), Dining Discretionary `2000`
@@ -1656,9 +1661,20 @@ Groceries Budgeted `5000` (`2026-06-05`) and `3000` (`2026-06-12`), Dining Discr
 the newest month; the Budgeted card with the budget column and the green actual; Dining under
 Discretionary; the inflow absent from every card. **Period** → **Date range** → From `2026-01-01`, To
 `2026-06-30` → **Load** → **Expected:** the multi-month note, no budget column, same totals. Reverse
-the dates → **Load** → **Expected:** the red order message. Via Postman (**20 · Reports → Category
-analysis (month)**) → 200 with `single_month: true` and `budgeted[0].budgeted_crc = 60000`; (**Category
-analysis — no period (400)**) → `period_required`.
+the dates → **Load** → **Expected:** the red order message. **View → Chart** (month mode) → **Expected:**
+the "Income vs spend" card next to "Spend by class": Remaining = the month's income − ₡10,000 spent, the
+income in the hole (the inflow counts as income here, never as spend); the "Income vs budget" card:
+Budget lines ₡60,000 (the Supermarket line), Uncommitted = income − ₡60,000; the "Pace" card with three
+points (Jun 5, 10, 12), the plan line to ₡60,000 and Today at the right edge (the month is past) — caption
+"100% … · 17% of the plan spent"; "Month by month" with one bar (June) on its income track; "Spend by
+bank" = one slice (the bank of the transactions), "Card vs account" = Credit card only; switch to
+**Date range** → income, budget, pace and trend cards are gone, the two bank donuts stay. Via Postman
+(**20 · Reports → Category analysis (month)**) → 200 with `single_month: true`,
+`budgeted[0].budgeted_crc = 60000`, an `income` `{crc, usd}` pair, `budget_total.crc = 60000`, `by_bank`
+/ `by_method` arrays and `spend_by_day` with three dates; (**date range**) → `income: null`,
+`budget_total: null`, `spend_by_day: null`, the bank/method arrays present; (**Months trend (last 12)**)
+→ 200, `months` oldest first, each with `spend` and `income`; (**Category analysis — no period (400)**)
+→ `period_required`.
 
 ### QA-REP-02 — Export CSV downloads the shown period; the file has the fixed columns and 4-decimal rate 🟠 (Web / API)
 **Gherkin**
@@ -3408,3 +3424,25 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   QA-FX-01/02, QA-I18N-03, QA-LED-01 and QA-AND-04 wording updated ("Home" → the dashboard);
   `HomePageTests.SignedIn_TheRootIsTheDashboard` + `ExchangeRateBadgeTests.Dashboard_MountsTheBadge_*`
   pin it. Suite count unchanged (180).
+- **Updated 2026-09-05** — **Reports: "Income vs spend" and "Income vs budget" donuts (owner request).**
+  In Chart view, month mode, two more donuts beside "Spend by class": the three class slices against the
+  month's income (the dashboard's definition, now the shared `IncomeCalculator`) with a muted Remaining
+  slice; and the active budget lines (each converted at the same rate — the shared `BudgetTotals`, also
+  behind the dashboard's budget column) against the income with an Uncommitted slice; the income in
+  both holes; over → a red "Over income by …" / "Budget exceeds income by …" line; no resolvable rate →
+  the cards say so; date range → no cards. `GET /api/reports/category-analysis` gains `income` and
+  `budget_total` (`{crc, usd}` | null). QA-REP-01 gains the steps and the Postman checks;
+  `ReportSliceTests` (+1 case, asserts), `ReportsPageTests.ChartView_IncomeDonut_*` (3),
+  `IncomeCalculatorTests` (4), `BudgetTotalsTests` (4), `ChartComponentsTests` (center text) pin it.
+  Suite count unchanged (180).
+- **Updated 2026-09-05** — **Reports wave 2: Pace, Month by month, Spend by bank / Card vs account
+  (owner request, REPORTS-4).** Chart view gains a cumulative **Pace** line (step line through the spend
+  days, plan line to the budget total, dashed Today marker clamped to the month, red past the plan,
+  "N% elapsed · M% of the plan spent" caption), a **Month by month** bar chart (new
+  `GET /api/reports/months-trend?count=`, oldest first, spend on an income track, red when a month
+  overspent, loaded on entering Chart view) and two donuts by **bank** and by **payment method** that
+  follow a date range too. `GET /api/reports/category-analysis` gains `by_bank`, `by_method` and
+  `spend_by_day` (single month only). QA-REP-01 gains the steps and the Postman checks (new **Months
+  trend** request); `CategoryAnalysisCalculatorTests` (+3), `MonthTrendCalculatorTests` (3),
+  `ReportSliceTests` (+2 cases, asserts), `ReportEndpointTests` (trend call), `ReportsPageTests`
+  (+4), `ChartComponentsTests.LineChart_*` pin it. Suite count unchanged (180).

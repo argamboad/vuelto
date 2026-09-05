@@ -27,6 +27,10 @@ public static class ReportEndpoints
             return Results.Ok(await handler.AnalyzeAsync(resolution.Period!, ct));
         });
 
+        // GET /api/reports/months-trend?count=12 — the last N months, oldest first: income (today's rate) vs spend (REPORTS-4)
+        group.MapGet("/months-trend", async ([FromQuery(Name = "count")] int? count, ReportHandler handler, CancellationToken ct) =>
+            Results.Ok(await handler.TrendAsync(count ?? ReportHandler.TrendDefaultCount, ct)));
+
         // POST /api/reports/transactions/export?month_id= | ?from=&to=  [&category_id=&class=]
         // A POST because it creates a stored artifact and mints a signed link (ADR-010), like the household export.
         group.MapPost("/transactions/export", async (

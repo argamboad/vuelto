@@ -4284,7 +4284,9 @@
                   "pm.test(\"200 (or 404 when no month yet)\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));",
                   "if (pm.response.code === 200) { const r = pm.response.json();",
                   "  pm.test(\"single month\", () => pm.expect(r.single_month).to.be.true);",
-                  "  pm.test(\"three class arrays\", () => pm.expect(r).to.have.all.keys('period', 'single_month', 'budgeted', 'extraordinary', 'unplanned_essential')); }"
+                  "  pm.test(\"class arrays + income + budget_total + bank/method/day cuts\", () => pm.expect(r).to.have.all.keys('period', 'single_month', 'budgeted', 'extraordinary', 'unplanned_essential', 'income', 'budget_total', 'by_bank', 'by_method', 'spend_by_day')); }",
+                  "  pm.test(\"single month carries spend_by_day (ascending)\", () => { pm.expect(r.spend_by_day).to.be.an('array'); r.by_bank.forEach(b => pm.expect(b).to.have.all.keys('key', 'label', 'total_crc', 'total_usd')); });",
+                  "  pm.test(\"income and budget_total are ₡/$ pairs (or both null when no rate)\", () => { if (r.income !== null) { pm.expect(r.income).to.have.all.keys('crc', 'usd'); pm.expect(r.budget_total).to.have.all.keys('crc', 'usd'); } else pm.expect(r.budget_total).to.be.null; });"
                 ],
                 "type": "text/javascript"
               }
@@ -4325,7 +4327,9 @@
                 "exec": [
                   "pm.test(\"200\", () => pm.response.to.have.status(200));",
                   "const r = pm.response.json();",
-                  "pm.test(\"range has no budgets\", () => { pm.expect(r.single_month).to.be.false; r.budgeted.forEach(e => pm.expect(e.budgeted_crc).to.be.null); });"
+                  "pm.test(\"range has no budgets\", () => { pm.expect(r.single_month).to.be.false; r.budgeted.forEach(e => pm.expect(e.budgeted_crc).to.be.null); });",
+                  "pm.test(\"range has no income / budget_total (per month only)\", () => { pm.expect(r.income).to.be.null; pm.expect(r.budget_total).to.be.null; });",
+                  "pm.test(\"range has bank/method cuts but no spend_by_day\", () => { pm.expect(r.by_bank).to.be.an('array'); pm.expect(r.by_method).to.be.an('array'); pm.expect(r.spend_by_day).to.be.null; });"
                 ],
                 "type": "text/javascript"
               }
@@ -4358,6 +4362,49 @@
                   "pm.test(\"error code\", () => pm.expect(pm.response.json().error).to.eql('period_required'));"
                 ],
                 "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Months trend (last 12)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/months-trend?count=12",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "months-trend"
+              ],
+              "query": [
+                {
+                  "key": "count",
+                  "value": "12"
+                }
+              ]
+            },
+            "description": "200 { months[], rate_available }; each month { month_id, year, month_number, income {crc, usd} | null, spend {crc, usd} } — the household's last `count` months by anchor date (1–36, default 12), OLDEST first. spend = the three expense classes' frozen amounts; income = configured incomes at today's rate + inflows (the dashboard's definition), null for every month when no rate can be resolved (rate_available false). Behind the Reports page's \"Month by month\" bars (REPORTS-4)."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "pm.test(\"shape\", () => pm.expect(r).to.have.all.keys('months', 'rate_available'));",
+                  "pm.test(\"oldest first, each month has spend and income|null\", () => {",
+                  "  const ids = r.months.map(m => m.year * 100 + m.month_number);",
+                  "  pm.expect(ids).to.eql([...ids].sort((a, b) => a - b));",
+                  "  r.months.forEach(m => { pm.expect(m).to.have.all.keys('month_id', 'year', 'month_number', 'income', 'spend'); pm.expect(m.spend).to.have.all.keys('crc', 'usd'); if (r.rate_available) pm.expect(m.income).to.have.all.keys('crc', 'usd'); else pm.expect(m.income).to.be.null; });",
+                  "});"
+                ]
               }
             }
           ]

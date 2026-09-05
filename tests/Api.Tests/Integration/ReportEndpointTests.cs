@@ -47,6 +47,11 @@ public class ReportEndpointTests(IntegrationTestFactory factory)
 
         var report = (await client.GetFromJsonAsync<ReportDto>($"/api/reports/category-analysis?month_id={tx.MonthId}"))!;
         Assert.True(report.SingleMonth);
+        Assert.Equal(bank.Name, Assert.Single(report.ByBank).Label);
+
+        var trend = (await client.GetFromJsonAsync<TrendDto>("/api/reports/months-trend?count=6"))!;
+        Assert.Equal(tx.MonthId, Assert.Single(trend.Months).MonthId);
+        Assert.Equal(15_750m, trend.Months[0].Spend.Crc);
         Assert.Equal((new DateOnly(2026, 5, 28), new DateOnly(2026, 6, 24)), (report.Period.From, report.Period.To));
         var entry = Assert.Single(report.Extraordinary);
         Assert.Equal((category.Name, 15_750m, 31.5m), (entry.CategoryName, entry.TotalCrc, entry.TotalUsd));
@@ -74,6 +79,10 @@ public class ReportEndpointTests(IntegrationTestFactory factory)
     private sealed record ErrorDto([property: JsonPropertyName("error")] string Error, [property: JsonPropertyName("message")] string Message);
     private sealed record PeriodDto([property: JsonPropertyName("from")] DateOnly From, [property: JsonPropertyName("to")] DateOnly To);
     private sealed record EntryDto([property: JsonPropertyName("category_name")] string CategoryName, [property: JsonPropertyName("total_crc")] decimal TotalCrc, [property: JsonPropertyName("total_usd")] decimal TotalUsd, [property: JsonPropertyName("budgeted_crc")] decimal? BudgetedCrc);
-    private sealed record ReportDto([property: JsonPropertyName("period")] PeriodDto Period, [property: JsonPropertyName("single_month")] bool SingleMonth, [property: JsonPropertyName("budgeted")] List<EntryDto> Budgeted, [property: JsonPropertyName("extraordinary")] List<EntryDto> Extraordinary);
+    private sealed record GroupDto([property: JsonPropertyName("key")] string Key, [property: JsonPropertyName("label")] string Label, [property: JsonPropertyName("total_crc")] decimal TotalCrc);
+    private sealed record ReportDto([property: JsonPropertyName("period")] PeriodDto Period, [property: JsonPropertyName("single_month")] bool SingleMonth, [property: JsonPropertyName("budgeted")] List<EntryDto> Budgeted, [property: JsonPropertyName("extraordinary")] List<EntryDto> Extraordinary, [property: JsonPropertyName("by_bank")] List<GroupDto> ByBank);
+    private sealed record MoneyDto([property: JsonPropertyName("crc")] decimal Crc, [property: JsonPropertyName("usd")] decimal Usd);
+    private sealed record TrendMonthDto([property: JsonPropertyName("month_id")] Guid MonthId, [property: JsonPropertyName("month_number")] int MonthNumber, [property: JsonPropertyName("income")] MoneyDto? Income, [property: JsonPropertyName("spend")] MoneyDto Spend);
+    private sealed record TrendDto([property: JsonPropertyName("months")] List<TrendMonthDto> Months, [property: JsonPropertyName("rate_available")] bool RateAvailable);
     private sealed record ExportDto([property: JsonPropertyName("download_url")] string DownloadUrl, [property: JsonPropertyName("file_name")] string FileName, [property: JsonPropertyName("row_count")] int RowCount);
 }

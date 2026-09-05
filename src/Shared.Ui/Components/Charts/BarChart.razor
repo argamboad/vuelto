@@ -38,9 +38,9 @@
         @if (Items.Any(i => i.Budget is > 0))
         {
             <div class="small text-muted mt-1" data-testid="chart-legend">
-                <span class="d-inline-block me-3"><span class="d-inline-block align-middle me-1" style="width: 12px; height: 8px; background: var(--bs-primary);"></span>@Localizer["Chart_Actual"]</span>
-                <span class="d-inline-block me-3"><span class="d-inline-block align-middle me-1" style="width: 12px; height: 8px; background: var(--bs-tertiary-color); opacity: .45;"></span>@Localizer["Chart_Budget"]</span>
-                <span class="d-inline-block"><span class="d-inline-block align-middle me-1" style="width: 12px; height: 8px; background: var(--bs-danger);"></span>@Localizer["Chart_OverBudget"]</span>
+                <span class="d-inline-block me-3"><span class="d-inline-block align-middle me-1" style="width: 12px; height: 8px; background: var(--bs-primary);"></span>@(ActualLabel ?? Localizer["Chart_Actual"].Value)</span>
+                <span class="d-inline-block me-3"><span class="d-inline-block align-middle me-1" style="width: 12px; height: 8px; background: var(--bs-tertiary-color); opacity: .45;"></span>@(BudgetLabel ?? Localizer["Chart_Budget"].Value)</span>
+                <span class="d-inline-block"><span class="d-inline-block align-middle me-1" style="width: 12px; height: 8px; background: var(--bs-danger);"></span>@(OverLabel ?? Localizer["Chart_OverBudget"].Value)</span>
             </div>
         }
     }
@@ -52,6 +52,10 @@
     [Parameter] public string Currency { get; set; } = "CRC";
     [Parameter] public string Title { get; set; } = "";
     [Parameter] public string TestId { get; set; } = "chart";
+    /// <summary>Legend words when the track is not a budget (e.g. income under spend). Defaults: Actual / Budget / Over budget.</summary>
+    [Parameter] public string? ActualLabel { get; set; }
+    [Parameter] public string? BudgetLabel { get; set; }
+    [Parameter] public string? OverLabel { get; set; }
 
     private const int Width = 640;
     private const int LabelWidth = 170;
