@@ -242,7 +242,11 @@ role the app connects as** — Postgres exempts superusers/`BYPASSRLS` roles ent
 - **Staging (Neon, single role)** — the Neon owner is *not* a superuser, and `FORCE` subjects
   owners to policies: **RLS is live on staging with no config change.** Migrations still work
   (owner does DDL).
-- **Prod (two roles — activate with production, `STATUS.md` §5):**
+- **Prod (two roles — activate with production, `STATUS.md` §5; rehearse on staging first).**
+  One command does steps 1–2 and verifies them: `tools/staging-rls.ps1 -OwnerUrl <neon owner url>
+  -RuntimePassword <new>` provisions the role through the local compose container's `psql`, proves
+  it can read but not run DDL, and prints the three values for steps 2–4 (`tools/README.md`
+  "two-role RLS posture" has the click-by-click version). By hand:
   1. `psql` into the database **as the owner** and run
      `docker/db/provision-rls-runtime-role.sql` — **change the password literal first**.
   2. Set `ConnectionStrings__DefaultConnection` to the `app_runtime` connection (same host/db,
