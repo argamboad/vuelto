@@ -57,18 +57,10 @@ public sealed class DashboardSummaryService : IDashboardSummaryService
             CalculateBankMethodBreakdown(activeFixed, activeVariable, transactions, rate, bankNames ?? new Dictionary<Guid, string>()));
     }
 
-    private static IncomeSummary CalculateIncome(Month month, IReadOnlyList<Transaction> transactions, decimal rate)
-    {
-        var primary = IncomePair(month.PrimaryIncomeAmount, month.PrimaryIncomeCurrency, rate);
-        var secondary = IncomePair(month.SecondaryIncomeAmount, month.SecondaryIncomeCurrency, rate);
-        // Inflows are money in: their frozen amounts fold into income directly (already dual-currency).
-        var inflows = transactions.Where(t => Is(t.TransactionType, TransactionTypes.Inflow)).ToList();
-        var total = Pair(primary.Crc + secondary.Crc + inflows.Sum(t => t.AmountCrc), primary.Usd + secondary.Usd + inflows.Sum(t => t.AmountUsd));
-        return new IncomeSummary(primary, secondary, total);
-    }
-
-    private static MoneyPair IncomePair(decimal amount, string currency, decimal rate) =>
-        Is(currency, Currencies.Crc) ? Pair(amount, DivideSafe(amount, rate)) : Pair(amount * rate, amount);
+    // Income (configured incomes at the passed-in rate + inflows' frozen amounts) is the shared
+    // IncomeCalculator, so the reports' income donut and this dashboard agree to the cent.
+    private static IncomeSummary CalculateIncome(Month month, IReadOnlyList<Transaction> transactions, decimal rate) =>
+        IncomeCalculator.Calculate(month, transactions, rate);
 
     private static ExpenseSummary CalculateExpenseSummary(IncomeSummary income, IReadOnlyList<Transaction> transactions)
     {
@@ -89,8 +81,8 @@ public sealed class DashboardSummaryService : IDashboardSummaryService
         return new ExpenseLineSummary(line.Name, BudgetPair(line, rate), Pair(actual.Sum(t => t.AmountCrc), actual.Sum(t => t.AmountUsd)));
     }
 
-    private static MoneyPair BudgetPair(IExpenseLine line, decimal rate) =>
-        line.BudgetCrc > 0 ? Pair(line.BudgetCrc, DivideSafe(line.BudgetCrc, rate)) : Pair(line.BudgetUsd * rate, line.BudgetUsd);
+    // A line's budget as a pair is the shared BudgetTotals definition (also behind the reports' "Income vs budget" donut).
+    private static MoneyPair BudgetPair(IExpenseLine line, decimal rate) => BudgetTotals.Pair(line, rate);
 
     private static List<WeeklyTotal> CalculateWeeklyTotals(IReadOnlyList<Week> weeks, IReadOnlyList<Transaction> transactions, string type) =>
         weeks.OrderBy(w => w.WeekNumber).Select(week =>

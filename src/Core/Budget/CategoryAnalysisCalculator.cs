@@ -9,7 +9,9 @@ namespace Vuelto.Core.Budget;
 /// <paramref name="activeLines"/> is supplied the period is a single anchor month and each budgeted
 /// entry carries the catalog budget for its category (sum of every active line, null when none) —
 /// a monthly budget does not multiply cleanly across arbitrary ranges, so multi-month omits it.
-/// Zero-spend categories are absent; entries sort by category name.
+/// Zero-spend categories are absent; entries sort by category name. REPORTS-4: the same expense rows
+/// also grouped by bank (largest first, all-states names), by payment method (card then account) and by
+/// day (ascending) — the three cuts behind the bank donuts and the pace line.
 /// </summary>
 public static class CategoryAnalysisCalculator
 {
@@ -18,7 +20,8 @@ public static class CategoryAnalysisCalculator
         IReadOnlyDictionary<Guid, string> categoryNames,
         DateOnly from,
         DateOnly to,
-        IReadOnlyList<IExpenseLine>? activeLines)
+        IReadOnlyList<IExpenseLine>? activeLines,
+        IReadOnlyDictionary<Guid, string>? bankNames = null)
     {
         var singleMonth = activeLines is not null;
         var budgetByCategory = new Dictionary<Guid, (decimal Crc, decimal Usd)>();
@@ -45,9 +48,32 @@ public static class CategoryAnalysisCalculator
                 .OrderBy(e => e.CategoryName, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
+        var expenses = transactionsInPeriod.Where(t => TransactionTypes.Expenses.Contains(t.TransactionType)).ToList();
+
+        var byBank = expenses
+            .GroupBy(t => t.BankId)
+            .Select(g => new GroupSpendEntry(g.Key.ToString(), bankNames?.GetValueOrDefault(g.Key) ?? "",
+                CurrencyMath.Round2(g.Sum(t => t.AmountCrc)), CurrencyMath.Round2(g.Sum(t => t.AmountUsd))))
+            .OrderByDescending(e => e.TotalCrc).ThenBy(e => e.Label, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        // A fixed order (card, then account) so the two slices keep their colours from one period to the next.
+        var byMethod = new[] { PaymentMethods.CreditCard, PaymentMethods.BankAccount }
+            .Select(m => (Method: m, Rows: expenses.Where(t => string.Equals(t.PaymentMethod, m, StringComparison.Ordinal)).ToList()))
+            .Where(x => x.Rows.Count > 0)
+            .Select(x => new GroupSpendEntry(x.Method, x.Method, CurrencyMath.Round2(x.Rows.Sum(t => t.AmountCrc)), CurrencyMath.Round2(x.Rows.Sum(t => t.AmountUsd))))
+            .ToList();
+
+        var byDay = expenses
+            .GroupBy(t => t.TransactionDate)
+            .OrderBy(g => g.Key)
+            .Select(g => new DaySpendEntry(g.Key, CurrencyMath.Round2(g.Sum(t => t.AmountCrc)), CurrencyMath.Round2(g.Sum(t => t.AmountUsd))))
+            .ToList();
+
         return new CategoryAnalysis(from, to, singleMonth,
             ForClass(TransactionTypes.Budgeted, singleMonth),
             ForClass(TransactionTypes.Extraordinary, false),
-            ForClass(TransactionTypes.UnplannedEssential, false));
+            ForClass(TransactionTypes.UnplannedEssential, false),
+            byBank, byMethod, byDay);
     }
 }

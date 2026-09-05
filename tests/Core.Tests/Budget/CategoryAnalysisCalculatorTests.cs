@@ -66,6 +66,48 @@ public class CategoryAnalysisCalculatorTests
         Assert.Equal(["Dining", "Groceries", "Medical"], report.Budgeted.Select(e => e.CategoryName));
     }
 
+    // ---- REPORTS-4: by bank, by payment method, by day ----
+
+    [Fact]
+    public void ByBank_GroupsExpenseRows_LargestFirst_WithAllStatesNames_InflowsExcluded()
+    {
+        var bac = Guid.NewGuid(); var bn = Guid.NewGuid(); var closed = Guid.NewGuid();
+        Transaction At(Guid bank, string type, decimal crc) { var t = Tx(Groceries, type, crc, crc / 500m); t.BankId = bank; return t; }
+        var names = new Dictionary<Guid, string> { [bac] = "BAC", [bn] = "BN", [closed] = "Old bank" };
+
+        var report = CategoryAnalysisCalculator.Calculate(
+            [At(bn, "budgeted", 1_000m), At(bac, "budgeted", 5_000m), At(bac, "extraordinary", 2_000m), At(closed, "unplanned_essential", 500m), At(bac, "inflow", 90_000m)],
+            Names, From, To, null, names);
+
+        Assert.Equal(["BAC", "BN", "Old bank"], report.ByBank.Select(b => b.Label));
+        Assert.Equal((bac.ToString(), 7_000m, 14m), (report.ByBank[0].Key, report.ByBank[0].TotalCrc, report.ByBank[0].TotalUsd));
+        Assert.Equal(500m, report.ByBank[2].TotalCrc); // a deactivated bank still names its slice
+    }
+
+    [Fact]
+    public void ByMethod_IsCardThenAccount_OnlyThoseUsed()
+    {
+        Transaction Via(string method, decimal crc) { var t = Tx(Groceries, "budgeted", crc, crc / 500m); t.PaymentMethod = method; return t; }
+
+        var both = Run([Via("bank_account", 3_000m), Via("credit_card", 1_000m), Via("credit_card", 500m)]);
+        Assert.Equal(["credit_card", "bank_account"], both.ByMethod.Select(m => m.Key));
+        Assert.Equal((1_500m, 3_000m), (both.ByMethod[0].TotalCrc, both.ByMethod[1].TotalCrc));
+
+        var cardOnly = Run([Via("credit_card", 1_000m)]);
+        Assert.Equal("credit_card", Assert.Single(cardOnly.ByMethod).Key);
+    }
+
+    [Fact]
+    public void ByDay_SumsEachDay_Ascending_SkippingEmptyDays()
+    {
+        Transaction On(int day, string type, decimal crc) { var t = Tx(Groceries, type, crc, crc / 500m); t.TransactionDate = new DateOnly(2026, 6, day); return t; }
+
+        var report = Run([On(10, "budgeted", 1_000m), On(3, "extraordinary", 200m), On(10, "unplanned_essential", 50m), On(20, "inflow", 9_000m)]);
+
+        Assert.Equal([new DateOnly(2026, 6, 3), new DateOnly(2026, 6, 10)], report.ByDay.Select(d => d.Date));
+        Assert.Equal((200m, 1_050m), (report.ByDay[0].TotalCrc, report.ByDay[1].TotalCrc));
+    }
+
     [Fact]
     public void SingleMonth_DecoratesBudgeted_WithTheCatalogBudget()
     {

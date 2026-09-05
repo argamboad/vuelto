@@ -20,12 +20,30 @@ public class ReportsPageTests : ComponentTestBase
                      {"category_id":"bbbbbbbb-0000-0000-0000-000000000005","category_name":"Streaming - Disney","total_crc":8604.87,"total_usd":18.99,"budgeted_crc":0,"budgeted_usd":18.99},
                      {"category_id":"bbbbbbbb-0000-0000-0000-000000000006","category_name":"Streaming - Extra","total_crc":11000,"total_usd":25,"budgeted_crc":0,"budgeted_usd":18.99}],
          "extraordinary":[{"category_id":"bbbbbbbb-0000-0000-0000-000000000004","category_name":"Dining","total_crc":2000,"total_usd":4,"budgeted_crc":null,"budgeted_usd":null}],
-         "unplanned_essential":[]}
+         "unplanned_essential":[],
+         "income":{"crc":200000,"usd":400},"budget_total":{"crc":150000,"usd":300},
+         "by_bank":[{"key":"cccccccc-0000-0000-0000-000000000001","label":"BAC","total_crc":90000,"total_usd":180},{"key":"cccccccc-0000-0000-0000-000000000002","label":"","total_crc":9704.87,"total_usd":24.19}],
+         "by_method":[{"key":"credit_card","label":"credit_card","total_crc":80000,"total_usd":160},{"key":"bank_account","label":"bank_account","total_crc":19704.87,"total_usd":44.19}],
+         "spend_by_day":[{"date":"2026-06-26","total_crc":8000,"total_usd":16},{"date":"2026-07-03","total_crc":70000,"total_usd":140},{"date":"2026-07-20","total_crc":21704.87,"total_usd":48.19}]}
         """;
+    private const string Trend = """
+        {"months":[{"month_id":"aaaaaaaa-0000-0000-0000-000000000000","year":2026,"month_number":5,"income":{"crc":200000,"usd":400},"spend":{"crc":250000,"usd":500}},
+                   {"month_id":"aaaaaaaa-0000-0000-0000-000000000001","year":2026,"month_number":6,"income":{"crc":200000,"usd":400},"spend":{"crc":120000,"usd":240}},
+                   {"month_id":"aaaaaaaa-0000-0000-0000-000000000002","year":2026,"month_number":7,"income":{"crc":200000,"usd":400},"spend":{"crc":99704.87,"usd":204.19}}],
+         "rate_available":true}
+        """;
+    private const string TrendNoRate = """{"months":[{"month_id":"aaaaaaaa-0000-0000-0000-000000000002","year":2026,"month_number":7,"income":null,"spend":{"crc":99704.87,"usd":204.19}}],"rate_available":false}""";
+    /// <summary>Same spend (₡99,704.87 · $204.19) and plan (₡150,000), income below both.</summary>
+    private static readonly string Overspent = SingleMonth.Replace("\"income\":{\"crc\":200000,\"usd\":400}", "\"income\":{\"crc\":50000,\"usd\":100}");
+    /// <summary>Same month, but the rate chain came up empty — the API sends neither income nor budget total.</summary>
+    private static readonly string NoRate = SingleMonth.Replace("\"income\":{\"crc\":200000,\"usd\":400},\"budget_total\":{\"crc\":150000,\"usd\":300}", "\"income\":null,\"budget_total\":null");
     private const string Range = """
         {"period":{"from":"2026-01-01","to":"2026-06-30"},"single_month":false,
          "budgeted":[{"category_id":"bbbbbbbb-0000-0000-0000-000000000001","category_name":"Groceries","total_crc":8000,"total_usd":16,"budgeted_crc":null,"budgeted_usd":null}],
-         "extraordinary":[],"unplanned_essential":[]}
+         "extraordinary":[],"unplanned_essential":[],"income":null,"budget_total":null,
+         "by_bank":[{"key":"cccccccc-0000-0000-0000-000000000001","label":"BAC","total_crc":8000,"total_usd":16}],
+         "by_method":[{"key":"credit_card","label":"credit_card","total_crc":8000,"total_usd":16}],
+         "spend_by_day":null}
         """;
     private const string Export = """{"download_url":"/api/files/tok-1","file_name":"transactions-2026-09-03.csv","row_count":4,"period":{"from":"2026-06-25","to":"2026-07-29"},"expires_in_seconds":900}""";
 
@@ -92,6 +110,200 @@ public class ReportsPageTests : ComponentTestBase
 
         cut.Find("[data-testid='rep-view-table']").Click();
         cut.WaitForAssertion(() => Assert.Equal(5, cut.FindAll("[data-testid='rep-budgeted'] [data-testid='rep-row']").Count)); // and back
+    }
+
+    [Fact]
+    public async Task ChartView_IncomeDonut_MeasuresTheSpendAgainstTheMonthsIncome()
+    {
+        await SignInAsync();
+        Http.On(HttpMethod.Get, "/api/months", Months);
+        Http.On(HttpMethod.Get, "/api/reports/category-analysis", SingleMonth);
+
+        var cut = Render<Reports>();
+        cut.WaitForElement("[data-testid='rep-budgeted']");
+        cut.Find("[data-testid='rep-view-chart']").Click();
+
+        // Three class slices + Remaining; the hole says the income, not the sum; remaining = 200,000 − 99,704.87.
+        cut.WaitForElement("[data-testid='rep-income-donut']");
+        var legend = cut.FindAll("[data-testid='rep-income-donut'] [data-testid='chart-legend-item']");
+        Assert.Equal(4, legend.Count);
+        Assert.Contains("Reports_Remaining", legend[3].TextContent);
+        Assert.Contains("₡100,295", legend[3].TextContent);
+        Assert.Equal("₡200,000", cut.Find("[data-testid='rep-income-donut'] [data-testid='chart-center']").TextContent);
+        Assert.Empty(cut.FindAll("[data-testid='rep-income-over']"));
+        Assert.Equal(3, cut.FindAll("[data-testid='rep-donut'] [data-testid='chart-legend-item']").Count); // the class donut is unchanged beside it
+
+        // Income vs budget: the active lines commit ₡150,000 of the ₡200,000; ₡50,000 is uncommitted.
+        var budgetLegend = cut.FindAll("[data-testid='rep-budget-donut'] [data-testid='chart-legend-item']");
+        Assert.Equal(2, budgetLegend.Count);
+        Assert.Contains("Reports_BudgetLines", budgetLegend[0].TextContent);
+        Assert.Contains("₡150,000", budgetLegend[0].TextContent);
+        Assert.Contains("Reports_Uncommitted", budgetLegend[1].TextContent);
+        Assert.Contains("₡50,000", budgetLegend[1].TextContent);
+        Assert.Equal("₡200,000", cut.Find("[data-testid='rep-budget-donut'] [data-testid='chart-center']").TextContent);
+        Assert.Empty(cut.FindAll("[data-testid='rep-budget-over']"));
+
+        // Dollars: the same pictures in the other currency ($400 income, $204.19 spent, $300 planned).
+        cut.Find("[data-testid='rep-cur-usd']").Click();
+        cut.WaitForAssertion(() => Assert.Equal("$400", cut.Find("[data-testid='rep-income-donut'] [data-testid='chart-center']").TextContent));
+        Assert.Contains("$196", cut.FindAll("[data-testid='rep-income-donut'] [data-testid='chart-legend-item']")[3].TextContent); // 400 − 204.19 = 195.81, whole dollars in the legend
+        Assert.Contains("$100", cut.FindAll("[data-testid='rep-budget-donut'] [data-testid='chart-legend-item']")[1].TextContent);
+    }
+
+    [Fact]
+    public async Task ChartView_IncomeDonut_Overspent_HasNoRemainingSlice_AndSaysByHowMuch()
+    {
+        await SignInAsync();
+        Http.On(HttpMethod.Get, "/api/months", Months);
+        Http.On(HttpMethod.Get, "/api/reports/category-analysis", Overspent);
+
+        var cut = Render<Reports>();
+        cut.WaitForElement("[data-testid='rep-budgeted']");
+        cut.Find("[data-testid='rep-view-chart']").Click();
+
+        cut.WaitForElement("[data-testid='rep-income-donut']");
+        Assert.Equal(2, cut.FindAll("[data-testid='rep-income-donut'] [data-testid='chart-slice']").Count); // budgeted + discretionary; unplanned and remaining are zero
+        Assert.Contains("₡0", cut.FindAll("[data-testid='rep-income-donut'] [data-testid='chart-legend-item']")[3].TextContent);
+        Assert.Equal("₡50,000", cut.Find("[data-testid='rep-income-donut'] [data-testid='chart-center']").TextContent);
+        Assert.Contains("Reports_OverBy[₡49,704.87]", cut.Find("[data-testid='rep-income-over']").TextContent);
+
+        // The plan (₡150,000) also exceeds the income: a full ring of budget lines, no uncommitted slice, and the red line says by how much.
+        Assert.Single(cut.FindAll("[data-testid='rep-budget-donut'] [data-testid='chart-slice']"));
+        Assert.Contains("₡0", cut.FindAll("[data-testid='rep-budget-donut'] [data-testid='chart-legend-item']")[1].TextContent);
+        Assert.Contains("Reports_BudgetOverBy[₡100,000.00]", cut.Find("[data-testid='rep-budget-over']").TextContent);
+    }
+
+    [Fact]
+    public async Task ChartView_IncomeDonut_NoRate_SaysSo_AndIsAbsentForARange()
+    {
+        await SignInAsync();
+        Http.On(HttpMethod.Get, "/api/months", Months);
+        Http.On(HttpMethod.Get, "/api/reports/category-analysis", NoRate);
+
+        var cut = Render<Reports>();
+        cut.WaitForElement("[data-testid='rep-budgeted']");
+        cut.Find("[data-testid='rep-view-chart']").Click();
+
+        cut.WaitForElement("[data-testid='rep-income-card']");
+        Assert.Contains("Reports_IncomeNoRate", cut.Find("[data-testid='rep-income-norate']").TextContent);
+        Assert.Empty(cut.FindAll("[data-testid='rep-income-donut']"));
+        Assert.Contains("Reports_IncomeNoRate", cut.Find("[data-testid='rep-budget-norate']").TextContent); // the budget card needs the same rate
+        Assert.Empty(cut.FindAll("[data-testid='rep-budget-donut']"));
+        Assert.NotEmpty(cut.FindAll("[data-testid='rep-donut']")); // the spend donut never depends on the rate
+
+        // A date range has no month income: no card at all, and the class donut takes the full width again.
+        Http.On(HttpMethod.Get, "/api/reports/category-analysis", Range);
+        cut.Find("[data-testid='rep-mode']").Change("range");
+        cut.Find("[data-testid='rep-from']").Change("2026-01-01");
+        cut.Find("[data-testid='rep-to']").Change("2026-06-30");
+        cut.Find("[data-testid='rep-load']").Click();
+        cut.WaitForAssertion(() => Assert.Contains("Reports_MultiMonthNote", cut.Find("[data-testid='rep-period']").TextContent));
+        Assert.Empty(cut.FindAll("[data-testid='rep-income-card']"));
+        Assert.Empty(cut.FindAll("[data-testid='rep-budget-card']"));
+        Assert.NotEmpty(cut.FindAll("[data-testid='rep-donut']"));
+        // REPORTS-4: pace and trend are month pictures (gone); the bank cuts follow any period (still there).
+        Assert.Empty(cut.FindAll("[data-testid='rep-pace-card']"));
+        Assert.Empty(cut.FindAll("[data-testid='rep-trend-card']"));
+        Assert.Single(cut.FindAll("[data-testid='rep-bank-donut'] [data-testid='chart-legend-item']"));
+        Assert.Single(cut.FindAll("[data-testid='rep-method-donut'] [data-testid='chart-legend-item']"));
+    }
+
+    // ---- REPORTS-4: pace, trend, banks ----
+
+    [Fact]
+    public async Task ChartView_Pace_StepsThroughTheSpendDays_AgainstThePlan_TodayClamped()
+    {
+        await SignInAsync();
+        Http.On(HttpMethod.Get, "/api/months", Months);
+        Http.On(HttpMethod.Get, "/api/reports/category-analysis", SingleMonth);
+        Http.On(HttpMethod.Get, "/api/reports/months-trend", Trend);
+
+        // Today = 2026-07-15: day 21 of the 35-day window (Jun 25 → Jul 29) → 60 % elapsed; ₡99,704.87 of the ₡150,000 plan → 66 %.
+        var cut = Render<Reports>(p => p.Add(x => x.Today, new DateOnly(2026, 7, 15)));
+        cut.WaitForElement("[data-testid='rep-budgeted']");
+        cut.Find("[data-testid='rep-view-chart']").Click();
+
+        cut.WaitForElement("[data-testid='rep-pace-chart']");
+        Assert.Equal(3, cut.FindAll("[data-testid='rep-pace-chart'] [data-testid='chart-point']").Count);
+        Assert.Single(cut.FindAll("[data-testid='rep-pace-chart'] [data-testid='chart-plan']"));
+        Assert.Single(cut.FindAll("[data-testid='rep-pace-chart'] [data-testid='chart-today']"));
+        Assert.Contains("Reports_PaceCaption[60, 66]", cut.Find("[data-testid='rep-pace-caption']").TextContent);
+        Assert.Empty(cut.FindAll("[data-testid='rep-pace-norate']"));
+
+        // A day past the month clamps to "all elapsed"; the running total is unchanged.
+        cut.Render(p => p.Add(x => x.Today, new DateOnly(2026, 9, 5)));
+        cut.WaitForAssertion(() => Assert.Contains("Reports_PaceCaption[100, 66]", cut.Find("[data-testid='rep-pace-caption']").TextContent));
+    }
+
+    [Fact]
+    public async Task ChartView_Trend_OneBarPerMonthOldestFirst_OnAnIncomeTrack_RedWhenOverspent()
+    {
+        await SignInAsync();
+        Http.On(HttpMethod.Get, "/api/months", Months);
+        Http.On(HttpMethod.Get, "/api/reports/category-analysis", SingleMonth);
+        Http.On(HttpMethod.Get, "/api/reports/months-trend", Trend);
+
+        var cut = Render<Reports>();
+        cut.WaitForElement("[data-testid='rep-budgeted']");
+        Assert.DoesNotContain(Http.Requests, r => r.RequestUri!.AbsolutePath == "/api/reports/months-trend"); // table view never asks for it
+        cut.Find("[data-testid='rep-view-chart']").Click();
+
+        cut.WaitForElement("[data-testid='rep-trend-chart']");
+        Assert.Contains("count=12", Assert.Single(Http.Requests, r => r.RequestUri!.AbsolutePath == "/api/reports/months-trend").RequestUri!.Query);
+        var bars = cut.FindAll("[data-testid='rep-trend-chart'] [data-testid='chart-bar']");
+        Assert.Equal(3, bars.Count);
+        Assert.Equal("true", bars[0].GetAttribute("data-over"));  // May: ₡250,000 spent of ₡200,000
+        Assert.Equal("false", bars[1].GetAttribute("data-over")); // June
+        Assert.Equal(3, cut.FindAll("[data-testid='rep-trend-chart'] [data-testid='chart-budget']").Count); // every month has an income track
+        Assert.Contains("Reports_TrendIncome", cut.Find("[data-testid='rep-trend-chart'] [data-testid='chart-legend']").TextContent);
+        Assert.Empty(cut.FindAll("[data-testid='rep-trend-norate']"));
+    }
+
+    [Fact]
+    public async Task ChartView_Trend_NoRate_ShowsSpendOnly_AndSaysSo()
+    {
+        await SignInAsync();
+        Http.On(HttpMethod.Get, "/api/months", Months);
+        Http.On(HttpMethod.Get, "/api/reports/category-analysis", NoRate);
+        Http.On(HttpMethod.Get, "/api/reports/months-trend", TrendNoRate);
+
+        var cut = Render<Reports>();
+        cut.WaitForElement("[data-testid='rep-budgeted']");
+        cut.Find("[data-testid='rep-view-chart']").Click();
+
+        cut.WaitForElement("[data-testid='rep-trend-chart']");
+        Assert.Single(cut.FindAll("[data-testid='rep-trend-chart'] [data-testid='chart-bar']"));
+        Assert.Empty(cut.FindAll("[data-testid='rep-trend-chart'] [data-testid='chart-budget']"));
+        Assert.Contains("Reports_TrendNoRate", cut.Find("[data-testid='rep-trend-norate']").TextContent);
+        // The pace chart still draws the actual line, without a plan, and says why.
+        Assert.Equal(3, cut.FindAll("[data-testid='rep-pace-chart'] [data-testid='chart-point']").Count);
+        Assert.Empty(cut.FindAll("[data-testid='rep-pace-chart'] [data-testid='chart-plan']"));
+        Assert.Contains("Reports_PaceNoRate", cut.Find("[data-testid='rep-pace-norate']").TextContent);
+    }
+
+    [Fact]
+    public async Task ChartView_BankDonuts_NameBanks_FallBackForUnknown_AndSplitCardVsAccount()
+    {
+        await SignInAsync();
+        Http.On(HttpMethod.Get, "/api/months", Months);
+        Http.On(HttpMethod.Get, "/api/reports/category-analysis", SingleMonth);
+        Http.On(HttpMethod.Get, "/api/reports/months-trend", Trend);
+
+        var cut = Render<Reports>();
+        cut.WaitForElement("[data-testid='rep-budgeted']");
+        cut.Find("[data-testid='rep-view-chart']").Click();
+
+        cut.WaitForElement("[data-testid='rep-bank-donut']");
+        var banks = cut.FindAll("[data-testid='rep-bank-donut'] [data-testid='chart-legend-item']");
+        Assert.Equal(2, banks.Count);
+        Assert.Contains("BAC", banks[0].TextContent);
+        Assert.Contains("₡90,000", banks[0].TextContent);
+        Assert.Contains("Reports_UnknownBank", banks[1].TextContent); // a bank with no resolvable name is never a blank label
+        var methods = cut.FindAll("[data-testid='rep-method-donut'] [data-testid='chart-legend-item']");
+        Assert.Equal(2, methods.Count);
+        Assert.Contains("Tx_CreditCard", methods[0].TextContent);
+        Assert.Contains("Tx_BankAccount", methods[1].TextContent);
+        Assert.Contains("₡19,705", methods[1].TextContent);
     }
 
     [Fact]

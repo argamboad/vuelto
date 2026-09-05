@@ -32,7 +32,7 @@
                     <path d="@path" fill="none" stroke="@s.CssColor" stroke-width="@Thickness" data-testid="chart-slice" />
                 }
             }
-            <text x="@Center" y="@Center" text-anchor="middle" dominant-baseline="middle" fill="var(--bs-body-color)" style="font: 600 13px var(--bs-body-font-family);">@Format(total)</text>
+            <text x="@Center" y="@Center" text-anchor="middle" dominant-baseline="middle" fill="var(--bs-body-color)" style="font: 600 13px var(--bs-body-font-family);" data-testid="chart-center">@(CenterText ?? Format(total))</text>
         </svg>
         <ul class="list-unstyled small mb-0" data-testid="chart-legend">
             @foreach (var s in Slices)
@@ -52,6 +52,8 @@
     [Parameter] public string Currency { get; set; } = "CRC";
     [Parameter] public string Title { get; set; } = "";
     [Parameter] public string TestId { get; set; } = "chart";
+    /// <summary>What the hole says. Default: the sum of the slices. Set it when the ring is measured against something else (e.g. income) so the number in the middle is that reference, not the sum.</summary>
+    [Parameter] public string? CenterText { get; set; }
 
     private const int Size = 150;
     private const int Thickness = 22;

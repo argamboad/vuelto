@@ -3,6 +3,7 @@ using Microsoft.Extensions.Time.Testing;
 using Vuelto.Api.Features.Reports;
 using Vuelto.Api.Tests.Infrastructure;
 using Vuelto.Core.Abstractions;
+using Vuelto.Core.Budget;
 using Vuelto.Core.Entities;
 using Vuelto.Infrastructure.Persistence;
 using Vuelto.Infrastructure.Repositories;
@@ -43,9 +44,15 @@ public class ReportSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
         }
     }
 
+    private sealed class FixedRate(decimal? rate) : IExchangeRateResolver
+    {
+        public Task<ResolvedRate?> ResolveAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(rate is { } r ? new ResolvedRate(r, RateSources.Cache, T0) : null);
+    }
+
     private sealed record Ctx(AppDbContext Db, Guid Tenant, ReportHandler Handler, CapturingFileStorage Files, Guid MonthId, Guid Groceries, Guid Dining, Guid Bac);
 
-    private async Task<Ctx> SeedAsync(bool firstOfMonthAnchor = false)
+    private async Task<Ctx> SeedAsync(bool firstOfMonthAnchor = false, decimal? rate = 500m)
     {
         var tenant = Guid.CreateVersion7();
         var db = Fixture.CreateContext(tenant);
@@ -65,7 +72,11 @@ public class ReportSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
         }
         else
         {
-            month = new Month { TenantId = tenant, Year = 2026, MonthNumber = 6, WeekCount = 4, Week1StartDate = new DateOnly(2026, 5, 28), CreatedAt = T0, UpdatedAt = T0 };
+            month = new Month
+            {
+                TenantId = tenant, Year = 2026, MonthNumber = 6, WeekCount = 4, Week1StartDate = new DateOnly(2026, 5, 28), CreatedAt = T0, UpdatedAt = T0,
+                PrimaryIncomeAmount = 3_000m, PrimaryIncomeCurrency = "USD", SecondaryIncomeAmount = 250_000m, SecondaryIncomeCurrency = "CRC",
+            };
             weeks = Enumerable.Range(0, 4).Select(i => W(i + 1, new DateOnly(2026, 5, 28).AddDays(7 * i), new DateOnly(2026, 6, 3).AddDays(7 * i))).ToList();
         }
         Week W(int n, DateOnly s, DateOnly e) => new() { TenantId = tenant, MonthId = month.Id, WeekNumber = n, StartDate = s, EndDate = e };
@@ -79,7 +90,7 @@ public class ReportSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
         var handler = new ReportHandler(
             new EfRepository<Month>(db), new EfRepository<Week>(db), new EfRepository<Transaction>(db), new EfRepository<Category>(db),
             new EfRepository<Bank>(db), new EfRepository<FixedExpense>(db), new EfRepository<VariableExpense>(db),
-            files, new FakeTimeProvider(T0));
+            files, new FixedRate(rate), new FakeTimeProvider(T0));
         return new Ctx(db, tenant, handler, files, month.Id, groceries.Id, dining.Id, bac.Id);
     }
 
@@ -167,6 +178,81 @@ public class ReportSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
         var dining = Assert.Single(report.Extraordinary);
         Assert.Equal(("Dining (old)", 2_000m), (dining.CategoryName, dining.TotalCrc)); // inactive category still named
         Assert.Empty(report.UnplannedEssential);
+
+        // Income (REPORTS-3): $3,000 + ₡250,000 at the resolved 500 + the ₡9,000 inflow inside the window — the dashboard's definition.
+        Assert.NotNull(report.Income);
+        Assert.Equal((1_759_000m, 3_518m), (report.Income!.Crc, report.Income.Usd));
+        // Budget total: the one active line (Supermarket ₡60,000) converted at the same rate.
+        Assert.Equal((60_000m, 120m), (report.BudgetTotal!.Crc, report.BudgetTotal.Usd));
+
+        // REPORTS-4 cuts of the same expense rows: one bank (BAC, named), one method (card), three spend days; the inflow in none.
+        var bank = Assert.Single(report.ByBank);
+        Assert.Equal(("BAC", 10_000m), (bank.Label, bank.TotalCrc));
+        Assert.Equal(("credit_card", 10_000m), (Assert.Single(report.ByMethod).Key, report.ByMethod[0].TotalCrc));
+        var days = report.SpendByDay!;
+        Assert.Equal([new DateOnly(2026, 5, 28), new DateOnly(2026, 6, 10), new DateOnly(2026, 6, 24)], days.Select(d => d.Date));
+        Assert.Equal(2_000m, days[1].TotalCrc);
+    }
+
+    [Fact]
+    public async Task Trend_LastMonthsOldestFirst_IncomeAtTodaysRate_SpendPerMonth_ThisTenantOnly()
+    {
+        var c = await SeedAsync(); // June: $3,000 + ₡250,000 income
+        var other = await SeedAsync();
+        var july = new Month
+        {
+            TenantId = c.Tenant, Year = 2026, MonthNumber = 7, WeekCount = 5, Week1StartDate = new DateOnly(2026, 6, 25), CreatedAt = T0, UpdatedAt = T0,
+            PrimaryIncomeAmount = 1_000m, PrimaryIncomeCurrency = "USD", SecondaryIncomeAmount = 0m, SecondaryIncomeCurrency = "USD",
+        };
+        c.Db.Add(july); await c.Db.SaveChangesAsync(); c.Db.ChangeTracker.Clear();
+        await AddTxAsync(c, new DateOnly(2026, 6, 1), 5_000m);
+        await AddTxAsync(c, new DateOnly(2026, 6, 10), 9_000m, "inflow");
+        c.Db.Add(new Transaction
+        {
+            TenantId = c.Tenant, MonthId = july.Id, BankId = c.Bac, CategoryId = c.Groceries, Payee = "July", PaymentMethod = "credit_card",
+            OriginalAmount = 70_000m, Currency = "CRC", TransactionDate = new DateOnly(2026, 7, 1), AmountCrc = 70_000m, AmountUsd = 140m, ExchangeRateUsed = 500m,
+            TransactionType = "extraordinary", CreatedAt = T0, UpdatedAt = T0,
+        });
+        await c.Db.SaveChangesAsync(); c.Db.ChangeTracker.Clear();
+        await AddTxAsync(other, new DateOnly(2026, 6, 10), 99_000m, payee: "OTHER");
+
+        var trend = await c.Handler.TrendAsync(12, default);
+
+        Assert.True(trend.RateAvailable);
+        Assert.Equal([6, 7], trend.Months.Select(m => m.MonthNumber));
+        Assert.Equal((5_000m, 1_759_000m), (trend.Months[0].Spend.Crc, trend.Months[0].Income!.Crc)); // the other tenant's ₡99,000 never shows
+        Assert.Equal((70_000m, 500_000m), (trend.Months[1].Spend.Crc, trend.Months[1].Income!.Crc));
+
+        var one = await c.Handler.TrendAsync(1, default);
+        Assert.Equal(7, Assert.Single(one.Months).MonthNumber); // the most recent month when capped
+    }
+
+    [Fact]
+    public async Task Trend_NoRate_SpendOnly()
+    {
+        var c = await SeedAsync(rate: null);
+        await AddTxAsync(c, new DateOnly(2026, 6, 1), 5_000m);
+
+        var trend = await c.Handler.TrendAsync(12, default);
+
+        Assert.False(trend.RateAvailable);
+        var june = Assert.Single(trend.Months);
+        Assert.Equal(5_000m, june.Spend.Crc);
+        Assert.Null(june.Income);
+    }
+
+    [Fact]
+    public async Task Analyze_SingleMonth_NoRate_ReportsSpendWithoutIncome()
+    {
+        var c = await SeedAsync(rate: null);
+        await AddTxAsync(c, new DateOnly(2026, 6, 1), 5_000m);
+
+        var period = (await c.Handler.ResolvePeriodAsync(c.MonthId, null, null, default)).Period!;
+        var report = await c.Handler.AnalyzeAsync(period, default);
+
+        Assert.Equal(5_000m, Assert.Single(report.Budgeted).TotalCrc); // the spend report never depends on a rate
+        Assert.Null(report.Income);
+        Assert.Null(report.BudgetTotal);
     }
 
     [Fact]
@@ -183,6 +269,8 @@ public class ReportSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
         Assert.Equal(5_000m, entry.TotalCrc);
         Assert.Null(entry.BudgetedCrc);
         Assert.False(report.SingleMonth);
+        Assert.Null(report.Income); // income is per month — a range has none, even with a rate available
+        Assert.Null(report.BudgetTotal);
     }
 
     // ---- export ----

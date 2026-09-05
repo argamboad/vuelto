@@ -518,7 +518,7 @@
   <data name="Reports_Load" xml:space="preserve"><value>Load</value></data>
   <data name="Reports_Period" xml:space="preserve"><value>{0} – {1}</value></data>
   <data name="Reports_SingleMonthNote" xml:space="preserve"><value>one budget month — budgets shown next to actuals</value></data>
-  <data name="Reports_MultiMonthNote" xml:space="preserve"><value>custom range — monthly budgets don't apply</value></data>
+  <data name="Reports_MultiMonthNote" xml:space="preserve"><value>custom range — monthly budgets and income don't apply</value></data>
   <data name="Reports_BudgetedCol" xml:space="preserve"><value>Budgeted (month)</value></data>
   <data name="Reports_ActualCol" xml:space="preserve"><value>Actual</value></data>
   <data name="Reports_Total" xml:space="preserve"><value>Total</value></data>
@@ -536,10 +536,31 @@
   <data name="Reports_ViewChart" xml:space="preserve"><value>Chart</value></data>
   <data name="Reports_ChartCurrency" xml:space="preserve"><value>Chart in</value></data>
   <data name="Reports_ClassSplit" xml:space="preserve"><value>Spend by class</value></data>
+  <data name="Reports_IncomeSplit" xml:space="preserve"><value>Income vs spend</value></data>
+  <data name="Reports_Remaining" xml:space="preserve"><value>Remaining</value></data>
+  <data name="Reports_OverBy" xml:space="preserve"><value>Over income by {0}</value></data>
+  <data name="Reports_IncomeNoRate" xml:space="preserve"><value>Income needs today's exchange rate, which isn't available right now.</value></data>
+  <data name="Reports_BudgetSplit" xml:space="preserve"><value>Income vs budget</value></data>
+  <data name="Reports_BudgetLines" xml:space="preserve"><value>Budget lines</value></data>
+  <data name="Reports_Uncommitted" xml:space="preserve"><value>Uncommitted</value></data>
+  <data name="Reports_BudgetOverBy" xml:space="preserve"><value>Budget exceeds income by {0}</value></data>
+  <data name="Reports_Pace" xml:space="preserve"><value>Pace</value></data>
+  <data name="Reports_PaceCaption" xml:space="preserve"><value>{0}% of the month elapsed · {1}% of the plan spent</value></data>
+  <data name="Reports_PaceNoRate" xml:space="preserve"><value>The plan line needs today's exchange rate, which isn't available right now.</value></data>
+  <data name="Reports_Trend" xml:space="preserve"><value>Month by month</value></data>
+  <data name="Reports_TrendIncome" xml:space="preserve"><value>Income</value></data>
+  <data name="Reports_TrendSpend" xml:space="preserve"><value>Spend</value></data>
+  <data name="Reports_TrendOver" xml:space="preserve"><value>Spent more than the income</value></data>
+  <data name="Reports_TrendNoRate" xml:space="preserve"><value>Income tracks need today's exchange rate, which isn't available right now — the bars show spend only.</value></data>
+  <data name="Reports_ByBank" xml:space="preserve"><value>Spend by bank</value></data>
+  <data name="Reports_ByMethod" xml:space="preserve"><value>Card vs account</value></data>
+  <data name="Reports_UnknownBank" xml:space="preserve"><value>Unknown bank</value></data>
   <data name="Chart_Empty" xml:space="preserve"><value>Nothing to draw for this period.</value></data>
   <data name="Chart_Actual" xml:space="preserve"><value>Actual</value></data>
   <data name="Chart_Budget" xml:space="preserve"><value>Budget</value></data>
   <data name="Chart_OverBudget" xml:space="preserve"><value>Over budget</value></data>
+  <data name="Chart_Plan" xml:space="preserve"><value>Plan</value></data>
+  <data name="Chart_Today" xml:space="preserve"><value>Today</value></data>
   <data name="Email_SettingsTitle" xml:space="preserve"><value>Email inboxes</value></data>
   <data name="Email_SettingsHint" xml:space="preserve"><value>Connect your Outlook or Gmail inbox so bank vouchers become drafts to review. Read-only, and it's yours — not the household's.</value></data>
   <data name="Email_SettingsLink" xml:space="preserve"><value>Manage inboxes</value></data>

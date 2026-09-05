@@ -122,6 +122,22 @@ class a line's budget is a muted track under the actual, which turns red past it
 line's own currency, so a $-budgeted line carries a track only while the chart is in $. The total is
 printed under each chart. Tables are untouched.
 
+**Income vs spend donut** *(owner request, 2026-09-05)*: beside "Spend by class", a second donut measures
+the same three class slices against the **month's income** — the dashboard's own definition (both
+configured incomes at today's rate + inflows), now the shared `Core` `IncomeCalculator` so the two pages
+can never disagree — with a fourth, muted **Remaining** slice and the income in the hole. Overspent → no
+remaining slice and a red "Over income by X" line. The endpoint gains `income` (`{crc, usd}`): present
+for a single month with a resolvable rate, **null** for a date range (income is per month) or when the
+ADR-V006 chain is empty (the spend report never depends on the rate; the card then says so).
+
+**Income vs budget donut** *(owner request, same day)*: a third card — what the **active budget lines
+commit** of the income (`Budget lines`) and what is left **Uncommitted**; the plan exceeding the income →
+no uncommitted slice and a red "Budget exceeds income by X". Each line is single-currency (EXPENSES-1), so
+the endpoint converts them at the same resolved rate — the shared `Core` `BudgetTotals` (now also behind
+the dashboard's budget column) — and returns `budget_total` (`{crc, usd}`), null exactly when `income`
+is. The three donut cards share one row (a third each) in month mode; in range mode only "Spend by
+class" remains, at full width.
+
 ```gherkin
 Scenario: Chart view draws the same rows
   Given the July report is on screen as tables
@@ -130,4 +146,67 @@ Scenario: Chart view draws the same rows
   And an over-budget actual is red, the total is printed under the chart, and a donut splits the spend by class
   When I click $ → the bars, totals and donut are in dollars, and only $-budgeted lines keep a track
   When I reload → the view and currency are as I left them (this device only)
+
+Scenario: Income vs spend
+  Given July's income is ₡200,000 and ₡99,704.87 was spent
+  When I view July as charts
+  Then an "Income vs spend" donut shows the three class slices plus Remaining ₡100,295 with ₡200,000 in the hole
+  When the month's spend exceeds its income → the Remaining slice is gone and "Over income by ₡…" is shown in red
+  When no exchange rate can be resolved → the card says income needs today's rate; the spend donut still draws
+  When I switch to a date range → there is no income card (income is per month)
+
+Scenario: Income vs budget
+  Given July's income is ₡200,000 and the active lines add up to ₡150,000
+  When I view July as charts
+  Then an "Income vs budget" donut shows Budget lines ₡150,000 and Uncommitted ₡50,000 with ₡200,000 in the hole
+  When the lines add up to more than the income → the Uncommitted slice is gone and "Budget exceeds income by ₡…" is shown in red
+  And a $-budgeted line counts at today's rate, so the plan is one number in either currency
+```
+
+---
+
+### REPORTS-4 — Pace, month by month, and where the money leaves from *(owner request, 2026-09-05)* ✅
+
+**As a** household member
+**I want** to see whether this month is on pace, how the months compare, and which banks and payment
+methods the money leaves through
+**So that** the report answers "am I ahead or behind", "am I getting better" and "card or account"
+at a glance, not only "how much"
+
+**Context / notes:** three more chart cards, same inline-SVG family, same ₡/$ switch.
+- **Pace** (month mode): `LineChart` — cumulative spend as a step line through the days that had spend
+  (`spend_by_day` on the analysis response, single month only), the straight **plan** line from zero to
+  `budget_total` at the last day, a dashed **today** marker clamped to the window, red once the running
+  total passes the plan. Caption "{elapsed}% of the month elapsed · {spent}% of the plan spent". No
+  rate → the actual line still draws, no plan, and the card says why.
+- **Month by month** (month mode): new `GET /api/reports/months-trend?count=` (1–36, default 12) —
+  the household's last months by anchor date, oldest first, each with `spend` (the three expense
+  classes, frozen amounts) and `income` (the shared `IncomeCalculator` at today's rate; null when no
+  rate — `rate_available` says so). Drawn with the existing `BarChart`: spend on an **income track**,
+  red when a month overspent, legend relabelled Income / Spend / "Spent more than the income"
+  (`ActualLabel`/`BudgetLabel`/`OverLabel` parameters). The gap on each bar is that month's remaining.
+  Loaded only when Chart view is on. Pure `MonthTrendCalculator` in Core.
+- **Spend by bank** and **Card vs account** (any period): `by_bank` (largest first, all-states names;
+  a nameless bank reads "Unknown bank") and `by_method` (card, then account — fixed order so the colours
+  stay put) on the analysis response, from the same `CategoryAnalysisCalculator`. Two donuts under the
+  others; they follow a date range too, since they need no rate.
+
+```gherkin
+Scenario: Pace
+  Given July runs Jun 25 – Jul 29 with a ₡150,000 plan and spend on Jun 26, Jul 3 and Jul 20
+  When I view July as charts on Jul 15
+  Then the pace card shows three points on a step line, the plan line, a today marker at day 21
+  And the caption reads "60% of the month elapsed · 66% of the plan spent"
+  When today is after the month → "100% of the month elapsed"; when no rate → no plan line and the card says so
+
+Scenario: Month by month
+  Given May overspent (₡250,000 of ₡200,000) and June and July did not
+  When I view charts
+  Then "Month by month" has one bar per month, oldest first, spend on an income track, May in red
+  And with no rate the bars show spend only and the card says so
+
+Scenario: Where the money leaves from
+  Given July's spend was BAC ₡90,000 and a bank with no name ₡9,704.87, card ₡80,000 and account ₡19,704.87
+  When I view charts (month or date range)
+  Then "Spend by bank" lists BAC then Unknown bank, and "Card vs account" lists Credit card then Bank account
 ```

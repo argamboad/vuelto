@@ -518,7 +518,7 @@
   <data name="Reports_Load" xml:space="preserve"><value>Cargar</value></data>
   <data name="Reports_Period" xml:space="preserve"><value>{0} – {1}</value></data>
   <data name="Reports_SingleMonthNote" xml:space="preserve"><value>un mes de presupuesto: los presupuestos se muestran junto a lo real</value></data>
-  <data name="Reports_MultiMonthNote" xml:space="preserve"><value>rango personalizado: los presupuestos mensuales no aplican</value></data>
+  <data name="Reports_MultiMonthNote" xml:space="preserve"><value>rango personalizado: los presupuestos mensuales y el ingreso no aplican</value></data>
   <data name="Reports_BudgetedCol" xml:space="preserve"><value>Presupuestado (mes)</value></data>
   <data name="Reports_ActualCol" xml:space="preserve"><value>Real</value></data>
   <data name="Reports_Total" xml:space="preserve"><value>Total</value></data>
@@ -536,10 +536,31 @@
   <data name="Reports_ViewChart" xml:space="preserve"><value>Gráfico</value></data>
   <data name="Reports_ChartCurrency" xml:space="preserve"><value>Gráfico en</value></data>
   <data name="Reports_ClassSplit" xml:space="preserve"><value>Gasto por clase</value></data>
+  <data name="Reports_IncomeSplit" xml:space="preserve"><value>Ingreso vs gasto</value></data>
+  <data name="Reports_Remaining" xml:space="preserve"><value>Restante</value></data>
+  <data name="Reports_OverBy" xml:space="preserve"><value>Excede el ingreso en {0}</value></data>
+  <data name="Reports_IncomeNoRate" xml:space="preserve"><value>El ingreso necesita el tipo de cambio de hoy, que no está disponible ahora.</value></data>
+  <data name="Reports_BudgetSplit" xml:space="preserve"><value>Ingreso vs presupuesto</value></data>
+  <data name="Reports_BudgetLines" xml:space="preserve"><value>Líneas de presupuesto</value></data>
+  <data name="Reports_Uncommitted" xml:space="preserve"><value>Sin asignar</value></data>
+  <data name="Reports_BudgetOverBy" xml:space="preserve"><value>El presupuesto excede el ingreso en {0}</value></data>
+  <data name="Reports_Pace" xml:space="preserve"><value>Ritmo</value></data>
+  <data name="Reports_PaceCaption" xml:space="preserve"><value>{0}% del mes transcurrido · {1}% del plan gastado</value></data>
+  <data name="Reports_PaceNoRate" xml:space="preserve"><value>La línea del plan necesita el tipo de cambio de hoy, que no está disponible ahora.</value></data>
+  <data name="Reports_Trend" xml:space="preserve"><value>Mes a mes</value></data>
+  <data name="Reports_TrendIncome" xml:space="preserve"><value>Ingreso</value></data>
+  <data name="Reports_TrendSpend" xml:space="preserve"><value>Gasto</value></data>
+  <data name="Reports_TrendOver" xml:space="preserve"><value>Gastó más que el ingreso</value></data>
+  <data name="Reports_TrendNoRate" xml:space="preserve"><value>Las barras de ingreso necesitan el tipo de cambio de hoy, que no está disponible ahora: se muestra solo el gasto.</value></data>
+  <data name="Reports_ByBank" xml:space="preserve"><value>Gasto por banco</value></data>
+  <data name="Reports_ByMethod" xml:space="preserve"><value>Tarjeta vs cuenta</value></data>
+  <data name="Reports_UnknownBank" xml:space="preserve"><value>Banco desconocido</value></data>
   <data name="Chart_Empty" xml:space="preserve"><value>No hay nada que graficar en este período.</value></data>
   <data name="Chart_Actual" xml:space="preserve"><value>Real</value></data>
   <data name="Chart_Budget" xml:space="preserve"><value>Presupuesto</value></data>
   <data name="Chart_OverBudget" xml:space="preserve"><value>Sobre el presupuesto</value></data>
+  <data name="Chart_Plan" xml:space="preserve"><value>Plan</value></data>
+  <data name="Chart_Today" xml:space="preserve"><value>Hoy</value></data>
   <data name="Email_SettingsTitle" xml:space="preserve"><value>Bandejas de correo</value></data>
   <data name="Email_SettingsHint" xml:space="preserve"><value>Conecta tu bandeja de Outlook o Gmail para que los vouchers del banco se conviertan en borradores por revisar. Solo lectura, y es tuya, no del hogar.</value></data>
   <data name="Email_SettingsLink" xml:space="preserve"><value>Administrar bandejas</value></data>
