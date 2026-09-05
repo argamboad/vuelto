@@ -218,6 +218,7 @@ run an automated post-deploy smoke, wire the pipeline in `.github/workflows/ci.y
 | `Admin__StaffEmails__0…` | optional | platform-staff allowlist |
 | `ConnectionStrings__Migrations` | prod (two-role RLS) | owner/migrator connection — startup migrations do DDL (§7) |
 | `Rls__EnforceRuntimeRole` | prod (two-role RLS) | `true` — fail-closed startup check that RLS actually applies (§7) |
+| `OpenTelemetry__Otlp__Endpoint` | optional | collector **base** URL; empty ⇒ nothing exported. Grafana Cloud: `https://otlp-gateway-<region>.grafana.net/otlp` plus the SDK's `OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf` and `OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic <base64 instanceId:token>` — the app appends `/v1/traces` / `/v1/metrics` itself |
 
 This table is the deploy-oriented subset (what to set to go live). For the **complete list of every
 configurable key and its default** — plus what's compiled-in and *not* configurable — see the
