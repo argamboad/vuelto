@@ -15,12 +15,16 @@ namespace Vuelto.Api.Observability;
 /// <c>OpenTelemetry:Otlp:Endpoint</c> is set; otherwise nothing is exported (spans are still produced),
 /// unless <c>OpenTelemetry:ConsoleExporter=true</c> turns on the noisy console exporter for local
 /// debugging — so the app runs with no external dependency and a clean dev console by default.
+/// The endpoint is the collector's <b>base</b> URL; over <c>http/protobuf</c> the per-signal path is
+/// appended for the operator (<see cref="OtlpEndpoints"/>). Protocol and auth headers are the SDK's own
+/// <c>OTEL_EXPORTER_OTLP_PROTOCOL</c> / <c>OTEL_EXPORTER_OTLP_HEADERS</c> variables.
 /// </summary>
 public static class TelemetryExtensions
 {
     public static IServiceCollection AddAppTelemetry(this IServiceCollection services, IConfiguration configuration)
     {
         var otlpEndpoint = configuration["OpenTelemetry:Otlp:Endpoint"];
+        var otlpProtocol = configuration["OTEL_EXPORTER_OTLP_PROTOCOL"];
         var useConsole = configuration.GetValue<bool>("OpenTelemetry:ConsoleExporter");
 
         services.AddOpenTelemetry()
@@ -34,14 +38,14 @@ public static class TelemetryExtensions
                     // Npgsql emits its own "Npgsql" ActivitySource — subscribe to it for DB spans
                     // (the stable built-in path; not the beta EF Core instrumentation, per ADR-C10).
                     .AddSource("Npgsql");
-                ApplyExporter(tracing, otlpEndpoint, useConsole);
+                ApplyExporter(tracing, otlpEndpoint, otlpProtocol, useConsole);
             })
             .WithMetrics(metrics =>
             {
                 metrics
                     .AddAspNetCoreInstrumentation()
                     .AddHttpClientInstrumentation();
-                ApplyExporter(metrics, otlpEndpoint, useConsole);
+                ApplyExporter(metrics, otlpEndpoint, otlpProtocol, useConsole);
             });
 
         return services;
@@ -59,18 +63,18 @@ public static class TelemetryExtensions
             activity.SetTag("user_id", userId);
     }
 
-    private static void ApplyExporter(TracerProviderBuilder builder, string? otlpEndpoint, bool useConsole)
+    private static void ApplyExporter(TracerProviderBuilder builder, string? otlpEndpoint, string? otlpProtocol, bool useConsole)
     {
         if (!string.IsNullOrEmpty(otlpEndpoint))
-            builder.AddOtlpExporter(o => o.Endpoint = new Uri(otlpEndpoint));
+            builder.AddOtlpExporter(o => o.Endpoint = OtlpEndpoints.ForSignal(otlpEndpoint, otlpProtocol, "traces"));
         else if (useConsole)
             builder.AddConsoleExporter();
     }
 
-    private static void ApplyExporter(MeterProviderBuilder builder, string? otlpEndpoint, bool useConsole)
+    private static void ApplyExporter(MeterProviderBuilder builder, string? otlpEndpoint, string? otlpProtocol, bool useConsole)
     {
         if (!string.IsNullOrEmpty(otlpEndpoint))
-            builder.AddOtlpExporter(o => o.Endpoint = new Uri(otlpEndpoint));
+            builder.AddOtlpExporter(o => o.Endpoint = OtlpEndpoints.ForSignal(otlpEndpoint, otlpProtocol, "metrics"));
         else if (useConsole)
             builder.AddConsoleExporter();
     }
