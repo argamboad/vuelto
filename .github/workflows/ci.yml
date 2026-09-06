@@ -834,7 +834,10 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
     # Back-to-back merges: Render supersedes the older build, so the older run's version-gated smoke
     # can never see its own SHA go live and fails spuriously. Cancel the older in-flight deploy job
-    # instead — cancelled reads as neutral, and the newest push still gets its full smoke.
+    # instead — cancelled reads as neutral, and the newest push still gets its full smoke. When the
+    # runs reach this job out of order (the OLDER run's tests finish last and it cancels the NEWER
+    # job), the smoke script itself accepts a live build that is a descendant of the expected commit,
+    # so the surviving job still verifies what is actually deployed instead of timing out red.
     concurrency:
       group: deploy-staging
       cancel-in-progress: true
@@ -858,6 +861,7 @@ jobs:
           HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_STAGING }}
           BASE: ${{ vars.STAGING_BASE_URL }}
           EXPECT: ${{ github.sha }}
+          GH_TOKEN: ${{ github.token }} # lets the smoke recognise a NEWER build that superseded this commit (compare API)
         run: |
           # Skip ONLY when no deploy happened. If the hook fired but STAGING_BASE_URL is unset we cannot
           # verify what we just shipped — that must fail, not pass quietly (v3 audit DEP-6): the old code
@@ -908,6 +912,7 @@ jobs:
           HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_PROD }}
           BASE: ${{ vars.PROD_BASE_URL }}
           EXPECT: ${{ github.sha }}
+          GH_TOKEN: ${{ github.token }} # same superseded-build recognition as staging
         run: |
           if [ -z "$HOOK" ]; then
             echo "::notice::RENDER_DEPLOY_HOOK_PROD not set — no deploy fired, nothing to smoke."
