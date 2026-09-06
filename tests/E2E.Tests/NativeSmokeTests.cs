@@ -65,10 +65,12 @@ public class NativeSmokeTests
         var email = $"native-smoke-{Guid.NewGuid():N}@example.com";
         await Mailpit.ClearAsync();
         await emailBox.FillAsync(email);
-        await page.GetByTestId("login-send-otp").ClickAsync();
+        await page.GetByTestId("login-send-otp").ClickAsync(new() { Timeout = 60_000 });
         var code = await Mailpit.WaitForOtpAsync(email, TimeSpan.FromSeconds(60));
         await page.GetByTestId("login-otp-code").FillAsync(code);
-        await page.GetByTestId("login-verify-otp").ClickAsync();
+        // Both buttons are disabled while the page is busy; a slow WebView can keep them so past
+        // Playwright's default 30 s click wait (seen on the Android leg) — same 60 s as every other wait here.
+        await page.GetByTestId("login-verify-otp").ClickAsync(new() { Timeout = 60_000 });
         // Attached, not Visible: the CI runner opens the app window narrow enough that the
         // responsive header collapses sign-out behind the hamburger. Its presence in the DOM
         // proves the authenticated shell rendered; the household assertions below prove the rest.
