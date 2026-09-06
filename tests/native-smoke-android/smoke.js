@@ -83,10 +83,14 @@ async function bootToLogin(device, attempt) {
   const email = `native-smoke-${Date.now()}@example.com`;
   await mailpit('/api/v1/messages', { method: 'DELETE' });
   await emailBox.fill(email);
-  await page.getByTestId('login-send-otp').click();
+  await page.getByTestId('login-send-otp').click({ timeout: 60_000 });
   const code = await waitForOtp(email, 60_000);
   await page.getByTestId('login-otp-code').fill(code);
-  await page.getByTestId('login-verify-otp').click();
+  // Both buttons are disabled while the page is busy (disabled="@_busy"); on a cold emulator the
+  // send round-trip + Blazor re-render can outlast Playwright's default 30 s click wait even though
+  // the OTP mail is already in Mailpit (run 34005419602: "waiting for element to be … enabled" on
+  // Verify code, green on re-run). Give the clicks the same 60 s every other wait here already has.
+  await page.getByTestId('login-verify-otp').click({ timeout: 60_000 });
   // Attached, not visible: the responsive header collapses sign-out behind the hamburger on
   // a phone-sized window (same reasoning as the Windows leg).
   await page.getByTestId('sign-out').first().waitFor({ state: 'attached', timeout: 60_000 });
