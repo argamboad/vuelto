@@ -189,7 +189,12 @@ jobs). **`deploy-staging`**: on a push to `develop`, after every test gate is gr
 deploy hook (`RENDER_DEPLOY_HOOK_STAGING`), then waits for the new build to be live (`GET /api/version` reports the pushed commit — the old instance
 serves during Render's build) and smoke-tests
 (liveness, readiness, SPA shell + deep-link, `/api/*` → 404 not the shell, `/api/auth/providers`); a red
-smoke fails the run. **`deploy-prod`**: on a push to `main`, behind the `production` GitHub Environment
+smoke fails the run. **Superseded builds (2026-09-05):** back-to-back pushes make the host build the newer
+head, so the older push never shows up at `/api/version`; the concurrency group cancels the older job when
+the runs start in order, and when they don't, `deploy-smoke.sh` accepts a live commit that is a
+*descendant* of the expected one (compare API via `GH_TOKEN`) and smokes that build — the one that is
+actually deployed — instead of failing after the 12½-minute wait (found on this app's develop: runs 33994412795 / 33994421122, PRs #32 + #33 merged a minute apart; platform PR #209, synced).
+**`deploy-prod`**: on a push to `main`, behind the `production` GitHub Environment
 (add a required reviewer → manual approval; `main` stays deploy-only). Both **skip cleanly** (log a notice,
 pass) when their hook/URL aren't set, so the platform is green out of the box and a downstream app opts in.
 QA plan gained **§1.5 "Environment B — deployed staging"** (real-Brevo inboxes, cold-start, config-gated

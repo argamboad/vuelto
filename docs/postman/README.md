@@ -54,7 +54,7 @@ stay signed in to local and staging simultaneously and flip between them.
 | Environment | baseUrl | Email / OTP |
 |-------------|---------|-------------|
 | local dev | `https://localhost:7160` | Mailpit — the fetch request auto-extracts the code |
-| staging (Render) | `https://template-staging.onrender.com` | **Real inboxes** (Brevo) — no Mailpit; read the OTP in your mail and set `{{otpCode}}` manually. Use a real address you own as `userEmail`. |
+| staging (Render) | `https://vuelto-staging.onrender.com` | **Real inboxes** (Brevo) — no Mailpit; read the OTP in your mail and set `{{otpCode}}` manually. Use a real address you own as `userEmail`. |
 
 **Adding an environment** (e.g. production, once activated): duplicate a `*.postman_environment.json`,
 change `name` + `baseUrl`, set `mailpitUrl` to `""` for hosted envs (the Mailpit fetch then skips
@@ -110,4 +110,4 @@ instead). **Admin** requires your email in that environment's `Admin__StaffEmail
   "too many requests" message; that's the abuse guard (QA-AUTH-11), not a bug.
 - Requests marked ⚠ are destructive (account erasure). The tests on each request assert the
   *expected* status set, including documented guard responses (402 quota, 409 provider-managed…).
-- Rebranding: rename the collection/env (`Perezosoft` → your app) — see `docs/REBRANDING.md`.
+- Rebranding: done for this app (`Vuelto API`, `Vuelto — local dev` / `Vuelto — staging (Render)`); the recipe stays in `docs/REBRANDING.md`.

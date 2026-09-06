@@ -175,7 +175,10 @@ run an automated post-deploy smoke, wire the pipeline in `.github/workflows/ci.y
    actually be live** (polls `/api/version` until it reports the pushed commit — the old instance keeps
    serving during Render's build), then smoke-tests the live URL (liveness/readiness, SPA shell +
    deep-link, `/api/*` → 404, `/api/auth/providers`). A red smoke fails the run. Until the secret +
-   variable exist, the `deploy-staging` job logs a notice and passes.
+   variable exist, the `deploy-staging` job logs a notice and passes. **Two merges in quick succession:**
+   Render builds the branch head, so the first push may never appear at `/api/version`; the smoke then
+   accepts a live commit that *contains* the expected one (GitHub compare API, `GH_TOKEN` is the
+   workflow token) and verifies that build instead — no spurious red, no unverified deploy.
 4. **Prod** (when you have a prod service) — all three, and the reviewer is the actual gate:
    - Create a **`production`** GitHub Environment (repo Settings → Environments) and add a **required
      reviewer**. ⚠️ **Do not skip this.** The `deploy-prod` job names the environment, but the *approval*
