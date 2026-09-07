@@ -4274,7 +4274,7 @@
                 }
               ]
             },
-            "description": "200 { period {from, to}, single_month: true, budgeted[], extraordinary[], unplanned_essential[] }; each entry { category_id, category_name, total_crc, total_usd, budgeted_crc, budgeted_usd } — the budget fields are the sum of the active fixed + variable lines backing the category (null when none) and are present ONLY for a single month. Zero-spend categories are absent; sorted by name; names from the all-states catalog. Period: month_id (the month's anchor window — first week start to the LAST week's end date) OR from + to (yyyy-MM-dd, inclusive), never both, never neither → 400 period_required / period_ambiguous / period_incomplete / period_invalid. Unknown or another household's month_id → uniform 404."
+            "description": "200 { period {from, to}, single_month: true, budgeted[], extraordinary[], unplanned_essential[] }; each entry { category_id, category_name, total_crc, total_usd, budgeted_crc, budgeted_usd, transaction_count } — the budget fields are the sum of the active fixed + variable lines backing the category (null when none) and are present ONLY for a single month. Zero-spend categories are absent; sorted by name; names from the all-states catalog. Period: month_id (the month's anchor window — first week start to the LAST week's end date) OR from + to (yyyy-MM-dd, inclusive), never both, never neither → 400 period_required / period_ambiguous / period_incomplete / period_invalid. Unknown or another household's month_id → uniform 404."
           },
           "event": [
             {
@@ -4286,6 +4286,7 @@
                   "  pm.test(\"single month\", () => pm.expect(r.single_month).to.be.true);",
                   "  pm.test(\"class arrays + income + budget_total + bank/method/day cuts\", () => pm.expect(r).to.have.all.keys('period', 'single_month', 'budgeted', 'extraordinary', 'unplanned_essential', 'income', 'budget_total', 'by_bank', 'by_method', 'spend_by_day')); }",
                   "  pm.test(\"single month carries spend_by_day (ascending)\", () => { pm.expect(r.spend_by_day).to.be.an('array'); r.by_bank.forEach(b => pm.expect(b).to.have.all.keys('key', 'label', 'total_crc', 'total_usd')); });",
+      "  pm.test(\"every category entry carries transaction_count >= 1\", () => [...r.budgeted, ...r.extraordinary, ...r.unplanned_essential].forEach(e => pm.expect(e.transaction_count).to.be.at.least(1)));",
                   "  pm.test(\"income and budget_total are ₡/$ pairs (or both null when no rate)\", () => { if (r.income !== null) { pm.expect(r.income).to.have.all.keys('crc', 'usd'); pm.expect(r.budget_total).to.have.all.keys('crc', 'usd'); } else pm.expect(r.budget_total).to.be.null; });"
                 ],
                 "type": "text/javascript"

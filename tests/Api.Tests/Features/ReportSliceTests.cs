@@ -175,6 +175,7 @@ public class ReportSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
         Assert.True(report.SingleMonth);
         var groceries = Assert.Single(report.Budgeted);
         Assert.Equal(("Groceries", 8_000m, 16m, 60_000m, 0m), (groceries.CategoryName, groceries.TotalCrc, groceries.TotalUsd, groceries.BudgetedCrc, groceries.BudgetedUsd));
+        Assert.Equal(2, groceries.TransactionCount); // May 28 + Jun 24 — the rows behind ₡8,000
         var dining = Assert.Single(report.Extraordinary);
         Assert.Equal(("Dining (old)", 2_000m), (dining.CategoryName, dining.TotalCrc)); // inactive category still named
         Assert.Empty(report.UnplannedEssential);

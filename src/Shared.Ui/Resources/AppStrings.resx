@@ -529,6 +529,8 @@
   <data name="Reports_BudgetedCol" xml:space="preserve"><value>Budgeted (month)</value></data>
   <data name="Reports_ActualCol" xml:space="preserve"><value>Actual</value></data>
   <data name="Reports_Total" xml:space="preserve"><value>Total</value></data>
+  <data name="Reports_CountCol" xml:space="preserve"><value>#</value></data>
+  <data name="Reports_CountColTitle" xml:space="preserve"><value>Number of transactions</value></data>
   <data name="Reports_NoneInClass" xml:space="preserve"><value>Nothing in this class for the period.</value></data>
   <data name="Reports_Empty" xml:space="preserve"><value>No spending in this period.</value></data>
   <data name="Reports_LoadError" xml:space="preserve"><value>Couldn't load the report. Try again.</value></data>

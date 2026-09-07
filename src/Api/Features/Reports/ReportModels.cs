@@ -19,9 +19,10 @@ public record CategorySpendResponse(
     [property: JsonPropertyName("total_crc")] decimal TotalCrc,
     [property: JsonPropertyName("total_usd")] decimal TotalUsd,
     [property: JsonPropertyName("budgeted_crc")] decimal? BudgetedCrc,
-    [property: JsonPropertyName("budgeted_usd")] decimal? BudgetedUsd)
+    [property: JsonPropertyName("budgeted_usd")] decimal? BudgetedUsd,
+    [property: JsonPropertyName("transaction_count")] int TransactionCount)
 {
-    public static CategorySpendResponse From(CategorySpendEntry e) => new(e.CategoryId, e.CategoryName, e.TotalCrc, e.TotalUsd, e.BudgetedCrc, e.BudgetedUsd);
+    public static CategorySpendResponse From(CategorySpendEntry e) => new(e.CategoryId, e.CategoryName, e.TotalCrc, e.TotalUsd, e.BudgetedCrc, e.BudgetedUsd, e.TransactionCount);
 }
 
 /// <summary>A dual-currency amount on the report wire (own record — slices never share DTOs, R7).</summary>

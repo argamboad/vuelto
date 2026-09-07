@@ -529,6 +529,8 @@
   <data name="Reports_BudgetedCol" xml:space="preserve"><value>Presupuestado (mes)</value></data>
   <data name="Reports_ActualCol" xml:space="preserve"><value>Real</value></data>
   <data name="Reports_Total" xml:space="preserve"><value>Total</value></data>
+  <data name="Reports_CountCol" xml:space="preserve"><value>#</value></data>
+  <data name="Reports_CountColTitle" xml:space="preserve"><value>Cantidad de transacciones</value></data>
   <data name="Reports_NoneInClass" xml:space="preserve"><value>Nada en esta clase para el período.</value></data>
   <data name="Reports_Empty" xml:space="preserve"><value>No hay gastos en este período.</value></data>
   <data name="Reports_LoadError" xml:space="preserve"><value>No se pudo cargar el reporte. Intenta de nuevo.</value></data>

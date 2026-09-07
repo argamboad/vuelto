@@ -15,6 +15,8 @@ another household's `month_id` is a uniform **404**. Any member may read.
 
 ### REPORTS-1 — Analyse spend by category
 
+> 2026-09-07 (owner request): each entry also carries `transaction_count` — how many rows are behind the sum — shown as a `#` column in the tables (Table view), totalled in the Total row.
+
 **As a** household member reviewing spending patterns
 **I want** actual spend grouped by category within each spending class, for a month or any date range
 **So that** I can answer "how much did we spend on groceries last quarter?" beyond the current dashboard

@@ -43,7 +43,7 @@ public static class CategoryAnalysisCalculator
                     decimal? bCrc = null, bUsd = null;
                     if (decorate && budgetByCategory.TryGetValue(g.Key, out var b)) { bCrc = b.Crc; bUsd = b.Usd; }
                     return new CategorySpendEntry(g.Key, categoryNames.GetValueOrDefault(g.Key, ""),
-                        CurrencyMath.Round2(g.Sum(t => t.AmountCrc)), CurrencyMath.Round2(g.Sum(t => t.AmountUsd)), bCrc, bUsd);
+                        CurrencyMath.Round2(g.Sum(t => t.AmountCrc)), CurrencyMath.Round2(g.Sum(t => t.AmountUsd)), bCrc, bUsd, g.Count());
                 })
                 .OrderBy(e => e.CategoryName, StringComparer.OrdinalIgnoreCase)
                 .ToList();

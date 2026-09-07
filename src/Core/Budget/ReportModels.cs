@@ -3,7 +3,7 @@ namespace Vuelto.Core.Budget;
 // REPORTS-1/2 (port slice P8): value objects for the category analysis report and the CSV export.
 
 /// <summary>Actual spend of one category in a period (frozen amounts); budget columns only for a single-month period.</summary>
-public record CategorySpendEntry(Guid CategoryId, string CategoryName, decimal TotalCrc, decimal TotalUsd, decimal? BudgetedCrc, decimal? BudgetedUsd);
+public record CategorySpendEntry(Guid CategoryId, string CategoryName, decimal TotalCrc, decimal TotalUsd, decimal? BudgetedCrc, decimal? BudgetedUsd, int TransactionCount = 0);
 
 /// <summary>Spend of one group (a bank, a payment method) over the period — the three expense classes, frozen amounts.</summary>
 public record GroupSpendEntry(string Key, string Label, decimal TotalCrc, decimal TotalUsd);

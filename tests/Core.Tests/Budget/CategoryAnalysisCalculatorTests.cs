@@ -30,7 +30,8 @@ public class CategoryAnalysisCalculatorTests
 
         Assert.Equal(2, report.Budgeted.Count);
         var groceries = Assert.Single(report.Budgeted, e => e.CategoryName == "Groceries");
-        Assert.Equal((8000m, 16m, Groceries), (groceries.TotalCrc, groceries.TotalUsd, groceries.CategoryId));
+        Assert.Equal((8000m, 16m, Groceries, 2), (groceries.TotalCrc, groceries.TotalUsd, groceries.CategoryId, groceries.TransactionCount)); // two rows behind the sum
+        Assert.Equal(1, Assert.Single(report.Budgeted, e => e.CategoryName == "Dining").TransactionCount);
         Assert.Single(report.Budgeted, e => e.CategoryName == "Dining");
     }
 
