@@ -1650,7 +1650,7 @@ unknown id → 404.
 Given June 2026 has Groceries budgeted ₡60,000 (a fixed line) and transactions: Groceries budgeted ₡8,000 total, Dining Discretionary ₡2,000, an Income (inflow) ₡9,000
 When I open Reports (nav)
 Then the newest month loads with "one budget month — budgets shown next to actuals"
-And Budgeted lists Groceries — Budgeted (month) ₡60,000.00 — Actual ₡8,000.00 in green, with a Total row
+And Budgeted lists Groceries — # 2 — Budgeted (month) ₡60,000.00 — Actual ₡8,000.00 in green, with a Total row (the # column counts the transactions behind each row and its total adds them up)
 And Discretionary lists Dining ₡2,000.00; Unplanned shows "Nothing in this class for the period."; the inflow appears nowhere
 When I switch Period to "Date range", set 2026-01-01 – 2026-06-30 and Load
 Then the note says "custom range — monthly budgets don't apply" and the Budgeted (month) column is gone
@@ -3484,3 +3484,8 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   dashboard compares on that side; converted pairs (line totals, bank × method) turn red only when over on
   BOTH sides. QA-DASH-01 gains the line; `DashboardSummaryServiceTests.LineSummary_CarriesTheCurrency…` +
   `DashboardPageTests.LinesAreJudgedInTheirOwnCurrency…` pin it. Suite count unchanged (180).
+- **Updated 2026-09-07** — **Reports table mode: a transaction count per row (owner request).** Each
+  category row of Budgeted / Discretionary / Unplanned shows how many transactions sit behind its sum (`#`
+  column, total row adds them); `GET /api/reports/category-analysis` entries gain `transaction_count`.
+  QA-REP-01 gains the column; `CategoryAnalysisCalculatorTests`, `ReportSliceTests`, `ReportsPageTests`
+  (count assertions) and the Postman month test pin it. Suite count unchanged (180).

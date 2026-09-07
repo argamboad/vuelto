@@ -470,6 +470,7 @@
                             <thead>
                                 <tr>
                                     <th>@Localizer["Tx_Category"]</th>
+                                    <th class="text-end" title="@Localizer["Reports_CountColTitle"]">@Localizer["Reports_CountCol"]</th>
                                     @if (showBudget) { <th class="text-end">@Localizer["Reports_BudgetedCol"]</th> }
                                     <th class="text-end">@Localizer["Reports_ActualCol"]</th>
                                 </tr>
@@ -479,12 +480,14 @@
                                 {
                                     <tr data-testid="rep-row">
                                         <td>@e.CategoryName</td>
+                                        <td class="text-end text-muted" data-testid="rep-count">@e.TransactionCount</td>
                                         @if (showBudget) { <td class="text-end" data-testid="rep-budget">@(e.BudgetedCrc is null ? "—" : Budget(e.BudgetedCrc.Value, e.BudgetedUsd ?? 0))</td> }
                                         <td class="text-end @(showBudget ? Tone(e) : null)" data-testid="rep-actual">@Money(e.TotalCrc, e.TotalUsd)</td>
                                     </tr>
                                 }
                                 <tr class="fw-bold" data-testid="rep-total">
                                     <td>@Localizer["Reports_Total"]</td>
+                                    <td class="text-end text-muted" data-testid="rep-count-total">@entries.Sum(x => x.TransactionCount)</td>
                                     @if (showBudget) { <td class="text-end">@Budget(entries.Sum(x => x.BudgetedCrc ?? 0), entries.Sum(x => x.BudgetedUsd ?? 0))</td> }
                                     <td class="text-end">@Money(entries.Sum(x => x.TotalCrc), entries.Sum(x => x.TotalUsd))</td>
                                 </tr>
@@ -524,7 +527,8 @@
         [property: JsonPropertyName("total_crc")] decimal TotalCrc,
         [property: JsonPropertyName("total_usd")] decimal TotalUsd,
         [property: JsonPropertyName("budgeted_crc")] decimal? BudgetedCrc,
-        [property: JsonPropertyName("budgeted_usd")] decimal? BudgetedUsd);
+        [property: JsonPropertyName("budgeted_usd")] decimal? BudgetedUsd,
+        [property: JsonPropertyName("transaction_count")] int TransactionCount = 0);
     private sealed record ReportDto(
         [property: JsonPropertyName("period")] PeriodDto Period,
         [property: JsonPropertyName("single_month")] bool SingleMonth,

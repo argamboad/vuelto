@@ -14,8 +14,8 @@ public class ReportsPageTests : ComponentTestBase
     private const string Months = $$"""[{"id":"{{M2}}","year":2026,"month_number":7},{"id":"{{M1}}","year":2026,"month_number":6}]""";
     private const string SingleMonth = """
         {"period":{"from":"2026-06-25","to":"2026-07-29"},"single_month":true,
-         "budgeted":[{"category_id":"bbbbbbbb-0000-0000-0000-000000000001","category_name":"Groceries","total_crc":8000,"total_usd":16,"budgeted_crc":60000,"budgeted_usd":120},
-                     {"category_id":"bbbbbbbb-0000-0000-0000-000000000002","category_name":"Housing","total_crc":70000,"total_usd":140,"budgeted_crc":60000,"budgeted_usd":120},
+         "budgeted":[{"category_id":"bbbbbbbb-0000-0000-0000-000000000001","category_name":"Groceries","total_crc":8000,"total_usd":16,"budgeted_crc":60000,"budgeted_usd":120,"transaction_count":3},
+                     {"category_id":"bbbbbbbb-0000-0000-0000-000000000002","category_name":"Housing","total_crc":70000,"total_usd":140,"budgeted_crc":60000,"budgeted_usd":120,"transaction_count":1},
                      {"category_id":"bbbbbbbb-0000-0000-0000-000000000003","category_name":"Other","total_crc":100,"total_usd":0.2,"budgeted_crc":null,"budgeted_usd":null},
                      {"category_id":"bbbbbbbb-0000-0000-0000-000000000005","category_name":"Streaming - Disney","total_crc":8604.87,"total_usd":18.99,"budgeted_crc":0,"budgeted_usd":18.99},
                      {"category_id":"bbbbbbbb-0000-0000-0000-000000000006","category_name":"Streaming - Extra","total_crc":11000,"total_usd":25,"budgeted_crc":0,"budgeted_usd":18.99}],
@@ -71,6 +71,10 @@ public class ReportsPageTests : ComponentTestBase
         Assert.Contains("text-danger", actuals[4].ClassName);  // $25 spent against $18.99 IS over
         Assert.Contains("—", cut.FindAll("[data-testid='rep-budget']")[2].TextContent);
         Assert.Contains("₡120,000.00", cut.Find("[data-testid='rep-budgeted'] [data-testid='rep-total']").TextContent); // budget total
+        // Transaction count per row (owner request 2026-09-07): 3 behind Groceries, 1 behind Housing, absent (0) on the rest; the total row adds them up.
+        var counts = cut.FindAll("[data-testid='rep-budgeted'] [data-testid='rep-count']").Select(c => c.TextContent.Trim()).ToArray();
+        Assert.Equal(["3", "1", "0", "0", "0"], counts);
+        Assert.Equal("4", cut.Find("[data-testid='rep-budgeted'] [data-testid='rep-count-total']").TextContent.Trim());
         Assert.Contains("Dining", cut.Find("[data-testid='rep-extraordinary']").TextContent);
         Assert.Contains("Reports_NoneInClass", cut.Find("[data-testid='rep-unplanned']").TextContent);
         Assert.DoesNotContain(cut.FindAll("[data-testid='rep-extraordinary'] th"), th => th.TextContent.Contains("Reports_BudgetedCol")); // budget column only on the budgeted class
