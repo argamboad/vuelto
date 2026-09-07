@@ -4,10 +4,15 @@ namespace Vuelto.Core.Budget;
 // ask for a rate (P5's transaction path freezes it) without referencing another slice's namespace (R7).
 
 /// <summary>
-/// A conversion quote from the provider (or its cache). <see cref="IsLive"/> is false when the value is
-/// a stale cached rate served because the provider was down; <see cref="AsOf"/> is when it was fetched.
+/// A conversion quote from the provider (or its cache): the day's buy/sell pair (ADR-V019; a one-rate
+/// provider reports both sides equal). <see cref="IsLive"/> is false when the value is a stale cached
+/// pair served because the provider was down; <see cref="AsOf"/> is when it was fetched.
 /// </summary>
-public record ExchangeRateQuote(decimal Rate, DateTimeOffset AsOf, bool IsLive);
+public record ExchangeRateQuote(FxRates Rates, DateTimeOffset AsOf, bool IsLive)
+{
+    /// <summary>The sell side — what a dollar costs — the figure shown as "per $1".</summary>
+    public decimal Rate => Rates.Sell;
+}
 
 /// <summary>
 /// The live-rate provider (implemented in Infrastructure so the vendor is swappable). A rate cached
@@ -33,8 +38,12 @@ public static class RateSources
     public const string Transaction = "transaction";
 }
 
-/// <summary>A USD→CRC rate resolved through the ADR-V006 chain, with its provenance.</summary>
-public record ResolvedRate(decimal Rate, string Source, DateTimeOffset AsOf);
+/// <summary>The USD→CRC buy/sell pair resolved through the ADR-V006 chain, with its provenance (the last-transaction tier carries one rate for both sides).</summary>
+public record ResolvedRate(FxRates Rates, string Source, DateTimeOffset AsOf)
+{
+    /// <summary>The sell side — what a dollar costs — the figure shown as "per $1".</summary>
+    public decimal Rate => Rates.Sell;
+}
 
 /// <summary>
 /// The ADR-V006 fallback chain for the household on the current token: live quote → stale cache →

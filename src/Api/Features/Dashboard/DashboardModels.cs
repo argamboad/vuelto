@@ -101,6 +101,7 @@ public record DashboardMonthResponse(
 public record DashboardResponse(
     [property: JsonPropertyName("month")] DashboardMonthResponse Month,
     [property: JsonPropertyName("exchange_rate")] decimal? ExchangeRate,
+    [property: JsonPropertyName("exchange_rate_buy")] decimal? ExchangeRateBuy,
     [property: JsonPropertyName("rate_source")] string? RateSource,
     [property: JsonPropertyName("rate_as_of")] DateTimeOffset? RateAsOf,
     [property: JsonPropertyName("rate_unavailable")] bool RateUnavailable,

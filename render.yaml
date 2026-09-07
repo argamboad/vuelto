@@ -41,10 +41,14 @@ services:
         sync: false                 # REQUIRED — a Brevo-VERIFIED sender address, else sends are rejected
       - key: Email__Smtp__FromName
         value: "¿Y el vuelto?"           # display name on outgoing mail — rename per your brand
-      # ── App: live exchange rate (FX-1, ADR-V006) — without a key the app falls back to the household's last
-      #    transaction rate and otherwise reports "unavailable" (never invents one); free tier at app.exchangerate-api.com ──
-      - key: ExchangeRate__ApiKey
-        sync: false
+      # ── App: exchange rate (FX-1, ADR-V006/V019) — the default provider is the Banco Central buy/sell pair via the
+      #    Finance Ministry mirror (no key). Only set ApiKey (free tier at app.exchangerate-api.com) together with
+      #    ExchangeRate__Provider=exchangerate-api to use the one-rate world feed instead; when the provider can't
+      #    answer the app falls back to the household's last transaction rate and otherwise reports "unavailable" ──
+      # - key: ExchangeRate__Provider
+      #   value: exchangerate-api
+      # - key: ExchangeRate__ApiKey
+      #   sync: false
       # ── Optional — uncomment/set to enable ──
       # - key: Authentication__Google__ClientId
       #   sync: false

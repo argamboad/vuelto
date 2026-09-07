@@ -50,6 +50,11 @@ public sealed class IntegrationTestFactory : WebApplicationFactory<Program>, IAs
         // Must be present when Program reads Jwt:Secret at CreateBuilder time (before Build) — env vars
         // are a CreateBuilder config source; the WebApplicationFactory config hooks run too late.
         Environment.SetEnvironmentVariable("Jwt__Secret", TestJwtSecret);
+        // ADR-V019: the provider is chosen at registration (Program reads ExchangeRate:Provider before any
+        // service hook), so pin the keyless world feed here — with its key blanked below it reports
+        // "unavailable" without a call, and the resolver falls to the last-transaction tier as the suite
+        // asserts. The BCCR default would otherwise reach the real mirror from the test host.
+        Environment.SetEnvironmentVariable("ExchangeRate__Provider", "exchangerate-api");
     }
 
     public async Task InitializeAsync()

@@ -13,6 +13,8 @@ public class ExchangeRateBadgeTests : ComponentTestBase
     private const string Live = """{"rate":510.45,"source":"live","as_of":"2026-09-03T12:00:00+00:00"}""";
     private const string Stale = """{"rate":508.00,"source":"cache","as_of":"2026-09-03T07:00:00+00:00"}""";
     private const string FromTx = """{"rate":505.20,"source":"transaction","as_of":"2026-09-01T09:30:00+00:00"}""";
+    private const string Pair = """{"rate":453.69,"buy":448.27,"sell":453.69,"source":"live","as_of":"2026-09-07T12:00:00+00:00"}""";
+    private const string OneRate = """{"rate":505.20,"buy":505.20,"sell":505.20,"source":"transaction","as_of":"2026-09-01T09:30:00+00:00"}""";
 
     [Fact]
     public void LiveRate_ShowsTheRate_AndTheLiveBadge()
@@ -24,6 +26,19 @@ public class ExchangeRateBadgeTests : ComponentTestBase
         cut.WaitForAssertion(() => Assert.Contains("510.45", cut.Find("[data-testid='fx-rate']").TextContent));
         Assert.Contains("Fx_Live", cut.Find("[data-testid='fx-live']").TextContent);
         Assert.Empty(cut.FindAll("[data-testid='fx-unavailable']"));
+    }
+
+    [Fact]
+    public void TwoRates_ShowBuyAndSell_OneRateShowsThePerDollarFigure()
+    {
+        // ADR-V019: the BCCR pair reads "buy ₡448.27 · sell ₡453.69 per $1"; a single-rate source keeps the old line.
+        Http.On(HttpMethod.Get, "/api/exchange-rate", Pair);
+        var pair = Render<ExchangeRateBadge>();
+        pair.WaitForAssertion(() => Assert.Contains("Fx_BuySell[448.27, 453.69]", pair.Find("[data-testid='fx-rate']").TextContent));
+
+        Http.On(HttpMethod.Get, "/api/exchange-rate", OneRate);
+        var one = Render<ExchangeRateBadge>();
+        one.WaitForAssertion(() => Assert.Contains("Fx_PerDollar[505.20]", one.Find("[data-testid='fx-rate']").TextContent));
     }
 
     [Fact]

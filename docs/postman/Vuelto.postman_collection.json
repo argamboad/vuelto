@@ -3098,7 +3098,7 @@
     },
     {
       "name": "13 · Exchange rate",
-      "description": "FX-1 (app slice P3, ADR-V006): the resolved USD→CRC rate and where it came from. Chain: live provider quote (cached 1 h counts as live) → stale cache flagged as of its fetch time → the household's most recent transaction rate → 503 exchange_rate_unavailable. Never a fabricated rate. Any member may read. Provider key: ExchangeRate__ApiKey in .env (unset ⇒ the chain starts at the cache).",
+      "description": "FX-1 (app slice P3, ADR-V006/V019): the resolved USD→CRC rate and where it came from. The default provider is the Banco Central reference pair via the Finance Ministry mirror (no key): buy = compra (what the bank pays for a dollar), sell = venta (what a dollar costs); rate = sell, the \"per $1\" figure. Direction rule: spending in USD converts at sell, in CRC at buy; income the other way round; a transaction freezes the one side its currency selects. Chain: live provider quote (cached 1 h counts as live) → stale cache flagged as of its fetch time → the household's most recent transaction rate (buy = sell) → 503 exchange_rate_unavailable. Never a fabricated rate. Any member may read. ExchangeRate__Provider=exchangerate-api + ExchangeRate__ApiKey select the one-rate world feed instead.",
       "item": [
         {
           "name": "Get exchange rate",
@@ -3114,7 +3114,7 @@
                 "exchange-rate"
               ]
             },
-            "description": "200 { rate, source: live | cache | transaction, as_of } — or 503 { error: exchange_rate_unavailable, message } when the whole chain is empty (no key / provider down, nothing cached, no transactions yet). Repeat within the hour: same as_of (cached, no provider call). 401 without a token."
+            "description": "200 { rate, buy, sell, source: live | cache | transaction, as_of } — rate = sell (the per-$1 figure), buy = the compra side; equal from a single-rate source (transaction tier, world feed) — or 503 { error: exchange_rate_unavailable, message } when the whole chain is empty (provider down / unreachable, nothing cached, no transactions yet). Repeat within the hour: same as_of (cached, no provider call). 401 without a token."
           },
           "event": [
             {
@@ -3125,6 +3125,7 @@
                   "const body = pm.response.json();",
                   "if (pm.response.code === 200) {",
                   "  pm.test(\"rate > 0\", () => pm.expect(body.rate).to.be.above(0));",
+                  "  pm.test(\"buy/sell pair, rate = sell\", () => { pm.expect(body.buy).to.be.above(0); pm.expect(body.sell).to.eql(body.rate); pm.expect(body.buy).to.be.at.most(body.sell); });",
                   "  pm.test(\"source\", () => pm.expect(body.source).to.be.oneOf(['live', 'cache', 'transaction']));",
                   "  pm.test(\"as_of\", () => pm.expect(body.as_of).to.be.a('string'));",
                   "} else {",
@@ -4174,7 +4175,7 @@
     },
     {
       "name": "19 · Dashboard",
-      "description": "DASH-1 (app slice P7, ADR-V004/V006/V007): the month at a glance. GET /api/months/{id}/summary returns the month header (id, year, month_number, week_count, week1_start_date, last_day), the rate resolved through the chain (exchange_rate, rate_source live|cache|transaction, rate_as_of) and the summary — every figure a {crc, usd} pair rounded to 2 dp. Actuals sum each transaction's frozen amounts; projections (income conversion, budget display, pending_budgeted, remainder_for_debts) use the resolved rate. When nothing resolves: rate_unavailable true, exchange_rate and summary null (projections are blocked, never guessed). Uniform 404 for an unknown or foreign month. Run 15 · Months first so {{monthId}} exists.",
+      "description": "DASH-1 (app slice P7, ADR-V004/V006/V007): the month at a glance. GET /api/months/{id}/summary returns the month header (id, year, month_number, week_count, week1_start_date, last_day), the rate resolved through the chain (exchange_rate = the sell side, exchange_rate_buy = the buy side — equal from a single-rate source; rate_source live|cache|transaction, rate_as_of) and the summary — every figure a {crc, usd} pair rounded to 2 dp. Actuals sum each transaction's frozen amounts; projections (income conversion, budget display, pending_budgeted, remainder_for_debts) use the resolved pair on the side the money moves (ADR-V019: $ income → buy, $ budget line → sell, ₡ budget line → buy). When nothing resolves: rate_unavailable true, exchange_rate and summary null (projections are blocked, never guessed). Uniform 404 for an unknown or foreign month. Run 15 · Months first so {{monthId}} exists.",
       "item": [
         {
           "name": "Month summary",
@@ -4192,7 +4193,7 @@
                 "summary"
               ]
             },
-            "description": "200 { month, exchange_rate, rate_source, rate_as_of, rate_unavailable, summary }. summary: income_primary/secondary/total, expenses_card/account/total/remainder, spent_budgeted/extraordinary/unplanned (the class cut — the dashboard waterfall's rows; adds up to expenses_total), fixed_expenses[] + variable_expenses[] ({name, budget, actual, budget_currency — the side the line is SET in; judge over/under there}), other_spending[] ({category_name, actual} — expense-class spend in categories no active line backs, ₡ desc then name), weekly_budgeted[] + weekly_extraordinary[] ({week_number, start_date, end_date, total}), current_balance, remainder_for_debts, pending_budgeted, actual_remainder, unplanned_essential_total, refunds_total (pending only), envelope_reminders[] ({name, annual_target, contributed_this_month, remaining, cadence}), bank_method_breakdown[] ({bank_id (null = Unassigned, last), bank_name, payment_method, budget, actual}). 404 when the month is unknown or another household's."
+            "description": "200 { month, exchange_rate, exchange_rate_buy, rate_source, rate_as_of, rate_unavailable, summary }. summary: income_primary/secondary/total, expenses_card/account/total/remainder, spent_budgeted/extraordinary/unplanned (the class cut — the dashboard waterfall's rows; adds up to expenses_total), fixed_expenses[] + variable_expenses[] ({name, budget, actual, budget_currency — the side the line is SET in; judge over/under there}), other_spending[] ({category_name, actual} — expense-class spend in categories no active line backs, ₡ desc then name), weekly_budgeted[] + weekly_extraordinary[] ({week_number, start_date, end_date, total}), current_balance, remainder_for_debts, pending_budgeted, actual_remainder, unplanned_essential_total, refunds_total (pending only), envelope_reminders[] ({name, annual_target, contributed_this_month, remaining, cadence}), bank_method_breakdown[] ({bank_id (null = Unassigned, last), bank_name, payment_method, budget, actual}). 404 when the month is unknown or another household's."
           },
           "event": [
             {
@@ -4204,6 +4205,7 @@
                   "  const d = pm.response.json();",
                   "  pm.test(\"month header\", () => pm.expect(d.month).to.have.property('week_count'));",
                   "  pm.test(\"rate or blocked\", () => pm.expect(d.rate_unavailable ? d.summary === null : typeof d.exchange_rate === 'number').to.be.true);",
+                  "  if (!d.rate_unavailable) pm.test(\"buy side rides along\", () => pm.expect(d.exchange_rate_buy).to.be.at.most(d.exchange_rate));",
                   "  if (d.summary) pm.test(\"reconciles\", () => {",
                   "    const lines = [...d.summary.fixed_expenses, ...d.summary.variable_expenses].reduce((a, l) => a + l.actual.crc, 0);",
                   "    const other = d.summary.other_spending.reduce((a, c) => a + c.actual.crc, 0);",
@@ -4276,7 +4278,7 @@
                 }
               ]
             },
-            "description": "200 { period {from, to}, single_month: true, budgeted[], extraordinary[], unplanned_essential[] }; each entry { category_id, category_name, total_crc, total_usd, budgeted_crc, budgeted_usd, transaction_count } — the budget fields are the sum of the active fixed + variable lines backing the category (null when none) and are present ONLY for a single month. Zero-spend categories are absent; sorted by name; names from the all-states catalog. Period: month_id (the month's anchor window — first week start to the LAST week's end date) OR from + to (yyyy-MM-dd, inclusive), never both, never neither → 400 period_required / period_ambiguous / period_incomplete / period_invalid. Unknown or another household's month_id → uniform 404."
+            "description": "200 { period {from, to}, single_month: true, budgeted[], extraordinary[], unplanned_essential[] }; each entry { category_id, category_name, total_crc, total_usd, budgeted_crc, budgeted_usd, transaction_count } — the budget fields are the sum of the active fixed + variable lines backing the category (null when none) and are present ONLY for a single month. exchange_rate (sell) + exchange_rate_buy carry the ADR-V019 pair the income / budget_total projections used (null with them when no rate), so a client can total single-currency budgets in one currency. Zero-spend categories are absent; sorted by name; names from the all-states catalog. Period: month_id (the month's anchor window — first week start to the LAST week's end date) OR from + to (yyyy-MM-dd, inclusive), never both, never neither → 400 period_required / period_ambiguous / period_incomplete / period_invalid. Unknown or another household's month_id → uniform 404."
           },
           "event": [
             {
@@ -4286,10 +4288,10 @@
                   "pm.test(\"200 (or 404 when no month yet)\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));",
                   "if (pm.response.code === 200) { const r = pm.response.json();",
                   "  pm.test(\"single month\", () => pm.expect(r.single_month).to.be.true);",
-                  "  pm.test(\"class arrays + income + budget_total + bank/method/day cuts\", () => pm.expect(r).to.have.all.keys('period', 'single_month', 'budgeted', 'extraordinary', 'unplanned_essential', 'income', 'budget_total', 'by_bank', 'by_method', 'spend_by_day')); }",
+                  "  pm.test(\"class arrays + income + budget_total + bank/method/day cuts\", () => pm.expect(r).to.have.all.keys('period', 'single_month', 'budgeted', 'extraordinary', 'unplanned_essential', 'income', 'budget_total', 'exchange_rate', 'exchange_rate_buy', 'by_bank', 'by_method', 'spend_by_day')); }",
                   "  pm.test(\"single month carries spend_by_day (ascending)\", () => { pm.expect(r.spend_by_day).to.be.an('array'); r.by_bank.forEach(b => pm.expect(b).to.have.all.keys('key', 'label', 'total_crc', 'total_usd')); });",
       "  pm.test(\"every category entry carries transaction_count >= 1\", () => [...r.budgeted, ...r.extraordinary, ...r.unplanned_essential].forEach(e => pm.expect(e.transaction_count).to.be.at.least(1)));",
-                  "  pm.test(\"income and budget_total are ₡/$ pairs (or both null when no rate)\", () => { if (r.income !== null) { pm.expect(r.income).to.have.all.keys('crc', 'usd'); pm.expect(r.budget_total).to.have.all.keys('crc', 'usd'); } else pm.expect(r.budget_total).to.be.null; });"
+                  "  pm.test(\"income and budget_total are ₡/$ pairs (or both null when no rate)\", () => { if (r.income !== null) { pm.expect(r.income).to.have.all.keys('crc', 'usd'); pm.expect(r.budget_total).to.have.all.keys('crc', 'usd'); pm.expect(r.exchange_rate).to.be.above(0); pm.expect(r.exchange_rate_buy).to.be.at.most(r.exchange_rate); } else { pm.expect(r.budget_total).to.be.null; pm.expect(r.exchange_rate).to.be.null; } });"
                 ],
                 "type": "text/javascript"
               }

@@ -47,7 +47,7 @@
                     </div>
                     <div class="col-4 col-md-2">
                         <label class="form-label small fw-medium mb-1" for="tx-currency">@Localizer["Tx_Currency"]</label>
-                        <select class="form-select" id="tx-currency" data-testid="tx-currency" disabled="@_saving" @bind="_currency"><option>CRC</option><option>USD</option></select>
+                        <select class="form-select" id="tx-currency" data-testid="tx-currency" disabled="@_saving" @bind="_currency" @bind:after="PrefillRate"><option>CRC</option><option>USD</option></select>
                     </div>
                     <div class="col-12 col-md-5">
                         <label class="form-label small fw-medium mb-1" for="tx-date">@Localizer["Tx_Date"]</label>
@@ -202,7 +202,7 @@
             else
             {
                 var res = await Http.GetAsync("/api/exchange-rate");
-                if (res.IsSuccessStatusCode) _rate = (await res.Content.ReadFromJsonAsync<RateDto>())?.Rate;
+                if (res.IsSuccessStatusCode) { _quote = await res.Content.ReadFromJsonAsync<RateDto>(); PrefillRate(); }
                 else _rateUnavailable = true;
             }
             await ResolveAsync();
@@ -268,7 +268,19 @@
         $"{CultureInfo.CurrentCulture.TextInfo.ToTitleCase(CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(month))} {year}";
 
     private sealed record NamedDto([property: JsonPropertyName("id")] Guid Id, [property: JsonPropertyName("name")] string Name);
-    private sealed record RateDto([property: JsonPropertyName("rate")] decimal Rate);
+    private RateDto? _quote;
+    private decimal? _prefilled;
+
+    /// <summary>The side that matches the purchase currency (ADR-V019): a USD purchase costs colones at Sell, a CRC purchase costs dollars at Buy. Re-applied when the currency changes, unless the user typed a rate.</summary>
+    private void PrefillRate()
+    {
+        if (Id is not null || _quote is null) return;
+        if (_rate is { } typed && _prefilled is { } was && typed != was) return; // the user's own rate wins
+        _prefilled = _currency == "USD" ? (_quote.Sell ?? _quote.Rate) : (_quote.Buy ?? _quote.Rate);
+        _rate = _prefilled;
+    }
+
+    private sealed record RateDto([property: JsonPropertyName("rate")] decimal Rate, [property: JsonPropertyName("buy")] decimal? Buy = null, [property: JsonPropertyName("sell")] decimal? Sell = null);
     private sealed record ResolveDto(
         [property: JsonPropertyName("month_id")] Guid? MonthId,
         [property: JsonPropertyName("year")] int Year,

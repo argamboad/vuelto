@@ -357,6 +357,7 @@
   <data name="Catalog_BackToSettings" xml:space="preserve"><value>Volver a configuración</value></data>
   <data name="Fx_Title" xml:space="preserve"><value>Tipo de cambio de hoy</value></data>
   <data name="Fx_PerDollar" xml:space="preserve"><value>₡{0} por $1</value></data>
+  <data name="Fx_BuySell" xml:space="preserve"><value>compra ₡{0} · venta ₡{1} por $1</value></data>
   <data name="Fx_Live" xml:space="preserve"><value>en vivo</value></data>
   <data name="Fx_AsOf" xml:space="preserve"><value>al {0}</value></data>
   <data name="Fx_FromTransaction" xml:space="preserve"><value>de tu última transacción ({0})</value></data>
@@ -532,6 +533,7 @@
   <data name="Reports_MultiMonthNote" xml:space="preserve"><value>rango personalizado: los presupuestos mensuales y el ingreso no aplican</value></data>
   <data name="Reports_BudgetedCol" xml:space="preserve"><value>Presupuestado (mes)</value></data>
   <data name="Reports_ActualCol" xml:space="preserve"><value>Real</value></data>
+  <data name="Reports_SpentCol" xml:space="preserve"><value>Gastado</value></data>
   <data name="Reports_Total" xml:space="preserve"><value>Total</value></data>
   <data name="Reports_CountCol" xml:space="preserve"><value>#</value></data>
   <data name="Reports_CountColTitle" xml:space="preserve"><value>Cantidad de transacciones</value></data>
@@ -548,6 +550,9 @@
   <data name="Reports_ViewTable" xml:space="preserve"><value>Tabla</value></data>
   <data name="Reports_ViewChart" xml:space="preserve"><value>Gráfico</value></data>
   <data name="Reports_ChartCurrency" xml:space="preserve"><value>Gráfico en</value></data>
+  <data name="Reports_ShowIn" xml:space="preserve"><value>Mostrar en</value></data>
+  <data name="Reports_BudgetTotalHint" xml:space="preserve"><value>Los presupuestos de las filas como una sola cifra al tipo de hoy</value></data>
+  <data name="Cur_Both" xml:space="preserve"><value>Ambas</value></data>
   <data name="Reports_ClassSplit" xml:space="preserve"><value>Gasto por clase</value></data>
   <data name="Reports_IncomeSplit" xml:space="preserve"><value>Ingreso vs gasto</value></data>
   <data name="Reports_Remaining" xml:space="preserve"><value>Restante</value></data>

@@ -17,7 +17,7 @@
     }
     else
     {
-        <span class="fw-semibold" data-testid="fx-rate">@Localizer["Fx_PerDollar", _rate.Rate.ToString("N2", CultureInfo.CurrentCulture)]</span>
+        <span class="fw-semibold" data-testid="fx-rate">@RateText(_rate)</span>
         @switch (_rate.Source)
         {
             case "live":
@@ -50,8 +50,15 @@
 
     private static string When(DateTimeOffset at) => at.ToLocalTime().ToString("g", CultureInfo.CurrentCulture);
 
+    /// <summary>The BCCR pair when the two sides differ (ADR-V019); the single "per $1" figure otherwise (a one-rate source).</summary>
+    private string RateText(RateDto r) => r.Buy is { } b && r.Sell is { } s && b != s
+        ? Localizer["Fx_BuySell", b.ToString("N2", CultureInfo.CurrentCulture), s.ToString("N2", CultureInfo.CurrentCulture)]
+        : Localizer["Fx_PerDollar", r.Rate.ToString("N2", CultureInfo.CurrentCulture)];
+
     private sealed record RateDto(
         [property: JsonPropertyName("rate")] decimal Rate,
         [property: JsonPropertyName("source")] string Source,
-        [property: JsonPropertyName("as_of")] DateTimeOffset AsOf);
+        [property: JsonPropertyName("as_of")] DateTimeOffset AsOf,
+        [property: JsonPropertyName("buy")] decimal? Buy = null,
+        [property: JsonPropertyName("sell")] decimal? Sell = null);
 }

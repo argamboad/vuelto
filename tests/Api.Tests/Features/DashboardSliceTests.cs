@@ -25,9 +25,16 @@ public class DashboardSliceTests(PostgresFixture fixture) : PostgresTestBase(fix
             Task.FromResult(rate is { } r ? new ResolvedRate(r, RateSources.Cache, T0) : null);
     }
 
+    /// <summary>ADR-V019: a resolver that serves the day's buy/sell pair (the BCCR provider tiers).</summary>
+    private sealed class PairRate(FxRates rates) : IExchangeRateResolver
+    {
+        public Task<ResolvedRate?> ResolveAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<ResolvedRate?>(new ResolvedRate(rates, RateSources.Live, T0));
+    }
+
     private sealed record Ctx(AppDbContext Db, Guid Tenant, Guid MonthId, DashboardHandler Handler);
 
-    private async Task<Ctx> SeedAsync(decimal? rate = 500m)
+    private async Task<Ctx> SeedAsync(decimal? rate = 500m, FxRates? pair = null)
     {
         var tenant = Guid.CreateVersion7();
         var db = Fixture.CreateContext(tenant);
@@ -51,8 +58,21 @@ public class DashboardSliceTests(PostgresFixture fixture) : PostgresTestBase(fix
         var handler = new DashboardHandler(
             new EfRepository<Month>(db), new EfRepository<Week>(db), new EfRepository<Transaction>(db), new EfRepository<Refund>(db),
             new EfRepository<Envelope>(db), new EfRepository<FixedExpense>(db), new EfRepository<VariableExpense>(db),
-            new EfRepository<Category>(db), new EfRepository<Bank>(db), new DashboardSummaryService(), new FixedRate(rate), current);
+            new EfRepository<Category>(db), new EfRepository<Bank>(db), new DashboardSummaryService(), pair is null ? new FixedRate(rate) : new PairRate(pair), current);
         return new Ctx(db, tenant, month.Id, handler);
+    }
+
+    [Fact]
+    public async Task Get_ReportsBothSides_AndConvertsDollarIncomeAtBuy()
+    {
+        // ADR-V019: exchange_rate stays the "per $1" (sell) figure; exchange_rate_buy carries the other side;
+        // the $3,000 income is worth colones at compra (what the bank pays for dollars), not venta.
+        var c = await SeedAsync(pair: new FxRates(Buy: 448.27m, Sell: 453.69m));
+
+        var dash = (await c.Handler.GetAsync(c.MonthId, default))!;
+
+        Assert.Equal((453.69m, 448.27m, "live"), (dash.ExchangeRate, dash.ExchangeRateBuy, dash.RateSource));
+        Assert.Equal((1_344_810m, 3000m), (dash.Summary!.IncomeTotal.Crc, dash.Summary.IncomeTotal.Usd));
     }
 
     [Fact]

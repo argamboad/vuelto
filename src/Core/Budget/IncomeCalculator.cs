@@ -10,19 +10,20 @@ namespace Vuelto.Core.Budget;
 /// </summary>
 public static class IncomeCalculator
 {
-    public static IncomeSummary Calculate(Month month, IReadOnlyList<Transaction> transactions, decimal rate)
+    public static IncomeSummary Calculate(Month month, IReadOnlyList<Transaction> transactions, FxRates rates)
     {
-        var primary = IncomePair(month.PrimaryIncomeAmount, month.PrimaryIncomeCurrency, rate);
-        var secondary = IncomePair(month.SecondaryIncomeAmount, month.SecondaryIncomeCurrency, rate);
+        var primary = IncomePair(month.PrimaryIncomeAmount, month.PrimaryIncomeCurrency, rates);
+        var secondary = IncomePair(month.SecondaryIncomeAmount, month.SecondaryIncomeCurrency, rates);
         var inflows = transactions.Where(t => string.Equals(t.TransactionType, TransactionTypes.Inflow, StringComparison.Ordinal)).ToList();
         var total = Pair(primary.Crc + secondary.Crc + inflows.Sum(t => t.AmountCrc), primary.Usd + secondary.Usd + inflows.Sum(t => t.AmountUsd));
         return new IncomeSummary(primary, secondary, total);
     }
 
-    private static MoneyPair IncomePair(decimal amount, string currency, decimal rate) =>
+    // Income converts at the rate the household would GET (ADR-V019): dollars sold at Buy, colones buying dollars at Sell.
+    private static MoneyPair IncomePair(decimal amount, string currency, FxRates rates) =>
         string.Equals(currency, Currencies.Crc, StringComparison.Ordinal)
-            ? Pair(amount, rate == 0 ? 0 : amount / rate)
-            : Pair(amount * rate, amount);
+            ? Pair(amount, rates.IncomeCrcToUsd(amount))
+            : Pair(rates.IncomeUsdToCrc(amount), amount);
 
     private static MoneyPair Pair(decimal crc, decimal usd) => new(CurrencyMath.Round2(crc), CurrencyMath.Round2(usd));
 }

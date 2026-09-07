@@ -66,6 +66,26 @@ public class ExchangeRateResolverTests
     }
 
     [Fact]
+    public async Task LivePair_KeepsBothSides_WithSellAsThePerDollarFigure()
+    {
+        var pair = new FxRates(Buy: 448.27m, Sell: 453.69m);
+        var provider = new Provider(_ => new ExchangeRateQuote(pair, T0, IsLive: true));
+
+        var resolved = await Resolver(provider).ResolveAsync();
+
+        Assert.Equal(new ResolvedRate(pair, RateSources.Live, T0), resolved);
+        Assert.Equal(453.69m, resolved!.Rate);
+    }
+
+    [Fact]
+    public async Task TransactionTier_IsOneFrozenRate_ForBothSides()
+    {
+        var resolved = await Resolver(Down(), new Recent(new RecentRate(505.20m, T0))).ResolveAsync();
+
+        Assert.Equal(new FxRates(505.20m, 505.20m), resolved!.Rates); // a single rate collapses the direction rule (ADR-V019)
+    }
+
+    [Fact]
     public async Task ProviderDown_AndNothingRecent_IsNull()
     {
         Assert.Null(await Resolver(Down()).ResolveAsync());                      // P3's NoRecentRateSource

@@ -460,6 +460,7 @@ public class ArchitectureTests
         {
             // WebhookSender, the only dynamic-URL sender, injects the guard. App allowlist (FX-1, ADR-V006):
             ["ExchangeRateApiClient.cs"] = "destination = the configured vendor host (ExchangeRate:BaseUrl) + API key + two currency codes validated as ^[A-Z]{3}$ — nothing tenant-supplied reaches the URL",
+            ["BccrExchangeRateClient.cs"] = "destination = the configured fixed BCCR mirror URL (ExchangeRate:BccrUrl), nothing appended — nothing tenant-supplied reaches the URL (ADR-V019)",
             // EMAIL-2/3 (ADR-V016): fixed provider hosts only — nothing user-supplied reaches a URL.
             ["MailConsentService.cs"] = "destination = the two fixed IdP token endpoints (login.microsoftonline.com/{configured tenant}, oauth2.googleapis.com); the code/refresh token travel in the form body",
             ["GraphEmailReader.cs"] = "destination = graph.microsoft.com only — folder ids are URL-escaped path segments and the @odata.nextLink is followed only when its host is graph.microsoft.com",

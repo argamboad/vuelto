@@ -31,9 +31,16 @@ public class LedgerSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
             Task.FromResult(rate is { } r ? new ResolvedRate(r, RateSources.Live, T0) : null);
     }
 
+    /// <summary>ADR-V019: a resolver that serves the day's buy/sell pair (the BCCR provider tiers).</summary>
+    private sealed class PairRate(FxRates rates) : IExchangeRateResolver
+    {
+        public Task<ResolvedRate?> ResolveAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<ResolvedRate?>(new ResolvedRate(rates, RateSources.Live, T0));
+    }
+
     public sealed record Ctx(AppDbContext Db, Guid Tenant, MonthHandler Months, TransactionHandler Transactions, Guid CategoryId, Guid BankId, Guid EnvelopeId);
 
-    private async Task<Ctx> ContextAsync(Guid? tenantId = null, decimal? rate = 500m, bool withSettings = false)
+    private async Task<Ctx> ContextAsync(Guid? tenantId = null, decimal? rate = 500m, bool withSettings = false, FxRates? pair = null)
     {
         var tenant = tenantId ?? Guid.CreateVersion7();
         var db = Fixture.CreateContext(tenant);
@@ -49,7 +56,7 @@ public class LedgerSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
         var current = new TestCurrentTenant { TenantId = tenant };
         var clock = new FakeTimeProvider(T0);
         var months = new MonthHandler(new EfRepository<Month>(db), new EfRepository<Week>(db), new EfRepository<Transaction>(db), new EfRepository<BudgetSettings>(db), new WeekBoundaryService(), current, clock);
-        var transactions = new TransactionHandler(new EfRepository<Transaction>(db), new EfRepository<Refund>(db), new EfRepository<Category>(db), new EfRepository<Bank>(db), new EfRepository<Envelope>(db), months, new FixedRate(rate), current, clock, NullLogger<TransactionHandler>.Instance);
+        var transactions = new TransactionHandler(new EfRepository<Transaction>(db), new EfRepository<Refund>(db), new EfRepository<Category>(db), new EfRepository<Bank>(db), new EfRepository<Envelope>(db), months, pair is null ? new FixedRate(rate) : new PairRate(pair), current, clock, NullLogger<TransactionHandler>.Instance);
         return new Ctx(db, tenant, months, transactions, category.Id, bank.Id, envelope.Id);
     }
 
@@ -131,6 +138,20 @@ public class LedgerSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
         Assert.Equal("exchange_rate_unavailable", error!.Error);
         Assert.Equal(0, await c.Db.Months.CountAsync());
         Assert.Equal(0, await c.Db.Transactions.CountAsync());
+    }
+
+    [Fact]
+    public async Task Create_FreezesTheSideForTheCurrency_DollarsAtSell_ColonesAtBuy()
+    {
+        // ADR-V019: the same rule the voucher confirm follows — spending converts at the rate you would pay to fund it.
+        var c = await ContextAsync(pair: new FxRates(Buy: 448.27m, Sell: 453.69m));
+
+        var (usd, e1) = await c.Transactions.CreateAsync(Create(c, Jun5, amount: 20m, currency: "USD"), default);
+        var (crc, e2) = await c.Transactions.CreateAsync(Create(c, Jun5, amount: 50_000m, currency: "CRC"), default);
+
+        Assert.Null(e1); Assert.Null(e2);
+        Assert.Equal((453.69m, 9073.80m, 20m), (usd!.ExchangeRateUsed, usd.AmountCrc, usd.AmountUsd));      // $20 × venta
+        Assert.Equal((448.27m, 50_000m, 111.54m), (crc!.ExchangeRateUsed, crc.AmountCrc, crc.AmountUsd));   // ₡50,000 / compra
     }
 
     [Fact]

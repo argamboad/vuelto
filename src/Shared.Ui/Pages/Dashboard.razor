@@ -47,12 +47,8 @@
             <div>
                 <h1 class="h4 fw-bold mb-1" data-testid="dash-title">@MonthLabel(_dash.Month.Year, _dash.Month.MonthNumber)</h1>
                 <p class="text-muted mb-1 small">
+                    @* The rate itself lives in the Today's-rate badge below (one place, with its live / as-of / unavailable states). *@
                     @Localizer["Month_Window", _dash.Month.WeekCount, _dash.Month.Week1StartDate.ToString("d", CultureInfo.CurrentCulture), _dash.Month.LastDay.ToString("d", CultureInfo.CurrentCulture)]
-                    @if (_dash.ExchangeRate is { } r)
-                    {
-                        <span data-testid="dash-rate"> · @Localizer["Fx_PerDollar", r.ToString("N2", CultureInfo.CurrentCulture)]
-                            @(_dash.RateSource == "live" ? Localizer["Fx_Live"] : _dash.RateSource == "cache" ? Localizer["Fx_AsOf", When(_dash.RateAsOf)] : Localizer["Fx_FromTransaction", When(_dash.RateAsOf)])</span>
-                    }
                 </p>
                 <select class="form-select form-select-sm w-auto" data-testid="dash-month" @onchange="OnMonthSelected">
                     @foreach (var m in _months)
@@ -62,9 +58,13 @@
                 </select>
                 <div class="mt-2"><ExchangeRateBadge /></div>
             </div>
-            <div class="d-flex gap-2">
-                <a class="btn btn-outline-primary" href="/months/@_dash.Month.Id" data-testid="dash-month-link">@Localizer["Dash_MonthDetails"]</a>
-                <a class="btn btn-primary" href="/transactions/new" data-testid="dash-new-tx">@Localizer["Months_NewTransaction"]</a>
+            <div class="d-flex flex-column align-items-end gap-2">
+                <div class="d-flex gap-2">
+                    <a class="btn btn-outline-primary" href="/months/@_dash.Month.Id" data-testid="dash-month-link">@Localizer["Dash_MonthDetails"]</a>
+                    <a class="btn btn-primary" href="/transactions/new" data-testid="dash-new-tx">@Localizer["Months_NewTransaction"]</a>
+                </div>
+                @* ₡ · $ · both for every converted pair on the page; a budget line keeps its own currency (MoneyDisplay). *@
+                <CurrencySwitch Value="@_display" ValueChanged="SetDisplayAsync" TestId="dash-cur" Label="@Localizer["Reports_ShowIn"].Value" />
             </div>
         </div>
 
@@ -82,18 +82,13 @@
                 <div class="col-12">
                     <div class="card shadow-sm h-100" data-testid="dash-waterfall">
                         <div class="card-body">
-                            <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
-                                <h2 class="h6 fw-bold mb-0">@Localizer["Dash_ThisMonth"]</h2>
-                                @* The bar draws in ONE currency (a stacked bar cannot show two); the same per-device preference the Reports charts use. *@
-                                <div class="btn-group btn-group-sm" role="group" aria-label="@Localizer["Reports_ChartCurrency"]">
-                                    <button type="button" class="btn @(_barCurrency == "CRC" ? "btn-secondary" : "btn-outline-secondary")" data-testid="dash-bar-crc" @onclick='() => SetBarCurrencyAsync("CRC")'>₡</button>
-                                    <button type="button" class="btn @(_barCurrency == "USD" ? "btn-secondary" : "btn-outline-secondary")" data-testid="dash-bar-usd" @onclick='() => SetBarCurrencyAsync("USD")'>$</button>
-                                </div>
-                            </div>
+                            <h2 class="h6 fw-bold mb-2">@Localizer["Dash_ThisMonth"]</h2>
                             @* The picture of the ledger below: the full bar is the income, filled by the three class spends, then what is
                                still planned; the green rest is the forecast. Past the income → red shortfall. Today's position is marked. *@
                             <div class="mb-3">
-                                <StackedBar TestId="dash-bar" Currency="@_barCurrency" Title="@Localizer["Dash_ThisMonth"].Value" Total="Side(s.IncomeTotal)" Segments="BarSegments(s)"
+                                @* The page's "show in" drives the bar: it draws in ₡ (or $); with "both" the legend carries the $ amounts too. *@
+                                <StackedBar TestId="dash-bar" Currency="@(_display == MoneyDisplay.Usd ? MoneyDisplay.Usd : MoneyDisplay.Crc)" Title="@Localizer["Dash_ThisMonth"].Value" Total="Side(s.IncomeTotal)" Segments="BarSegments(s)"
+                                            SecondaryTotal="@(_display == MoneyDisplay.Both ? s.IncomeTotal.Usd : (decimal?)null)" SecondarySegments="@(_display == MoneyDisplay.Both ? BarSecondary(s) : null)"
                                             Marker="ElapsedPercent() / 100m" OverLabel="@Localizer["Dash_BarOver"].Value" />
                             </div>
                             @Row(Localizer["Dash_WfIncome"], s.IncomeTotal, testId: "dash-wf-income")
@@ -136,11 +131,11 @@
                                     <tbody>
                                         @foreach (var c in s.OtherSpending)
                                         {
-                                            <tr data-testid="dash-other-row"><td>@c.CategoryName</td><td class="text-end">@Money(c.Actual)</td></tr>
+                                            <tr data-testid="dash-other-row"><td>@c.CategoryName</td><td class="text-end">@Show(c.Actual)</td></tr>
                                         }
                                     </tbody>
                                     <tfoot>
-                                        <tr class="fw-semibold border-top" data-testid="dash-other-total"><td>@Localizer["Dash_Total"]</td><td class="text-end">@Money(Sum(s.OtherSpending.Select(c => c.Actual)))</td></tr>
+                                        <tr class="fw-semibold border-top" data-testid="dash-other-total"><td>@Localizer["Dash_Total"]</td><td class="text-end">@Show(Sum(s.OtherSpending.Select(c => c.Actual)))</td></tr>
                                     </tfoot>
                                 </table>
                             </div>
@@ -161,13 +156,13 @@
                                         var we = i < s.WeeklyExtraordinary.Count ? s.WeeklyExtraordinary[i].Total : new MoneyDto(0, 0);
                                         <tr data-testid="dash-week-row">
                                             <td><span class="fw-semibold">@Localizer["Month_Week", wb.WeekNumber]</span> <span class="text-muted small">@wb.StartDate.ToString("d", CultureInfo.CurrentCulture) – @wb.EndDate.ToString("d", CultureInfo.CurrentCulture)</span></td>
-                                            <td class="text-end">@Money(wb.Total)</td>
-                                            <td class="text-end">@Money(we)</td>
+                                            <td class="text-end">@Show(wb.Total)</td>
+                                            <td class="text-end">@Show(we)</td>
                                         </tr>
                                     }
                                 </tbody>
                                 <tfoot>
-                                    <tr class="fw-semibold border-top" data-testid="dash-week-total"><td>@Localizer["Dash_Total"]</td><td class="text-end">@Money(Sum(s.WeeklyBudgeted.Select(w => w.Total)))</td><td class="text-end">@Money(Sum(s.WeeklyExtraordinary.Select(w => w.Total)))</td></tr>
+                                    <tr class="fw-semibold border-top" data-testid="dash-week-total"><td>@Localizer["Dash_Total"]</td><td class="text-end">@Show(Sum(s.WeeklyBudgeted.Select(w => w.Total)))</td><td class="text-end">@Show(Sum(s.WeeklyExtraordinary.Select(w => w.Total)))</td></tr>
                                 </tfoot>
                             </table>
                         </div>
@@ -200,7 +195,7 @@
                                     <tbody>
                                         @foreach (var e in s.EnvelopeReminders)
                                         {
-                                            <tr data-testid="dash-envelope-row"><td>@e.Name</td><td class="text-end">@Money(e.AnnualTarget)</td><td class="text-end">@Money(e.ContributedThisMonth)</td><td class="text-end">@Money(e.Remaining)</td></tr>
+                                            <tr data-testid="dash-envelope-row"><td>@e.Name</td><td class="text-end">@Show(e.AnnualTarget)</td><td class="text-end">@Show(e.ContributedThisMonth)</td><td class="text-end">@Show(e.Remaining)</td></tr>
                                         }
                                     </tbody>
                                 </table>
@@ -224,8 +219,8 @@
                                                 <tr data-testid="dash-bank-row">
                                                     <td>@(b.BankId is null ? Localizer["Budget_Unassigned"] : b.BankName)</td>
                                                     <td>@(b.PaymentMethod == "bank_account" ? Localizer["Tx_BankAccount"] : Localizer["Tx_CreditCard"])</td>
-                                                    <td class="text-end">@Money(b.Budget)</td>
-                                                    <td class="text-end @OverTone(b.Budget, b.Actual)">@Money(b.Actual)</td>
+                                                    <td class="text-end">@Show(b.Budget)</td>
+                                                    <td class="text-end @OverTone(b.Budget, b.Actual)">@Show(b.Actual)</td>
                                                 </tr>
                                             }
                                         </tbody>
@@ -252,7 +247,7 @@
     protected override async Task OnInitializedAsync()
     {
         if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
-        await LoadBarCurrencyAsync();
+        await LoadDisplayAsync();
         try
         {
             try
@@ -296,12 +291,22 @@
     {
         <div class="d-flex justify-content-between gap-2 small @(bold ? "fw-bold" : null) @(muted ? "text-secondary" : null)" data-testid="@testId">
             <span>@label @if (hint is not null) { <span class="text-muted fw-normal" data-testid="@(testId + "-hint")">· @hint</span> }</span>
-            <span class="text-end @tone">@Money(value)</span>
+            <span class="text-end @tone">@Show(value)</span>
         </div>
     };
 
-    private string _barCurrency = "CRC";
-    private decimal Side(MoneyDto v) => _barCurrency == "USD" ? v.Usd : v.Crc;
+    /// <summary>The bar's side: dollars when the page shows dollars, colones otherwise ("both" sizes the bar on colones and lists the dollar amounts).</summary>
+    private decimal Side(MoneyDto v) => _display == MoneyDisplay.Usd ? v.Usd : v.Crc;
+
+    /// <summary>The page's "show in" (MoneyDisplay): ₡, $, or both sides. Picking one currency also points the bar at it.</summary>
+    private string _display = MoneyDisplay.Both;
+    private string Show(MoneyDto m) => MoneyDisplay.Format(m.Crc, m.Usd, _display);
+
+    private async Task SetDisplayAsync(string display)
+    {
+        _display = display;
+        try { await JS.InvokeVoidAsync("appUi.setPref", MoneyDisplay.PrefKey, display); } catch { /* preference only */ }
+    }
 
     /// <summary>Left to right: the three class spends, what is still planned, and the forecast (only while positive — past the income the bar paints the shortfall red instead).</summary>
     private List<DonutSlice> BarSegments(SummaryDto s) =>
@@ -313,20 +318,14 @@
         new(Localizer["Dash_BarForecast"].Value, Math.Max(0m, Side(s.ActualRemainder)), "var(--bs-success)"),
     ];
 
-    private async Task SetBarCurrencyAsync(string currency)
-    {
-        _barCurrency = currency;
-        try { await JS.InvokeVoidAsync("appUi.setPref", "reports.chartCurrency", currency); } catch { /* preference only */ }
-    }
+    /// <summary>The same five figures on the dollar side, for the legend when the page shows both.</summary>
+    private static List<decimal> BarSecondary(SummaryDto s) =>
+        [s.SpentBudgeted.Usd, s.SpentExtraordinary.Usd, s.SpentUnplanned.Usd, s.PendingBudgeted.Usd, Math.Max(0m, s.ActualRemainder.Usd)];
 
-    private async Task LoadBarCurrencyAsync()
+    private async Task LoadDisplayAsync()
     {
-        try
-        {
-            var currency = await JS.InvokeAsync<string?>("appUi.getPref", "reports.chartCurrency");
-            if (currency is "CRC" or "USD") _barCurrency = currency;
-        }
-        catch { /* no storage — colones */ }
+        try { _display = MoneyDisplay.Parse(await JS.InvokeAsync<string?>("appUi.getPref", MoneyDisplay.PrefKey)); }
+        catch { /* no storage — both sides */ }
     }
 
     /// <summary>The device's date — the pace hint on "Still planned". Overridable for tests.</summary>
@@ -357,12 +356,12 @@
                         <tbody>
                             @foreach (var l in lines)
                             {
-                                <tr data-testid="dash-line-row"><td>@l.Name</td><td class="text-end">@Money(l.Budget)</td><td class="text-end @OverTone(l.Budget, l.Actual, l.BudgetCurrency)" data-testid="dash-line-actual">@Money(l.Actual)</td></tr>
+                                <tr data-testid="dash-line-row"><td>@l.Name</td><td class="text-end">@(_display == MoneyDisplay.Both ? Show(l.Budget) : MoneyDisplay.Native(l.Budget.Crc, l.Budget.Usd, l.BudgetCurrency))</td><td class="text-end @OverTone(l.Budget, l.Actual, l.BudgetCurrency)" data-testid="dash-line-actual">@Show(l.Actual)</td></tr>
                             }
                         </tbody>
                         @{ var budgetTotal = Sum(lines.Select(l => l.Budget)); var actualTotal = Sum(lines.Select(l => l.Actual)); }
                         <tfoot>
-                            <tr class="fw-semibold border-top" data-testid="dash-lines-total"><td>@Localizer["Dash_Total"]</td><td class="text-end">@Money(budgetTotal)</td><td class="text-end @OverTone(budgetTotal, actualTotal)">@Money(actualTotal)</td></tr>
+                            <tr class="fw-semibold border-top" data-testid="dash-lines-total"><td>@Localizer["Dash_Total"]</td><td class="text-end">@Show(budgetTotal)</td><td class="text-end @OverTone(budgetTotal, actualTotal)">@Show(actualTotal)</td></tr>
                         </tfoot>
                     </table>
                 }
@@ -392,9 +391,6 @@
     /// <summary>Column totals for the tables — the sum of exactly the rows shown (each side in its own currency).</summary>
     private static MoneyDto Sum(IEnumerable<MoneyDto> values) => values.Aggregate(new MoneyDto(0, 0), (acc, m) => new MoneyDto(acc.Crc + m.Crc, acc.Usd + m.Usd));
 
-    private static string Money(MoneyDto m) => $"₡{m.Crc.ToString("N2", CultureInfo.CurrentCulture)} · ${m.Usd.ToString("N2", CultureInfo.CurrentCulture)}";
-
-    private static string When(DateTimeOffset? at) => at?.ToLocalTime().ToString("g", CultureInfo.CurrentCulture) ?? "";
 
     private static string MonthLabel(int year, int month) =>
         $"{CultureInfo.CurrentCulture.TextInfo.ToTitleCase(CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(month))} {year}";
@@ -434,6 +430,7 @@
     private sealed record DashDto(
         [property: JsonPropertyName("month")] DashMonthDto Month,
         [property: JsonPropertyName("exchange_rate")] decimal? ExchangeRate,
+        [property: JsonPropertyName("exchange_rate_buy")] decimal? ExchangeRateBuy,
         [property: JsonPropertyName("rate_source")] string? RateSource,
         [property: JsonPropertyName("rate_as_of")] DateTimeOffset? RateAsOf,
         [property: JsonPropertyName("rate_unavailable")] bool RateUnavailable,

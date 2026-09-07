@@ -86,6 +86,32 @@ public class DashboardPageTests : ComponentTestBase
     }
 
     [Fact]
+    public async Task ShowIn_Dollars_ShowsOneSide_ButABudgetLineKeepsItsOwnCurrency()
+    {
+        await SignInAsync();
+        Http.On(HttpMethod.Get, "/api/months", Months);
+        Http.On(HttpMethod.Get, $"/api/months/{M2}/summary", Dash(M2));
+        var cut = Render<Dashboard>();
+        cut.WaitForElement("[data-testid='dash-waterfall']");
+
+        cut.Find("[data-testid='dash-cur-usd']").Click();
+
+        cut.WaitForAssertion(() => Assert.Contains("$3,000.00", cut.Find("[data-testid='dash-wf-income']").TextContent));
+        Assert.DoesNotContain("₡", cut.Find("[data-testid='dash-wf-income']").TextContent);
+        var mortgage = cut.FindAll("[data-testid='dash-fixed'] [data-testid='dash-line-row']")[0].QuerySelectorAll("td");
+        Assert.Equal("₡350,000.00", mortgage[1].TextContent.Trim()); // set in colones → stays in colones
+        Assert.Equal("$600.00", mortgage[2].TextContent.Trim());     // the actual follows the switch
+        Assert.Contains("$", cut.Find("[data-testid='dash-fixed'] [data-testid='dash-lines-total']").TextContent);
+        Assert.Contains(JSInterop.Invocations, i => i.Identifier == "appUi.setPref" && Equals(i.Arguments[0], "display.currency"));
+        Assert.Contains("$2,280", cut.FindAll("[data-testid='dash-bar'] [data-testid='chart-legend-item']")[4].TextContent); // the bar follows a one-currency pick
+
+        cut.Find("[data-testid='dash-cur-both']").Click();
+        cut.WaitForAssertion(() => Assert.Contains("₡1,500,000.00 · $3,000.00", cut.Find("[data-testid='dash-wf-income']").TextContent));
+        Assert.Contains("₡1,140,000 · $2,280", cut.FindAll("[data-testid='dash-bar'] [data-testid='chart-legend-item']")[4].TextContent); // the bar's legend carries both sides
+        Assert.Empty(cut.FindAll("[data-testid='dash-bar-usd']")); // the card has no switch of its own
+    }
+
+    [Fact]
     public async Task Loads_TheNewestMonth_AndRendersEverySection()
     {
         await SignInAsync();
@@ -107,9 +133,11 @@ public class DashboardPageTests : ComponentTestBase
         Assert.Empty(cut.FindAll("[data-testid='dash-bar'] [data-testid='chart-overflow']"));
         Assert.Single(cut.FindAll("[data-testid='dash-bar'] [data-testid='chart-marker']"));
         Assert.Contains("₡1,140,000", cut.FindAll("[data-testid='dash-bar'] [data-testid='chart-legend-item']")[4].TextContent); // forecast segment = 76 % of income
-        cut.Find("[data-testid='dash-bar-usd']").Click();
+        cut.Find("[data-testid='dash-cur-usd']").Click(); // the page's "show in" drives the bar
         cut.WaitForAssertion(() => Assert.Contains("$2,280", cut.FindAll("[data-testid='dash-bar'] [data-testid='chart-legend-item']")[4].TextContent));
-        Assert.Contains(JSInterop.Invocations, i => i.Identifier == "appUi.setPref"); // shared with the Reports charts
+        Assert.Contains(JSInterop.Invocations, i => i.Identifier == "appUi.setPref"); // remembered per device, shared with Reports
+        cut.Find("[data-testid='dash-cur-both']").Click(); // back to both sides for the rest of the page
+        cut.WaitForAssertion(() => Assert.Contains("₡1,140,000 · $2,280", cut.FindAll("[data-testid='dash-bar'] [data-testid='chart-legend-item']")[4].TextContent));
         // The waterfall (ADR-V018): income − the three classes = spent; income − spent = left now; left − still planned = forecast.
         Assert.Contains("₡1,500,000.00", cut.Find("[data-testid='dash-wf-income']").TextContent);
         Assert.Contains("₡300,000.00", cut.Find("[data-testid='dash-wf-budgeted']").TextContent);
@@ -124,7 +152,7 @@ public class DashboardPageTests : ComponentTestBase
         Assert.Contains("text-success", forecast.QuerySelector("span.text-end")!.ClassName);
         Assert.Empty(cut.FindAll("[data-testid='dash-wf-overplan']"));
         Assert.Empty(cut.FindAll("[data-testid='dash-balance']")); // the old Expenses/Balance cards are gone
-        Assert.Contains("500.00", cut.Find("[data-testid='dash-rate']").TextContent);
+        Assert.Empty(cut.FindAll("[data-testid='dash-rate']")); // the rate is shown once, in the Today's-rate badge
 
         var actuals = cut.FindAll("[data-testid='dash-line-actual']");
         Assert.Contains("text-success", actuals[0].ClassName); // Mortgage under budget

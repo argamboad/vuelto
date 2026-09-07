@@ -1298,40 +1298,54 @@ from a *different* household's list → **Expected:** 404 (never 403 — no exis
 
 ## 10f. Web — Exchange rate (app slice FX-1) 🟠
 
-> The live USD→CRC rate and its honest fallback chain (ADR-V006): live → stale "as of …" → the
-> household's last transaction → unavailable. The app never invents a rate. Provider key:
-> `ExchangeRate__ApiKey` in `.env` (unset in a fresh checkout).
+> The day's USD→CRC rate and its honest fallback chain (ADR-V006): live → stale "as of …" → the
+> household's last transaction → unavailable. The app never invents a rate. Default provider: the
+> Banco Central reference **buy/sell pair** via the Finance Ministry mirror — no key, works in a fresh
+> checkout (ADR-V019). A $ purchase converts at the sell side, a ₡ purchase at the buy side; income the
+> other way round. `ExchangeRate__Provider=exchangerate-api` + `ExchangeRate__ApiKey` select the old
+> one-rate world feed instead.
 
-### QA-FX-01 — The dashboard shows today's live rate 🟠 (Web / API)
+### QA-FX-01 — The dashboard shows today's BCCR buy/sell pair, and each currency freezes its own side 🟠 (Web / API)
 **Gherkin**
 ```gherkin
-Given ExchangeRate__ApiKey is set in .env and the API was restarted
+Given the API runs with the default provider (no ExchangeRate__ keys in .env) and has internet access
 When I open the app (the root is the dashboard)
-Then I see "Today's rate ₡<rate> per $1" with a green "live" badge under the month selector (or on the empty state before the first month)
-And GET /api/exchange-rate returns 200 { rate, source: "live", as_of }
+Then I see "Today's rate buy ₡<compra> · sell ₡<venta> per $1" with a green "live" badge under the month selector (or on the empty state before the first month)
+And GET /api/exchange-rate returns 200 { rate: <venta>, buy: <compra>, sell: <venta>, source: "live", as_of }
 When I reload within the hour
 Then the same as_of comes back (cached — no second provider call)
+When I open New transaction with currency CRC
+Then the rate field is pre-filled with <compra>; switching the currency to USD pre-fills <venta>; a rate I typed stays
+When I save a $20 purchase
+Then the month page shows it as ₡(20 × venta) with exchange_rate_used = <venta>
 ```
-**Walkthrough:** set `ExchangeRate__ApiKey=<your free-tier key>` in `.env`, restart the API, open
-the app (**Dashboard** is the root) → **Expected:** the rate line under the month selector — or on the
-empty state before the first month — with the green **live** badge; a
-plausible value (≈ 500–560 colones per dollar in 2026). Via Postman (**13 · Exchange rate → Get
-exchange rate**) → **Expected:** 200 with `rate` > 0, `source` = `live`, `as_of` ≈ now. Send it again
-→ **Expected:** identical `as_of` (served from the one-hour cache). Without a token → 401.
+**Walkthrough:** open the app (**Dashboard** is the root) → **Expected:** the rate line under the month
+selector — or on the empty state before the first month — reading **buy ₡… · sell ₡… per $1** with the
+green **live** badge; both values plausible (≈ 440–560 colones per dollar in 2026, sell a few colones
+above buy) and matching https://api.hacienda.go.cr/indicadores/tc (`dolar.compra` / `dolar.venta`).
+Via Postman (**13 · Exchange rate → Get exchange rate**) → **Expected:** 200 with `rate` = `sell`,
+`buy` > 0, `source` = `live`, `as_of` ≈ now. Send it again → **Expected:** identical `as_of` (served
+from the one-hour cache). Without a token → 401. **New transaction** → **Expected:** the rate field
+pre-filled with the **buy** figure while the currency is CRC; pick USD → the **sell** figure; type your
+own rate, switch currency again → your rate stays. Save a $20 purchase → **Expected:** the month page
+shows ₡(20 × sell) beside it (a ₡ purchase would show $(amount ÷ buy)). A voucher confirmed from the
+review queue freezes the same side for its currency.
 
 ### QA-FX-02 — No provider → the honest "unavailable" state, never a fabricated rate 🟠 (Web / API)
 **Gherkin**
 ```gherkin
-Given ExchangeRate__ApiKey is unset (fresh checkout) and the household has no transactions
+Given ExchangeRate__Provider=exchangerate-api with no ExchangeRate__ApiKey (the keyless world feed) and the household has no transactions
 When I open the app (the dashboard)
 Then I see the red "Exchange rate unavailable — try again later" badge and no number
 And GET /api/exchange-rate returns 503 { error: "exchange_rate_unavailable", message: "…" }
 ```
-**Walkthrough:** comment out `ExchangeRate__ApiKey` in `.env`, restart the API, open the **Dashboard** →
+**Walkthrough:** set `ExchangeRate__Provider=exchangerate-api` in `.env` (leave `ExchangeRate__ApiKey`
+unset), restart the API, open the **Dashboard** with a household that has no transactions →
 **Expected:** the red badge, no rate figure. Via Postman (**13 · Exchange rate → Get exchange
 rate**) → **Expected:** 503 with the shared error shape and `error` = `exchange_rate_unavailable`.
-Restore the key and restart → QA-FX-01 passes again. (The stale-cache and last-transaction tiers are
-covered by `Api.Tests`; the last-transaction tier becomes manually testable once P5 ships.)
+With transactions the chain answers the last frozen rate instead (yellow "from your last transaction"
+badge, `buy` = `sell`). Remove the override and restart → QA-FX-01 passes again. (The stale-cache tier
+and the BCCR client's own failure modes are covered by `Api.Tests`.)
 
 ---
 
@@ -1594,7 +1608,7 @@ Given a household with fixed line Mortgage ₡350,000 (Housing, BAC, Bank accoun
 And June transactions: Mortgage ₡300,000 bank account on Jun 5, and a ₡10,000 Unplanned lunch on Jun 12 in category Dining
 When I open Dashboard (nav)
 Then the newest month loads with "4 weeks · 28/5/2026 – 24/6/2026" and the rate line
-And the "This month" card opens with a stacked bar — the full width is the income, filled by Budgeted, Discretionary, Unplanned and Still planned, the green rest is the Forecast, a dashed Today marker at the month's elapsed share, a red tail past the income when the plan does not fit; ₡/$ switch shared with the Reports charts
+And the "This month" card opens with a stacked bar — the full width is the income, filled by Budgeted, Discretionary, Unplanned and Still planned, the green rest is the Forecast, a dashed Today marker at the month's elapsed share, a red tail past the income when the plan does not fit; it draws in the currency the page's "Show in" selects (₡ when "Both", with the $ amounts listed in its legend)
 And Income (with Primary / Secondary underneath; Secondary hidden when zero) heads the waterfall, which reads Income → − Budgeted spent ₡300,000.00 → − Discretionary spent ₡0.00 → − Unplanned spent ₡10,000.00 → = Spent so far ₡310,000.00 → = Left now → − Still planned (with "N% of the month elapsed") → = Forecast at month end (red, with a warning line, when below zero)
 And Fixed expenses shows Mortgage — Budgeted ₡350,000.00 · $700.00 — Actual ₡300,000.00 in green
 And Other spending lists Dining ₡10,000.00; Unplanned essentials shows ₡10,000.00
@@ -1603,6 +1617,9 @@ When I Edit Mortgage's budget down to ₡250,000 and reload the dashboard
 Then Mortgage's actual turns red (over budget) and Pending budgeted drops to ₡0.00
 And the Fixed, Variable, Other spending and Week by week tables each end with a Total row (the sum of the rows shown; the lines total keeps the over/under colour)
 And a line budgeted in dollars is judged in dollars: a $2.99 line paid at $2.99 is green even when its colón projection sits a few colones under the frozen colón actual (the totals turn red only when over on both sides)
+When I set "Show in" (top right) to $
+Then every pair on the page reads in dollars only — except each budget line's Budgeted cell, which stays in the currency the line is set in — and the "This month" bar draws in $ too (the card has no switch of its own)
+And "Both" brings the pairs back and the bar's legend lists each segment in ₡ and $; the choice is remembered on this device and shared with Reports
 ```
 **Walkthrough:** **Budget** → add fixed `Mortgage` `350000` CRC, Housing, BAC, Bank account. **New
 transaction** → `Bank`, `300000` CRC, Housing, BAC, Bank account, `2026-06-05`, Budgeted → **Save**.
@@ -1653,7 +1670,7 @@ Given June 2026 has Groceries budgeted ₡60,000 (a fixed line) and transactions
 When I open Reports (nav)
 Then the newest month loads with "one budget month — budgets shown next to actuals"
 And Budgeted lists Groceries — # 2 — Budgeted (month) ₡60,000.00 — Actual ₡8,000.00 in green, with a Total row (the # column counts the transactions behind each row and its total adds them up)
-And Discretionary lists Dining ₡2,000.00; Unplanned shows "Nothing in this class for the period."; the inflow appears nowhere
+And Discretionary lists Dining ₡2,000.00 under a "Spent" column (no budget beside it, so no "Actual"); Unplanned shows "Nothing in this class for the period."; the inflow appears nowhere
 When I switch Period to "Date range", set 2026-01-01 – 2026-06-30 and Load
 Then the note says "custom range — monthly budgets don't apply" and the Budgeted (month) column is gone
 When I set From 2026-06-30 and To 2026-06-01 and Load
@@ -1666,6 +1683,9 @@ And an "Income vs budget" donut: Budget lines (every active line, a $ line conve
 And a "Pace" line: cumulative spend stepping through the days that had spend, the straight plan line to the budget total, a dashed Today marker, and the caption "N% of the month elapsed · M% of the plan spent" (month mode only)
 And "Month by month": one bar per month, oldest first, spend on an income track, red for a month that spent more than its income (month mode only; loaded on entering Chart view)
 And "Spend by bank" and "Card vs account" donuts under them — present in Date-range mode as well
+When I set "Show in" to $
+Then every actual reads in dollars only, each budget line still shows in the currency it is set in, and the Budgeted total is one figure at today's rate (colón lines at buy, dollar lines at sell)
+And "Both" brings the ₡ · $ pairs back; the choice is remembered on this device and shared with the dashboard
 ```
 **Walkthrough:** **Budget** → fixed `Supermarket` `60000` CRC on Groceries. **New transaction** ×3 →
 Groceries Budgeted `5000` (`2026-06-05`) and `3000` (`2026-06-12`), Dining Discretionary `2000`
@@ -3506,3 +3526,26 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   and a red tail past the income when the plan does not fit (`StackedBar` component; ₡/$ switch sharing the
   Reports charts' per-device preference). QA-DASH-01 gains the bar; `ChartComponentsTests.StackedBar_*` +
   the `DashboardPageTests` bar assertions pin it. Suite count unchanged (180).
+- **Updated 2026-09-07** — **Two exchange rates from the Banco Central (owner decision, ADR-V019).** The
+  default provider is now the BCCR reference pair via the Finance Ministry mirror (no key, no quota;
+  `ExchangeRate__Provider=bccr`), so a fresh checkout has a live rate. The app carries buy (compra) and
+  sell (venta): a $ purchase or voucher converts and freezes at sell, a ₡ one at buy; income the other way
+  round; budget lines like spending; a single-rate source (manual override, last transaction, the
+  world feed kept behind `ExchangeRate__Provider=exchangerate-api`) is both sides equal. `GET
+  /api/exchange-rate` gains `buy` / `sell`, the month summary `exchange_rate_buy`; the dashboard's Today's-rate badge reads "buy ₡… · sell ₡… per $1" (the month header no longer
+  repeats the rate); the transaction form pre-fills the side for the currency. QA-FX-01
+  rewritten around the pair (badge, form prefill, a $ purchase), QA-FX-02 now uses the world-feed
+  override to reach the empty chain; `FxRatesTests`, `BccrExchangeRateClientTests`, the ledger / voucher /
+  dashboard direction tests and the bUnit badge / form / dashboard tests pin it. Suite count unchanged (180).
+- **Updated 2026-09-07** — **Reports table mode: the amount column of Discretionary / Unplanned (and of any
+  class without a budget column) is headed "Spent"; "Actual" stays only beside "Budgeted" (owner request).**
+  QA-REP-01 names the column; `ReportsPageTests` header assertions pin it. Suite count unchanged (180).
+- **Updated 2026-09-07** — **"Show in" ₡ · $ · both on the dashboard and the Reports tables (owner request).** One
+  per-device preference (`display.currency`, shared by both pages; picking a single currency also points the
+  charts and the stacked bar at it): converted pairs and totals show the chosen side(s); a budget line always
+  shows on the side it is set in; the Reports Budgeted total becomes ONE figure at today's rate (colón lines
+  at buy, dollar lines at sell — ADR-V019) instead of a per-side split; the dashboard's stacked bar loses its own
+  ₡/$ buttons and follows the page (with "both", its legend lists each segment in ₡ and $). `GET /api/reports/category-analysis`
+  adds `exchange_rate` / `exchange_rate_buy` for that. QA-REP-01 and QA-DASH-01 gain the switch; the
+  `CurrencySwitch` component + `MoneyDisplay` helper; `ReportsPageTests.ShowIn_*`, `DashboardPageTests.ShowIn_*`
+  and the Postman keys test pin it. Suite count unchanged (180).
