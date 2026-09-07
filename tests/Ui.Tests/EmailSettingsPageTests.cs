@@ -2,6 +2,7 @@ using System.Net;
 using Bunit;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
+using Vuelto.Shared.Ui.Components;
 using Vuelto.Shared.Ui.Pages;
 using Vuelto.Ui.Tests.Infrastructure;
 using Xunit;
@@ -159,7 +160,9 @@ public class EmailSettingsPageTests : ComponentTestBase
 
         cut.WaitForAssertion(() => Assert.Single(Http.Requests, r => r.Method == HttpMethod.Put));
         var body = await Http.Requests.Single(r => r.Method == HttpMethod.Put).Content!.ReadAsStringAsync();
-        Assert.Contains("\"import_from\":\"2026-06-01T00:00:00+00:00\"", body);
+        // Local midnight of the picked day, in the device's zone (the test box's) — never midnight UTC (owner bug: read back as the day before).
+        var expected = ImportFromDate.ToWire(new DateOnly(2026, 6, 1), TimeZoneInfo.Local).ToString("yyyy-MM-dd'T'HH:mm:ssK");
+        Assert.Contains($"\"import_from\":\"{expected}\"", body);
     }
 
     [Fact]

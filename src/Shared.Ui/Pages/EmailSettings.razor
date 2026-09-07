@@ -264,7 +264,7 @@
         _edit.UnreadOnly = c.UnreadOnly;
         _edit.IgnoreCursor = c.IgnoreCursor;
         _edit.Interval = c.PollingIntervalMinutes;
-        _edit.ImportFrom = _edit.OriginalImportFrom = DateOnly.FromDateTime(c.ImportFrom.ToLocalTime().DateTime);
+        _edit.ImportFrom = _edit.OriginalImportFrom = ImportFromDate.FromWire(c.ImportFrom, TimeZoneInfo.Local); // the day in the device's zone
         _selectedFolders = c.Folders.ToList();
         _folderOptions = new();
         _pickerOpen = false;
@@ -319,7 +319,9 @@
                 ignore_cursor = _edit.IgnoreCursor,
                 // Only when the user changed the date: the stored value carries a time of day, and re-sending the
                 // date alone would round the cursor back by up to a day on every save (the backfill rule).
-                import_from = _edit.ImportFrom is { } d && d != _edit.OriginalImportFrom ? new DateTimeOffset(d.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero) : (DateTimeOffset?)null,
+                // The picked day is local midnight in the device's zone (ImportFromDate), so it reads back as the
+                // same day and its mail is the first fetched — midnight UTC read back as the previous evening here.
+                import_from = _edit.ImportFrom is { } d && d != _edit.OriginalImportFrom ? ImportFromDate.ToWire(d, TimeZoneInfo.Local) : (DateTimeOffset?)null,
                 polling_interval_minutes = _edit.Interval,
             };
             var res = await Http.PutAsJsonAsync($"/api/email/connections/{c.Id}", body);
