@@ -1594,7 +1594,8 @@ Given a household with fixed line Mortgage ₡350,000 (Housing, BAC, Bank accoun
 And June transactions: Mortgage ₡300,000 bank account on Jun 5, and a ₡10,000 Unplanned lunch on Jun 12 in category Dining
 When I open Dashboard (nav)
 Then the newest month loads with "4 weeks · 28/5/2026 – 24/6/2026" and the rate line
-And Income shows the month's income converted at the rate; the "This month" waterfall reads Income → − Budgeted spent ₡300,000.00 → − Discretionary spent ₡0.00 → − Unplanned spent ₡10,000.00 → = Spent so far ₡310,000.00 → = Left now → − Still planned (with "N% of the month elapsed") → = Forecast at month end (red, with a warning line, when below zero)
+And the "This month" card opens with a stacked bar — the full width is the income, filled by Budgeted, Discretionary, Unplanned and Still planned, the green rest is the Forecast, a dashed Today marker at the month's elapsed share, a red tail past the income when the plan does not fit; ₡/$ switch shared with the Reports charts
+And Income (with Primary / Secondary underneath; Secondary hidden when zero) heads the waterfall, which reads Income → − Budgeted spent ₡300,000.00 → − Discretionary spent ₡0.00 → − Unplanned spent ₡10,000.00 → = Spent so far ₡310,000.00 → = Left now → − Still planned (with "N% of the month elapsed") → = Forecast at month end (red, with a warning line, when below zero)
 And Fixed expenses shows Mortgage — Budgeted ₡350,000.00 · $700.00 — Actual ₡300,000.00 in green
 And Other spending lists Dining ₡10,000.00; Unplanned essentials shows ₡10,000.00
 And Week by week shows the mortgage in week 2; By bank and payment method shows BAC / Bank account budget ₡350,000 actual ₡300,000
@@ -3498,3 +3499,10 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   `spent_extraordinary` / `spent_unplanned` (the class cut, reconciled with `expenses_total` by the Postman
   test). QA-DASH-01 rewritten for the waterfall; `DashboardSummaryServiceTests` (class cut),
   `DashboardPageTests.Loads_*` + `Waterfall_ForecastBelowZero_*` pin it. Suite count unchanged (180).
+- **Updated 2026-09-07** — **Dashboard: the waterfall gets its picture (owner decision, same day).** The
+  Income card is folded into the "This month" card (Primary/Secondary as muted sub-rows, Secondary hidden
+  when zero) and a **stacked bar** heads it: full width = income, filled left to right by the three class
+  spends and Still planned, the green rest = Forecast, a dashed Today marker at the month's elapsed share,
+  and a red tail past the income when the plan does not fit (`StackedBar` component; ₡/$ switch sharing the
+  Reports charts' per-device preference). QA-DASH-01 gains the bar; `ChartComponentsTests.StackedBar_*` +
+  the `DashboardPageTests` bar assertions pin it. Suite count unchanged (180).

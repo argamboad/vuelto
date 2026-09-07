@@ -1639,4 +1639,4 @@ invention). *Consequences:* `ExpenseSummary` gains the class cut (`Budgeted`, `E
 `UnplannedEssential`), exposed as `spent_*` on the summary; the API keeps `remainder_for_debts`,
 `expenses_card` and `expenses_account` (additive contract, the bank × method table and Postman still use
 them) but the UI no longer shows the first; QA-DASH-01 rewritten. Reports' "Income vs spend" /
-"Income vs budget" donuts are this card's picture twins and share the same Core calculators.
+"Income vs budget" donuts are this card's picture twins and share the same Core calculators. *Same-day addendum:* the Income card is folded into the waterfall (Primary/Secondary as sub-rows) and a stacked bar heads the card — income-wide, the three class spends and Still planned filling it, the forecast as the green rest, Today marked, the shortfall red past the income — so proportions and pace are visible before the numbers are read.

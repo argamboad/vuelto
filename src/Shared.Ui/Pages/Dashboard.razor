@@ -9,6 +9,7 @@
 @inject NavigationManager Nav
 @inject HttpClient Http
 @inject IStringLocalizer<AppStrings> Localizer
+@inject IJSRuntime JS
 
 <PageTitle>@Localizer["Dash_Title"]</PageTitle>
 
@@ -75,25 +76,34 @@
         {
             var s = _dash.Summary;
             <div class="row g-3">
-                <div class="col-12 col-md-4">
-                    <div class="card shadow-sm h-100" data-testid="dash-income">
-                        <div class="card-body">
-                            <h2 class="h6 fw-bold mb-3">@Localizer["Dash_Income"]</h2>
-                            @Row(Localizer["Month_PrimaryIncome"], s.IncomePrimary)
-                            @Row(Localizer["Month_SecondaryIncome"], s.IncomeSecondary)
-                            <hr class="my-2" />
-                            @Row(Localizer["Dash_Total"], s.IncomeTotal, bold: true)
-                        </div>
-                    </div>
-                </div>
                 @* The month as one waterfall (owner redesign, 2026-09-07 — ADR-V018): every row is the previous one minus
                    something, from income to the month-end forecast. Replaces the Expenses (card/account) and Balance cards;
                    "remainder for debts" retired from the UI (still on the API). *@
-                <div class="col-12 col-md-8">
+                <div class="col-12">
                     <div class="card shadow-sm h-100" data-testid="dash-waterfall">
                         <div class="card-body">
-                            <h2 class="h6 fw-bold mb-3">@Localizer["Dash_ThisMonth"]</h2>
+                            <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+                                <h2 class="h6 fw-bold mb-0">@Localizer["Dash_ThisMonth"]</h2>
+                                @* The bar draws in ONE currency (a stacked bar cannot show two); the same per-device preference the Reports charts use. *@
+                                <div class="btn-group btn-group-sm" role="group" aria-label="@Localizer["Reports_ChartCurrency"]">
+                                    <button type="button" class="btn @(_barCurrency == "CRC" ? "btn-secondary" : "btn-outline-secondary")" data-testid="dash-bar-crc" @onclick='() => SetBarCurrencyAsync("CRC")'>₡</button>
+                                    <button type="button" class="btn @(_barCurrency == "USD" ? "btn-secondary" : "btn-outline-secondary")" data-testid="dash-bar-usd" @onclick='() => SetBarCurrencyAsync("USD")'>$</button>
+                                </div>
+                            </div>
+                            @* The picture of the ledger below: the full bar is the income, filled by the three class spends, then what is
+                               still planned; the green rest is the forecast. Past the income → red shortfall. Today's position is marked. *@
+                            <div class="mb-3">
+                                <StackedBar TestId="dash-bar" Currency="@_barCurrency" Title="@Localizer["Dash_ThisMonth"].Value" Total="Side(s.IncomeTotal)" Segments="BarSegments(s)"
+                                            Marker="ElapsedPercent() / 100m" OverLabel="@Localizer["Dash_BarOver"].Value" />
+                            </div>
                             @Row(Localizer["Dash_WfIncome"], s.IncomeTotal, testId: "dash-wf-income")
+                            <div class="ps-3">
+                                @Row(Localizer["Month_PrimaryIncome"], s.IncomePrimary, testId: "dash-wf-income-primary", muted: true)
+                                @if (s.IncomeSecondary.Crc != 0 || s.IncomeSecondary.Usd != 0)
+                                {
+                                    @Row(Localizer["Month_SecondaryIncome"], s.IncomeSecondary, testId: "dash-wf-income-secondary", muted: true)
+                                }
+                            </div>
                             @Row(Localizer["Dash_WfBudgeted"], s.SpentBudgeted, testId: "dash-wf-budgeted", muted: true)
                             @Row(Localizer["Dash_WfDiscretionary"], s.SpentExtraordinary, testId: "dash-wf-discretionary", muted: true)
                             @Row(Localizer["Dash_WfUnplanned"], s.SpentUnplanned, testId: "dash-wf-unplanned", muted: true)
@@ -242,6 +252,7 @@
     protected override async Task OnInitializedAsync()
     {
         if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
+        await LoadBarCurrencyAsync();
         try
         {
             try
@@ -288,6 +299,35 @@
             <span class="text-end @tone">@Money(value)</span>
         </div>
     };
+
+    private string _barCurrency = "CRC";
+    private decimal Side(MoneyDto v) => _barCurrency == "USD" ? v.Usd : v.Crc;
+
+    /// <summary>Left to right: the three class spends, what is still planned, and the forecast (only while positive — past the income the bar paints the shortfall red instead).</summary>
+    private List<DonutSlice> BarSegments(SummaryDto s) =>
+    [
+        new(Localizer["Tx_Budgeted"].Value, Side(s.SpentBudgeted), "var(--bs-primary)"),
+        new(Localizer["Tx_Extraordinary"].Value, Side(s.SpentExtraordinary), "var(--brand-accent-light)"),
+        new(Localizer["Tx_Unplanned"].Value, Side(s.SpentUnplanned), "var(--bs-warning)"),
+        new(Localizer["Dash_BarPlanned"].Value, Side(s.PendingBudgeted), "var(--bs-tertiary-color)"),
+        new(Localizer["Dash_BarForecast"].Value, Math.Max(0m, Side(s.ActualRemainder)), "var(--bs-success)"),
+    ];
+
+    private async Task SetBarCurrencyAsync(string currency)
+    {
+        _barCurrency = currency;
+        try { await JS.InvokeVoidAsync("appUi.setPref", "reports.chartCurrency", currency); } catch { /* preference only */ }
+    }
+
+    private async Task LoadBarCurrencyAsync()
+    {
+        try
+        {
+            var currency = await JS.InvokeAsync<string?>("appUi.getPref", "reports.chartCurrency");
+            if (currency is "CRC" or "USD") _barCurrency = currency;
+        }
+        catch { /* no storage — colones */ }
+    }
 
     /// <summary>The device's date — the pace hint on "Still planned". Overridable for tests.</summary>
     [Parameter] public DateOnly Today { get; set; } = DateOnly.FromDateTime(DateTime.Today);

@@ -55,6 +55,10 @@ public class DashboardPageTests : ComponentTestBase
         Assert.Contains("text-danger", forecast.QuerySelector("span.text-end")!.ClassName);
         Assert.Contains("Dash_WfOverPlan", cut.Find("[data-testid='dash-wf-overplan']").TextContent);
         Assert.Contains("Dash_WfPace[60]", cut.Find("[data-testid='dash-wf-planned-hint']").TextContent);
+        // The bar paints the ₡110,000 shortfall red past the income and lists it; no forecast segment is drawn.
+        Assert.Single(cut.FindAll("[data-testid='dash-bar'] [data-testid='chart-overflow']"));
+        Assert.Contains("₡110,000", cut.Find("[data-testid='dash-bar'] [data-testid='chart-legend-over']").TextContent);
+        Assert.DoesNotContain(cut.FindAll("[data-testid='dash-bar'] [data-testid='chart-segment']"), e => e.GetAttribute("data-label") == "Dash_BarForecast");
 
         cut.Render(p => p.Add(x => x.Today, new DateOnly(2026, 9, 5)));
         cut.WaitForAssertion(() => Assert.Contains("Dash_WfPace[100]", cut.Find("[data-testid='dash-wf-planned-hint']").TextContent));
@@ -90,9 +94,22 @@ public class DashboardPageTests : ComponentTestBase
 
         var cut = Render<Dashboard>();
 
-        cut.WaitForElement("[data-testid='dash-income']");
+        cut.WaitForElement("[data-testid='dash-waterfall']");
         Assert.Single(Http.Requests, r => r.RequestUri!.AbsolutePath == $"/api/months/{M2}/summary"); // newest first
-        Assert.Contains("₡1,500,000.00 · $3,000.00", cut.Find("[data-testid='dash-income']").TextContent);
+        Assert.Contains("₡1,500,000.00 · $3,000.00", cut.Find("[data-testid='dash-wf-income']").TextContent);
+        Assert.Contains("₡1,500,000.00", cut.Find("[data-testid='dash-wf-income-primary']").TextContent);
+        Assert.Empty(cut.FindAll("[data-testid='dash-wf-income-secondary']")); // zero secondary income stays out of the way
+        Assert.Empty(cut.FindAll("[data-testid='dash-income']")); // the Income card is folded into the waterfall
+        // The bar: income wide, filled by the three classes + still planned, the forecast as the green rest; no shortfall; today marked.
+        var segments = cut.FindAll("[data-testid='dash-bar'] [data-testid='chart-segment']").Select(e => e.GetAttribute("data-label") ?? "").ToArray();
+        Assert.Equal(["Tx_Budgeted", "Tx_Unplanned", "Dash_BarPlanned", "Dash_BarForecast"], segments); // discretionary is ₡0 → listed, not drawn
+        Assert.Equal(5, cut.FindAll("[data-testid='dash-bar'] [data-testid='chart-legend-item']").Count);
+        Assert.Empty(cut.FindAll("[data-testid='dash-bar'] [data-testid='chart-overflow']"));
+        Assert.Single(cut.FindAll("[data-testid='dash-bar'] [data-testid='chart-marker']"));
+        Assert.Contains("₡1,140,000", cut.FindAll("[data-testid='dash-bar'] [data-testid='chart-legend-item']")[4].TextContent); // forecast segment = 76 % of income
+        cut.Find("[data-testid='dash-bar-usd']").Click();
+        cut.WaitForAssertion(() => Assert.Contains("$2,280", cut.FindAll("[data-testid='dash-bar'] [data-testid='chart-legend-item']")[4].TextContent));
+        Assert.Contains(JSInterop.Invocations, i => i.Identifier == "appUi.setPref"); // shared with the Reports charts
         // The waterfall (ADR-V018): income − the three classes = spent; income − spent = left now; left − still planned = forecast.
         Assert.Contains("₡1,500,000.00", cut.Find("[data-testid='dash-wf-income']").TextContent);
         Assert.Contains("₡300,000.00", cut.Find("[data-testid='dash-wf-budgeted']").TextContent);
@@ -155,7 +172,7 @@ public class DashboardPageTests : ComponentTestBase
         var cut = Render<Dashboard>(p => p.Add(x => x.Id, Guid.Parse(M1)));
 
         cut.WaitForElement("[data-testid='dash-rate-unavailable']");
-        Assert.Empty(cut.FindAll("[data-testid='dash-income']"));
+        Assert.Empty(cut.FindAll("[data-testid='dash-waterfall']"));
         Assert.Contains("2026", cut.Find("[data-testid='dash-title']").TextContent);
         Assert.Equal($"/months/{M1}", cut.Find("[data-testid='dash-month-link']").GetAttribute("href"));
     }
