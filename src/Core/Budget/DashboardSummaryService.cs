@@ -78,7 +78,8 @@ public sealed class DashboardSummaryService : IDashboardSummaryService
     private static ExpenseLineSummary ToLineSummary(IExpenseLine line, IReadOnlyList<Transaction> transactions, decimal rate)
     {
         var actual = transactions.Where(t => t.CategoryId == line.CategoryId && IsExpenseClass(t.TransactionType)).ToList();
-        return new ExpenseLineSummary(line.Name, BudgetPair(line, rate), Pair(actual.Sum(t => t.AmountCrc), actual.Sum(t => t.AmountUsd)));
+        return new ExpenseLineSummary(line.Name, BudgetPair(line, rate), Pair(actual.Sum(t => t.AmountCrc), actual.Sum(t => t.AmountUsd)),
+            line.BudgetCrc > 0 ? Currencies.Crc : Currencies.Usd);
     }
 
     // A line's budget as a pair is the shared BudgetTotals definition (also behind the reports' "Income vs budget" donut).

@@ -36,6 +36,27 @@ public class DashboardPageTests : ComponentTestBase
         """;
 
     [Fact]
+    public async Task LinesAreJudgedInTheirOwnCurrency_TotalsOnlyWhenOverOnBothSides()
+    {
+        // A $2.99 line paid at $2.99: its ₡ budget (today's rate) is a few colones under the frozen ₡ actual — never red.
+        var usdLines = Summary.Replace("\"variable_expenses\":[]",
+            "\"variable_expenses\":[{\"name\":\"Apple\",\"budget\":{\"crc\":1355.30,\"usd\":2.99},\"actual\":{\"crc\":1355.35,\"usd\":2.99},\"budget_currency\":\"USD\"},"
+            + "{\"name\":\"Netflix\",\"budget\":{\"crc\":1355.30,\"usd\":2.99},\"actual\":{\"crc\":1586.50,\"usd\":3.50},\"budget_currency\":\"USD\"}]");
+        await SignInAsync();
+        Http.On(HttpMethod.Get, "/api/months", Months);
+        Http.On(HttpMethod.Get, $"/api/months/{M2}/summary", Dash(M2).Replace(Summary, usdLines));
+
+        var cut = Render<Dashboard>();
+        cut.WaitForElement("[data-testid='dash-variable']");
+
+        var actuals = cut.FindAll("[data-testid='dash-variable'] [data-testid='dash-line-actual']");
+        Assert.Contains("text-success", actuals[0].ClassName); // Apple: $2.99 of $2.99 — the ₡ side used to paint it red
+        Assert.Contains("text-danger", actuals[1].ClassName);  // Netflix: $3.50 of $2.99
+        // The total is a converted pair: over on both sides here (₡2,941.85 > ₡2,710.60 and $6.49 > $5.98) → red.
+        Assert.Contains("text-danger", cut.Find("[data-testid='dash-variable'] [data-testid='dash-lines-total']").QuerySelectorAll("td")[2].ClassName);
+    }
+
+    [Fact]
     public async Task Loads_TheNewestMonth_AndRendersEverySection()
     {
         await SignInAsync();

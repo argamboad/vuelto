@@ -74,6 +74,14 @@ public class DashboardSummaryServiceTests
         TransactionDate = new DateOnly(2026, 6, 4), Percentage = 50m, AmountCrc = crc, AmountUsd = usd, Status = status
     };
 
+    [Fact]
+    public void LineSummary_CarriesTheCurrencyTheLineIsSetIn()
+    {
+        var lines = Calculate().FixedExpenses;
+        Assert.Equal("CRC", Assert.Single(lines, l => l.Name == "Mortgage").BudgetCurrency);  // BudgetCrc 350,000
+        Assert.Equal("USD", Assert.Single(lines, l => l.Name == "Car loan").BudgetCurrency);  // BudgetUsd 400 — its ₡ side is a projection
+    }
+
     // ---- unplanned essentials, refunds & envelopes ----
 
     [Fact]

@@ -14,7 +14,8 @@ public record MoneyPairResponse([property: JsonPropertyName("crc")] decimal Crc,
 public record ExpenseLineResponse(
     [property: JsonPropertyName("name")] string Name,
     [property: JsonPropertyName("budget")] MoneyPairResponse Budget,
-    [property: JsonPropertyName("actual")] MoneyPairResponse Actual);
+    [property: JsonPropertyName("actual")] MoneyPairResponse Actual,
+    [property: JsonPropertyName("budget_currency")] string BudgetCurrency);
 
 public record WeeklyTotalResponse(
     [property: JsonPropertyName("week_number")] int WeekNumber,
@@ -65,8 +66,8 @@ public record DashboardSummaryResponse(
     public static DashboardSummaryResponse From(DashboardSummary s) => new(
         MoneyPairResponse.From(s.Income.Primary), MoneyPairResponse.From(s.Income.Secondary), MoneyPairResponse.From(s.Income.Total),
         MoneyPairResponse.From(s.Expenses.Card), MoneyPairResponse.From(s.Expenses.Account), MoneyPairResponse.From(s.Expenses.GrandTotal), MoneyPairResponse.From(s.Expenses.Remainder),
-        s.FixedExpenses.Select(l => new ExpenseLineResponse(l.Name, MoneyPairResponse.From(l.Budget), MoneyPairResponse.From(l.Actual))).ToList(),
-        s.VariableExpenses.Select(l => new ExpenseLineResponse(l.Name, MoneyPairResponse.From(l.Budget), MoneyPairResponse.From(l.Actual))).ToList(),
+        s.FixedExpenses.Select(l => new ExpenseLineResponse(l.Name, MoneyPairResponse.From(l.Budget), MoneyPairResponse.From(l.Actual), l.BudgetCurrency)).ToList(),
+        s.VariableExpenses.Select(l => new ExpenseLineResponse(l.Name, MoneyPairResponse.From(l.Budget), MoneyPairResponse.From(l.Actual), l.BudgetCurrency)).ToList(),
         s.OtherSpending.Select(c => new CategorySpendResponse(c.CategoryName, MoneyPairResponse.From(c.Actual))).ToList(),
         s.WeeklyBudgeted.Select(w => new WeeklyTotalResponse(w.WeekNumber, w.StartDate, w.EndDate, MoneyPairResponse.From(w.Total))).ToList(),
         s.WeeklyExtraordinary.Select(w => new WeeklyTotalResponse(w.WeekNumber, w.StartDate, w.EndDate, MoneyPairResponse.From(w.Total))).ToList(),

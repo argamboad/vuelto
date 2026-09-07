@@ -65,7 +65,7 @@ Scenario: The Dashboard page
   Then I see the month title, "N weeks · from – to", the rate line (live / as of / from your last transaction),
        a month selector, Month details and New transaction buttons
   And cards Income, Expenses (card, account, total, remainder + the frozen-rate note), Balance
-  And Fixed / Variable tables (Line, Budgeted, Actual — green under, red over), Other spending, Week by week,
+  And Fixed / Variable tables (Line, Budgeted, Actual — green under, red over, judged in the currency the line is set in; `budget_currency` on each line, 2026-09-07), Other spending, Week by week,
        Unplanned essentials & refunds, Envelope reminders, By bank and payment method
   When no rate resolves → the red "projections are blocked" message and no figures
   When there are no months → "Nothing to show yet" with New transaction
