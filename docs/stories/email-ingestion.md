@@ -93,8 +93,9 @@ folders travel as `{id, name}` pairs (the name is captured at pick time so the p
 scanned without a provider round-trip, back-filled once from the provider for rows that predate it, `null`
 when unresolvable — never the id; readers use the id),
 interval 5…1440 minutes, lowering `import_from` pulls the cursor back (backfill) while raising it never
-advances the cursor (that would silently skip un-imported mail). Tokens are never returned; another
-user's id is a uniform 404.
+advances the cursor (that would silently skip un-imported mail). The page sends a picked day as that day's
+**local midnight** (`ImportFromDate`, 2026-09-07 fix: midnight UTC read back one day early in Costa Rica).
+Tokens are never returned; another user's id is a uniform 404.
 
 ```gherkin
 Scenario: Connect an inbox

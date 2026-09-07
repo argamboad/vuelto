@@ -1776,7 +1776,9 @@ chips above it unchanged. Tick a subfolder → **Cancel** → **Expected:** list
 folders** → tick it → **Apply** → **Expected:** list closed, chips `Inbox`, `Inbox/Vouchers`. Interval `60`,
 **Fetch all unread** on → **Save** → **Expected:** "Saved.", "every 60 min", the row's **Folders:** line
 names both; **F5** keeps them. Via Postman (**21 · Email inboxes → Get connection**) after each import-from
-save → **Expected:** `last_polled_at` follows a lower date and ignores a higher one. Interval `4` →
+save → **Expected:** `last_polled_at` follows a lower date and ignores a higher one; **the day you
+picked reads back as the same day** after Save/F5 and is the first day whose mail arrives (Postman shows
+it as that day's midnight in your zone, e.g. `…T00:00:00-06:00`). Interval `4` →
 **Save** → **Expected:** the interval message; blank both filter boxes → **Save** → **Expected:** the
 filters message. Second account (**Update connection** with the first user's id) → 404. **Disconnect** →
 **Yes, disconnect** → **Expected:** "Inbox disconnected…", empty list.
@@ -3466,3 +3468,11 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   bank and class, with "Showing n of m", a no-match row and Clear. All on the rows already loaded — no
   request; the export is unaffected. QA-LED-01 gains the Gherkin + walkthrough lines;
   `LedgerPagesTests.MonthDetail_SortsByAnyHeader_AndFiltersBy…` pins it. Suite count unchanged (180).
+- **Updated 2026-09-07** — **Fix: inbox "Import mail from" was one day off (owner report).** The page sent
+  the picked day as midnight UTC and read it back in local time — in Costa Rica 6 PM of the previous day —
+  so the form showed one day earlier than set and re-saving "the same" day sent nothing; users had to pick
+  the day before. `ImportFromDate` (Shared.Ui) now sends the day's local midnight with the device's offset
+  and shows the stored instant's local date, so the day round-trips and is the first day fetched. Rows saved
+  before the fix still show the evening-before day (truthful to their window) until re-saved. QA-EMAIL-03
+  gains the line; `ImportFromDateTests` (3) + `EmailSettingsPageTests.Edit_ChangingImportFrom_*` pin it.
+  Suite count unchanged (180).
