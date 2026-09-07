@@ -172,6 +172,60 @@ public class LedgerPagesTests : ComponentTestBase
     }
 
     [Fact]
+    public async Task MonthDetail_SortsByAnyHeader_AndFiltersByDatePayeeCategoryBankAndClass()
+    {
+        await SignInAsync();
+        Http.On(HttpMethod.Get, $"/api/months/{MonthId}", $$"""{"id":"{{MonthId}}","year":2026,"month_number":7,"week_count":5,"week1_start_date":"2026-06-25","primary_income_amount":0,"primary_income_currency":"USD","secondary_income_amount":0,"secondary_income_currency":"USD","weeks":[{"week_number":1,"start_date":"2026-06-25","end_date":"2026-07-29"}]}""");
+        Http.On(HttpMethod.Get, $"/api/months/{MonthId}/transactions", """
+            [{"id":"dddddddd-0000-0000-0000-000000000001","payee":"Uber","transaction_date":"2026-07-20","category_name":"Transport","bank_name":"BAC","payment_method":"credit_card","transaction_type":"extraordinary","amount_crc":5000,"amount_usd":10,"source":"manual"},
+             {"id":"dddddddd-0000-0000-0000-000000000002","payee":"AutoMercado","transaction_date":"2026-07-10","category_name":"Groceries","bank_name":"Cash","payment_method":"credit_card","transaction_type":"budgeted","amount_crc":50000,"amount_usd":100,"source":"manual"},
+             {"id":"dddddddd-0000-0000-0000-000000000003","payee":"Café Britt","transaction_date":"2026-07-02","category_name":"Groceries","bank_name":"BAC","payment_method":"bank_account","transaction_type":"unplanned_essential","amount_crc":8000,"amount_usd":16,"source":"email"}]
+            """);
+
+        var cut = Render<MonthDetail>(p => p.Add(x => x.Id, Guid.Parse(MonthId)));
+        cut.WaitForAssertion(() => Assert.Equal(3, cut.FindAll("[data-testid='month-tx-row']").Count));
+        string[] Payees() => cut.FindAll("[data-testid='month-tx-payee']").Select(e => e.TextContent.Trim()).ToArray();
+
+        // Default: newest first (the API's order). Date header flips it.
+        Assert.Equal(["Uber", "AutoMercado", "Café Britt"], Payees());
+        Assert.Equal("descending", cut.Find("[data-testid='month-tx-sort-date']").ParentElement!.GetAttribute("aria-sort"));
+        cut.Find("[data-testid='month-tx-sort-date']").Click();
+        Assert.Equal(["Café Britt", "AutoMercado", "Uber"], Payees());
+
+        // Names sort A→Z first, then flip; category ties keep date order.
+        cut.Find("[data-testid='month-tx-sort-payee']").Click();
+        Assert.Equal(["AutoMercado", "Café Britt", "Uber"], Payees());
+        cut.Find("[data-testid='month-tx-sort-payee']").Click();
+        Assert.Equal(["Uber", "Café Britt", "AutoMercado"], Payees());
+        cut.Find("[data-testid='month-tx-sort-category']").Click();
+        Assert.Equal(["AutoMercado", "Café Britt", "Uber"], Payees()); // Groceries (Jul 10, Jul 2), then Transport
+        cut.Find("[data-testid='month-tx-sort-bank']").Click();
+        Assert.Equal(["Uber", "Café Britt", "AutoMercado"], Payees()); // BAC (Jul 20, Jul 2), then Cash
+        cut.Find("[data-testid='month-tx-sort-class']").Click();
+        Assert.Equal("ascending", cut.Find("[data-testid='month-tx-sort-class']").ParentElement!.GetAttribute("aria-sort"));
+
+        // Filters narrow the same rows; the count says how many survived; Clear restores everything.
+        Assert.Contains("Month_FilterCount[3, 3]", cut.Find("[data-testid='month-tx-count']").TextContent);
+        Assert.True(cut.Find("[data-testid='month-tx-filter-clear']").HasAttribute("disabled"));
+        cut.Find("[data-testid='month-tx-filter-payee']").Input("caf");
+        Assert.Equal(["Café Britt"], Payees());
+        Assert.Contains("Month_FilterCount[1, 3]", cut.Find("[data-testid='month-tx-count']").TextContent);
+        cut.Find("[data-testid='month-tx-filter-payee']").Input("");
+        cut.Find("[data-testid='month-tx-filter-category']").Change("Groceries");
+        Assert.Equal(2, cut.FindAll("[data-testid='month-tx-row']").Count);
+        cut.Find("[data-testid='month-tx-filter-bank']").Change("BAC");
+        Assert.Equal(["Café Britt"], Payees());
+        cut.Find("[data-testid='month-tx-filter-class']").Change("budgeted"); // Groceries + BAC + budgeted → nothing
+        Assert.Empty(cut.FindAll("[data-testid='month-tx-row']"));
+        Assert.Contains("Month_NoMatch", cut.Find("[data-testid='month-tx-nomatch']").TextContent);
+        cut.Find("[data-testid='month-tx-filter-clear']").Click();
+        Assert.Equal(3, cut.FindAll("[data-testid='month-tx-row']").Count);
+        cut.Find("[data-testid='month-tx-filter-from']").Change("2026-07-05");
+        cut.Find("[data-testid='month-tx-filter-to']").Change("2026-07-15");
+        Assert.Equal(["AutoMercado"], Payees());
+    }
+
+    [Fact]
     public async Task MonthDetail_ReloadsWhenTheRouteIdChanges()
     {
         // A link from one month page to another (e.g. a refund's "booked in another month — view", ADR-V017)

@@ -114,6 +114,8 @@ Scenario: The pages
   Given I am signed in
   When I open Months (nav) I see my months newest first with their week counts; a month page shows its
        weeks, editable income, and its transactions with Edit and a two-step Delete
+  And (2026-09-07) the transactions table sorts by Date, Payee, Category, Bank or Class from its headers
+       and filters by date range, payee text, category, bank and class — on the loaded rows, no request
   When I open New transaction, the rate is pre-filled from today's quote (or I am told to enter one),
        the date announces "Goes to July 2026 — a new month will be created", and Save takes me to the month
   When I open Edit, the rate is shown frozen and never sent back

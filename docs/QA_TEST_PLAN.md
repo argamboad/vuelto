@@ -1398,6 +1398,8 @@ Then "Viajes" is selected without leaving the form (it also appears under Settin
 Then the date says "Goes to July 2026 — a new month will be created" and the rate is pre-filled
 When I Save
 Then I land on July 2026: 5 weeks (25 Jun – 29 Jul), income 3750 USD / 312500 CRC, one row ₡50,000.00 / $<50000 ÷ rate>
+And the transactions table sorts by Date, Payee, Category, Bank or Class when I click the header (click again to flip; ▲/▼ marks the active one)
+And the filter row above it narrows the rows by date range, payee text, category, bank and class, with "Showing n of m" and a Clear button
 ```
 **Walkthrough:** **Settings → Budget** → save 5-week incomes `3750` USD and `312500` CRC. **Dashboard →
 New transaction** (or nav **Months → New transaction**): fill the fields; beside **Category** click
@@ -1406,7 +1408,12 @@ New transaction** (or nav **Months → New transaction**): fill the fields; besi
 category offers **Reactivate “…”**). Pick the date `2026-07-10` → **Expected:** the "Goes to July 2026 — a new month will be created" hint under the
 date; the **Exchange rate** field pre-filled (or, without a key, the red hint asking for one — type
 `500`). **Save** → **Expected:** the **July 2026** page with 5 week badges, the income card showing
-3750 USD / 312500 CRC, and the row. Via Postman (**15 · Months → List months**) → 1 month with
+3750 USD / 312500 CRC, and the row. With a few rows in place: click **Payee** → **Expected:** A→Z with
+▲; click again → Z→A ▼; **Date** flips newest/oldest. Type `auto` under **Payee contains** →
+**Expected:** only AutoMercado, "Showing 1 of n"; pick a **Category**, **Bank** or **Class** that
+matches nothing → "No transactions match these filters."; **Clear filters** → all rows back (the
+filters and sort are on-screen only — no request, and the CSV export still covers the whole month).
+Via Postman (**15 · Months → List months**) → 1 month with
 `week_count` 5; **Resolve a date** with `2026-05-30` → `is_new: true`, `month_number` 6 (June's
 window starts 28 May).
 
@@ -3453,3 +3460,9 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   down left it off-screen; Edit now scrolls it into view with the same `appUi.scrollIntoView` helper
   and scroll margin the budget lines use (New still opens in place). QA-CAT-03 gains the line;
   `CatalogPageTests.Edit_ScrollsTheFormCardIntoView_NewDoesNot` pins it. Suite count unchanged (180).
+- **Updated 2026-09-07** — **Month page: sort and filter the transactions (owner request).** Clickable
+  headers sort by Date, Payee, Category, Bank or Class (click again flips; `aria-sort` + ▲/▼; ties keep
+  newest-first); a filter row narrows by date range, payee text (contains, case-insensitive), category,
+  bank and class, with "Showing n of m", a no-match row and Clear. All on the rows already loaded — no
+  request; the export is unaffected. QA-LED-01 gains the Gherkin + walkthrough lines;
+  `LedgerPagesTests.MonthDetail_SortsByAnyHeader_AndFiltersBy…` pins it. Suite count unchanged (180).
