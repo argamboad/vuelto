@@ -96,6 +96,7 @@ public class AppDbContext : DbContext, IDataProtectionKeyContext
     public DbSet<PendingVoucher> PendingVouchers => Set<PendingVoucher>();       // EMAIL-4 (household-scoped drafts)
     public DbSet<IngestedVoucher> IngestedVouchers => Set<IngestedVoucher>();    // EMAIL-4 (dedup tombstones)
     public DbSet<MerchantCategoryMapping> MerchantCategoryMappings => Set<MerchantCategoryMapping>(); // EMAIL-5 (household suggestion rules)
+    public DbSet<UserDisplaySettings> UserDisplaySettings => Set<UserDisplaySettings>(); // DISPLAY-1 (user-keyed, ADR-V020)
 
     // Tenant isolation is structural in BOTH directions: the global query filter (below)
     // scopes reads, and this interceptor scopes writes — stamping the current tenant onto

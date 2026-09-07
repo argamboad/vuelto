@@ -1672,3 +1672,19 @@ follows the direction of the money is the only one that does not need a footnote
 reference rate moves once a day (none on weekends/holidays — the last published pair is the current
 one), so the one-hour freshness window is generous; the world feed stays selectable; the integration
 harness pins the keyless world feed so the suite never reaches the mirror; QA-FX-01/02 rewritten.
+
+**ADR-V020 — The "show amounts in" preference follows the person, in an app-owned user-keyed table. (2026-09-07; owner decision)**
+
+The ₡ · $ · both switch shipped in PR #43 as a per-device preference (browser storage), and the owner
+asked for it to follow him "like language" — the phone and the laptop should agree. The platform keeps
+theme and locale on its `User` row behind `/api/auth/theme` and `/api/auth/locale`; that row is platform
+code the app must not extend (the extend-never-modify rule). **Decision:** a small app-owned, **user-keyed**
+table `UserDisplaySettings` (one row per user, `display_currency` CRC | USD | both) behind
+`GET`/`PUT /api/display-settings`, wiped by account erasure through an `IUserDataContributor` — the
+`EmailConnection` shape (ADR-V002), because a display taste belongs to the person, not the household.
+The client keeps the **theme's two-copy model**: a device copy (`appUi` prefs) so a page paints before
+any call, and the account copy that wins once the user has chosen there; a user who never chose on the
+account adopts the device's choice and pushes it up, so nobody loses a setting on upgrade. A write from
+an impersonation session is refused with the platform's `impersonation_not_allowed`, same as theme and
+locale. *Consequences:* migration `AddUserDisplaySettings` (no RLS — user-keyed); Postman folder 23;
+QA-DASH-03; the switch itself is unchanged for the user.

@@ -9,6 +9,7 @@ using Vuelto.Api.Endpoints;
 using Vuelto.Api.Features.Budget;
 using Vuelto.Api.Features.Catalog;
 using Vuelto.Api.Features.Dashboard;
+using Vuelto.Api.Features.DisplaySettings;
 using Vuelto.Api.Features.Email;
 using Vuelto.Api.Features.Envelopes;
 using Vuelto.Api.Features.Reports;
@@ -144,6 +145,8 @@ builder.Services.AddScoped<IUserDataContributor, EmailConnectionUserDataContribu
 builder.Services.AddScoped<IVoucherStagingService, VoucherStagingService>();          // EMAIL-4 (staging with the tenant hop)
 builder.Services.AddScoped<IScheduledJob, EmailPollJob>();                              // EMAIL-4 (poller on the platform scheduler)
 builder.Services.AddScoped<ITenantDataContributor, VoucherStagingDataContributor>();
+builder.Services.AddScoped<DisplaySettingsHandler>();                                   // DISPLAY-1 (user-keyed, ADR-V020)
+builder.Services.AddScoped<IUserDataContributor, DisplaySettingsUserDataContributor>();
 builder.Services.AddScoped<ITransactionService>(sp => sp.GetRequiredService<TransactionHandler>()); // ADR-V010: the Ledger create behind the Core contract (R7 — slices never reference each other)
 builder.Services.AddScoped<MerchantMappingHandler>();                                   // EMAIL-5 (household suggestion rules)
 builder.Services.AddScoped<ITenantDataContributor, MerchantMappingDataContributor>();
@@ -362,6 +365,7 @@ app.MapReports();        // REPORTS-1/2 (/api/reports/category-analysis, /api/re
 app.MapEmail();          // EMAIL-2/3 (/api/email/connections — user-scoped; the consent callback is the one anonymous route)
 app.MapMerchantMappings(); // EMAIL-5 (/api/merchant-mappings)
 app.MapPendingVouchers();  // EMAIL-6 (/api/pending-vouchers — list, count, confirm, discard)
+app.MapDisplaySettings();  // DISPLAY-1 (/api/display-settings — the caller's own ₡ · $ · both preference)
 // Billing is a platform controller (BillingController) — auto-mapped by MapControllers above.
 
 // PUBAPI (ADR-015): map key management + the public routes only when enabled — off ⇒ they don't exist.

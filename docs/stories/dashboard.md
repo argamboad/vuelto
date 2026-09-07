@@ -86,3 +86,54 @@ slice on Postgres (assembly with names, no-rate, unknown/foreign null) + HTTP (4
 the chain's last tier, 404); bUnit (newest month + every section + tone, empty state, rate-unavailable,
 404); no entity, no migration; Postman folder; QA-DASH-01..02 + regenerated PDFs; EN/ES resx; nav + Home
 + month-page entry points; merged, app working.
+
+### DASH-2 — Show amounts in colones, dollars or both — and keep that choice everywhere *(owner request, 2026-09-07)* ✅
+
+**As a** household member
+**I want** to pick whether the dashboard and the Reports tables show colones, dollars or both sides of
+every pair, and have that choice follow me to my phone
+**So that** the pages read in the currency I think in, without losing the frozen pairs when I want them
+
+**Context / notes:** one control, **Show in ₡ · $ · both**, on the dashboard header and the Reports toolbar
+(table view). Converted pairs and totals follow it; a **budget line always shows on the side it is set in**
+(a $17.99 line stays $17.99 under ₡); the Reports Budgeted total becomes one figure at today's rate
+(colón lines at buy, dollar lines at sell — ADR-V019); the "This month" bar draws in the chosen currency
+and, under both, lists each segment in ₡ and $. Persistence (ADR-V020): a device copy for the first paint
+plus the account copy (`/api/display-settings`, user-keyed `UserDisplaySettings`) that wins once chosen;
+a never-chosen account adopts the device's choice. Impersonation cannot change it.
+
+**Acceptance criteria**
+
+```gherkin
+Scenario: One side only
+  Given the dashboard shows ₡1,500,000.00 · $3,000.00 as income
+  When I set Show in to $
+  Then every pair on the page reads in dollars only, the Mortgage line's Budgeted cell still reads ₡350,000.00, and the bar draws in $
+
+Scenario: The account wins over the device
+  Given my account says USD and this device never chose
+  When I open the dashboard
+  Then it opens in $ and this device now remembers $
+
+Scenario: A first choice on this device follows me
+  Given my account never chose and this device says USD
+  When I open the dashboard
+  Then it opens in $ and my account now says USD
+
+Scenario: API
+  Given I am signed in
+  When I GET /api/display-settings before choosing
+  Then I receive 200 { display_currency: "both", is_default: true }
+  When I PUT { display_currency: "usd" }
+  Then I receive 200 { display_currency: "USD", is_default: false } and a GET agrees
+  When I PUT { display_currency: "EUR" }
+  Then I receive 400 invalid_request and nothing changed
+  When I PUT from an impersonation session
+  Then I receive 403 impersonation_not_allowed
+```
+
+**Definition of done:** tests first; `DisplaySettingsSliceTests` (default read never writes, normalise + upsert,
+per-user rows, erasure contributor), `DisplaySettingsEndpointTests` (401 / read-save-read / 400), the
+impersonation theory gains the route, the user-keyed erasure canary lists the entity; bUnit
+`DashboardPageTests.ShowIn_*` + `ReportsPageTests.ShowIn_*`; migration `AddUserDisplaySettings`; Postman
+folder 23; QA-DASH-03 + regenerated PDFs; ADR-V020.

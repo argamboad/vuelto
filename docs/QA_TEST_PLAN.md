@@ -1663,6 +1663,23 @@ unknown id → 404.
 > a month (its anchor window, ending on the last week's end date) or a `from`–`to` range. The CSV is
 > delivered through the platform's signed-link download (ADR-010), so it works on web and native alike.
 
+### QA-DASH-03 — "Show in" follows the account, and a first choice on a device follows you 🟠 (Web / API)
+**Gherkin**
+```gherkin
+Given I chose $ on the dashboard in this browser
+When I open the app in another browser (or the phone) with the same account
+Then the dashboard and Reports open in $ without touching the switch
+When I set it to Both there
+Then this browser shows Both on its next load
+And GET /api/display-settings returns { display_currency: "both", is_default: false }
+```
+**Walkthrough:** on the **Dashboard**, set **Show in** to **$**. Via Postman (**23 · Display settings → Get
+display settings**) → **Expected:** 200 with `display_currency` = `USD`, `is_default` = `false`. Open the
+app in a private window (same account, sign in) → **Expected:** the dashboard opens in $ and **Reports**
+(table view) too. Set **Both** there; reload the first window → **Expected:** Both. Postman **Update
+display settings — invalid (400)** → **Expected:** 400 `invalid_request`; **Reset display settings to
+both** → 200. (The impersonation refusal and the account-erasure wipe are covered by `Api.Tests`.)
+
 ### QA-REP-01 — Category analysis by month shows budgets; a date range doesn't 🟠 (Web / API)
 **Gherkin**
 ```gherkin
@@ -3549,3 +3566,9 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   adds `exchange_rate` / `exchange_rate_buy` for that. QA-REP-01 and QA-DASH-01 gain the switch; the
   `CurrencySwitch` component + `MoneyDisplay` helper; `ReportsPageTests.ShowIn_*`, `DashboardPageTests.ShowIn_*`
   and the Postman keys test pin it. Suite count unchanged (180).
+- **Updated 2026-09-07** — **"Show in" follows the account (owner decision, ADR-V020).** The ₡ · $ · both choice is
+  now kept like the theme: a device copy for the first paint plus an account copy in an app-owned user-keyed
+  table (`UserDisplaySettings`, `GET`/`PUT /api/display-settings`, erased with the account, refused under
+  impersonation); the account wins once chosen, a never-chosen account adopts the device's choice. New
+  QA-DASH-03 (suite 181); Postman folder 23; `DisplaySettingsSliceTests`, `DisplaySettingsEndpointTests`, the
+  impersonation theory and `DashboardPageTests.ShowIn_FollowsTheAccount_AndSavesThere` pin it.

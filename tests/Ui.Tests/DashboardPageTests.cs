@@ -86,6 +86,29 @@ public class DashboardPageTests : ComponentTestBase
     }
 
     [Fact]
+    public async Task ShowIn_FollowsTheAccount_AndSavesThere()
+    {
+        // ADR-V020: the account's choice wins over the device's (this device never chose); a new choice is PUT to the account.
+        await SignInAsync();
+        Http.On(HttpMethod.Get, "/api/months", Months);
+        Http.On(HttpMethod.Get, $"/api/months/{M2}/summary", Dash(M2));
+        Http.On(HttpMethod.Get, "/api/display-settings", """{"display_currency":"USD","is_default":false}""");
+        Http.On(HttpMethod.Put, "/api/display-settings", """{"display_currency":"both","is_default":false}""");
+
+        var cut = Render<Dashboard>();
+
+        cut.WaitForAssertion(() => Assert.Contains("$3,000.00", cut.Find("[data-testid='dash-wf-income']").TextContent));
+        Assert.DoesNotContain("₡", cut.Find("[data-testid='dash-wf-income']").TextContent);
+        Assert.Contains(JSInterop.Invocations, i => i.Identifier == "appUi.setPref" && Equals(i.Arguments[0], "display.currency") && Equals(i.Arguments[1], "USD")); // the device copy is refreshed
+
+        cut.Find("[data-testid='dash-cur-both']").Click();
+
+        cut.WaitForAssertion(() => Assert.Contains("₡1,500,000.00 · $3,000.00", cut.Find("[data-testid='dash-wf-income']").TextContent));
+        var put = Assert.Single(Http.Requests, r => r.Method == HttpMethod.Put && r.RequestUri!.AbsolutePath == "/api/display-settings");
+        Assert.Contains("\"display_currency\":\"both\"", await put.Content!.ReadAsStringAsync());
+    }
+
+    [Fact]
     public async Task ShowIn_Dollars_ShowsOneSide_ButABudgetLineKeepsItsOwnCurrency()
     {
         await SignInAsync();

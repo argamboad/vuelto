@@ -87,6 +87,7 @@ public class ArchitectureTests
             nameof(UserMfa), nameof(MfaRecoveryCode),          // MfaUserDataContributor
             nameof(Notification), nameof(NotificationPreference), // NotificationUserDataContributor
             nameof(EmailConnection),                            // EmailConnectionUserDataContributor (EMAIL-2, ADR-V002)
+            nameof(UserDisplaySettings),                        // DisplaySettingsUserDataContributor (DISPLAY-1, ADR-V020)
         };
 
         var options = new DbContextOptionsBuilder<AppDbContext>()
