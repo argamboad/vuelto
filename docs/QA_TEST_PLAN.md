@@ -1272,7 +1272,9 @@ Then it shows Inactive (still listed, greyed)
 When I try to create "viajes"
 Then I see the warning with a Reactivate button, and clicking it makes "Viajes" Active again
 ```
-**Walkthrough:** **Edit** on Viajes → toggle **Active** off → **Save** → **Expected:** Inactive
+**Walkthrough:** **Edit** on Viajes → **Expected:** the page scrolls so the whole edit card is in
+view (it renders above the list; with 50+ categories the row clicked is far below it) → toggle
+**Active** off → **Save** → **Expected:** Inactive
 badge. **New category** → `viajes` → **Create** → **Expected:** yellow warning "…already exists
 but is inactive — reactivate it?" with **Reactivate**. Click it. **Expected:** "Updated.", Viajes
 is Active **and still spelled "Viajes"** (the stored name is restored, not the typed "viajes").
@@ -3446,3 +3448,8 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   trend** request); `CategoryAnalysisCalculatorTests` (+3), `MonthTrendCalculatorTests` (3),
   `ReportSliceTests` (+2 cases, asserts), `ReportEndpointTests` (trend call), `ReportsPageTests`
   (+4), `ChartComponentsTests.LineChart_*` pin it. Suite count unchanged (180).
+- **Updated 2026-09-07** — **Catalogs: Edit scrolls the form card into view (owner request).** On the
+  Categories and Banks pages (shared `CatalogPage`) the edit card renders above the list, so a row far
+  down left it off-screen; Edit now scrolls it into view with the same `appUi.scrollIntoView` helper
+  and scroll margin the budget lines use (New still opens in place). QA-CAT-03 gains the line;
+  `CatalogPageTests.Edit_ScrollsTheFormCardIntoView_NewDoesNot` pins it. Suite count unchanged (180).

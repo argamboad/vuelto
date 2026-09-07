@@ -3,6 +3,7 @@
 @using System.Text.Json.Serialization
 @inject HttpClient Http
 @inject IStringLocalizer<AppStrings> Localizer
+@inject IJSRuntime JS
 
 @* One soft-delete name catalog (categories or banks — CATALOG-1/2, ADR-V008): list, create, edit,
    deactivate/reactivate, and the inactive-name-clash reactivation offer. *@
@@ -26,7 +27,7 @@
 
     @if (_form is not null)
     {
-        <div class="card shadow-sm mb-3" data-testid="catalog-form">
+        <div class="card shadow-sm mb-3" data-testid="catalog-form" @ref="_formCard" style="scroll-margin-top: 4.5rem;">
             <div class="card-body">
                 <h2 class="h6 fw-bold mb-3">@(_form.Editing is null ? Localizer["Catalog_NewTitle"] : Localizer["Catalog_EditTitle"])</h2>
                 <div class="row g-3 align-items-end">
@@ -139,7 +140,23 @@
 
     private void OpenNew() { _notice = null; _form = new FormState(null, "", true); }
 
-    private void OpenEdit(EntryDto item) { _notice = null; _form = new FormState(item, item.Name, item.IsActive); }
+    private void OpenEdit(EntryDto item)
+    {
+        _notice = null;
+        _form = new FormState(item, item.Name, item.IsActive);
+        _scrollToForm = true; // the form card renders above the list — a row far down (51 categories) would leave it off-screen
+    }
+
+    private ElementReference _formCard;
+    private bool _scrollToForm;
+
+    /// <summary>Same helper as the budget lines (js/ui.js); the card carries a scroll margin so the fixed header never covers its title.</summary>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_scrollToForm || _form is null) return;
+        _scrollToForm = false;
+        await JS.InvokeVoidAsync("appUi.scrollIntoView", _formCard, new { behavior = "smooth", block = "start" });
+    }
 
     private void Cancel() => _form = null;
 

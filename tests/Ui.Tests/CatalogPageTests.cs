@@ -102,6 +102,24 @@ public class CatalogPageTests : ComponentTestBase
     }
 
     [Fact]
+    public async Task Edit_ScrollsTheFormCardIntoView_NewDoesNot()
+    {
+        await SignInAsync();
+        Http.On(HttpMethod.Get, "/api/categories", List);
+        var cut = RenderCategories();
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("[data-testid='catalog-edit']")));
+
+        // New opens right under its button — no scroll. Edit renders the card above the list, away from the row clicked.
+        cut.Find("[data-testid='catalog-new']").Click();
+        Assert.DoesNotContain(JSInterop.Invocations, i => i.Identifier == "appUi.scrollIntoView");
+        cut.Find("[data-testid='catalog-cancel']").Click();
+
+        cut.FindAll("[data-testid='catalog-edit']")[1].Click();
+        cut.WaitForAssertion(() => Assert.Single(JSInterop.Invocations, i => i.Identifier == "appUi.scrollIntoView"));
+        Assert.Equal("Gym", cut.Find("[data-testid='catalog-name']").GetAttribute("value"));
+    }
+
+    [Fact]
     public async Task BlankName_IsRejectedLocally_WithoutARequest()
     {
         await SignInAsync();
