@@ -159,9 +159,11 @@ Production reads the same keys from real environment variables, never a committe
   `GET /api/public/openapi.json` (PUBAPI-2 / ADR-015), emitted only when `PublicApi:Enabled`.
 - **`HtmlAgilityPack`** (MIT) — HTML parsing for the bank voucher extractors (BAC, BN); confined to
   `src/Infrastructure/Email/Vouchers/`. Core keeps only the pure text/date/money helpers (ADR-V010).
-- **exchangerate-api.com** (free tier, 1,500 req/mo) via a plain `HttpClient` + `IMemoryCache`
-  (1 h freshness window counts as live) — `ExchangeRate:ApiKey` (ADR-V006). Fixed host, allowlisted
-  for the outbound-URL guard (R76).
+- **BCCR reference rates** (compra/venta) from the Finance Ministry's public mirror
+  (`api.hacienda.go.cr/indicadores/tc`, no key) via a plain `HttpClient` + `IMemoryCache` (1 h
+  freshness window counts as live) — the default `ExchangeRate:Provider` (ADR-V019); the
+  **exchangerate-api.com** one-rate feed (free tier, `ExchangeRate:ApiKey`) stays selectable
+  (ADR-V006). Both hosts fixed, allowlisted for the outbound-URL guard (R76).
 - **Microsoft Graph + Gmail REST** via plain `HttpClient` (no SDKs) for read-only voucher ingestion:
   mail-scope consent reuses the platform's `Authentication:{Microsoft,Google}` client credentials;
   mailbox tokens encrypted with **Data Protection** (no extra key). Polling is an `IScheduledJob`

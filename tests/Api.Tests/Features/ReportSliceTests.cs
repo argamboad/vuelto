@@ -185,6 +185,7 @@ public class ReportSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
         Assert.Equal((1_759_000m, 3_518m), (report.Income!.Crc, report.Income.Usd));
         // Budget total: the one active line (Supermarket ₡60,000) converted at the same rate.
         Assert.Equal((60_000m, 120m), (report.BudgetTotal!.Crc, report.BudgetTotal.Usd));
+        Assert.Equal((500m, 500m), (report.ExchangeRate, report.ExchangeRateBuy)); // the pair behind those projections (one rate here)
 
         // REPORTS-4 cuts of the same expense rows: one bank (BAC, named), one method (card), three spend days; the inflow in none.
         var bank = Assert.Single(report.ByBank);

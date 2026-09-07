@@ -38,7 +38,7 @@ public sealed class DashboardHandler(
 
         var resolved = await rates.ResolveAsync(cancellationToken);
         if (resolved is null)
-            return new DashboardResponse(header, null, null, null, RateUnavailable: true, Summary: null);
+            return new DashboardResponse(header, null, null, null, null, RateUnavailable: true, Summary: null);
 
         var monthTransactions = await transactions.Query().Where(t => t.MonthId == monthId).ToListAsync(cancellationToken);
         var monthRefunds = await refunds.Query().Where(r => r.MonthId == monthId).ToListAsync(cancellationToken);
@@ -48,7 +48,7 @@ public sealed class DashboardHandler(
         var categoryNames = await categories.Query().ToDictionaryAsync(c => c.Id, c => c.Name, cancellationToken); // all states
         var bankNames = await banks.Query().ToDictionaryAsync(b => b.Id, b => b.Name, cancellationToken);         // all states
 
-        var calc = summary.Calculate(month, monthWeeks, monthTransactions, fixedLines, variableLines, monthRefunds, allEnvelopes, resolved.Rate, categoryNames, bankNames);
-        return new DashboardResponse(header, resolved.Rate, resolved.Source, resolved.AsOf, RateUnavailable: false, DashboardSummaryResponse.From(calc));
+        var calc = summary.Calculate(month, monthWeeks, monthTransactions, fixedLines, variableLines, monthRefunds, allEnvelopes, resolved.Rates, categoryNames, bankNames);
+        return new DashboardResponse(header, resolved.Rate, resolved.Rates.Buy, resolved.Source, resolved.AsOf, RateUnavailable: false, DashboardSummaryResponse.From(calc));
     }
 }

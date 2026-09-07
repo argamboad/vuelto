@@ -1640,3 +1640,35 @@ invention). *Consequences:* `ExpenseSummary` gains the class cut (`Budgeted`, `E
 `expenses_card` and `expenses_account` (additive contract, the bank × method table and Postman still use
 them) but the UI no longer shows the first; QA-DASH-01 rewritten. Reports' "Income vs spend" /
 "Income vs budget" donuts are this card's picture twins and share the same Core calculators. *Same-day addendum:* the Income card is folded into the waterfall (Primary/Secondary as sub-rows) and a stacked bar heads the card — income-wide, the three class spends and Still planned filling it, the forecast as the green rest, Today marked, the shortfall red past the income — so proportions and pace are visible before the numbers are read.
+
+**ADR-V019 — The day's rate is the Banco Central's buy/sell pair, and the side used follows the money the household would actually move. (2026-09-07; owner decision, amends ADR-V006's single-rate provider)**
+
+The donor quoted one mid-market USD→CRC figure from a world feed (exchangerate-api.com, keyed, quota
+of 1,500 calls a month). Costa Rican banks do not trade at that figure: on 2026-09-07 the BCCR
+reference pair was **compra 448.27 / venta 453.69** while the feed said 453.28, so every colón
+projection was a few colones off and a $ voucher was frozen at a rate no bank would have charged.
+**Decision:** the default provider is the **BCCR reference pair** read from the Finance Ministry's
+public mirror (`api.hacienda.go.cr/indicadores/tc` — no key, no quota; `ExchangeRate__Provider=bccr`,
+`ExchangeRate__BccrUrl`), and the app carries **two rates**: `Buy` (compra — what the bank pays you
+for a dollar) and `Sell` (venta — what a dollar costs you). **The one rule** (`FxRates` in Core):
+
+| Money | Currency | Converts at | Why |
+|---|---|---|---|
+| Spending (a voucher, a manual purchase, a budget line) | USD | **Sell** | you would buy the dollars |
+| Spending | CRC | **Buy** | you would sell dollars to fund it |
+| Income | USD | **Buy** | the bank buys your dollars |
+| Income | CRC | **Sell** | your colones buy dollars |
+
+A transaction still freezes **one** rate (`exchange_rate_used`, ADR-V006): the side its own currency
+selects — a $ voucher confirmed today freezes 453.69, a ₡ voucher 448.27. A single-rate source (a
+manual override on the form, the last-transaction tier, the world feed kept behind
+`ExchangeRate__Provider=exchangerate-api`) is the pair with both sides equal, so every rule collapses
+to the old behaviour and no stored row changes meaning. The displayed "per $1" figure is the sell side;
+the API adds `buy` / `sell` to `GET /api/exchange-rate` and `exchange_rate_buy` to the month summary;
+the dashboard's Today's-rate badge reads "buy ₡448.27 · sell ₡453.69 per $1" when the sides differ
+(the month header no longer repeats the rate); the new-transaction form pre-fills the side for the chosen currency and never overwrites a typed rate.
+*Rationale:* the household's numbers should match what its bank statement will say, and a rule that
+follows the direction of the money is the only one that does not need a footnote. *Consequences:* the
+reference rate moves once a day (none on weekends/holidays — the last published pair is the current
+one), so the one-hour freshness window is generous; the world feed stays selectable; the integration
+harness pins the keyless world feed so the suite never reaches the mirror; QA-FX-01/02 rewritten.

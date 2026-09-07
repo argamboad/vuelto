@@ -158,6 +158,23 @@ public class DashboardSummaryServiceTests
     }
 
     [Fact]
+    public void TwoRates_IncomeConvertsAtBuy_BudgetLinesAtTheSpendingSide()
+    {
+        // ADR-V019 with the BCCR pair (compra 448.27 / venta 453.69): dollar income is worth colones at compra;
+        // a $ budget line costs colones at venta; a ₡ budget line is worth dollars at compra.
+        var summary = _service.Calculate(GetMonth(), GetWeeks(), GetTransactions(), GetFixedExpenses(), GetVariableExpenses(), [], [], new FxRates(Buy: 448.27m, Sell: 453.69m));
+
+        Assert.Equal((1_344_810m, 3000m), (summary.Income.Primary.Crc, summary.Income.Primary.Usd));
+        Assert.Equal((1_568_945m, 3500m), (summary.Income.Total.Crc, summary.Income.Total.Usd));
+        var mortgage = summary.FixedExpenses.Single(l => l.Name == "Mortgage");
+        var carLoan = summary.FixedExpenses.Single(l => l.Name == "Car loan");
+        Assert.Equal((350_000m, 780.78m), (mortgage.Budget.Crc, mortgage.Budget.Usd));   // ₡350,000 / 448.27
+        Assert.Equal((181_476m, 400m), (carLoan.Budget.Crc, carLoan.Budget.Usd));         // $400 × 453.69
+        // Actuals never move: they are each transaction's frozen amounts.
+        Assert.Equal((435_000m, 870m), (summary.Expenses.GrandTotal.Crc, summary.Expenses.GrandTotal.Usd));
+    }
+
+    [Fact]
     public void Income_ConvertsUsdToCrcAtPassedInRate()
     {
         var summary = Calculate();

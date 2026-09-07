@@ -32,9 +32,16 @@ public class PendingVoucherSliceTests(PostgresFixture fixture) : PostgresTestBas
             Task.FromResult(rate is { } r ? new ResolvedRate(r, RateSources.Live, T0) : null);
     }
 
+    /// <summary>ADR-V019: a resolver that serves the day's buy/sell pair (the BCCR provider tiers).</summary>
+    private sealed class PairRate(FxRates rates) : IExchangeRateResolver
+    {
+        public Task<ResolvedRate?> ResolveAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<ResolvedRate?>(new ResolvedRate(rates, RateSources.Live, T0));
+    }
+
     private sealed record Ctx(AppDbContext Db, Guid Tenant, PendingVoucherHandler Handler, MerchantMappingHandler Mappings, Guid CategoryId, Guid BankId);
 
-    private async Task<Ctx> ContextAsync(decimal? rate = 500m)
+    private async Task<Ctx> ContextAsync(decimal? rate = 500m, FxRates? pair = null)
     {
         var tenant = Guid.CreateVersion7();
         var db = Fixture.CreateContext(tenant);
@@ -43,21 +50,21 @@ public class PendingVoucherSliceTests(PostgresFixture fixture) : PostgresTestBas
         db.AddRange(category, bank);
         await db.SaveChangesAsync();
         db.ChangeTracker.Clear();
-        return Build(db, tenant, category.Id, bank.Id, rate);
+        return Build(db, tenant, category.Id, bank.Id, pair is null ? new FixedRate(rate) : new PairRate(pair));
     }
 
-    private static Ctx Build(AppDbContext db, Guid tenant, Guid categoryId, Guid bankId, decimal? rate)
+    private static Ctx Build(AppDbContext db, Guid tenant, Guid categoryId, Guid bankId, IExchangeRateResolver resolver)
     {
         var current = new TestCurrentTenant { TenantId = tenant };
         var clock = new FakeTimeProvider(T0);
         var months = new MonthHandler(new EfRepository<Month>(db), new EfRepository<Week>(db), new EfRepository<Transaction>(db), new EfRepository<BudgetSettings>(db), new WeekBoundaryService(), current, clock);
-        var transactions = new TransactionHandler(new EfRepository<Transaction>(db), new EfRepository<Refund>(db), new EfRepository<Category>(db), new EfRepository<Bank>(db), new EfRepository<Envelope>(db), months, new FixedRate(rate), current, clock, NullLogger<TransactionHandler>.Instance);
+        var transactions = new TransactionHandler(new EfRepository<Transaction>(db), new EfRepository<Refund>(db), new EfRepository<Category>(db), new EfRepository<Bank>(db), new EfRepository<Envelope>(db), months, resolver, current, clock, NullLogger<TransactionHandler>.Instance);
         var mappings = new MerchantMappingHandler(new EfRepository<MerchantCategoryMapping>(db), new EfRepository<Category>(db), current, clock, NullLogger<MerchantMappingHandler>.Instance);
         var handler = new PendingVoucherHandler(new EfRepository<PendingVoucher>(db), transactions, mappings, new EfUnitOfWork(db), clock, NullLogger<PendingVoucherHandler>.Instance);
         return new Ctx(db, tenant, handler, mappings, categoryId, bankId);
     }
 
-    private Ctx Sibling(Ctx c) => Build(Fixture.CreateContext(c.Tenant), c.Tenant, c.CategoryId, c.BankId, 500m);
+    private Ctx Sibling(Ctx c) => Build(Fixture.CreateContext(c.Tenant), c.Tenant, c.CategoryId, c.BankId, new FixedRate(500m));
 
     private static async Task<PendingVoucher> DraftAsync(Ctx c, string merchant = "TACO BELL PLAZA REAL C", decimal? amount = 7620m, string? currency = "CRC", DateOnly? date = null, Guid? bankId = null, string status = PendingVoucherStatuses.Pending, DateTimeOffset? receivedAt = null, string[]? missing = null)
     {
@@ -121,6 +128,25 @@ public class PendingVoucherSliceTests(PostgresFixture fixture) : PostgresTestBas
         Assert.Equal((PendingVoucherStatuses.Confirmed, tx.Id), (stored.Status, stored.ConfirmedTransactionId));
         Assert.Equal(1, await c.Db.IngestedVouchers.CountAsync()); // the tombstone outlives the draft
         Assert.Equal(0, await c.Handler.CountPendingAsync(default));
+    }
+
+    [Fact]
+    public async Task Confirm_FreezesTheRateForTheVouchersCurrency_DollarsAtSell_ColonesAtBuy()
+    {
+        // ADR-V019: BCCR 2026-09-07 — compra 448.27 (Buy), venta 453.69 (Sell). A $ voucher costs colones at venta;
+        // a ₡ voucher is worth dollars at compra (you would sell dollars to fund it). The frozen rate is the side used.
+        var c = await ContextAsync(pair: new FxRates(Buy: 448.27m, Sell: 453.69m));
+        var colones = await DraftAsync(c);                                                  // ₡7,620 (TACO BELL)
+        var dollars = await DraftAsync(c, merchant: "AMAZON", amount: 20m, currency: "USD"); // $20
+
+        var (crc, e1) = await c.Handler.ConfirmAsync(colones.Id, Confirm(c), default);
+        var (usd, e2) = await c.Handler.ConfirmAsync(dollars.Id, Confirm(c), default);
+
+        Assert.Null(e1); Assert.Null(e2);
+        var crcTx = await c.Db.Transactions.SingleAsync(t => t.Id == crc!.TransactionId);
+        var usdTx = await c.Db.Transactions.SingleAsync(t => t.Id == usd!.TransactionId);
+        Assert.Equal((448.27m, 7620m, 17.00m), (crcTx.ExchangeRateUsed, crcTx.AmountCrc, crcTx.AmountUsd));   // 7,620 / 448.27
+        Assert.Equal((453.69m, 9073.80m, 20m), (usdTx.ExchangeRateUsed, usdTx.AmountCrc, usdTx.AmountUsd));   // 20 × 453.69
     }
 
     [Fact]

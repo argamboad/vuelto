@@ -216,7 +216,9 @@ run an automated post-deploy smoke, wire the pipeline in `.github/workflows/ci.y
 | `PORT` | platform-set | Render provides it; image defaults to 8080 |
 | `Auth__AllowedOrigins` | no | leave empty — single-origin needs no CORS |
 | `Authentication__Google/Microsoft__*` | optional | enable OAuth sign-in **and** the read-only mail consent for the same provider (EMAIL-2) |
-| `ExchangeRate__ApiKey` | recommended (app) | free key from app.exchangerate-api.com; unset ⇒ the household's last transaction rate, else "unavailable" — never a fabricated rate (ADR-V006) |
+| `ExchangeRate__Provider` | no | `bccr` (default): the Banco Central buy/sell pair via the Finance Ministry mirror — no key, no quota (ADR-V019); `exchangerate-api`: the one-rate world feed (needs `ExchangeRate__ApiKey`) |
+| `ExchangeRate__BccrUrl` | no | the mirror URL (default `https://api.hacienda.go.cr/indicadores/tc`); outbound HTTPS from the host must be allowed |
+| `ExchangeRate__ApiKey` | only with `exchangerate-api` | free key from app.exchangerate-api.com; when the chosen provider can't answer ⇒ the household's last transaction rate, else "unavailable" — never a fabricated rate (ADR-V006) |
 | `PublicApi__Enabled`, `Webhooks__Enabled` | optional | default off |
 | `Admin__StaffEmails__0…` | optional | platform-staff allowlist |
 | `ConnectionStrings__Migrations` | prod (two-role RLS) | owner/migrator connection — startup migrations do DDL (§7) |

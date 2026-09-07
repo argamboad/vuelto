@@ -1,0 +1,28 @@
+@inject IStringLocalizer<AppStrings> Localizer
+
+@* ₡ · $ · both — the "show amounts in" control (MoneyDisplay). Charts can draw one currency only, so they hide "both". *@
+<div>
+    @if (Label is not null)
+    {
+        <label class="form-label small mb-1">@Label</label>
+    }
+    <div class="btn-group btn-group-sm" role="group" aria-label="@Label">
+        <button type="button" class="btn @Css(MoneyDisplay.Crc)" data-testid="@(TestId + "-crc")" @onclick='() => PickAsync(MoneyDisplay.Crc)'>₡</button>
+        <button type="button" class="btn @Css(MoneyDisplay.Usd)" data-testid="@(TestId + "-usd")" @onclick='() => PickAsync(MoneyDisplay.Usd)'>$</button>
+        @if (AllowBoth)
+        {
+            <button type="button" class="btn @Css(MoneyDisplay.Both)" data-testid="@(TestId + "-both")" @onclick='() => PickAsync(MoneyDisplay.Both)'>@Localizer["Cur_Both"]</button>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Value { get; set; } = MoneyDisplay.Both;
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+    [Parameter] public bool AllowBoth { get; set; } = true;
+    [Parameter] public string TestId { get; set; } = "cur";
+    [Parameter] public string? Label { get; set; }
+
+    private string Css(string value) => Value == value ? "btn-secondary" : "btn-outline-secondary";
+    private Task PickAsync(string value) => ValueChanged.InvokeAsync(value);
+}

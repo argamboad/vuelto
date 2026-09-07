@@ -73,6 +73,28 @@ public class LedgerPagesTests : ComponentTestBase
     }
 
     [Fact]
+    public async Task NewTransaction_PrefillsTheSideForTheCurrency_AndKeepsATypedRate()
+    {
+        // ADR-V019: colones default → the buy side (a ₡ purchase is worth dollars at compra); switching to USD → the sell
+        // side (a $ purchase costs colones at venta). A rate the member typed is never overwritten by a currency change.
+        await SignInAsync();
+        StubCatalogs();
+        Http.On(HttpMethod.Get, "/api/exchange-rate", """{"rate":453.69,"buy":448.27,"sell":453.69,"source":"live","as_of":"2026-09-07T12:00:00+00:00"}""");
+
+        var cut = Render<TransactionForm>();
+
+        cut.WaitForAssertion(() => Assert.Equal("448.27", cut.Find("[data-testid='tx-rate']").GetAttribute("value")));
+        cut.Find("[data-testid='tx-currency']").Change("USD");
+        Assert.Equal("453.69", cut.Find("[data-testid='tx-rate']").GetAttribute("value"));
+        cut.Find("[data-testid='tx-currency']").Change("CRC");
+        Assert.Equal("448.27", cut.Find("[data-testid='tx-rate']").GetAttribute("value"));
+
+        cut.Find("[data-testid='tx-rate']").Change("460");
+        cut.Find("[data-testid='tx-currency']").Change("USD");
+        Assert.Equal("460", cut.Find("[data-testid='tx-rate']").GetAttribute("value"));
+    }
+
+    [Fact]
     public async Task NewTransaction_RateUnavailable_ShowsTheHint_AndRequiresARate()
     {
         await SignInAsync();

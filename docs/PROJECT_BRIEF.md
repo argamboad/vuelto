@@ -67,7 +67,8 @@ Everything the donor shipped (Slices 1–6 and 8 + hardening), re-homed as platf
 - **Months & weeks**: automatic lifecycle from transactions; editable per-month income.
 - **Transactions**: manual entry/edit/delete in five classes; required bank + category; frozen
   exchange rate; derived **refunds** from unplanned essentials and their realization as inflows.
-- **Live exchange rate** (exchangerate-api) with a stale-cache → last-transaction fallback chain.
+- **Live exchange rate** — the Banco Central buy/sell pair (a $ purchase converts at sell, a ₡ one at
+  buy; income the other way round) with a stale-cache → last-transaction fallback chain.
 - **Dashboard**: income, expense summary (card/account/total/remainder), budgeted-vs-actual lines,
   weekly breakdowns, unplanned slice, refunds, envelopes, bank × payment-method breakdown.
 - **Reports**: category analysis (filterable); **CSV export** of transaction lists.

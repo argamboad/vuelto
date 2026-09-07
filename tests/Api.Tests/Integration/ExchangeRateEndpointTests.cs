@@ -8,8 +8,8 @@ namespace Vuelto.Api.Tests.Integration;
 
 /// <summary>
 /// FX-1 over HTTP through the real app: anonymous is refused by the group policy; a member gets either
-/// a resolved rate (200, when the developer's .env carries a provider key — the harness boots the real
-/// config) or the honest 503 <c>exchange_rate_unavailable</c> in the shared error shape. Either way the
+/// a resolved rate (200 — the harness pins the keyless world feed, so only a seeded transaction rate can
+/// answer here) or the honest 503 <c>exchange_rate_unavailable</c> in the shared error shape. Either way the
 /// contract is what the Postman request documents; the chain itself is proven in the unit tests.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
@@ -36,6 +36,7 @@ public class ExchangeRateEndpointTests(IntegrationTestFactory factory)
         {
             var rate = await res.Content.ReadFromJsonAsync<RateDto>();
             Assert.True(rate!.Rate > 0);
+            Assert.Equal((rate.Rate, true), (rate.Sell, rate.Buy is > 0)); // both sides ride along; the per-$1 figure is the sell side (ADR-V019)
             Assert.Contains(rate.Source, new[] { "live", "cache" }); // no transactions exist yet
             return;
         }
@@ -48,6 +49,8 @@ public class ExchangeRateEndpointTests(IntegrationTestFactory factory)
 
     private sealed record RateDto(
         [property: JsonPropertyName("rate")] decimal Rate,
+        [property: JsonPropertyName("buy")] decimal? Buy,
+        [property: JsonPropertyName("sell")] decimal? Sell,
         [property: JsonPropertyName("source")] string Source,
         [property: JsonPropertyName("as_of")] DateTimeOffset AsOf);
 

@@ -68,15 +68,14 @@
                         <button type="button" class="btn @(_view == "chart" ? "btn-primary" : "btn-outline-primary")" data-testid="rep-view-chart" @onclick='() => SetViewAsync("chart")'>@Localizer["Reports_ViewChart"]</button>
                     </div>
                 </div>
+                @* Tables: ₡ · $ · both (a budget line still shows on its own side). Charts draw one currency, so their switch has no "both". *@
                 @if (_view == "chart")
                 {
-                    <div>
-                        <label class="form-label small mb-1">@Localizer["Reports_ChartCurrency"]</label>
-                        <div class="btn-group btn-group-sm" role="group" aria-label="@Localizer["Reports_ChartCurrency"]">
-                            <button type="button" class="btn @(_chartCurrency == "CRC" ? "btn-secondary" : "btn-outline-secondary")" data-testid="rep-cur-crc" @onclick='() => SetCurrencyAsync("CRC")'>₡</button>
-                            <button type="button" class="btn @(_chartCurrency == "USD" ? "btn-secondary" : "btn-outline-secondary")" data-testid="rep-cur-usd" @onclick='() => SetCurrencyAsync("USD")'>$</button>
-                        </div>
-                    </div>
+                    <CurrencySwitch Value="@_chartCurrency" ValueChanged="SetCurrencyAsync" AllowBoth="false" TestId="rep-cur" Label="@Localizer["Reports_ChartCurrency"].Value" />
+                }
+                else
+                {
+                    <CurrencySwitch Value="@_display" ValueChanged="SetDisplayAsync" TestId="rep-cur" Label="@Localizer["Reports_ShowIn"].Value" />
                 }
             </div>
         </div>
@@ -250,6 +249,8 @@
     /// <summary>"table" | "chart", and the one currency a chart can draw — both remembered per device (never account data).</summary>
     private string _view = "table";
     private string _chartCurrency = "CRC";
+    /// <summary>The tables' "show in" (MoneyDisplay): ₡, $, or both sides. Picking one currency also points the charts at it.</summary>
+    private string _display = MoneyDisplay.Both;
 
     private async Task SetViewAsync(string view)
     {
@@ -258,6 +259,13 @@
         if (view == "chart") await EnsureTrendAsync();
     }
     private async Task SetCurrencyAsync(string currency) { _chartCurrency = currency; await SavePrefAsync("reports.chartCurrency", currency); }
+
+    private async Task SetDisplayAsync(string display)
+    {
+        _display = display;
+        await SavePrefAsync(MoneyDisplay.PrefKey, display);
+        if (display != MoneyDisplay.Both) await SetCurrencyAsync(display); // tables and charts agree
+    }
 
     private async Task SavePrefAsync(string key, string value)
     {
@@ -272,6 +280,7 @@
             if (view is "table" or "chart") _view = view;
             var currency = await JS.InvokeAsync<string?>("appUi.getPref", "reports.chartCurrency");
             if (currency is "CRC" or "USD") _chartCurrency = currency;
+            _display = MoneyDisplay.Parse(await JS.InvokeAsync<string?>("appUi.getPref", MoneyDisplay.PrefKey));
         }
         catch { /* no storage — defaults */ }
     }
@@ -472,7 +481,7 @@
                                     <th>@Localizer["Tx_Category"]</th>
                                     <th class="text-end" title="@Localizer["Reports_CountColTitle"]">@Localizer["Reports_CountCol"]</th>
                                     @if (showBudget) { <th class="text-end">@Localizer["Reports_BudgetedCol"]</th> }
-                                    <th class="text-end">@Localizer["Reports_ActualCol"]</th>
+                                    <th class="text-end">@Localizer[showBudget ? "Reports_ActualCol" : "Reports_SpentCol"]</th> @* "Actual" only means something beside "Budgeted" *@
                                 </tr>
                             </thead>
                             <tbody>
@@ -482,14 +491,14 @@
                                         <td>@e.CategoryName</td>
                                         <td class="text-end text-muted" data-testid="rep-count">@e.TransactionCount</td>
                                         @if (showBudget) { <td class="text-end" data-testid="rep-budget">@(e.BudgetedCrc is null ? "—" : Budget(e.BudgetedCrc.Value, e.BudgetedUsd ?? 0))</td> }
-                                        <td class="text-end @(showBudget ? Tone(e) : null)" data-testid="rep-actual">@Money(e.TotalCrc, e.TotalUsd)</td>
+                                        <td class="text-end @(showBudget ? Tone(e) : null)" data-testid="rep-actual">@Show(e.TotalCrc, e.TotalUsd)</td>
                                     </tr>
                                 }
                                 <tr class="fw-bold" data-testid="rep-total">
                                     <td>@Localizer["Reports_Total"]</td>
                                     <td class="text-end text-muted" data-testid="rep-count-total">@entries.Sum(x => x.TransactionCount)</td>
-                                    @if (showBudget) { <td class="text-end">@Budget(entries.Sum(x => x.BudgetedCrc ?? 0), entries.Sum(x => x.BudgetedUsd ?? 0))</td> }
-                                    <td class="text-end">@Money(entries.Sum(x => x.TotalCrc), entries.Sum(x => x.TotalUsd))</td>
+                                    @if (showBudget) { <td class="text-end" data-testid="rep-budget-total" title="@Localizer["Reports_BudgetTotalHint"]">@BudgetTotal(entries)</td> }
+                                    <td class="text-end">@Show(entries.Sum(x => x.TotalCrc), entries.Sum(x => x.TotalUsd))</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -509,6 +518,20 @@
     };
 
     private static string Money(decimal crc, decimal usd) => $"₡{crc.ToString("N2", CultureInfo.CurrentCulture)} · ${usd.ToString("N2", CultureInfo.CurrentCulture)}";
+
+    /// <summary>A converted pair or total, on the side(s) the member chose.</summary>
+    private string Show(decimal crc, decimal usd) => MoneyDisplay.Format(crc, usd, _display);
+
+    /// <summary>The rows' single-currency budgets as ONE figure: dollar lines at today's sell rate, colón lines at buy
+    /// (ADR-V019 — a budget is spending), on the chosen side(s). Without a rate on the report, each side's own sum.</summary>
+    private string BudgetTotal(List<EntryDto> entries)
+    {
+        var crc = entries.Sum(x => x.BudgetedCrc ?? 0);
+        var usd = entries.Sum(x => x.BudgetedUsd ?? 0);
+        return _report?.ExchangeRate is { } sell && _report.ExchangeRateBuy is { } buy && buy > 0
+            ? Show(crc + usd * sell, crc / buy + usd)
+            : Budget(crc, usd);
+    }
 
     /// <summary>Budgets are single-currency per line (EXPENSES-1) and the report carries no rate, so a one-sided sum shows only its native side.</summary>
     private static string Budget(decimal crc, decimal usd) =>
@@ -537,6 +560,8 @@
         [property: JsonPropertyName("unplanned_essential")] List<EntryDto> UnplannedEssential,
         [property: JsonPropertyName("income")] MoneyDto? Income,
         [property: JsonPropertyName("budget_total")] MoneyDto? BudgetTotal,
+        [property: JsonPropertyName("exchange_rate")] decimal? ExchangeRate,
+        [property: JsonPropertyName("exchange_rate_buy")] decimal? ExchangeRateBuy,
         [property: JsonPropertyName("by_bank")] List<GroupDto> ByBank,
         [property: JsonPropertyName("by_method")] List<GroupDto> ByMethod,
         [property: JsonPropertyName("spend_by_day")] List<DayDto>? SpendByDay);

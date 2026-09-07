@@ -9,18 +9,19 @@ namespace Vuelto.Core.Budget;
 public static class BudgetTotals
 {
     /// <summary>One line as a dual-currency pair: its native side kept, the other side converted.</summary>
-    public static MoneyPair Pair(IExpenseLine line, decimal rate) =>
+    // A line is a spending target, so it converts like spending (ADR-V019): a colón line costs dollars at Buy, a dollar line costs colones at Sell.
+    public static MoneyPair Pair(IExpenseLine line, FxRates rates) =>
         line.BudgetCrc > 0
-            ? new(CurrencyMath.Round2(line.BudgetCrc), CurrencyMath.Round2(rate == 0 ? 0 : line.BudgetCrc / rate))
-            : new(CurrencyMath.Round2(line.BudgetUsd * rate), CurrencyMath.Round2(line.BudgetUsd));
+            ? new(CurrencyMath.Round2(line.BudgetCrc), CurrencyMath.Round2(rates.SpendCrcToUsd(line.BudgetCrc)))
+            : new(CurrencyMath.Round2(rates.SpendUsdToCrc(line.BudgetUsd)), CurrencyMath.Round2(line.BudgetUsd));
 
     /// <summary>The planned month: every line given (callers pass the ACTIVE ones), converted and summed.</summary>
-    public static MoneyPair Planned(IEnumerable<IExpenseLine> lines, decimal rate)
+    public static MoneyPair Planned(IEnumerable<IExpenseLine> lines, FxRates rates)
     {
         decimal crc = 0, usd = 0;
         foreach (var line in lines)
         {
-            var p = Pair(line, rate);
+            var p = Pair(line, rates);
             crc += p.Crc; usd += p.Usd;
         }
         return new(CurrencyMath.Round2(crc), CurrencyMath.Round2(usd));

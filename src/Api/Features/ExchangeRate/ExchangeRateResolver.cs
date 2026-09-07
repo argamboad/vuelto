@@ -17,7 +17,7 @@ public sealed class ExchangeRateResolver(
         try
         {
             var quote = await provider.GetQuoteAsync(Currencies.Usd, Currencies.Crc, cancellationToken);
-            return new ResolvedRate(quote.Rate, quote.IsLive ? RateSources.Live : RateSources.Cache, quote.AsOf);
+            return new ResolvedRate(quote.Rates, quote.IsLive ? RateSources.Live : RateSources.Cache, quote.AsOf);
         }
         catch (ExchangeRateUnavailableException ex)
         {
@@ -25,7 +25,7 @@ public sealed class ExchangeRateResolver(
         }
 
         if (await recent.GetMostRecentAsync(cancellationToken) is { } last)
-            return new ResolvedRate(last.Rate, RateSources.Transaction, last.AsOf);
+            return new ResolvedRate(FxRates.Single(last.Rate), RateSources.Transaction, last.AsOf); // one frozen rate → both sides
 
         logger.LogWarning("Exchange rate unresolvable: no provider rate and no transaction to fall back to");
         return null;

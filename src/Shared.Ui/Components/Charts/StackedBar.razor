@@ -4,7 +4,9 @@
 @* One bar whose full width is a total (income) filled left to right by ordered segments — inline SVG, no JS,
    theme-aware through Bootstrap tokens. When the segments add up to MORE than the total, the bar keeps its
    proportions but the part past the total is painted red (the shortfall). An optional marker (today) sits at a
-   fraction of the total. One currency per bar; the legend carries label + amount + share of the total. *@
+   fraction of the total. The bar draws in one currency; the legend carries label + amount + share of the total,
+   and can carry the same amounts in a second currency (SecondaryTotal / SecondarySegments, aligned by index) when
+   the page shows both sides — the proportions are the primary side's. *@
 <div class="chart-stacked" data-testid="@TestId">
     @if (Total <= 0 && Segments.All(s => s.Value <= 0))
     {
@@ -34,24 +36,25 @@
             @* Razor reserves <text> inside code blocks, so the marker is a markup-only group toggled by display. *@
             <g display="@(markerX is null ? "none" : "inline")">
                 <line x1="@markerX" y1="@(Top - 6)" x2="@markerX" y2="@(Top + BarH + 6)" stroke="var(--bs-warning)" stroke-width="1.5" stroke-dasharray="3 3" data-testid="@(markerX is null ? null : "chart-marker")" />
-                <text x="@markerX" y="@(Top - 9)" text-anchor="middle" fill="var(--bs-warning)">@(MarkerLabel ?? Localizer["Chart_Today"].Value)</text>
+                <text x="@markerX" y="@(Top - 8)" text-anchor="middle" fill="var(--bs-warning)">@(MarkerLabel ?? Localizer["Chart_Today"].Value)</text>
             </g>
         </svg>
         <ul class="list-unstyled small mb-0 d-flex flex-wrap gap-3 mt-1" data-testid="chart-legend">
-            @foreach (var s in Segments)
+            @foreach (var (s, i) in Segments.Select((s, i) => (s, i)))
             {
                 <li class="d-flex align-items-center gap-1" data-testid="chart-legend-item">
                     <span class="d-inline-block rounded-1" style="width: 10px; height: 10px; background: @s.CssColor; flex: none;"></span>
                     <span>@s.Label</span>
-                    <span class="text-muted">@Format(s.Value)@(Total > 0 ? " · " + (s.Value / Total).ToString("P0", CultureInfo.CurrentCulture) : "")</span>
+                    <span class="text-muted">@Amounts(s.Value, i)@(Total > 0 ? " · " + (s.Value / Total).ToString("P0", CultureInfo.CurrentCulture) : "")</span>
                 </li>
             }
             @if (over > 0)
             {
+                var secondaryOver = SecondaryOver();
                 <li class="d-flex align-items-center gap-1 text-danger" data-testid="chart-legend-over">
                     <span class="d-inline-block rounded-1" style="width: 10px; height: 10px; background: var(--bs-danger); flex: none;"></span>
                     <span>@OverLabel</span>
-                    <span>@Format(over)</span>
+                    <span>@Format(over)@(secondaryOver is { } so ? " · " + FormatAs(SecondaryCurrency, so) : "")</span>
                 </li>
             }
         </ul>
@@ -69,12 +72,29 @@
     /// <summary>Legend word for the part past the total.</summary>
     [Parameter] public string OverLabel { get; set; } = "";
     [Parameter] public string Currency { get; set; } = "CRC";
+    /// <summary>The same total and segments on the other side, for the legend only (null = one currency).</summary>
+    [Parameter] public decimal? SecondaryTotal { get; set; }
+    [Parameter] public IReadOnlyList<decimal>? SecondarySegments { get; set; }
+    [Parameter] public string SecondaryCurrency { get; set; } = "USD";
     [Parameter] public string Title { get; set; } = "";
     [Parameter] public string TestId { get; set; } = "chart";
 
-    private const int Width = 640, Height = 46, Top = 16, BarH = 22;
+    // Top leaves room for the marker label above the bar: an 11 px label needs ~12 px of headroom or its cap height is clipped ("Ioday").
+    private const int Width = 640, Height = 54, Top = 24, BarH = 22;
 
     private static string X(decimal value, decimal scale) => ((double)(Width * Math.Max(value, 0) / scale)).ToString("0.##", CultureInfo.InvariantCulture);
 
-    private string Format(decimal value) => (Currency == "USD" ? "$" : "₡") + value.ToString("N0", CultureInfo.CurrentCulture);
+    private string Format(decimal value) => FormatAs(Currency, value);
+    private static string FormatAs(string currency, decimal value) => (currency == "USD" ? "$" : "₡") + value.ToString("N0", CultureInfo.CurrentCulture);
+
+    /// <summary>The primary amount, plus the secondary one when the page shows both sides.</summary>
+    private string Amounts(decimal value, int index) =>
+        Format(value) + (SecondarySegments is { } sec && index < sec.Count ? " · " + FormatAs(SecondaryCurrency, sec[index]) : "");
+
+    private decimal? SecondaryOver()
+    {
+        if (SecondaryTotal is not { } total || SecondarySegments is not { } sec) return null;
+        var over = sec.Sum(v => Math.Max(v, 0)) - total;
+        return over > 0 ? over : null;
+    }
 }

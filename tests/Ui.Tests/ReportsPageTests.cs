@@ -48,6 +48,36 @@ public class ReportsPageTests : ComponentTestBase
     private const string Export = """{"download_url":"/api/files/tok-1","file_name":"transactions-2026-09-03.csv","row_count":4,"period":{"from":"2026-06-25","to":"2026-07-29"},"expires_in_seconds":900}""";
 
     [Fact]
+    public async Task ShowIn_Dollars_ShowsOneSide_KeepsBudgetLinesNative_AndTotalsBudgetsAtTodaysRate()
+    {
+        // Budgets: Groceries ₡60,000 + Housing ₡60,000 (colón lines), Disney $18.99 + Extra $18.99 (dollar lines); rate 500 both sides.
+        // Total in $: 120,000 / 500 + 37.98 = 277.98. In ₡: 120,000 + 37.98 × 500 = 138,990.00.
+        await SignInAsync();
+        Http.On(HttpMethod.Get, "/api/months", Months);
+        Http.On(HttpMethod.Get, "/api/reports/category-analysis", SingleMonth
+            .Replace("\"budgeted_crc\":60000,\"budgeted_usd\":120", "\"budgeted_crc\":60000,\"budgeted_usd\":0")
+            .Replace("\"budget_total\":{\"crc\":150000,\"usd\":300}", "\"budget_total\":{\"crc\":150000,\"usd\":300},\"exchange_rate\":500,\"exchange_rate_buy\":500"));
+
+        var cut = Render<Reports>();
+        cut.WaitForElement("[data-testid='rep-budgeted']");
+        Assert.Contains("₡138,990.00 · $277.98", cut.Find("[data-testid='rep-budget-total']").TextContent); // "both" — a converted pair, not a per-side split
+
+        cut.Find("[data-testid='rep-cur-usd']").Click();
+
+        cut.WaitForAssertion(() => Assert.Equal("$277.98", cut.Find("[data-testid='rep-budget-total']").TextContent.Trim()));
+        var budgets = cut.FindAll("[data-testid='rep-budgeted'] [data-testid='rep-budget']").Select(b => b.TextContent.Trim()).ToArray();
+        Assert.Contains("₡60,000.00", budgets); // a colón line stays in colones
+        Assert.Contains("$18.99", budgets);     // a dollar line stays in dollars
+        var actuals = cut.FindAll("[data-testid='rep-budgeted'] [data-testid='rep-actual']").Select(a => a.TextContent.Trim()).ToArray();
+        Assert.All(actuals, a => Assert.StartsWith("$", a));
+        Assert.Contains("$4.00", cut.Find("[data-testid='rep-extraordinary']").TextContent);
+        Assert.Contains(JSInterop.Invocations, i => i.Identifier == "appUi.setPref" && Equals(i.Arguments[0], "display.currency"));
+
+        cut.Find("[data-testid='rep-cur-both']").Click();
+        cut.WaitForAssertion(() => Assert.Contains("₡138,990.00 · $277.98", cut.Find("[data-testid='rep-budget-total']").TextContent));
+    }
+
+    [Fact]
     public async Task Loads_TheNewestMonth_WithBudgetColumns_AndTone()
     {
         await SignInAsync();
@@ -76,6 +106,10 @@ public class ReportsPageTests : ComponentTestBase
         Assert.Equal(["3", "1", "0", "0", "0"], counts);
         Assert.Equal("4", cut.Find("[data-testid='rep-budgeted'] [data-testid='rep-count-total']").TextContent.Trim());
         Assert.Contains("Dining", cut.Find("[data-testid='rep-extraordinary']").TextContent);
+        // "Actual" only beside a Budgeted column; the budget-less classes head their amounts "Spent".
+        Assert.Contains("Reports_ActualCol", cut.Find("[data-testid='rep-budgeted'] thead").TextContent);
+        Assert.Contains("Reports_SpentCol", cut.Find("[data-testid='rep-extraordinary'] thead").TextContent);
+        Assert.DoesNotContain("Reports_ActualCol", cut.Find("[data-testid='rep-extraordinary'] thead").TextContent);
         Assert.Contains("Reports_NoneInClass", cut.Find("[data-testid='rep-unplanned']").TextContent);
         Assert.DoesNotContain(cut.FindAll("[data-testid='rep-extraordinary'] th"), th => th.TextContent.Contains("Reports_BudgetedCol")); // budget column only on the budgeted class
     }

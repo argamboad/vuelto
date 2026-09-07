@@ -68,6 +68,7 @@ public sealed class ReportHandler(
 
         List<IExpenseLine>? lines = null;
         MoneyPair? income = null, budgetTotal = null;
+        FxRates? pair = null;
         if (period.SingleMonth)
         {
             lines = [];
@@ -79,12 +80,13 @@ public sealed class ReportHandler(
             var month = await months.Query().FirstOrDefaultAsync(m => m.Id == period.MonthId, cancellationToken);
             if (month is not null && await rates.ResolveAsync(cancellationToken) is { } resolved)
             {
-                income = IncomeCalculator.Calculate(month, rows, resolved.Rate).Total;
-                budgetTotal = BudgetTotals.Planned(lines, resolved.Rate);
+                income = IncomeCalculator.Calculate(month, rows, resolved.Rates).Total;
+                budgetTotal = BudgetTotals.Planned(lines, resolved.Rates);
+                pair = resolved.Rates;
             }
         }
 
-        return CategoryAnalysisResponse.From(CategoryAnalysisCalculator.Calculate(rows, names, period.From, period.To, lines, bankNames), income, budgetTotal);
+        return CategoryAnalysisResponse.From(CategoryAnalysisCalculator.Calculate(rows, names, period.From, period.To, lines, bankNames), income, budgetTotal, pair);
     }
 
     public const int TrendDefaultCount = 12, TrendMaxCount = 36;
@@ -98,7 +100,7 @@ public sealed class ReportHandler(
         var rows = await transactions.Query().Where(t => ids.Contains(t.MonthId)).ToListAsync(cancellationToken);
         var resolved = recent.Count > 0 ? await rates.ResolveAsync(cancellationToken) : null;
 
-        var trend = MonthTrendCalculator.Calculate(recent, rows, resolved?.Rate);
+        var trend = MonthTrendCalculator.Calculate(recent, rows, resolved?.Rates);
         return new MonthsTrendResponse(trend.Select(MonthTrendResponse.From).ToList(), resolved is not null);
     }
 

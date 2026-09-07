@@ -37,19 +37,19 @@ public sealed partial class ExchangeRateApiClient(
 
         cache.TryGetValue(cacheKey, out CachedRate? cached);
         if (cached is not null && now - cached.FetchedAt < TimeSpan.FromMinutes(settings.FreshnessMinutes))
-            return new ExchangeRateQuote(cached.Rate, cached.FetchedAt, IsLive: true);
+            return new ExchangeRateQuote(FxRates.Single(cached.Rate), cached.FetchedAt, IsLive: true);
 
         try
         {
             var rate = await FetchAsync(settings, from, to, cancellationToken);
             cache.Set(cacheKey, new CachedRate(rate, now));
-            return new ExchangeRateQuote(rate, now, IsLive: true);
+            return new ExchangeRateQuote(FxRates.Single(rate), now, IsLive: true); // one mid rate: both sides equal
         }
         catch (ExchangeRateUnavailableException)
         {
             if (cached is null) throw;
             logger.LogWarning("Exchange rate refresh failed for {From}->{To}; serving the stale rate from {FetchedAt}", from, to, cached.FetchedAt);
-            return new ExchangeRateQuote(cached.Rate, cached.FetchedAt, IsLive: false);
+            return new ExchangeRateQuote(FxRates.Single(cached.Rate), cached.FetchedAt, IsLive: false);
         }
     }
 

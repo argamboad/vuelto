@@ -13,7 +13,7 @@ public record MonthTrendEntry(Guid MonthId, int Year, int MonthNumber, MoneyPair
 /// </summary>
 public static class MonthTrendCalculator
 {
-    public static IReadOnlyList<MonthTrendEntry> Calculate(IReadOnlyList<Month> months, IReadOnlyList<Transaction> transactions, decimal? rate)
+    public static IReadOnlyList<MonthTrendEntry> Calculate(IReadOnlyList<Month> months, IReadOnlyList<Transaction> transactions, FxRates? rates)
     {
         var byMonth = transactions.ToLookup(t => t.MonthId);
         return months
@@ -23,7 +23,7 @@ public static class MonthTrendCalculator
                 var rows = byMonth[m.Id].ToList();
                 var spend = rows.Where(t => TransactionTypes.Expenses.Contains(t.TransactionType)).ToList();
                 return new MonthTrendEntry(m.Id, m.Year, m.MonthNumber,
-                    rate is { } r ? IncomeCalculator.Calculate(m, rows, r).Total : null,
+                    rates is { } r ? IncomeCalculator.Calculate(m, rows, r).Total : null,
                     new MoneyPair(CurrencyMath.Round2(spend.Sum(t => t.AmountCrc)), CurrencyMath.Round2(spend.Sum(t => t.AmountUsd))));
             })
             .ToList();

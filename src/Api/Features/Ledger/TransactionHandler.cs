@@ -56,10 +56,12 @@ public sealed class TransactionHandler(
         if (invalid is not null) return (null, invalid);
         if (r.ExchangeRate is <= 0) return (null, Invalid("exchange_rate must be positive"));
 
-        // The rate is settled before any write (ADR-V006): a manual override wins, else the chain; nothing → block.
+        // The rate is settled before any write (ADR-V006): a manual override wins, else the chain — the side that
+        // matches the purchase currency (ADR-V019: a USD purchase costs colones at Sell, a CRC purchase costs dollars
+        // at Buy — a voucher confirm takes exactly this path); nothing → block.
         decimal rate;
         if (r.ExchangeRate is { } given) rate = given;
-        else if (await rates.ResolveAsync(cancellationToken) is { } resolved) rate = resolved.Rate;
+        else if (await rates.ResolveAsync(cancellationToken) is { } resolved) rate = resolved.Rates.ForSpend(v!.Currency);
         else return (null, new ErrorResponse("exchange_rate_unavailable", "No exchange rate available — try again later or enter one manually"));
 
         var (amountCrc, amountUsd) = CurrencyMath.DeriveAmounts(v!.Amount, v.Currency, rate);
