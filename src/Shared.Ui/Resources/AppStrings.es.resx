@@ -486,16 +486,18 @@
   <data name="Dash_RateUnavailable" xml:space="preserve"><value>No se pudo resolver un tipo de cambio, así que las proyecciones están bloqueadas. Registra una transacción con tipo de cambio, o configura la clave del proveedor, y recarga.</value></data>
   <data name="Dash_Income" xml:space="preserve"><value>Ingresos</value></data>
   <data name="Dash_Total" xml:space="preserve"><value>Total</value></data>
-  <data name="Dash_Expenses" xml:space="preserve"><value>Gastos</value></data>
-  <data name="Dash_Card" xml:space="preserve"><value>Tarjeta de crédito</value></data>
-  <data name="Dash_Account" xml:space="preserve"><value>Cuenta bancaria</value></data>
-  <data name="Dash_Remainder" xml:space="preserve"><value>Restante</value></data>
   <data name="Dash_RateNote" xml:space="preserve"><value>Los gastos reales suman cada compra a su propio tipo de cambio congelado, así que las columnas ₡ y $ no coinciden con un solo tipo de cambio.</value></data>
-  <data name="Dash_Balance" xml:space="preserve"><value>Balance</value></data>
-  <data name="Dash_CurrentBalance" xml:space="preserve"><value>Balance actual</value></data>
-  <data name="Dash_ForDebts" xml:space="preserve"><value>Restante para deudas</value></data>
-  <data name="Dash_PendingBudgeted" xml:space="preserve"><value>Presupuestado pendiente</value></data>
-  <data name="Dash_ActualRemainder" xml:space="preserve"><value>Restante real</value></data>
+  <data name="Dash_ThisMonth" xml:space="preserve"><value>Este mes</value></data>
+  <data name="Dash_WfIncome" xml:space="preserve"><value>Ingreso</value></data>
+  <data name="Dash_WfBudgeted" xml:space="preserve"><value>− Presupuestado gastado</value></data>
+  <data name="Dash_WfDiscretionary" xml:space="preserve"><value>− Discrecional gastado</value></data>
+  <data name="Dash_WfUnplanned" xml:space="preserve"><value>− Imprevisto gastado</value></data>
+  <data name="Dash_WfSpent" xml:space="preserve"><value>= Gastado hasta hoy</value></data>
+  <data name="Dash_WfLeft" xml:space="preserve"><value>= Queda ahora</value></data>
+  <data name="Dash_WfPlanned" xml:space="preserve"><value>− Aún planificado</value></data>
+  <data name="Dash_WfForecast" xml:space="preserve"><value>= Pronóstico a fin de mes</value></data>
+  <data name="Dash_WfPace" xml:space="preserve"><value>{0}% del mes transcurrido</value></data>
+  <data name="Dash_WfOverPlan" xml:space="preserve"><value>El plan no cabe en el ingreso: recorte líneas o espere terminar bajo cero.</value></data>
   <data name="Dash_Line" xml:space="preserve"><value>Línea</value></data>
   <data name="Dash_Budgeted" xml:space="preserve"><value>Presupuestado</value></data>
   <data name="Dash_Actual" xml:space="preserve"><value>Real</value></data>

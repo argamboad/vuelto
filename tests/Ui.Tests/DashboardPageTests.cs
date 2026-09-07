@@ -24,6 +24,7 @@ public class DashboardPageTests : ComponentTestBase
     private const string Summary = """
         {"income_primary":{"crc":1500000,"usd":3000},"income_secondary":{"crc":0,"usd":0},"income_total":{"crc":1500000,"usd":3000},
          "expenses_card":{"crc":10000,"usd":20},"expenses_account":{"crc":300000,"usd":600},"expenses_total":{"crc":310000,"usd":620},"expenses_remainder":{"crc":1190000,"usd":2380},
+         "spent_budgeted":{"crc":300000,"usd":600},"spent_extraordinary":{"crc":0,"usd":0},"spent_unplanned":{"crc":10000,"usd":20},
          "fixed_expenses":[{"name":"Mortgage","budget":{"crc":350000,"usd":700},"actual":{"crc":300000,"usd":600}},{"name":"Water","budget":{"crc":15000,"usd":30},"actual":{"crc":18000,"usd":36}}],
          "variable_expenses":[],
          "other_spending":[{"category_name":"Dining","actual":{"crc":10000,"usd":20}}],
@@ -34,6 +35,30 @@ public class DashboardPageTests : ComponentTestBase
          "envelope_reminders":[{"name":"Marchamo","annual_target":{"crc":718000,"usd":0},"contributed_this_month":{"crc":0,"usd":0},"remaining":{"crc":718000,"usd":0},"cadence":"monthly"}],
          "bank_method_breakdown":[{"bank_id":"cccccccc-0000-0000-0000-000000000003","bank_name":"BAC","payment_method":"bank_account","budget":{"crc":365000,"usd":730},"actual":{"crc":300000,"usd":600}},{"bank_id":null,"bank_name":"","payment_method":"credit_card","budget":{"crc":0,"usd":0},"actual":{"crc":10000,"usd":20}}]}
         """;
+
+    [Fact]
+    public async Task Waterfall_ForecastBelowZero_IsRed_AndSaysThePlanDoesNotFit_PaceClampsToTheMonth()
+    {
+        // Still planned ₡1,300,000 against ₡1,190,000 left → forecast −₡110,000.
+        var overPlan = Summary.Replace("\"pending_budgeted\":{\"crc\":50000,\"usd\":100},\"actual_remainder\":{\"crc\":1140000,\"usd\":2280}",
+            "\"pending_budgeted\":{\"crc\":1300000,\"usd\":2600},\"actual_remainder\":{\"crc\":-110000,\"usd\":-220}");
+        await SignInAsync();
+        Http.On(HttpMethod.Get, "/api/months", Months);
+        Http.On(HttpMethod.Get, $"/api/months/{M2}/summary", Dash(M2).Replace(Summary, overPlan));
+
+        // Today = Jul 15 of a Jun 25 – Jul 29 month → day 21 of 35 → 60 %.
+        var cut = Render<Dashboard>(p => p.Add(x => x.Today, new DateOnly(2026, 7, 15)));
+        cut.WaitForElement("[data-testid='dash-wf-forecast']");
+
+        var forecast = cut.Find("[data-testid='dash-wf-forecast']");
+        Assert.Contains("₡-110,000.00", forecast.TextContent);
+        Assert.Contains("text-danger", forecast.QuerySelector("span.text-end")!.ClassName);
+        Assert.Contains("Dash_WfOverPlan", cut.Find("[data-testid='dash-wf-overplan']").TextContent);
+        Assert.Contains("Dash_WfPace[60]", cut.Find("[data-testid='dash-wf-planned-hint']").TextContent);
+
+        cut.Render(p => p.Add(x => x.Today, new DateOnly(2026, 9, 5)));
+        cut.WaitForAssertion(() => Assert.Contains("Dash_WfPace[100]", cut.Find("[data-testid='dash-wf-planned-hint']").TextContent));
+    }
 
     [Fact]
     public async Task LinesAreJudgedInTheirOwnCurrency_TotalsOnlyWhenOverOnBothSides()
@@ -68,8 +93,20 @@ public class DashboardPageTests : ComponentTestBase
         cut.WaitForElement("[data-testid='dash-income']");
         Assert.Single(Http.Requests, r => r.RequestUri!.AbsolutePath == $"/api/months/{M2}/summary"); // newest first
         Assert.Contains("₡1,500,000.00 · $3,000.00", cut.Find("[data-testid='dash-income']").TextContent);
-        Assert.Contains("₡310,000.00", cut.Find("[data-testid='dash-expenses']").TextContent);
-        Assert.Contains("₡1,140,000.00", cut.Find("[data-testid='dash-balance']").TextContent);
+        // The waterfall (ADR-V018): income − the three classes = spent; income − spent = left now; left − still planned = forecast.
+        Assert.Contains("₡1,500,000.00", cut.Find("[data-testid='dash-wf-income']").TextContent);
+        Assert.Contains("₡300,000.00", cut.Find("[data-testid='dash-wf-budgeted']").TextContent);
+        Assert.Contains("₡0.00", cut.Find("[data-testid='dash-wf-discretionary']").TextContent);
+        Assert.Contains("₡10,000.00", cut.Find("[data-testid='dash-wf-unplanned']").TextContent);
+        Assert.Contains("₡310,000.00", cut.Find("[data-testid='dash-wf-spent']").TextContent);
+        Assert.Contains("₡1,190,000.00", cut.Find("[data-testid='dash-wf-left']").TextContent);
+        Assert.Contains("₡50,000.00", cut.Find("[data-testid='dash-wf-planned']").TextContent);
+        Assert.Contains("Dash_WfPace[", cut.Find("[data-testid='dash-wf-planned-hint']").TextContent);
+        var forecast = cut.Find("[data-testid='dash-wf-forecast']");
+        Assert.Contains("₡1,140,000.00", forecast.TextContent);
+        Assert.Contains("text-success", forecast.QuerySelector("span.text-end")!.ClassName);
+        Assert.Empty(cut.FindAll("[data-testid='dash-wf-overplan']"));
+        Assert.Empty(cut.FindAll("[data-testid='dash-balance']")); // the old Expenses/Balance cards are gone
         Assert.Contains("500.00", cut.Find("[data-testid='dash-rate']").TextContent);
 
         var actuals = cut.FindAll("[data-testid='dash-line-actual']");

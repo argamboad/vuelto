@@ -86,28 +86,28 @@
                         </div>
                     </div>
                 </div>
-                <div class="col-12 col-md-4">
-                    <div class="card shadow-sm h-100" data-testid="dash-expenses">
+                @* The month as one waterfall (owner redesign, 2026-09-07 — ADR-V018): every row is the previous one minus
+                   something, from income to the month-end forecast. Replaces the Expenses (card/account) and Balance cards;
+                   "remainder for debts" retired from the UI (still on the API). *@
+                <div class="col-12 col-md-8">
+                    <div class="card shadow-sm h-100" data-testid="dash-waterfall">
                         <div class="card-body">
-                            <h2 class="h6 fw-bold mb-3">@Localizer["Dash_Expenses"]</h2>
-                            @Row(Localizer["Dash_Card"], s.ExpensesCard)
-                            @Row(Localizer["Dash_Account"], s.ExpensesAccount)
+                            <h2 class="h6 fw-bold mb-3">@Localizer["Dash_ThisMonth"]</h2>
+                            @Row(Localizer["Dash_WfIncome"], s.IncomeTotal, testId: "dash-wf-income")
+                            @Row(Localizer["Dash_WfBudgeted"], s.SpentBudgeted, testId: "dash-wf-budgeted", muted: true)
+                            @Row(Localizer["Dash_WfDiscretionary"], s.SpentExtraordinary, testId: "dash-wf-discretionary", muted: true)
+                            @Row(Localizer["Dash_WfUnplanned"], s.SpentUnplanned, testId: "dash-wf-unplanned", muted: true)
                             <hr class="my-2" />
-                            @Row(Localizer["Dash_Total"], s.ExpensesTotal, bold: true)
-                            @Row(Localizer["Dash_Remainder"], s.ExpensesRemainder, tone: Tone(s.ExpensesRemainder))
+                            @Row(Localizer["Dash_WfSpent"], s.ExpensesTotal, testId: "dash-wf-spent")
+                            @Row(Localizer["Dash_WfLeft"], s.ExpensesRemainder, bold: true, tone: Tone(s.ExpensesRemainder), testId: "dash-wf-left")
+                            @Row(Localizer["Dash_WfPlanned"], s.PendingBudgeted, testId: "dash-wf-planned", muted: true, hint: Localizer["Dash_WfPace", ElapsedPercent()].Value)
+                            <hr class="my-2" />
+                            @Row(Localizer["Dash_WfForecast"], s.ActualRemainder, bold: true, tone: Tone(s.ActualRemainder), testId: "dash-wf-forecast")
+                            @if (s.ActualRemainder.Crc < 0)
+                            {
+                                <div class="small text-danger mt-1" data-testid="dash-wf-overplan">@Localizer["Dash_WfOverPlan"]</div>
+                            }
                             <div class="form-text">@Localizer["Dash_RateNote"]</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-12 col-md-4">
-                    <div class="card shadow-sm h-100" data-testid="dash-balance">
-                        <div class="card-body">
-                            <h2 class="h6 fw-bold mb-3">@Localizer["Dash_Balance"]</h2>
-                            @Row(Localizer["Dash_CurrentBalance"], s.CurrentBalance, tone: Tone(s.CurrentBalance))
-                            @Row(Localizer["Dash_ForDebts"], s.RemainderForDebts, tone: Tone(s.RemainderForDebts))
-                            @Row(Localizer["Dash_PendingBudgeted"], s.PendingBudgeted)
-                            <hr class="my-2" />
-                            @Row(Localizer["Dash_ActualRemainder"], s.ActualRemainder, bold: true, tone: Tone(s.ActualRemainder))
                         </div>
                     </div>
                 </div>
@@ -281,13 +281,25 @@
         if (Guid.TryParse(e.Value?.ToString(), out var id)) Nav.NavigateTo($"/dashboard/{id}");
     }
 
-    private RenderFragment Row(string label, MoneyDto value, bool bold = false, string? tone = null) => __builder =>
+    private RenderFragment Row(string label, MoneyDto value, bool bold = false, string? tone = null, string? testId = null, bool muted = false, string? hint = null) => __builder =>
     {
-        <div class="d-flex justify-content-between gap-2 small @(bold ? "fw-bold" : null)">
-            <span>@label</span>
+        <div class="d-flex justify-content-between gap-2 small @(bold ? "fw-bold" : null) @(muted ? "text-secondary" : null)" data-testid="@testId">
+            <span>@label @if (hint is not null) { <span class="text-muted fw-normal" data-testid="@(testId + "-hint")">· @hint</span> }</span>
             <span class="text-end @tone">@Money(value)</span>
         </div>
     };
+
+    /// <summary>The device's date — the pace hint on "Still planned". Overridable for tests.</summary>
+    [Parameter] public DateOnly Today { get; set; } = DateOnly.FromDateTime(DateTime.Today);
+
+    /// <summary>Whole-percent share of the month's days behind us (today included), clamped to 0–100; a large planned figure late in the month reads as a warning.</summary>
+    private decimal ElapsedPercent()
+    {
+        if (_dash?.Month is not { } m) return 0;
+        var total = m.LastDay.DayNumber - m.Week1StartDate.DayNumber + 1;
+        var elapsed = Math.Clamp(Today.DayNumber - m.Week1StartDate.DayNumber + 1, 0, total);
+        return Math.Round(100m * elapsed / total);
+    }
 
     private RenderFragment LinesTable(string title, List<LineDto> lines, string testId) => __builder =>
     {
@@ -362,6 +374,9 @@
         [property: JsonPropertyName("expenses_account")] MoneyDto ExpensesAccount,
         [property: JsonPropertyName("expenses_total")] MoneyDto ExpensesTotal,
         [property: JsonPropertyName("expenses_remainder")] MoneyDto ExpensesRemainder,
+        [property: JsonPropertyName("spent_budgeted")] MoneyDto SpentBudgeted,
+        [property: JsonPropertyName("spent_extraordinary")] MoneyDto SpentExtraordinary,
+        [property: JsonPropertyName("spent_unplanned")] MoneyDto SpentUnplanned,
         [property: JsonPropertyName("fixed_expenses")] List<LineDto> FixedExpenses,
         [property: JsonPropertyName("variable_expenses")] List<LineDto> VariableExpenses,
         [property: JsonPropertyName("other_spending")] List<OtherDto> OtherSpending,

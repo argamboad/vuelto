@@ -486,16 +486,18 @@
   <data name="Dash_RateUnavailable" xml:space="preserve"><value>No exchange rate could be resolved, so projections are blocked. Enter a transaction with a rate, or set the provider key, and reload.</value></data>
   <data name="Dash_Income" xml:space="preserve"><value>Income</value></data>
   <data name="Dash_Total" xml:space="preserve"><value>Total</value></data>
-  <data name="Dash_Expenses" xml:space="preserve"><value>Expenses</value></data>
-  <data name="Dash_Card" xml:space="preserve"><value>Credit card</value></data>
-  <data name="Dash_Account" xml:space="preserve"><value>Bank account</value></data>
-  <data name="Dash_Remainder" xml:space="preserve"><value>Remainder</value></data>
   <data name="Dash_RateNote" xml:space="preserve"><value>Actuals sum each purchase at its own frozen rate, so the ₡ and $ columns won't match a single rate.</value></data>
-  <data name="Dash_Balance" xml:space="preserve"><value>Balance</value></data>
-  <data name="Dash_CurrentBalance" xml:space="preserve"><value>Current balance</value></data>
-  <data name="Dash_ForDebts" xml:space="preserve"><value>Remainder for debts</value></data>
-  <data name="Dash_PendingBudgeted" xml:space="preserve"><value>Pending budgeted</value></data>
-  <data name="Dash_ActualRemainder" xml:space="preserve"><value>Actual remainder</value></data>
+  <data name="Dash_ThisMonth" xml:space="preserve"><value>This month</value></data>
+  <data name="Dash_WfIncome" xml:space="preserve"><value>Income</value></data>
+  <data name="Dash_WfBudgeted" xml:space="preserve"><value>− Budgeted spent</value></data>
+  <data name="Dash_WfDiscretionary" xml:space="preserve"><value>− Discretionary spent</value></data>
+  <data name="Dash_WfUnplanned" xml:space="preserve"><value>− Unplanned spent</value></data>
+  <data name="Dash_WfSpent" xml:space="preserve"><value>= Spent so far</value></data>
+  <data name="Dash_WfLeft" xml:space="preserve"><value>= Left now</value></data>
+  <data name="Dash_WfPlanned" xml:space="preserve"><value>− Still planned</value></data>
+  <data name="Dash_WfForecast" xml:space="preserve"><value>= Forecast at month end</value></data>
+  <data name="Dash_WfPace" xml:space="preserve"><value>{0}% of the month elapsed</value></data>
+  <data name="Dash_WfOverPlan" xml:space="preserve"><value>The plan does not fit the income: cut lines or expect to end below zero.</value></data>
   <data name="Dash_Line" xml:space="preserve"><value>Line</value></data>
   <data name="Dash_Budgeted" xml:space="preserve"><value>Budgeted</value></data>
   <data name="Dash_Actual" xml:space="preserve"><value>Actual</value></data>

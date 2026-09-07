@@ -1594,7 +1594,7 @@ Given a household with fixed line Mortgage ₡350,000 (Housing, BAC, Bank accoun
 And June transactions: Mortgage ₡300,000 bank account on Jun 5, and a ₡10,000 Unplanned lunch on Jun 12 in category Dining
 When I open Dashboard (nav)
 Then the newest month loads with "4 weeks · 28/5/2026 – 24/6/2026" and the rate line
-And Income shows the month's income converted at the rate; Expenses shows Bank account ₡300,000.00, Credit card ₡10,000.00, Total ₡310,000.00
+And Income shows the month's income converted at the rate; the "This month" waterfall reads Income → − Budgeted spent ₡300,000.00 → − Discretionary spent ₡0.00 → − Unplanned spent ₡10,000.00 → = Spent so far ₡310,000.00 → = Left now → − Still planned (with "N% of the month elapsed") → = Forecast at month end (red, with a warning line, when below zero)
 And Fixed expenses shows Mortgage — Budgeted ₡350,000.00 · $700.00 — Actual ₡300,000.00 in green
 And Other spending lists Dining ₡10,000.00; Unplanned essentials shows ₡10,000.00
 And Week by week shows the mortgage in week 2; By bank and payment method shows BAC / Bank account budget ₡350,000 actual ₡300,000
@@ -1606,12 +1606,13 @@ And a line budgeted in dollars is judged in dollars: a $2.99 line paid at $2.99 
 **Walkthrough:** **Budget** → add fixed `Mortgage` `350000` CRC, Housing, BAC, Bank account. **New
 transaction** → `Bank`, `300000` CRC, Housing, BAC, Bank account, `2026-06-05`, Budgeted → **Save**.
 **New transaction** → `Soda`, `10000` CRC, Dining, BAC, Credit card, `2026-06-12`, Unplanned → **Save**.
-Nav **Dashboard** → **Expected:** June 2026 with the weeks line and "₡… per $1 …"; the three cards; the
+Nav **Dashboard** → **Expected:** June 2026 with the weeks line and "₡… per $1 …"; the Income card and the
+**This month** waterfall (income → the three class rows → spent → left now → still planned → forecast); the
 Fixed table with Mortgage's actual in **green**; **Other spending** with Dining; **Unplanned essentials
 & refunds** ₡10,000.00; **Week by week** 4 rows, week 2 = ₡300,000.00 budgeted; **By bank and payment
 method** BAC · Bank account and Unassigned · Credit card (the lunch has no line). **Budget** → **Edit**
-Mortgage → `250000` → **Save** → **Dashboard** → **Expected:** actual ₡300,000.00 now **red**; **Pending
-budgeted** ₡0.00. Via Postman (**19 · Dashboard → Month summary**) → 200 with `exchange_rate`,
+Mortgage → `250000` → **Save** → **Dashboard** → **Expected:** actual ₡300,000.00 now **red**; **Still
+planned** ₡0.00 and the forecast equals Left now. Via Postman (**19 · Dashboard → Month summary**) → 200 with `exchange_rate`,
 `rate_source`, `summary.fixed_expenses[0].actual.crc = 300000`.
 
 ### QA-DASH-02 — Month selector, entry points, empty state, and the blocked projections when no rate resolves 🟠 (Web / API)
@@ -3489,3 +3490,11 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   column, total row adds them); `GET /api/reports/category-analysis` entries gain `transaction_count`.
   QA-REP-01 gains the column; `CategoryAnalysisCalculatorTests`, `ReportSliceTests`, `ReportsPageTests`
   (count assertions) and the Postman month test pin it. Suite count unchanged (180).
+- **Updated 2026-09-07** — **Dashboard redesign: one "This month" waterfall replaces the Expenses and Balance
+  cards (owner decision, ADR-V018).** Income → − Budgeted spent → − Discretionary spent → − Unplanned spent →
+  = Spent so far → = Left now → − Still planned (pace hint "N% of the month elapsed") → = Forecast at month
+  end (red + warning line below zero). The card/account split lives on in the bank × method table;
+  "Remainder for debts" is retired from the UI (still on the API). The summary gains `spent_budgeted` /
+  `spent_extraordinary` / `spent_unplanned` (the class cut, reconciled with `expenses_total` by the Postman
+  test). QA-DASH-01 rewritten for the waterfall; `DashboardSummaryServiceTests` (class cut),
+  `DashboardPageTests.Loads_*` + `Waterfall_ForecastBelowZero_*` pin it. Suite count unchanged (180).

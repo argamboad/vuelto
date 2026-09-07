@@ -96,6 +96,8 @@ public class DashboardSummaryServiceTests
 
         Assert.Equal((75_000m, 150m), (summary.UnplannedEssentialTotal.Crc, summary.UnplannedEssentialTotal.Usd));
         Assert.Equal(175_000m, summary.Expenses.GrandTotal.Crc);
+        // The waterfall's class cut adds up to the same total as the payment-method cut.
+        Assert.Equal((100_000m, 0m, 75_000m), (summary.Expenses.Budgeted.Crc, summary.Expenses.Extraordinary.Crc, summary.Expenses.UnplannedEssential.Crc));
     }
 
     [Fact]
