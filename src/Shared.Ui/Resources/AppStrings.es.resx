@@ -396,6 +396,13 @@
   <data name="Month_LoadError" xml:space="preserve"><value>No se pudo cargar el mes. Recarga para intentar de nuevo.</value></data>
   <data name="Month_Transactions" xml:space="preserve"><value>Transacciones</value></data>
   <data name="Month_NoTransactions" xml:space="preserve"><value>No hay transacciones en este mes.</value></data>
+  <data name="Month_FilterFrom" xml:space="preserve"><value>Desde</value></data>
+  <data name="Month_FilterTo" xml:space="preserve"><value>Hasta</value></data>
+  <data name="Month_FilterPayee" xml:space="preserve"><value>Comercio contiene</value></data>
+  <data name="Month_FilterAll" xml:space="preserve"><value>Todos</value></data>
+  <data name="Month_FilterClear" xml:space="preserve"><value>Limpiar filtros</value></data>
+  <data name="Month_FilterCount" xml:space="preserve"><value>Mostrando {0} de {1}</value></data>
+  <data name="Month_NoMatch" xml:space="preserve"><value>Ninguna transacción coincide con estos filtros.</value></data>
   <data name="Month_Delete" xml:space="preserve"><value>Eliminar</value></data>
   <data name="Month_ConfirmDelete" xml:space="preserve"><value>Confirmar eliminación</value></data>
   <data name="Month_Deleted" xml:space="preserve"><value>Transacción eliminada.</value></data>

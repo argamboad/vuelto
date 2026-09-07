@@ -83,23 +83,67 @@
         }
         else
         {
+            @* Filter and sort happen on the rows already loaded (a month is a few dozen rows) — no request, instant. *@
+            <div class="card shadow-sm mb-2" data-testid="month-tx-filters">
+                <div class="card-body py-2 d-flex flex-wrap align-items-end gap-2">
+                    <div>
+                        <label class="form-label small mb-1">@Localizer["Month_FilterFrom"]</label>
+                        <input type="date" class="form-control form-control-sm" data-testid="month-tx-filter-from" @bind="_fFrom" />
+                    </div>
+                    <div>
+                        <label class="form-label small mb-1">@Localizer["Month_FilterTo"]</label>
+                        <input type="date" class="form-control form-control-sm" data-testid="month-tx-filter-to" @bind="_fTo" />
+                    </div>
+                    <div>
+                        <label class="form-label small mb-1">@Localizer["Month_FilterPayee"]</label>
+                        <input type="search" class="form-control form-control-sm" data-testid="month-tx-filter-payee" @bind="_fPayee" @bind:event="oninput" />
+                    </div>
+                    <div>
+                        <label class="form-label small mb-1">@Localizer["Tx_Category"]</label>
+                        <select class="form-select form-select-sm" data-testid="month-tx-filter-category" @bind="_fCategory">
+                            <option value="">@Localizer["Month_FilterAll"]</option>
+                            @foreach (var c in Distinct(t => t.CategoryName)) { <option value="@c">@c</option> }
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label small mb-1">@Localizer["Tx_Bank"]</label>
+                        <select class="form-select form-select-sm" data-testid="month-tx-filter-bank" @bind="_fBank">
+                            <option value="">@Localizer["Month_FilterAll"]</option>
+                            @foreach (var b in Distinct(t => t.BankName)) { <option value="@b">@b</option> }
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label small mb-1">@Localizer["Tx_Class"]</label>
+                        <select class="form-select form-select-sm" data-testid="month-tx-filter-class" @bind="_fClass">
+                            <option value="">@Localizer["Month_FilterAll"]</option>
+                            @foreach (var k in _transactions.Select(t => t.TransactionType).Distinct().OrderBy(k => ClassLabel(k), StringComparer.CurrentCultureIgnoreCase)) { <option value="@k">@ClassLabel(k)</option> }
+                        </select>
+                    </div>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-testid="month-tx-filter-clear" disabled="@(!FiltersActive)" @onclick="ClearFilters">@Localizer["Month_FilterClear"]</button>
+                    <span class="small text-muted ms-auto" data-testid="month-tx-count">@Localizer["Month_FilterCount", Visible().Count, _transactions.Count]</span>
+                </div>
+            </div>
             <div class="card shadow-sm">
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0" data-testid="month-tx-table">
                         <thead>
                             <tr>
-                                <th scope="col">@Localizer["Tx_Date"]</th>
-                                <th scope="col">@Localizer["Tx_Payee"]</th>
-                                <th scope="col">@Localizer["Tx_Category"]</th>
-                                <th scope="col">@Localizer["Tx_Bank"]</th>
-                                <th scope="col">@Localizer["Tx_Class"]</th>
+                                @SortHeader("date", Localizer["Tx_Date"])
+                                @SortHeader("payee", Localizer["Tx_Payee"])
+                                @SortHeader("category", Localizer["Tx_Category"])
+                                @SortHeader("bank", Localizer["Tx_Bank"])
+                                @SortHeader("class", Localizer["Tx_Class"])
                                 <th scope="col" class="text-end">₡</th>
                                 <th scope="col" class="text-end">$</th>
                                 <th scope="col" class="text-end"></th>
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach (var t in _transactions)
+                            @if (Visible().Count == 0)
+                            {
+                                <tr><td colspan="8" class="text-muted text-center py-3" data-testid="month-tx-nomatch">@Localizer["Month_NoMatch"]</td></tr>
+                            }
+                            @foreach (var t in Visible())
                             {
                                 <tr data-testid="month-tx-row">
                                     <td>@t.TransactionDate.ToString("d", CultureInfo.CurrentCulture)</td>
@@ -322,6 +366,62 @@
         catch { _error = Localizer["Month_DeleteError"]; }
         finally { _saving = false; }
     }
+
+    // ---- sort + filter (client-side over the loaded rows) ----
+
+    private string _sortKey = "date";
+    private bool _sortAsc = false; // the API's order: newest first
+    private DateOnly? _fFrom, _fTo;
+    private string _fPayee = "", _fCategory = "", _fBank = "", _fClass = "";
+
+    private bool FiltersActive => _fFrom is not null || _fTo is not null || _fPayee.Trim().Length > 0 || _fCategory.Length > 0 || _fBank.Length > 0 || _fClass.Length > 0;
+
+    private void ClearFilters() { _fFrom = null; _fTo = null; _fPayee = ""; _fCategory = ""; _fBank = ""; _fClass = ""; }
+
+    private void Sort(string key)
+    {
+        if (_sortKey == key) { _sortAsc = !_sortAsc; return; }
+        _sortKey = key;
+        _sortAsc = key != "date"; // names read A→Z first; dates newest first
+    }
+
+    private IEnumerable<string> Distinct(Func<TxDto, string?> pick) =>
+        _transactions.Select(pick).Where(v => !string.IsNullOrEmpty(v)).Select(v => v!).Distinct().OrderBy(v => v, StringComparer.CurrentCultureIgnoreCase);
+
+    /// <summary>The rows the filters let through, in the chosen order (ties by date desc so the list never shuffles between renders).</summary>
+    private List<TxDto> Visible()
+    {
+        var payee = _fPayee.Trim();
+        IEnumerable<TxDto> rows = _transactions.Where(t =>
+            (_fFrom is not { } from || t.TransactionDate >= from) &&
+            (_fTo is not { } to || t.TransactionDate <= to) &&
+            (payee.Length == 0 || t.Payee.Contains(payee, StringComparison.CurrentCultureIgnoreCase)) &&
+            (_fCategory.Length == 0 || string.Equals(t.CategoryName, _fCategory, StringComparison.Ordinal)) &&
+            (_fBank.Length == 0 || string.Equals(t.BankName, _fBank, StringComparison.Ordinal)) &&
+            (_fClass.Length == 0 || string.Equals(t.TransactionType, _fClass, StringComparison.Ordinal)));
+
+        var cmp = StringComparer.CurrentCultureIgnoreCase;
+        var ordered = _sortKey switch
+        {
+            "payee" => _sortAsc ? rows.OrderBy(t => t.Payee, cmp) : rows.OrderByDescending(t => t.Payee, cmp),
+            "category" => _sortAsc ? rows.OrderBy(t => t.CategoryName ?? "", cmp) : rows.OrderByDescending(t => t.CategoryName ?? "", cmp),
+            "bank" => _sortAsc ? rows.OrderBy(t => t.BankName ?? "", cmp) : rows.OrderByDescending(t => t.BankName ?? "", cmp),
+            "class" => _sortAsc ? rows.OrderBy(t => ClassLabel(t.TransactionType), cmp) : rows.OrderByDescending(t => ClassLabel(t.TransactionType), cmp),
+            _ => _sortAsc ? rows.OrderBy(t => t.TransactionDate) : rows.OrderByDescending(t => t.TransactionDate),
+        };
+        return ordered.ThenByDescending(t => t.TransactionDate).ThenBy(t => t.Payee, cmp).ToList();
+    }
+
+    /// <summary>A clickable header: click sorts by it, click again flips the direction; the arrow shows which and how.</summary>
+    private RenderFragment SortHeader(string key, string label) => __builder =>
+    {
+        var active = _sortKey == key;
+        <th scope="col" aria-sort="@(active ? (_sortAsc ? "ascending" : "descending") : "none")">
+            <button type="button" class="btn btn-link p-0 fw-semibold text-decoration-none text-reset" data-testid="@($"month-tx-sort-{key}")" @onclick="() => Sort(key)">
+                @label@(active ? (_sortAsc ? " ▲" : " ▼") : "")
+            </button>
+        </th>
+    };
 
     private string ClassLabel(string type) => type switch
     {
