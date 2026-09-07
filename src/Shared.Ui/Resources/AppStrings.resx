@@ -484,8 +484,10 @@
   <data name="Dash_LoadError" xml:space="preserve"><value>Couldn't load the dashboard. Refresh to try again.</value></data>
   <data name="Dash_MonthDetails" xml:space="preserve"><value>Month details</value></data>
   <data name="Dash_RateUnavailable" xml:space="preserve"><value>No exchange rate could be resolved, so projections are blocked. Enter a transaction with a rate, or set the provider key, and reload.</value></data>
-  <data name="Dash_Income" xml:space="preserve"><value>Income</value></data>
   <data name="Dash_Total" xml:space="preserve"><value>Total</value></data>
+  <data name="Dash_BarPlanned" xml:space="preserve"><value>Still planned</value></data>
+  <data name="Dash_BarForecast" xml:space="preserve"><value>Forecast</value></data>
+  <data name="Dash_BarOver" xml:space="preserve"><value>Short by</value></data>
   <data name="Dash_RateNote" xml:space="preserve"><value>Actuals sum each purchase at its own frozen rate, so the ₡ and $ columns won't match a single rate.</value></data>
   <data name="Dash_ThisMonth" xml:space="preserve"><value>This month</value></data>
   <data name="Dash_WfIncome" xml:space="preserve"><value>Income</value></data>

@@ -484,8 +484,10 @@
   <data name="Dash_LoadError" xml:space="preserve"><value>No se pudo cargar el tablero. Recarga para intentar de nuevo.</value></data>
   <data name="Dash_MonthDetails" xml:space="preserve"><value>Detalle del mes</value></data>
   <data name="Dash_RateUnavailable" xml:space="preserve"><value>No se pudo resolver un tipo de cambio, así que las proyecciones están bloqueadas. Registra una transacción con tipo de cambio, o configura la clave del proveedor, y recarga.</value></data>
-  <data name="Dash_Income" xml:space="preserve"><value>Ingresos</value></data>
   <data name="Dash_Total" xml:space="preserve"><value>Total</value></data>
+  <data name="Dash_BarPlanned" xml:space="preserve"><value>Aún planificado</value></data>
+  <data name="Dash_BarForecast" xml:space="preserve"><value>Pronóstico</value></data>
+  <data name="Dash_BarOver" xml:space="preserve"><value>Faltan</value></data>
   <data name="Dash_RateNote" xml:space="preserve"><value>Los gastos reales suman cada compra a su propio tipo de cambio congelado, así que las columnas ₡ y $ no coinciden con un solo tipo de cambio.</value></data>
   <data name="Dash_ThisMonth" xml:space="preserve"><value>Este mes</value></data>
   <data name="Dash_WfIncome" xml:space="preserve"><value>Ingreso</value></data>

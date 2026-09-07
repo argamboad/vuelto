@@ -64,7 +64,8 @@ Scenario: The Dashboard page
   When I open Dashboard (nav or Home) → the newest month loads; /dashboard/{id} opens that month
   Then I see the month title, "N weeks · from – to", the rate line (live / as of / from your last transaction),
        a month selector, Month details and New transaction buttons
-  And the Income card and the "This month" waterfall (ADR-V018, 2026-09-07): Income → − Budgeted spent → − Discretionary spent →
+  And the "This month" card (ADR-V018, 2026-09-07): a stacked bar (income-wide; the three class spends + Still planned, the green rest = Forecast;
+       Today marker; red tail when the plan does not fit; ₡/$ switch shared with Reports) over the waterfall: Income (Primary / Secondary sub-rows) → − Budgeted spent → − Discretionary spent →
        − Unplanned spent → = Spent so far → = Left now → − Still planned ("N% of the month elapsed") → = Forecast at month end
        (red + a warning line below zero) + the frozen-rate note; the old Expenses/Balance cards and "Remainder for debts" are gone from the UI
   And Fixed / Variable tables (Line, Budgeted, Actual — green under, red over, judged in the currency the line is set in; `budget_currency` on each line, 2026-09-07), Other spending, Week by week,

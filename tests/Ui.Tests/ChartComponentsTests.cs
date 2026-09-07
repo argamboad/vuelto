@@ -74,6 +74,32 @@ public class ChartComponentsTests : ComponentTestBase
     }
 
     [Fact]
+    public void StackedBar_FillsTheTotalInOrder_PaintsTheOverflowRed_AndMarksAPosition()
+    {
+        var segments = new List<DonutSlice> { new("A", 300m, "red"), new("B", 0m, "blue"), new("C", 500m, "green") };
+        var cut = Render<StackedBar>(p => p.Add(x => x.Total, 1000m).Add(x => x.Segments, segments).Add(x => x.Marker, 0.4m).Add(x => x.OverLabel, "Over").Add(x => x.TestId, "b"));
+
+        var drawn = cut.FindAll("[data-testid='chart-segment']");
+        Assert.Equal(["A", "C"], drawn.Select(r => r.GetAttribute("data-label") ?? "")); // zero draws nothing
+        Assert.Equal("0", drawn[0].GetAttribute("x"));
+        Assert.Equal("192", drawn[0].GetAttribute("width"));  // 300 of 1000 across 640
+        Assert.Equal("192", drawn[1].GetAttribute("x"));      // C starts where A ends
+        Assert.Equal(3, cut.FindAll("[data-testid='chart-legend-item']").Count); // …but is listed
+        Assert.Contains("30", cut.FindAll("[data-testid='chart-legend-item']")[0].TextContent); // share of the total
+        Assert.Empty(cut.FindAll("[data-testid='chart-overflow']"));
+        Assert.Equal("256", cut.Find("[data-testid='chart-marker']").GetAttribute("x1")); // 40 % of the total
+
+        // Past the total: the scale grows to the sum, the excess is red and listed, the marker still sits at its share of the TOTAL.
+        var over = Render<StackedBar>(p => p.Add(x => x.Total, 1000m).Add(x => x.Segments, new List<DonutSlice> { new("A", 1250m, "red") }).Add(x => x.Marker, 1m).Add(x => x.OverLabel, "Over").Add(x => x.TestId, "b"));
+        Assert.Equal("512", over.Find("[data-testid='chart-overflow']").GetAttribute("x"));    // 1000 of 1250
+        Assert.Equal("128", over.Find("[data-testid='chart-overflow']").GetAttribute("width")); // the 250 over
+        Assert.Contains("₡250", over.Find("[data-testid='chart-legend-over']").TextContent);
+        Assert.Equal("512", over.Find("[data-testid='chart-marker']").GetAttribute("x1"));
+
+        Assert.Contains("Chart_Empty", Render<StackedBar>(p => p.Add(x => x.Total, 0m).Add(x => x.Segments, new List<DonutSlice>()).Add(x => x.TestId, "b")).Markup);
+    }
+
+    [Fact]
     public void DonutChart_DrawsOneArcPerNonZeroSlice_WithSharesInTheLegend()
     {
         var cut = Render<DonutChart>(p => p
