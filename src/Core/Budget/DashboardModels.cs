@@ -11,7 +11,8 @@ public record MoneyPair(decimal Crc, decimal Usd)
 
 public record IncomeSummary(MoneyPair Primary, MoneyPair Secondary, MoneyPair Total);
 
-public record ExpenseSummary(MoneyPair Card, MoneyPair Account, MoneyPair GrandTotal, MoneyPair Remainder);
+/// <summary>Spend so far, cut two ways: by payment method (Card/Account) and by class (Budgeted/Extraordinary/UnplannedEssential — the waterfall's rows). Both cuts add up to <paramref name="GrandTotal"/>.</summary>
+public record ExpenseSummary(MoneyPair Card, MoneyPair Account, MoneyPair GrandTotal, MoneyPair Remainder, MoneyPair Budgeted, MoneyPair Extraordinary, MoneyPair UnplannedEssential);
 
 /// <summary><paramref name="BudgetCurrency"/> is the currency the line is SET in (EXPENSES-1: one side); its other side is a projection at today's rate — over/under must be judged in the native one.</summary>
 public record ExpenseLineSummary(string Name, MoneyPair Budget, MoneyPair Actual, string BudgetCurrency = Currencies.Crc);

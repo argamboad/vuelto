@@ -49,6 +49,9 @@ public record DashboardSummaryResponse(
     [property: JsonPropertyName("expenses_account")] MoneyPairResponse ExpensesAccount,
     [property: JsonPropertyName("expenses_total")] MoneyPairResponse ExpensesTotal,
     [property: JsonPropertyName("expenses_remainder")] MoneyPairResponse ExpensesRemainder,
+    [property: JsonPropertyName("spent_budgeted")] MoneyPairResponse SpentBudgeted,
+    [property: JsonPropertyName("spent_extraordinary")] MoneyPairResponse SpentExtraordinary,
+    [property: JsonPropertyName("spent_unplanned")] MoneyPairResponse SpentUnplanned,
     [property: JsonPropertyName("fixed_expenses")] IReadOnlyList<ExpenseLineResponse> FixedExpenses,
     [property: JsonPropertyName("variable_expenses")] IReadOnlyList<ExpenseLineResponse> VariableExpenses,
     [property: JsonPropertyName("other_spending")] IReadOnlyList<CategorySpendResponse> OtherSpending,
@@ -66,6 +69,7 @@ public record DashboardSummaryResponse(
     public static DashboardSummaryResponse From(DashboardSummary s) => new(
         MoneyPairResponse.From(s.Income.Primary), MoneyPairResponse.From(s.Income.Secondary), MoneyPairResponse.From(s.Income.Total),
         MoneyPairResponse.From(s.Expenses.Card), MoneyPairResponse.From(s.Expenses.Account), MoneyPairResponse.From(s.Expenses.GrandTotal), MoneyPairResponse.From(s.Expenses.Remainder),
+        MoneyPairResponse.From(s.Expenses.Budgeted), MoneyPairResponse.From(s.Expenses.Extraordinary), MoneyPairResponse.From(s.Expenses.UnplannedEssential),
         s.FixedExpenses.Select(l => new ExpenseLineResponse(l.Name, MoneyPairResponse.From(l.Budget), MoneyPairResponse.From(l.Actual), l.BudgetCurrency)).ToList(),
         s.VariableExpenses.Select(l => new ExpenseLineResponse(l.Name, MoneyPairResponse.From(l.Budget), MoneyPairResponse.From(l.Actual), l.BudgetCurrency)).ToList(),
         s.OtherSpending.Select(c => new CategorySpendResponse(c.CategoryName, MoneyPairResponse.From(c.Actual))).ToList(),

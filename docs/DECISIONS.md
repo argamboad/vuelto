@@ -1620,3 +1620,23 @@ month already lived through must not change after the fact. *Consequences:* migr
 month get-or-create inside its unit-of-work scope and reports a lost month-creation race as the same
 409 `refund_status_conflict` the guarded flip uses (retry finds the winner's month); rows realized
 before this ADR keep their purchase-month inflow and a null `received_date`.
+
+**ADR-V018 — The dashboard's money story is one waterfall from income to the month-end forecast; the Expenses/Balance card pair and "remainder for debts" are retired from the UI. (2026-09-07; owner decision, supersedes the donor's US-005 three-card layout)**
+
+The donor dashboard showed three cards — Income, Expenses (card / account / total / remainder) and
+Balance (current balance / remainder for debts / pending budgeted / actual remainder) — and the owner,
+reading his own September, could no longer tell which figure answered which question: "remainder" and
+"current balance" were the same number twice, "remainder for debts" compared income with *budgets* and
+never moved during the month, and the card/account split duplicated the bank × method table. **Decision:**
+one card, *This month*, read top to bottom where every row is the previous one minus something:
+Income → − Budgeted spent → − Discretionary spent → − Unplanned spent → = Spent so far → = Left now →
+− Still planned → = Forecast at month end. *Still planned* keeps its definition (each active line's budget
+minus its category's spend, floored at zero, in the line's own currency, valued at today's rate). The
+forecast is red with a warning line when below zero; *Still planned* carries a pace hint ("N% of the
+month elapsed") so a large planned figure late in the month reads as a warning. The forecast still assumes
+only the plan is left to spend — future discretionary/unplanned purchases are not guessed (that would be
+invention). *Consequences:* `ExpenseSummary` gains the class cut (`Budgeted`, `Extraordinary`,
+`UnplannedEssential`), exposed as `spent_*` on the summary; the API keeps `remainder_for_debts`,
+`expenses_card` and `expenses_account` (additive contract, the bank × method table and Postman still use
+them) but the UI no longer shows the first; QA-DASH-01 rewritten. Reports' "Income vs spend" /
+"Income vs budget" donuts are this card's picture twins and share the same Core calculators.

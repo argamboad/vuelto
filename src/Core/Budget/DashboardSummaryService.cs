@@ -65,13 +65,18 @@ public sealed class DashboardSummaryService : IDashboardSummaryService
     private static ExpenseSummary CalculateExpenseSummary(IncomeSummary income, IReadOnlyList<Transaction> transactions)
     {
         decimal cardCrc = 0, cardUsd = 0, accountCrc = 0, accountUsd = 0;
+        decimal budCrc = 0, budUsd = 0, extCrc = 0, extUsd = 0, unpCrc = 0, unpUsd = 0;
         foreach (var tx in transactions.Where(t => IsExpenseClass(t.TransactionType))) // inflow + envelope_contribution carved out
         {
             if (Is(tx.PaymentMethod, PaymentMethods.BankAccount)) { accountCrc += tx.AmountCrc; accountUsd += tx.AmountUsd; }
             else { cardCrc += tx.AmountCrc; cardUsd += tx.AmountUsd; }
+            if (Is(tx.TransactionType, TransactionTypes.Budgeted)) { budCrc += tx.AmountCrc; budUsd += tx.AmountUsd; }
+            else if (Is(tx.TransactionType, TransactionTypes.Extraordinary)) { extCrc += tx.AmountCrc; extUsd += tx.AmountUsd; }
+            else { unpCrc += tx.AmountCrc; unpUsd += tx.AmountUsd; }
         }
         var grand = Pair(cardCrc + accountCrc, cardUsd + accountUsd);
-        return new ExpenseSummary(Pair(cardCrc, cardUsd), Pair(accountCrc, accountUsd), grand, Pair(income.Total.Crc - grand.Crc, income.Total.Usd - grand.Usd));
+        return new ExpenseSummary(Pair(cardCrc, cardUsd), Pair(accountCrc, accountUsd), grand, Pair(income.Total.Crc - grand.Crc, income.Total.Usd - grand.Usd),
+            Pair(budCrc, budUsd), Pair(extCrc, extUsd), Pair(unpCrc, unpUsd));
     }
 
     /// <summary>Budget shows both currencies (native + the other at rate); actual sums the line's category's expense-class rows at their frozen amounts.</summary>
