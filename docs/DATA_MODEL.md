@@ -113,7 +113,7 @@ stored.
 > `NUMERIC(10,4)`; the refund percentage `NUMERIC(5,2)` (ADR-V004). Dates that are calendar days
 > (`transaction_date`, week bounds) are `date` (`DateOnly`), not timestamps.
 >
-> All entities below implement `ITenantScoped` **except `EmailConnection`** (user-keyed — see it).
+> All entities below implement `ITenantScoped` **except `EmailConnection` and `UserDisplaySettings`** (user-keyed — see them).
 
 ### BudgetSettings *(ADR-V003 — new in the port; replaces six columns on the donor's `User`)*
 The household's budget structure. Exactly one row per tenant, created with defaults on first use.
@@ -215,6 +215,14 @@ household (vouchers it produces land in whatever household the user is in at pol
 - `status` — `active` | `needs_reconsent`
 - unique on (`user_id`, `provider`)
 
+### UserDisplaySettings *(user-keyed — ADR-V020)*
+How the person wants amounts shown on the dashboard and the Reports tables. **Not `ITenantScoped`.**
+Keyed by `user_id` (one row per user; absent = never chose, the client then adopts the device's choice);
+erased with the account via an `IUserDataContributor`; the platform's `User` row is not extended.
+- `id`, `user_id`, `display_currency` — `CRC` | `USD` | `both`
+- `created_at`, `updated_at`
+- unique on (`user_id`)
+
 ### Pinned for the next epic (not built): BankDefinition
 Data-driven voucher extraction (donor Slice 7): `{match rules} + {field → (selector, transform)}`
 rows that replace the hand-written BAC/BN extractors. Designed when that epic starts.
@@ -231,7 +239,7 @@ rows that replace the hand-written BAC/BN extractors. Designed when that epic st
 - Transaction N — 1 Category, N — 1 Bank, N — 0..1 Envelope; Transaction 1 — 0..1 Refund
 - Refund 0..1 — 0..1 Transaction (the realized inflow, set-null)
 - FixedExpense / VariableExpense N — 1 Category, N — 0..1 Bank
-- User 1 — N EmailConnection *(user-keyed)*; EmailConnection 1 — N PendingVoucher *(logical, cross-axis — no FK)*
+- User 1 — 0..1 UserDisplaySettings *(user-keyed)*; User 1 — N EmailConnection *(user-keyed)*; EmailConnection 1 — N PendingVoucher *(logical, cross-axis — no FK)*
 - Tenant 1 — N PendingVoucher / IngestedVoucher; PendingVoucher 0..1 — 0..1 Transaction (confirmed)
 
 ### ER diagram — budget domain (planned)

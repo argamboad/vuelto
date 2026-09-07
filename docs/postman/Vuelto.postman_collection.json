@@ -4290,7 +4290,7 @@
                   "  pm.test(\"single month\", () => pm.expect(r.single_month).to.be.true);",
                   "  pm.test(\"class arrays + income + budget_total + bank/method/day cuts\", () => pm.expect(r).to.have.all.keys('period', 'single_month', 'budgeted', 'extraordinary', 'unplanned_essential', 'income', 'budget_total', 'exchange_rate', 'exchange_rate_buy', 'by_bank', 'by_method', 'spend_by_day')); }",
                   "  pm.test(\"single month carries spend_by_day (ascending)\", () => { pm.expect(r.spend_by_day).to.be.an('array'); r.by_bank.forEach(b => pm.expect(b).to.have.all.keys('key', 'label', 'total_crc', 'total_usd')); });",
-      "  pm.test(\"every category entry carries transaction_count >= 1\", () => [...r.budgeted, ...r.extraordinary, ...r.unplanned_essential].forEach(e => pm.expect(e.transaction_count).to.be.at.least(1)));",
+                  "  pm.test(\"every category entry carries transaction_count >= 1\", () => [...r.budgeted, ...r.extraordinary, ...r.unplanned_essential].forEach(e => pm.expect(e.transaction_count).to.be.at.least(1)));",
                   "  pm.test(\"income and budget_total are ₡/$ pairs (or both null when no rate)\", () => { if (r.income !== null) { pm.expect(r.income).to.have.all.keys('crc', 'usd'); pm.expect(r.budget_total).to.have.all.keys('crc', 'usd'); pm.expect(r.exchange_rate).to.be.above(0); pm.expect(r.exchange_rate_buy).to.be.at.most(r.exchange_rate); } else { pm.expect(r.budget_total).to.be.null; pm.expect(r.exchange_rate).to.be.null; } });"
                 ],
                 "type": "text/javascript"
@@ -5181,6 +5181,158 @@
               "script": {
                 "exec": [
                   "pm.test(\"204, 404 or 409\", () => pm.expect(pm.response.code).to.be.oneOf([204, 404, 409]));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "23 · Display settings",
+      "description": "DISPLAY-1 (ADR-V020): how the signed-in user wants amounts shown — display_currency CRC | USD | both (both sides of every pair). User-keyed like the platform's theme and locale (follows the person to every device and household), one row per user, never chose ⇒ is_default true. Any member may read and save; an impersonation session gets 403 impersonation_not_allowed on PUT. 400 invalid_request for any other value; 401 without a token.",
+      "item": [
+        {
+          "name": "Get display settings",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/display-settings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "display-settings"
+              ]
+            },
+            "description": "200 { display_currency: CRC | USD | both, is_default } — is_default true (with both) until the user saves once. Never writes."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "const s = pm.response.json();",
+                  "pm.test(\"display_currency + is_default\", () => { pm.expect(s.display_currency).to.be.oneOf(['CRC', 'USD', 'both']); pm.expect(s.is_default).to.be.a('boolean'); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update display settings",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"display_currency\": \"usd\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/display-settings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "display-settings"
+              ]
+            },
+            "description": "Upserts the caller's row. display_currency is case-insensitive (usd ⇒ USD, BOTH ⇒ both). 200 { display_currency, is_default: false }."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"saved as USD, not default\", () => { const s = pm.response.json(); pm.expect(s.display_currency).to.eql('USD'); pm.expect(s.is_default).to.eql(false); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update display settings — invalid (400)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"display_currency\": \"EUR\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/display-settings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "display-settings"
+              ]
+            },
+            "description": "400 invalid_request; the message names display_currency and the three allowed values. Nothing is written."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"error code\", () => pm.expect(pm.response.json().error).to.eql('invalid_request'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reset display settings to both",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"display_currency\": \"both\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/display-settings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "display-settings"
+              ]
+            },
+            "description": "Puts the row back to both so the rest of the collection (and the app) shows pairs again."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200 both\", () => { pm.response.to.have.status(200); pm.expect(pm.response.json().display_currency).to.eql('both'); });"
                 ],
                 "type": "text/javascript"
               }

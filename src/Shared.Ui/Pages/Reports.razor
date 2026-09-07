@@ -9,6 +9,7 @@
 @inject HttpClient Http
 @inject IFileDownloadLauncher DownloadLauncher
 @inject IJSRuntime JS
+@inject DisplayCurrencyStore Display
 @inject IStringLocalizer<AppStrings> Localizer
 
 <PageTitle>@Localizer["Reports_Title"]</PageTitle>
@@ -263,7 +264,7 @@
     private async Task SetDisplayAsync(string display)
     {
         _display = display;
-        await SavePrefAsync(MoneyDisplay.PrefKey, display);
+        await Display.SaveAsync(display); // device + account (ADR-V020)
         if (display != MoneyDisplay.Both) await SetCurrencyAsync(display); // tables and charts agree
     }
 
@@ -280,9 +281,9 @@
             if (view is "table" or "chart") _view = view;
             var currency = await JS.InvokeAsync<string?>("appUi.getPref", "reports.chartCurrency");
             if (currency is "CRC" or "USD") _chartCurrency = currency;
-            _display = MoneyDisplay.Parse(await JS.InvokeAsync<string?>("appUi.getPref", MoneyDisplay.PrefKey));
         }
         catch { /* no storage — defaults */ }
+        _display = await Display.LoadAsync();
     }
 
     private decimal Side(decimal crc, decimal usd) => _chartCurrency == "USD" ? usd : crc;

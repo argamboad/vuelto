@@ -28,6 +28,7 @@ public class ImpersonationGuardTests(IntegrationTestFactory factory)
     [Theory]
     [InlineData("/api/auth/theme", """{"theme":"dark"}""")]
     [InlineData("/api/auth/locale", """{"locale":"en"}""")]
+    [InlineData("/api/display-settings", """{"display_currency":"USD"}""")] // the app's own preference follows the platform rule (ADR-V020)
     public async Task PrefWrites_UnderImpersonation_Return403(string url, string body)
     {
         var staff = await _factory.SeedUserAsync();

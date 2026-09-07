@@ -47,6 +47,7 @@ builder.Services.AddSingleton<IFileDownloadLauncher, BrowserFileDownloadLauncher
 // registration only satisfies the shared pages' injection (see AppResumeNotifier).
 builder.Services.AddSingleton<AppResumeNotifier>();
 builder.Services.AddSingleton<ReviewQueueNotifier>(); // EMAIL-6: the header badge re-counts when the queue changes
+builder.Services.AddScoped<DisplayCurrencyStore>();   // DISPLAY-1: ₡ · $ · both — device copy + account copy
 
 // Web session store: the browser owns the HttpOnly refresh cookie, so this is a no-op.
 builder.Services.AddSingleton<ISessionStore, CookieSessionStore>();

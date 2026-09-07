@@ -102,6 +102,7 @@ public static class MauiProgram
 		// after an external round-trip returns to the app (NATIVE-4, G2).
 		builder.Services.AddSingleton<AppResumeNotifier>();
 		builder.Services.AddSingleton<ReviewQueueNotifier>(); // EMAIL-6: the header badge re-counts when the queue changes
+		builder.Services.AddScoped<DisplayCurrencyStore>();   // DISPLAY-1: ₡ · $ · both — device copy + account copy
 
 #if DEBUG
 		builder.Services.AddBlazorWebViewDeveloperTools();
