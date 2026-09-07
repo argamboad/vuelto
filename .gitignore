@@ -25,3 +25,8 @@ src/Maui/packages.lock.json
 
 # personal dev seed (owner-only, never committed)
 my-seed.sql
+
+# Azurite (local Azure Storage emulator) state files written at the repo root by the VS Code extension
+__azurite_db_*.json
+__blobstorage__/
+__queuestorage__/

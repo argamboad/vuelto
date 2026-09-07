@@ -65,6 +65,8 @@ Scenario: The Categories page
   Then I see every category with an Active/Inactive badge and an Edit button
   When I click New, type a name and Create
   Then it appears in the list; a clash with an inactive name shows a Reactivate button that restores it
+  When I click Edit on a row far down the list
+  Then the page scrolls so the whole edit card is in view (2026-09-07; same helper as the budget lines)
 ```
 
 **Out of scope:** the 70-category Excel import (PROJECT_BRIEF OUT list); anything that uses
