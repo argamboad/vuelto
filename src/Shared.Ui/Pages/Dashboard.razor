@@ -305,7 +305,7 @@
                         <tbody>
                             @foreach (var l in lines)
                             {
-                                <tr data-testid="dash-line-row"><td>@l.Name</td><td class="text-end">@Money(l.Budget)</td><td class="text-end @OverTone(l.Budget, l.Actual)" data-testid="dash-line-actual">@Money(l.Actual)</td></tr>
+                                <tr data-testid="dash-line-row"><td>@l.Name</td><td class="text-end">@Money(l.Budget)</td><td class="text-end @OverTone(l.Budget, l.Actual, l.BudgetCurrency)" data-testid="dash-line-actual">@Money(l.Actual)</td></tr>
                             }
                         </tbody>
                         @{ var budgetTotal = Sum(lines.Select(l => l.Budget)); var actualTotal = Sum(lines.Select(l => l.Actual)); }
@@ -319,8 +319,21 @@
     };
 
     /// <summary>Semantic colour only: red when actual exceeds budget in the line's native currency, green when under. Never the brand gold.</summary>
-    private static string OverTone(MoneyDto budget, MoneyDto actual) =>
-        budget.Crc == 0 && budget.Usd == 0 ? "" : actual.Crc > budget.Crc ? "text-danger" : "text-success";
+    /// <summary>Over/under in the line's OWN currency: a budget is set on one side and the other side is a projection at
+    /// today's rate, so a $2.99 line paid at $2.99 must never turn red because its colón projection differs by a few
+    /// colones from the frozen rate of the purchase. For converted pairs (totals, bank × method) no side is native:
+    /// red only when the actual is over on BOTH sides, so a rate-rounding difference alone never paints red.</summary>
+    private static string OverTone(MoneyDto budget, MoneyDto actual, string? currency = null)
+    {
+        if (budget.Crc == 0 && budget.Usd == 0) return "";
+        var over = currency switch
+        {
+            "USD" => actual.Usd > budget.Usd,
+            "CRC" => actual.Crc > budget.Crc,
+            _ => actual.Crc > budget.Crc && actual.Usd > budget.Usd,
+        };
+        return over ? "text-danger" : "text-success";
+    }
 
     private static string Tone(MoneyDto value) => value.Crc < 0 ? "text-danger" : "text-success";
 
@@ -336,7 +349,7 @@
 
     private sealed record MonthDto([property: JsonPropertyName("id")] Guid Id, [property: JsonPropertyName("year")] int Year, [property: JsonPropertyName("month_number")] int MonthNumber);
     private sealed record MoneyDto([property: JsonPropertyName("crc")] decimal Crc, [property: JsonPropertyName("usd")] decimal Usd);
-    private sealed record LineDto([property: JsonPropertyName("name")] string Name, [property: JsonPropertyName("budget")] MoneyDto Budget, [property: JsonPropertyName("actual")] MoneyDto Actual);
+    private sealed record LineDto([property: JsonPropertyName("name")] string Name, [property: JsonPropertyName("budget")] MoneyDto Budget, [property: JsonPropertyName("actual")] MoneyDto Actual, [property: JsonPropertyName("budget_currency")] string BudgetCurrency = "CRC");
     private sealed record WeekDto([property: JsonPropertyName("week_number")] int WeekNumber, [property: JsonPropertyName("start_date")] DateOnly StartDate, [property: JsonPropertyName("end_date")] DateOnly EndDate, [property: JsonPropertyName("total")] MoneyDto Total);
     private sealed record EnvelopeDto([property: JsonPropertyName("name")] string Name, [property: JsonPropertyName("annual_target")] MoneyDto AnnualTarget, [property: JsonPropertyName("contributed_this_month")] MoneyDto ContributedThisMonth, [property: JsonPropertyName("remaining")] MoneyDto Remaining, [property: JsonPropertyName("cadence")] string Cadence);
     private sealed record OtherDto([property: JsonPropertyName("category_name")] string CategoryName, [property: JsonPropertyName("actual")] MoneyDto Actual);

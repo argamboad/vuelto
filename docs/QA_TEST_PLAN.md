@@ -1601,6 +1601,7 @@ And Week by week shows the mortgage in week 2; By bank and payment method shows 
 When I Edit Mortgage's budget down to ₡250,000 and reload the dashboard
 Then Mortgage's actual turns red (over budget) and Pending budgeted drops to ₡0.00
 And the Fixed, Variable, Other spending and Week by week tables each end with a Total row (the sum of the rows shown; the lines total keeps the over/under colour)
+And a line budgeted in dollars is judged in dollars: a $2.99 line paid at $2.99 is green even when its colón projection sits a few colones under the frozen colón actual (the totals turn red only when over on both sides)
 ```
 **Walkthrough:** **Budget** → add fixed `Mortgage` `350000` CRC, Housing, BAC, Bank account. **New
 transaction** → `Bank`, `300000` CRC, Housing, BAC, Bank account, `2026-06-05`, Budgeted → **Save**.
@@ -3476,3 +3477,10 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   before the fix still show the evening-before day (truthful to their window) until re-saved. QA-EMAIL-03
   gains the line; `ImportFromDateTests` (3) + `EmailSettingsPageTests.Edit_ChangingImportFrom_*` pin it.
   Suite count unchanged (180).
+- **Updated 2026-09-07** — **Dashboard: over/under judged in the line's own currency (owner report; the
+  same fix Reports got in PR #28).** A budget line is set on one side and its other side is a projection at
+  today's rate, so a $2.99 line paid at $2.99 painted red whenever its colón projection landed a few colones
+  under the purchase's frozen colón amount. The summary now carries `budget_currency` per line and the
+  dashboard compares on that side; converted pairs (line totals, bank × method) turn red only when over on
+  BOTH sides. QA-DASH-01 gains the line; `DashboardSummaryServiceTests.LineSummary_CarriesTheCurrency…` +
+  `DashboardPageTests.LinesAreJudgedInTheirOwnCurrency…` pin it. Suite count unchanged (180).
