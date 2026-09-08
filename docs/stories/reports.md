@@ -212,3 +212,28 @@ Scenario: Where the money leaves from
   When I view charts (month or date range)
   Then "Spend by bank" lists BAC then Unknown bank, and "Card vs account" lists Credit card then Bank account
 ```
+
+### REPORTS-5 — Budgeted vs spent by payment method *(owner question, 2026-09-08)* ✅
+
+**As a** household member
+**I want** to see how much of the month's plan is meant to be paid by credit card and how much from the
+bank account, against what actually left each way
+**So that** I know what the card statement and the account should absorb before the month ends
+
+**Context / notes:** two homes. On the **dashboard**, the bank × method table is grouped by payment method
+(card first) with a **subtotal row per method** and a grand total — no API change, the summary already
+carries every cell. In **Reports** chart view, "Budgeted vs spent, by payment method" sits under the
+Card vs account donut: one bar pair per method, the spend (frozen amounts) against the plan cut the same
+way (each line's own payment method, converted at today's rate like every budget figure — ADR-V019).
+Single month with a rate only; a date range has no plan. API: `budget_by_method[]` on the analysis
+(`BudgetTotals.PlannedByMethod`).
+
+```gherkin
+Scenario: The plan cut by payment method
+  Given June has a ₡60,000 Supermarket line paid by card and ₡8,000 spent on it by card
+  When I open Reports chart view for June
+  Then "Budgeted vs spent, by payment method" shows Credit card ₡8,000 against ₡60,000 and no Bank account bar
+  And GET /api/reports/category-analysis?month_id=… carries budget_by_method = [{ credit_card, 60000, 120 }]
+  When I switch to a date range
+  Then the bars are gone (budget_by_method is null) while the Card vs account donut stays
+```

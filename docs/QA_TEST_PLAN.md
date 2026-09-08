@@ -1619,7 +1619,7 @@ And the "This month" card opens with a stacked bar — the full width is the inc
 And Income (with Primary / Secondary underneath; Secondary hidden when zero) heads the waterfall, which reads Income → − Budgeted spent ₡300,000.00 → − Discretionary spent ₡0.00 → − Unplanned spent ₡10,000.00 → = Spent so far ₡310,000.00 → = Left now → − Still planned (with "N% of the month elapsed") → = Forecast at month end (red, with a warning line, when below zero)
 And Fixed expenses shows Mortgage — Budgeted ₡350,000.00 · $700.00 — Actual ₡300,000.00 in green
 And Other spending lists Dining ₡10,000.00; Unplanned essentials shows ₡10,000.00
-And Week by week shows the mortgage in week 2; By bank and payment method shows BAC / Bank account budget ₡350,000 actual ₡300,000
+And Week by week shows the mortgage in week 2; By bank and payment method shows BAC / Bank account budget ₡350,000 actual ₡300,000, grouped by method with a "Credit card — total" and a "Bank account — total" row and a grand total
 When I Edit Mortgage's budget down to ₡250,000 and reload the dashboard
 Then Mortgage's actual turns red (over budget) and Pending budgeted drops to ₡0.00
 And the Fixed, Variable, Other spending and Week by week tables each end with a Total row (the sum of the rows shown; the lines total keeps the over/under colour)
@@ -1635,7 +1635,8 @@ Nav **Dashboard** → **Expected:** June 2026 with the weeks line and "₡… pe
 **This month** waterfall (income → the three class rows → spent → left now → still planned → forecast); the
 Fixed table with Mortgage's actual in **green**; **Other spending** with Dining; **Unplanned essentials
 & refunds** ₡10,000.00; **Week by week** 4 rows, week 2 = ₡300,000.00 budgeted; **By bank and payment
-method** BAC · Bank account and Unassigned · Credit card (the lunch has no line). **Budget** → **Edit**
+method** grouped by method — Unassigned · Credit card first, then BAC · Bank account — each group closed by a
+**… — total** row (cards: budget ₡0 / actual ₡10,000; account: ₡350,000 / ₡300,000) and a grand **Total**. **Budget** → **Edit**
 Mortgage → `250000` → **Save** → **Dashboard** → **Expected:** actual ₡300,000.00 now **red**; **Still
 planned** ₡0.00 and the forecast equals Left now. Via Postman (**19 · Dashboard → Month summary**) → 200 with `exchange_rate`,
 `rate_source`, `summary.fixed_expenses[0].actual.crc = 300000`.
@@ -1723,8 +1724,9 @@ income in the hole (the inflow counts as income here, never as spend); the "Inco
 Budget lines ₡60,000 (the Supermarket line), Uncommitted = income − ₡60,000; the "Pace" card with three
 points (Jun 5, 10, 12), the plan line to ₡60,000 and Today at the right edge (the month is past) — caption
 "100% … · 17% of the plan spent"; "Month by month" with one bar (June) on its income track; "Spend by
-bank" = one slice (the bank of the transactions), "Card vs account" = Credit card only; switch to
-**Date range** → income, budget, pace and trend cards are gone, the two bank donuts stay. Via Postman
+bank" = one slice (the bank of the transactions), "Card vs account" = Credit card only, and under it
+"Budgeted vs spent, by payment method" = one bar pair (card: ₡8,000 spent against the ₡60,000 line); switch to
+**Date range** → income, budget, pace and trend cards are gone, the two bank donuts stay (the budget-by-method bars go — budgets are per month). Via Postman
 (**20 · Reports → Category analysis (month)**) → 200 with `single_month: true`,
 `budgeted[0].budgeted_crc = 60000`, an `income` `{crc, usd}` pair, `budget_total.crc = 60000`, `by_bank`
 / `by_method` arrays and `spend_by_day` with three dates; (**date range**) → `income: null`,
@@ -3589,3 +3591,9 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   transition into a granting status — the owner had received the cancellation email but never a confirmation.
   The cancelled state reads honestly: "Your paid subscription ended on <date>" instead of "renews", and no
   portal button (nothing live to manage; Upgrade is the way back) — `NotifyBillingTests.Billing_CancelledSubscription_*`.
+- **Updated 2026-09-08** — **"How much is budgeted on cards vs the bank account?" (owner question).** The dashboard's
+  bank × method table is grouped by payment method with a subtotal row per method and a grand total; Reports
+  chart view gets "Budgeted vs spent, by payment method" under the Card vs account donut (single month with a
+  rate). `GET /api/reports/category-analysis` adds `budget_by_method[]` (Core `BudgetTotals.PlannedByMethod`).
+  QA-DASH-01 and QA-REP-01 name them; `BudgetTotalsTests.PlannedByMethod_*`, `ReportSliceTests`,
+  `DashboardPageTests` (method totals) and `ReportsPageTests` (bars) pin it. Suite count unchanged (181).

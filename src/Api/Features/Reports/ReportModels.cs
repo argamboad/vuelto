@@ -85,12 +85,13 @@ public record CategoryAnalysisResponse(
     [property: JsonPropertyName("budget_total")] ReportMoneyResponse? BudgetTotal,
     [property: JsonPropertyName("exchange_rate")] decimal? ExchangeRate,
     [property: JsonPropertyName("exchange_rate_buy")] decimal? ExchangeRateBuy,
+    [property: JsonPropertyName("budget_by_method")] IReadOnlyList<GroupSpendResponse>? BudgetByMethod,
     [property: JsonPropertyName("by_bank")] IReadOnlyList<GroupSpendResponse> ByBank,
     [property: JsonPropertyName("by_method")] IReadOnlyList<GroupSpendResponse> ByMethod,
     [property: JsonPropertyName("spend_by_day")] IReadOnlyList<DaySpendResponse>? SpendByDay)
 {
     /// <summary><c>spend_by_day</c> only for a single month (the pace line is a month picture; a long range would ship hundreds of rows for nothing).</summary>
-    public static CategoryAnalysisResponse From(CategoryAnalysis a, MoneyPair? income, MoneyPair? budgetTotal, FxRates? rates = null) => new(
+    public static CategoryAnalysisResponse From(CategoryAnalysis a, MoneyPair? income, MoneyPair? budgetTotal, FxRates? rates = null, IReadOnlyList<GroupSpendEntry>? budgetByMethod = null) => new(
         new ReportPeriodResponse(a.From, a.To), a.SingleMonth,
         a.Budgeted.Select(CategorySpendResponse.From).ToList(),
         a.Extraordinary.Select(CategorySpendResponse.From).ToList(),
@@ -98,6 +99,7 @@ public record CategoryAnalysisResponse(
         income is null ? null : ReportMoneyResponse.From(income),
         budgetTotal is null ? null : ReportMoneyResponse.From(budgetTotal),
         rates?.Sell, rates?.Buy, // the pair the projections used (ADR-V019) — so a client can total single-currency budgets in one currency
+        budgetByMethod?.Select(GroupSpendResponse.From).ToList(), // the plan cut by payment method (single month with a rate), beside by_method's spend
         a.ByBank.Select(GroupSpendResponse.From).ToList(),
         a.ByMethod.Select(GroupSpendResponse.From).ToList(),
         a.SingleMonth ? a.ByDay.Select(DaySpendResponse.From).ToList() : null);

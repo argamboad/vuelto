@@ -22,6 +22,7 @@ public class ReportsPageTests : ComponentTestBase
          "extraordinary":[{"category_id":"bbbbbbbb-0000-0000-0000-000000000004","category_name":"Dining","total_crc":2000,"total_usd":4,"budgeted_crc":null,"budgeted_usd":null}],
          "unplanned_essential":[],
          "income":{"crc":200000,"usd":400},"budget_total":{"crc":150000,"usd":300},
+         "budget_by_method":[{"key":"credit_card","label":"credit_card","total_crc":120000,"total_usd":240},{"key":"bank_account","label":"bank_account","total_crc":30000,"total_usd":60}],
          "by_bank":[{"key":"cccccccc-0000-0000-0000-000000000001","label":"BAC","total_crc":90000,"total_usd":180},{"key":"cccccccc-0000-0000-0000-000000000002","label":"","total_crc":9704.87,"total_usd":24.19}],
          "by_method":[{"key":"credit_card","label":"credit_card","total_crc":80000,"total_usd":160},{"key":"bank_account","label":"bank_account","total_crc":19704.87,"total_usd":44.19}],
          "spend_by_day":[{"date":"2026-06-26","total_crc":8000,"total_usd":16},{"date":"2026-07-03","total_crc":70000,"total_usd":140},{"date":"2026-07-20","total_crc":21704.87,"total_usd":48.19}]}
@@ -244,6 +245,7 @@ public class ReportsPageTests : ComponentTestBase
         Assert.Empty(cut.FindAll("[data-testid='rep-trend-card']"));
         Assert.Single(cut.FindAll("[data-testid='rep-bank-donut'] [data-testid='chart-legend-item']"));
         Assert.Single(cut.FindAll("[data-testid='rep-method-donut'] [data-testid='chart-legend-item']"));
+        Assert.Empty(cut.FindAll("[data-testid='rep-method-bars']")); // no plan for a range — budgets are per month
     }
 
     // ---- REPORTS-4: pace, trend, banks ----
@@ -342,6 +344,16 @@ public class ReportsPageTests : ComponentTestBase
         Assert.Contains("Tx_CreditCard", methods[0].TextContent);
         Assert.Contains("Tx_BankAccount", methods[1].TextContent);
         Assert.Contains("₡19,705", methods[1].TextContent);
+        // The plan cut the same way, beside the spend: card ₡120,000 budgeted vs ₡80,000 spent; account ₡30,000 vs ₡19,705.
+        var bars = cut.FindAll("[data-testid='rep-method-bars'] [data-testid='chart-bar']");
+        Assert.Equal(2, bars.Count);
+        Assert.Contains("Tx_CreditCard", bars[0].TextContent);
+        Assert.Contains("₡80,000", bars[0].QuerySelector("[data-testid='chart-value']")!.TextContent);
+        Assert.NotNull(bars[0].QuerySelector("[data-testid='chart-budget']")); // the plan track behind the spend
+        Assert.Equal("false", bars[0].GetAttribute("data-over"));               // ₡80,000 under the ₡120,000 plan
+        var captions = cut.FindAll("[data-testid='rep-method-caption']");
+        Assert.Equal(2, captions.Count);
+        Assert.Contains("Reports_MethodCaption[₡120,000.00, ₡80,000.00]", captions[0].TextContent); // the plan figure, in words
     }
 
     [Fact]

@@ -69,6 +69,7 @@ public sealed class ReportHandler(
         List<IExpenseLine>? lines = null;
         MoneyPair? income = null, budgetTotal = null;
         FxRates? pair = null;
+        IReadOnlyList<GroupSpendEntry>? budgetByMethod = null;
         if (period.SingleMonth)
         {
             lines = [];
@@ -82,11 +83,12 @@ public sealed class ReportHandler(
             {
                 income = IncomeCalculator.Calculate(month, rows, resolved.Rates).Total;
                 budgetTotal = BudgetTotals.Planned(lines, resolved.Rates);
+                budgetByMethod = BudgetTotals.PlannedByMethod(lines, resolved.Rates);
                 pair = resolved.Rates;
             }
         }
 
-        return CategoryAnalysisResponse.From(CategoryAnalysisCalculator.Calculate(rows, names, period.From, period.To, lines, bankNames), income, budgetTotal, pair);
+        return CategoryAnalysisResponse.From(CategoryAnalysisCalculator.Calculate(rows, names, period.From, period.To, lines, bankNames), income, budgetTotal, pair, budgetByMethod);
     }
 
     public const int TrendDefaultCount = 12, TrendMaxCount = 36;

@@ -195,9 +195,20 @@ public class DashboardPageTests : ComponentTestBase
         Assert.Contains("₡300,000.00 · $600.00", weekTotal[1].TextContent);
         Assert.Contains("₡0.00 · $0.00", weekTotal[2].TextContent);
         Assert.Contains("Marchamo", cut.Find("[data-testid='dash-envelopes']").TextContent);
+        // Grouped by method (card first), a subtotal per method, a grand total: "budgeted on cards vs the account" reads off the table.
         var bankRows = cut.FindAll("[data-testid='dash-bank-row']");
-        Assert.Contains("BAC", bankRows[0].TextContent);
-        Assert.Contains("Budget_Unassigned", bankRows[1].TextContent);
+        Assert.Contains("Budget_Unassigned", bankRows[0].TextContent); // the credit-card group (Unassigned · card) now comes first
+        Assert.Contains("BAC", bankRows[1].TextContent);
+        var methodTotals = cut.FindAll("[data-testid='dash-method-total']");
+        Assert.Equal(["credit_card", "bank_account"], methodTotals.Select(r => r.GetAttribute("data-method")));
+        Assert.Contains("Dash_MethodTotal[Tx_CreditCard]", methodTotals[0].TextContent);
+        Assert.Contains("₡0.00 · $0.00", methodTotals[0].QuerySelectorAll("td")[1].TextContent);       // nothing budgeted on cards
+        Assert.Contains("₡10,000.00 · $20.00", methodTotals[0].QuerySelectorAll("td")[2].TextContent); // but the lunch was paid by card
+        Assert.Contains("₡365,000.00 · $730.00", methodTotals[1].QuerySelectorAll("td")[1].TextContent);
+        Assert.Contains("₡300,000.00 · $600.00", methodTotals[1].QuerySelectorAll("td")[2].TextContent);
+        var banksTotal = cut.Find("[data-testid='dash-banks-total']").QuerySelectorAll("td");
+        Assert.Contains("₡365,000.00 · $730.00", banksTotal[1].TextContent);
+        Assert.Contains("₡310,000.00 · $620.00", banksTotal[2].TextContent);
         Assert.Equal(2, cut.FindAll("[data-testid='dash-month'] option").Count);
     }
 
