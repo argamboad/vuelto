@@ -99,6 +99,12 @@
                                 {
                                     @Row(Localizer["Month_SecondaryIncome"], s.IncomeSecondary, testId: "dash-wf-income-secondary", muted: true)
                                 }
+                                @* Inflows (realized refunds, sales, any money in) are folded into the total — say so, so the sub-rows add up. *@
+                                @{ var other = new MoneyDto(s.IncomeTotal.Crc - s.IncomePrimary.Crc - s.IncomeSecondary.Crc, s.IncomeTotal.Usd - s.IncomePrimary.Usd - s.IncomeSecondary.Usd); }
+                                @if (other.Crc != 0 || other.Usd != 0)
+                                {
+                                    @Row(Localizer["Dash_WfIncomeOther"], other, testId: "dash-wf-income-other", muted: true)
+                                }
                             </div>
                             @Row(Localizer["Dash_WfBudgeted"], s.SpentBudgeted, testId: "dash-wf-budgeted", muted: true)
                             @Row(Localizer["Dash_WfDiscretionary"], s.SpentExtraordinary, testId: "dash-wf-discretionary", muted: true)

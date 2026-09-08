@@ -395,6 +395,8 @@
   <data name="Month_Income" xml:space="preserve"><value>Income this month</value></data>
   <data name="Month_PrimaryIncome" xml:space="preserve"><value>Primary income</value></data>
   <data name="Month_SecondaryIncome" xml:space="preserve"><value>Secondary income</value></data>
+  <data name="Month_OtherIncome" xml:space="preserve"><value>Other income this month (inflows, counted in the dashboard's Income)</value></data>
+  <data name="Month_OtherIncomeShow" xml:space="preserve"><value>show the {0} transaction(s)</value></data>
   <data name="Month_IncomeSaved" xml:space="preserve"><value>Income updated.</value></data>
   <data name="Month_IncomeError" xml:space="preserve"><value>Couldn't save the income. Check the values and try again.</value></data>
   <data name="Month_LoadError" xml:space="preserve"><value>Couldn't load the month. Refresh to try again.</value></data>
@@ -495,6 +497,7 @@
   <data name="Dash_RateNote" xml:space="preserve"><value>Actuals sum each purchase at its own frozen rate, so the ₡ and $ columns won't match a single rate.</value></data>
   <data name="Dash_ThisMonth" xml:space="preserve"><value>This month</value></data>
   <data name="Dash_WfIncome" xml:space="preserve"><value>Income</value></data>
+  <data name="Dash_WfIncomeOther" xml:space="preserve"><value>Other income (inflows)</value></data>
   <data name="Dash_WfBudgeted" xml:space="preserve"><value>− Budgeted spent</value></data>
   <data name="Dash_WfDiscretionary" xml:space="preserve"><value>− Discretionary spent</value></data>
   <data name="Dash_WfUnplanned" xml:space="preserve"><value>− Unplanned spent</value></data>

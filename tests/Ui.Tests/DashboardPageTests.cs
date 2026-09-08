@@ -135,6 +135,26 @@ public class DashboardPageTests : ComponentTestBase
     }
 
     [Fact]
+    public async Task Income_ShowsInflowsAsTheirOwnSubRow_SoTheSubRowsAddUp()
+    {
+        // The API folds inflows into income_total; the page derives "Other income" = total − primary − secondary.
+        await SignInAsync();
+        Http.On(HttpMethod.Get, "/api/months", Months);
+        Http.On(HttpMethod.Get, $"/api/months/{M2}/summary", Dash(M2).Replace("\"income_total\":{\"crc\":1500000,\"usd\":3000}", "\"income_total\":{\"crc\":1550000,\"usd\":3100}"));
+
+        var cut = Render<Dashboard>();
+
+        cut.WaitForElement("[data-testid='dash-waterfall']");
+        Assert.Contains("₡50,000.00 · $100.00", cut.Find("[data-testid='dash-wf-income-other']").TextContent);
+        Assert.Contains("Dash_WfIncomeOther", cut.Find("[data-testid='dash-wf-income-other']").TextContent);
+
+        Http.On(HttpMethod.Get, $"/api/months/{M2}/summary", Dash(M2)); // no inflows → no row
+        var plain = Render<Dashboard>();
+        plain.WaitForElement("[data-testid='dash-waterfall']");
+        Assert.Empty(plain.FindAll("[data-testid='dash-wf-income-other']"));
+    }
+
+    [Fact]
     public async Task Loads_TheNewestMonth_AndRendersEverySection()
     {
         await SignInAsync();

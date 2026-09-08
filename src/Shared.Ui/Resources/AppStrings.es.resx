@@ -395,6 +395,8 @@
   <data name="Month_Income" xml:space="preserve"><value>Ingresos de este mes</value></data>
   <data name="Month_PrimaryIncome" xml:space="preserve"><value>Ingreso principal</value></data>
   <data name="Month_SecondaryIncome" xml:space="preserve"><value>Ingreso secundario</value></data>
+  <data name="Month_OtherIncome" xml:space="preserve"><value>Otros ingresos del mes (entradas, contadas en el Ingreso del panel)</value></data>
+  <data name="Month_OtherIncomeShow" xml:space="preserve"><value>ver las {0} transacciones</value></data>
   <data name="Month_IncomeSaved" xml:space="preserve"><value>Ingresos actualizados.</value></data>
   <data name="Month_IncomeError" xml:space="preserve"><value>No se pudieron guardar los ingresos. Revisa los valores e intenta de nuevo.</value></data>
   <data name="Month_LoadError" xml:space="preserve"><value>No se pudo cargar el mes. Recarga para intentar de nuevo.</value></data>
@@ -495,6 +497,7 @@
   <data name="Dash_RateNote" xml:space="preserve"><value>Los gastos reales suman cada compra a su propio tipo de cambio congelado, así que las columnas ₡ y $ no coinciden con un solo tipo de cambio.</value></data>
   <data name="Dash_ThisMonth" xml:space="preserve"><value>Este mes</value></data>
   <data name="Dash_WfIncome" xml:space="preserve"><value>Ingreso</value></data>
+  <data name="Dash_WfIncomeOther" xml:space="preserve"><value>Otros ingresos (entradas)</value></data>
   <data name="Dash_WfBudgeted" xml:space="preserve"><value>− Presupuestado gastado</value></data>
   <data name="Dash_WfDiscretionary" xml:space="preserve"><value>− Discrecional gastado</value></data>
   <data name="Dash_WfUnplanned" xml:space="preserve"><value>− Imprevisto gastado</value></data>
