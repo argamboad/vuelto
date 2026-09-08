@@ -12,6 +12,7 @@ public class OtlpEndpointsTests
     [Theory]
     [InlineData("traces")]
     [InlineData("metrics")]
+    [InlineData("logs")]
     public void HttpProtobuf_AppendsTheSignalPath_ToABaseUrl(string signal)
     {
         var uri = OtlpEndpoints.ForSignal("https://otlp-gateway-prod-us-west-0.grafana.net/otlp", "http/protobuf", signal);

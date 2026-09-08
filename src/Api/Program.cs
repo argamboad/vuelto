@@ -35,8 +35,9 @@ try { DotNetEnv.Env.TraversePath().Load(); } catch { /* no .env present */ }
 var builder = WebApplication.CreateBuilder(args);
 
 // Structured logging with per-request scopes (OBS-1, ADR-008): readable single-line console in dev,
-// JSON in prod so a log aggregator can index the tenant_id/user_id scope. Swap in Serilog/OTel-logs
-// later without touching call sites.
+// JSON in prod so a log aggregator can index the tenant_id/user_id scope. AddAppTelemetry (below) adds the
+// OpenTelemetry log provider on top when an OTLP endpoint is configured, so the same records also reach the
+// collector next to their traces — the console stays for the host's own log stream.
 builder.Logging.ClearProviders();
 if (builder.Environment.IsDevelopment())
     builder.Logging.AddSimpleConsole(o => { o.IncludeScopes = true; o.SingleLine = true; });
