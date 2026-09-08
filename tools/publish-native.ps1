@@ -3,13 +3,14 @@
   Build the Android APK and the Windows app pointed at a host (staging by default). docs/DEPLOYMENT.md §9.
 
 .EXAMPLE
-  .\tools\publish-native.ps1                                   # both, against staging, into ~\vuelto-builds
+  .\tools\publish-native.ps1                                   # both, against staging, into .\out (repo root)
   .\tools\publish-native.ps1 -ApiBaseUrl https://vuelto.example.com -Out C:\builds -Android
 #>
 [CmdletBinding()]
 param(
     [string] $ApiBaseUrl = "https://vuelto-staging.onrender.com",
-    [string] $Out = (Join-Path $HOME "vuelto-builds"),
+    # The output folder is <repo>\out — the same place DEPLOYMENT §9 publishes to, gitignored. Do not move it.
+    [string] $Out = (Join-Path (Split-Path -Parent $PSScriptRoot) "out"),
     [switch] $Android,
     [switch] $Windows
 )

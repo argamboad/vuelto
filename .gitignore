@@ -31,7 +31,7 @@ __azurite_db_*.json
 __blobstorage__/
 __queuestorage__/
 
-# Ad-hoc `dotnet publish -o out` output (tools/publish-native.ps1 writes to ~/vuelto-builds)
+# Native installables (tools/publish-native.ps1 and DEPLOYMENT §9 both publish here)
 out/
 
 # VS Code: launch.json + tasks.json are shared (F5 API + Web, Android tasks); per-user preferences stay local

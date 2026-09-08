@@ -190,11 +190,12 @@ another. This script makes both installables in one go. Full explanation: `docs/
    .\tools\publish-native.ps1
    ```
 
-   Defaults: both platforms, against `https://vuelto-staging.onrender.com`, into `~\vuelto-builds`.
+   Defaults: both platforms, against `https://vuelto-staging.onrender.com`, into `out\` at the repo root
+   (gitignored; the same folder DEPLOYMENT §9 publishes to).
    Options: `-ApiBaseUrl https://…`, `-Out C:\somewhere`, `-Android` or `-Windows` alone.
-2. **Phone:** send `~\vuelto-builds\vuelto.apk` to the phone (USB, a drive, a message to yourself), open
+2. **Phone:** send `out\vuelto.apk` to the phone (USB, a drive, a message to yourself), open
    it, allow installs from that source. It upgrades over a VS Code debug install (same key).
-3. **Desktop:** run `~\vuelto-builds\windows\Vuelto.Maui.exe`; pin a shortcut. SmartScreen warns once
+3. **Desktop:** run `out\windows\Vuelto.Maui.exe`; pin a shortcut. SmartScreen warns once
    (unsigned) — *More info → Run anyway*.
 4. The script ends with `Verified using v2 scheme … true` for the APK. If it says `false`, the phone will
    refuse the file silently — do not ship it.
