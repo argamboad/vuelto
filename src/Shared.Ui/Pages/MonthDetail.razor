@@ -73,6 +73,16 @@
                     </div>
                 </div>
                 <button class="btn btn-outline-primary btn-sm mt-3" data-testid="inc-save" disabled="@_saving" @onclick="SaveIncome">@(_saving ? Localizer["Catalog_Saving"] : Localizer["Catalog_Save"])</button>
+                @* Money that came in as transactions (realized refunds, sales…) — counted in the dashboard's Income, listed here so the card and the dashboard agree. *@
+                @{ var inflows = _transactions.Where(t => t.TransactionType == "inflow").ToList(); }
+                @if (inflows.Count > 0)
+                {
+                    <div class="small mt-3" data-testid="month-income-other">
+                        <span class="text-muted">@Localizer["Month_OtherIncome"]:</span>
+                        <span class="fw-semibold">₡@inflows.Sum(t => t.AmountCrc).ToString("N2", CultureInfo.CurrentCulture) · $@inflows.Sum(t => t.AmountUsd).ToString("N2", CultureInfo.CurrentCulture)</span>
+                        <button type="button" class="btn btn-link btn-sm p-0 ms-1 align-baseline" data-testid="month-income-other-show" @onclick='() => _fClass = "inflow"'>@Localizer["Month_OtherIncomeShow", inflows.Count]</button>
+                    </div>
+                }
             </div>
         </div>
 

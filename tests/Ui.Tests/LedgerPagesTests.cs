@@ -270,6 +270,30 @@ public class LedgerPagesTests : ComponentTestBase
     }
 
     [Fact]
+    public async Task MonthDetail_IncomeCard_ListsInflows_AndTheLinkFiltersToThem()
+    {
+        await SignInAsync();
+        Http.On(HttpMethod.Get, $"/api/months/{MonthId}", $$"""{"id":"{{MonthId}}","year":2026,"month_number":7,"week_count":5,"week1_start_date":"2026-06-25","primary_income_amount":3750,"primary_income_currency":"USD","secondary_income_amount":0,"secondary_income_currency":"CRC","weeks":[{"week_number":1,"start_date":"2026-06-25","end_date":"2026-07-01"},{"week_number":2,"start_date":"2026-07-02","end_date":"2026-07-29"}]}""");
+        Http.On(HttpMethod.Get, $"/api/months/{MonthId}/transactions", $$"""
+            [{"id":"{{TxId}}","payee":"AutoMercado","transaction_date":"2026-07-10","category_name":"Groceries","bank_name":"Cash","payment_method":"credit_card","transaction_type":"budgeted","amount_crc":50000,"amount_usd":100,"source":"manual"},
+             {"id":"dddddddd-0000-0000-0000-000000000002","payee":"Garage sale","transaction_date":"2026-07-12","category_name":"Other","bank_name":"Cash","payment_method":"bank_account","transaction_type":"inflow","amount_crc":30000,"amount_usd":60,"source":"manual"},
+             {"id":"dddddddd-0000-0000-0000-000000000003","payee":"Refund","transaction_date":"2026-07-15","category_name":"Other","bank_name":"Cash","payment_method":"bank_account","transaction_type":"inflow","amount_crc":20000,"amount_usd":40,"source":"refund_realization"}]
+            """);
+
+        var cut = Render<MonthDetail>(p => p.Add(x => x.Id, Guid.Parse(MonthId)));
+
+        cut.WaitForElement("[data-testid='month-income-other']");
+        Assert.Contains("₡50,000.00 · $100.00", cut.Find("[data-testid='month-income-other']").TextContent); // the two inflows, frozen amounts
+        Assert.Contains("Month_OtherIncomeShow[2]", cut.Find("[data-testid='month-income-other-show']").TextContent);
+        Assert.Equal(3, cut.FindAll("[data-testid='month-tx-row']").Count);
+
+        cut.Find("[data-testid='month-income-other-show']").Click();
+
+        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("[data-testid='month-tx-row']").Count));
+        Assert.All(cut.FindAll("[data-testid='month-tx-row']"), r => Assert.Contains("Tx_Inflow", r.TextContent));
+    }
+
+    [Fact]
     public async Task MonthDetail_SavesIncome()
     {
         await SignInAsync();

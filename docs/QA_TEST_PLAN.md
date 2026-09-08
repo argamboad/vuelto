@@ -1514,6 +1514,7 @@ Given an expected refund of ₡15,000.00 (Pending) on a purchase in this month
 And the Received on date next to Mark received defaults to today and refuses a date before the purchase
 When I keep a date inside this month and click Mark received
 Then the badge reads "Received <date>" and the transactions table gains an Income (inflow) row of ₡15,000.00 on that date, marked "Derived from a refund — read-only"
+And the Income card shows "Other income this month" ₡15,000.00 with a "show the 1 transaction(s)" link that filters the table to inflows, and the dashboard's Income gains an "Other income (inflows)" sub-row of the same amount
 And that row has no Edit/Delete buttons
 When I click Back to pending
 Then the inflow row disappears and the badge is Pending again
@@ -3597,3 +3598,8 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   rate). `GET /api/reports/category-analysis` adds `budget_by_method[]` (Core `BudgetTotals.PlannedByMethod`).
   QA-DASH-01 and QA-REP-01 name them; `BudgetTotalsTests.PlannedByMethod_*`, `ReportSliceTests`,
   `DashboardPageTests` (method totals) and `ReportsPageTests` (bars) pin it. Suite count unchanged (181).
+- **Updated 2026-09-08** — **Inflows are visible as income, not only as a row (owner question).** The dashboard's Income
+  gains an "Other income (inflows)" sub-row (total − primary − secondary, shown when non-zero) so the sub-rows add
+  up; the month page's Income card lists "Other income this month" with the inflows' frozen sum and a link that
+  filters the table to them. Client only. QA-LED-06 names both; `DashboardPageTests.Income_ShowsInflows*` and
+  `LedgerPagesTests.MonthDetail_IncomeCard_ListsInflows*` pin it. Suite count unchanged (181).

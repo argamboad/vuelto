@@ -137,3 +137,31 @@ per-user rows, erasure contributor), `DisplaySettingsEndpointTests` (401 / read-
 impersonation theory gains the route, the user-keyed erasure canary lists the entity; bUnit
 `DashboardPageTests.ShowIn_*` + `ReportsPageTests.ShowIn_*`; migration `AddUserDisplaySettings`; Postman
 folder 23; QA-DASH-03 + regenerated PDFs; ADR-V020.
+
+### DASH-3 — Inflows show as income, not only as a row *(owner question, 2026-09-08)* ✅
+
+**As a** household member
+**I want** money that came in as transactions (a realized refund, a sale) to appear as income where I look
+for income
+**So that** the dashboard's Income sub-rows add up to its total and the month page's Income card agrees
+with the dashboard
+
+**Context / notes:** the API already folds inflows into `income_total` (DASH-1); the dashboard now derives
+"Other income (inflows)" = total − primary − secondary and shows it as a third sub-row when non-zero. The
+month page's Income card lists "Other income this month" (the inflows' frozen ₡/$ sum and count) under the
+two editable incomes, with a link that sets the class filter to Inflow. No total on the month page — it has
+no rate to convert the configured incomes with; the dashboard is where the sum lives. Client only.
+
+```gherkin
+Scenario: The sub-rows add up
+  Given June's income is $3,000 and a ₡15,000 refund was realized in June
+  When I open the dashboard
+  Then Income shows Primary $3,000 and Other income (inflows) ₡15,000, and the Income total is their sum
+
+Scenario: The month page points at them
+  Given the same June
+  When I open the month page
+  Then the Income card reads "Other income this month ₡15,000.00 · $30.00 — show the 1 transaction(s)"
+  When I click the link
+  Then the transactions table shows only the inflow rows
+```
