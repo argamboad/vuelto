@@ -15,14 +15,14 @@ public class TransactionCsvWriterTests
     {
         var lines = Lines(TransactionCsvWriter.Write([]));
         Assert.Single(lines);
-        Assert.Equal("date,payee,category,class,amount_crc,amount_usd,exchange_rate_used,payment_method,bank,source", lines[0]);
+        Assert.Equal("date,payee,category,class,amount_crc,amount_usd,exchange_rate_used,payment_method,bank,source,card", lines[0]);
     }
 
     [Fact]
     public void Row_HasEveryColumnInOrder_WithPlainAmounts()
     {
         var fields = Lines(TransactionCsvWriter.Write([Row()]))[1].Split(',');
-        Assert.Equal(["2026-06-15", "Super MAS", "Groceries", "budgeted", "15750.00", "31.50", "500.0000", "credit_card", "BAC", "manual"], fields);
+        Assert.Equal(["2026-06-15", "Super MAS", "Groceries", "budgeted", "15750.00", "31.50", "500.0000", "credit_card", "BAC", "manual", ""], fields); // no card → empty last column
         Assert.DoesNotContain("₡", string.Join(',', fields));
         Assert.DoesNotContain("$", string.Join(',', fields));
     }
@@ -38,7 +38,7 @@ public class TransactionCsvWriterTests
     public void Text_IsQuotedOnlyWhenNeeded()
     {
         var line = Lines(TransactionCsvWriter.Write([Row(payee: "Café \"El\" Punto, S.A.", category: null, bank: "Line\nBreak")]))[1];
-        Assert.Equal("2026-06-15,\"Café \"\"El\"\" Punto, S.A.\",,budgeted,15750.00,31.50,500.0000,credit_card,\"Line\nBreak\",manual", line);
+        Assert.Equal("2026-06-15,\"Café \"\"El\"\" Punto, S.A.\",,budgeted,15750.00,31.50,500.0000,credit_card,\"Line\nBreak\",manual,", line); // trailing empty card column
     }
 
     [Fact]

@@ -15,11 +15,13 @@ public class LedgerPagesTests : ComponentTestBase
     private const string CatId = "bbbbbbbb-0000-0000-0000-000000000002";
     private const string BankId = "cccccccc-0000-0000-0000-000000000003";
     private const string TxId = "dddddddd-0000-0000-0000-000000000004";
+    private const string CardId = "eeeeeeee-0000-0000-0000-000000000005";
 
     private void StubCatalogs()
     {
         Http.On(HttpMethod.Get, "/api/categories", $$"""[{"id":"{{CatId}}","name":"Groceries","is_active":true}]""");
         Http.On(HttpMethod.Get, "/api/banks", $$"""[{"id":"{{BankId}}","name":"Cash","is_active":true}]""");
+        Http.On(HttpMethod.Get, "/api/cards", $$"""[{"id":"{{CardId}}","name":"VISA-1234","brand":"VISA","last4":"1234","bank_id":null,"is_active":true,"auto_named":true}]""");
         Http.On(HttpMethod.Get, "/api/envelopes", "[]");
         Http.On(HttpMethod.Get, "/api/exchange-rate", """{"rate":510.45,"source":"live","as_of":"2026-09-03T12:00:00+00:00"}""");
         Http.On(HttpMethod.Get, "/api/months/resolve", """{"month_id":null,"year":2026,"month_number":7,"is_new":true}""");
@@ -92,6 +94,31 @@ public class LedgerPagesTests : ComponentTestBase
         cut.Find("[data-testid='tx-rate']").Change("460");
         cut.Find("[data-testid='tx-currency']").Change("USD");
         Assert.Equal("460", cut.Find("[data-testid='tx-rate']").GetAttribute("value"));
+    }
+
+    [Fact]
+    public async Task NewTransaction_CardIsOptional_AndAPickedOneIsPosted()
+    {
+        // CARDS-1: "No card" by default (cash, transfers); a picked card rides on the payload.
+        await SignInAsync();
+        StubCatalogs();
+        Http.On(HttpMethod.Post, "/api/transactions", $$"""{"id":"{{TxId}}","month_id":"{{MonthId}}","payee":"AutoMercado","bank_id":"{{BankId}}","card_id":"{{CardId}}","payment_method":"credit_card","original_amount":50000,"currency":"CRC","transaction_date":"2026-07-10","category_id":"{{CatId}}","exchange_rate_used":510.45,"transaction_type":"budgeted","source":"manual","envelope_id":null}""", HttpStatusCode.Created);
+
+        var cut = Render<TransactionForm>();
+        cut.WaitForAssertion(() => Assert.Equal("510.45", cut.Find("[data-testid='tx-rate']").GetAttribute("value")));
+        Assert.Equal("", cut.Find("[data-testid='tx-card']").GetAttribute("value") ?? "");
+        Assert.Contains("VISA-1234", cut.Find("[data-testid='tx-card']").TextContent);
+
+        cut.Find("[data-testid='tx-payee']").Input("AutoMercado");
+        cut.Find("[data-testid='tx-amount']").Change("50000");
+        cut.Find("[data-testid='tx-category']").Change(CatId);
+        cut.Find("[data-testid='tx-bank']").Change(BankId);
+        cut.Find("[data-testid='tx-card']").Change(CardId);
+        cut.Find("[data-testid='tx-save']").Click();
+
+        cut.WaitForAssertion(() => Assert.Single(Http.Requests, r => r.Method == HttpMethod.Post && r.RequestUri!.AbsolutePath == "/api/transactions"));
+        var body = await Http.Requests.Single(r => r.Method == HttpMethod.Post && r.RequestUri!.AbsolutePath == "/api/transactions").Content!.ReadAsStringAsync();
+        Assert.Contains($"\"card_id\":\"{CardId}\"", body);
     }
 
     [Fact]
@@ -199,7 +226,7 @@ public class LedgerPagesTests : ComponentTestBase
         await SignInAsync();
         Http.On(HttpMethod.Get, $"/api/months/{MonthId}", $$"""{"id":"{{MonthId}}","year":2026,"month_number":7,"week_count":5,"week1_start_date":"2026-06-25","primary_income_amount":0,"primary_income_currency":"USD","secondary_income_amount":0,"secondary_income_currency":"USD","weeks":[{"week_number":1,"start_date":"2026-06-25","end_date":"2026-07-29"}]}""");
         Http.On(HttpMethod.Get, $"/api/months/{MonthId}/transactions", """
-            [{"id":"dddddddd-0000-0000-0000-000000000001","payee":"Uber","transaction_date":"2026-07-20","category_name":"Transport","bank_name":"BAC","payment_method":"credit_card","transaction_type":"extraordinary","amount_crc":5000,"amount_usd":10,"source":"manual"},
+            [{"id":"dddddddd-0000-0000-0000-000000000001","payee":"Uber","transaction_date":"2026-07-20","category_name":"Transport","bank_name":"BAC","card_name":"VISA-1234","payment_method":"credit_card","transaction_type":"extraordinary","amount_crc":5000,"amount_usd":10,"source":"manual"},
              {"id":"dddddddd-0000-0000-0000-000000000002","payee":"AutoMercado","transaction_date":"2026-07-10","category_name":"Groceries","bank_name":"Cash","payment_method":"credit_card","transaction_type":"budgeted","amount_crc":50000,"amount_usd":100,"source":"manual"},
              {"id":"dddddddd-0000-0000-0000-000000000003","payee":"Café Britt","transaction_date":"2026-07-02","category_name":"Groceries","bank_name":"BAC","payment_method":"bank_account","transaction_type":"unplanned_essential","amount_crc":8000,"amount_usd":16,"source":"email"}]
             """);
@@ -207,6 +234,13 @@ public class LedgerPagesTests : ComponentTestBase
         var cut = Render<MonthDetail>(p => p.Add(x => x.Id, Guid.Parse(MonthId)));
         cut.WaitForAssertion(() => Assert.Equal(3, cut.FindAll("[data-testid='month-tx-row']").Count));
         string[] Payees() => cut.FindAll("[data-testid='month-tx-payee']").Select(e => e.TextContent.Trim()).ToArray();
+
+        // CARDS-1: the card column shows the alias; the card filter narrows to it.
+        Assert.Equal("VISA-1234", cut.FindAll("[data-testid='month-tx-card']")[0].TextContent.Trim());
+        cut.Find("[data-testid='month-tx-filter-card']").Change("VISA-1234");
+        Assert.Equal(["Uber"], Payees());
+        cut.Find("[data-testid='month-tx-filter-clear']").Click();
+        Assert.Equal(3, Payees().Length);
 
         // Default: newest first (the API's order). Date header flips it.
         Assert.Equal(["Uber", "AutoMercado", "Café Britt"], Payees());

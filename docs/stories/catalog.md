@@ -99,3 +99,50 @@ Postgres (seeding in locale, idempotence, 409 offer, rename/reactivate, list fil
 AND write negatives, contributors) + HTTP (401, 201/200, 409 shape, 404, both prefixes), bUnit page
 tests; migration with RLS DDL for both tables; two contributors; Postman folder; QA-CAT-01..04 +
 regenerated PDFs; EN/ES resx; merged, app working.
+
+### CATALOG-3 (CARDS-1) — Keep the household's cards, named by us, identified by the bank *(owner request, 2026-09-08)* ✅
+
+**As a** household member
+**I want** every card we pay with to exist as a thing I can name, and every voucher to land on the right one
+**So that** I can later see how much went through each card
+
+**Context / notes (ADR-V021):** a card is identified by what the voucher prints — **brand + last four** —
+and named by us (the alias). A confirmed voucher links its card, **creating it as `VISA-1234`** on first
+sight (`auto_named` until renamed); the alias is edited on **Settings → Cards** (`/cards`), never the
+identity. Manual transactions get an optional card picker; the month page shows and filters by card; the
+CSV gains a trailing `card` column. Transactions from before, or without a card, keep `card_id` null —
+a "no card" bucket in every summary, no LEGACY row. Rules under `/api/cards`: alias unique
+case-insensitively, `card_exists` (alias **or** identity clash) / `card_exists_inactive` + `existing_id`
++ `existing_name`, uniform 404, never seeded. BN payment receipts name no brand → `CARD-0000`.
+
+```gherkin
+Scenario: A voucher creates the card on first sight
+  Given the household has no cards and a BAC voucher for VISA ************1234 is confirmed
+  Then a card VISA-1234 (VISA, 1234, the voucher's bank, auto_named) exists and the transaction names it
+  When a second voucher on the same card is confirmed
+  Then it names the same card — one row, not two
+
+Scenario: The household names the card
+  When I rename VISA-1234 to "Allan's Visa" on Settings → Cards
+  Then every past and future transaction on it shows "Allan's Visa", auto_named is false, and the next voucher still matches by VISA + 1234
+
+Scenario: The voucher prints no brand
+  Given VISA-1966 exists and a BN payment for ************1966 (no brand) is confirmed
+  Then it lands on VISA-1966 — a brandless number is the card already known by those four digits
+  And when CARD-1966 was created first and a VISA voucher for 1966 arrives, CARD-1966 becomes VISA-1966 (still auto-named)
+
+Scenario: The bank renews the card
+  Given "Allan's Visa" (VISA ····1234) and a voucher printed as VISA ************5678 is confirmed
+  Then VISA-5678 appears auto-named with the new transaction on it
+  When I choose "Same card as… Allan's Visa" and Merge
+  Then one card remains, listing ····1234 · ····5678, every transaction on it, and the next voucher on either number lands on it
+
+Scenario: Manual entry
+  When I enter a transaction without picking a card
+  Then it has no card; picking one links it; a card from another household or an inactive one is 400
+```
+
+**Definition of done:** `CardIdentityTests`; `CardSliceTests` (normalise, alias/identity 409, reactivate, resolve-or-create,
+rename clears auto, tenant isolation, contributor); ledger + voucher-confirm tests; `CardEndpointTests`; bUnit
+`CardsPageTests` + form/month/review assertions; migration `AddCards` with RLS; Postman folder 24; QA-CAT-05 +
+QA-EMAIL-06 / QA-REP-02 lines; EN/ES resx; snapshot tool; ADR-V021.

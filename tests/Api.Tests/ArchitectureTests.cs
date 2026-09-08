@@ -121,6 +121,7 @@ public class ArchitectureTests
             nameof(BudgetSettings),                         // BudgetSettingsDataContributor (app slice BUDGET-1)
             nameof(Category),                               // CategoryDataContributor (app slice CATALOG-1)
             nameof(Bank),                                   // BankDataContributor (app slice CATALOG-2)
+            nameof(Card), nameof(CardIdentity),             // CardDataContributor (app slice CARDS-1)
             nameof(Envelope),                               // EnvelopeDataContributor (app slice ENV-1)
             nameof(Month),                                  // LedgerDataContributor (app slice LEDGER-1/2)
             nameof(Week),                                   // LedgerDataContributor

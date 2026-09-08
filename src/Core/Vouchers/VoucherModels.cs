@@ -33,6 +33,8 @@ public record ParsedVoucher
     public string? Currency { get; init; }          // "CRC" | "USD"
     public DateOnly? Date { get; init; }
     public string? CardNumber { get; init; }
+    /// <summary>The brand label the voucher printed the card under (VISA / MASTERCARD…); null when it names none (CARDS-1).</summary>
+    public string? CardBrand { get; init; }
     public string? Authorization { get; init; }
     public string? Reference { get; init; }
     public string? TransactionType { get; init; }    // raw bank wording, e.g. "COMPRA" / "PAGO"

@@ -89,7 +89,7 @@ public class ReportSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
         var files = new CapturingFileStorage();
         var handler = new ReportHandler(
             new EfRepository<Month>(db), new EfRepository<Week>(db), new EfRepository<Transaction>(db), new EfRepository<Category>(db),
-            new EfRepository<Bank>(db), new EfRepository<FixedExpense>(db), new EfRepository<VariableExpense>(db),
+            new EfRepository<Bank>(db), new EfRepository<Card>(db), new EfRepository<FixedExpense>(db), new EfRepository<VariableExpense>(db),
             files, new FixedRate(rate), new FakeTimeProvider(T0));
         return new Ctx(db, tenant, handler, files, month.Id, groceries.Id, dining.Id, bac.Id);
     }

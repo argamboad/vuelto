@@ -54,6 +54,7 @@
                             <div class="fw-semibold" data-testid="review-merchant">@(v.Merchant ?? Localizer["Review_UnknownMerchant"].Value)</div>
                             <div class="small text-muted">
                                 @(v.Date?.ToString("d", CultureInfo.CurrentCulture) ?? "—") · @(v.TransactionType ?? "—") · @BankName(v.BankId)
+                                @if (CardText(v) is { } card) { <span data-testid="review-card"> · @card</span> }
                                 @if (v.ReceivedAt is { } at) { <span> · @Localizer["Review_Received", at.ToLocalTime().ToString("g", CultureInfo.CurrentCulture)]</span> }
                             </div>
                         </div>
@@ -284,6 +285,13 @@
         public DateOnly? Date { get; set; }
     }
 
+    /// <summary>"VISA ····1234" from what the bank printed (CARDS-1); null when the voucher names no card.</summary>
+    private static string? CardText(VoucherDto v)
+    {
+        var digits = new string((v.CardNumber ?? "").Where(char.IsDigit).ToArray());
+        return digits.Length < 4 ? null : $"{(string.IsNullOrWhiteSpace(v.CardBrand) ? "CARD" : v.CardBrand.ToUpperInvariant())} ····{digits[^4..]}";
+    }
+
     private sealed class VoucherDto
     {
         [JsonPropertyName("id")] public Guid Id { get; set; }
@@ -292,6 +300,8 @@
         [JsonPropertyName("currency")] public string? Currency { get; set; }
         [JsonPropertyName("date")] public DateOnly? Date { get; set; }
         [JsonPropertyName("bank_id")] public Guid? BankId { get; set; }
+        [JsonPropertyName("card_number")] public string? CardNumber { get; set; }
+        [JsonPropertyName("card_brand")] public string? CardBrand { get; set; }
         [JsonPropertyName("transaction_type")] public string? TransactionType { get; set; }
         [JsonPropertyName("missing_fields")] public string[] MissingFields { get; set; } = [];
         [JsonPropertyName("suggested_category_id")] public Guid? SuggestedCategoryId { get; set; }

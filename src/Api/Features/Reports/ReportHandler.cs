@@ -22,6 +22,7 @@ public sealed class ReportHandler(
     IRepository<Transaction> transactions,
     IRepository<Category> categories,
     IRepository<Bank> banks,
+    IRepository<Card> cards,
     IRepository<FixedExpense> fixedExpenses,
     IRepository<VariableExpense> variableExpenses,
     IFileStorage files,
@@ -120,10 +121,12 @@ public sealed class ReportHandler(
 
         var categoryNames = await categories.Query().ToDictionaryAsync(c => c.Id, c => c.Name, cancellationToken);
         var bankNames = await banks.Query().ToDictionaryAsync(b => b.Id, b => b.Name, cancellationToken);
+        var cardNames = await cards.Query().ToDictionaryAsync(c => c.Id, c => c.Name, cancellationToken);
 
         var csv = TransactionCsvWriter.Write(rows.Select(t => new TransactionExportRow(
             t.TransactionDate, t.Payee, categoryNames.GetValueOrDefault(t.CategoryId), t.TransactionType,
-            t.AmountCrc, t.AmountUsd, t.ExchangeRateUsed, t.PaymentMethod, bankNames.GetValueOrDefault(t.BankId), t.Source)));
+            t.AmountCrc, t.AmountUsd, t.ExchangeRateUsed, t.PaymentMethod, bankNames.GetValueOrDefault(t.BankId), t.Source,
+            t.CardId is { } cardId ? cardNames.GetValueOrDefault(cardId) : null)));
 
         // The download filename is the key's basename (server-controlled); a per-export folder keeps two
         // members exporting at the same second from overwriting each other's file.

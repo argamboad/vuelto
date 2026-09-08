@@ -28,6 +28,8 @@ public class PendingVoucher : ITenantScoped
     public string? Currency { get; set; }
     public DateOnly? Date { get; set; }
     public string? CardNumber { get; set; }
+    /// <summary>The brand label the voucher printed the card under (CARDS-1); null when it names none.</summary>
+    public string? CardBrand { get; set; }
     public string? Authorization { get; set; }
     public string? Reference { get; set; }
     public string? TransactionType { get; set; }

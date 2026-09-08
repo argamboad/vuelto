@@ -23,6 +23,7 @@ public sealed class TransactionHandler(
     IRepository<Category> categories,
     IRepository<Bank> banks,
     IRepository<Envelope> envelopes,
+    IRepository<Card> cards,
     MonthHandler months,
     IExchangeRateResolver rates,
     ICurrentTenant tenant,
@@ -31,11 +32,11 @@ public sealed class TransactionHandler(
 {
     private const int MaxAttempts = 2; // one retry: a lost month-creation race finds the winner's month next time
 
-    private sealed record Valid(string Payee, Guid BankId, string PaymentMethod, decimal Amount, string Currency, DateOnly Date, Guid CategoryId, string Type, Guid? EnvelopeId, decimal? RefundPercentage);
+    private sealed record Valid(string Payee, Guid BankId, string PaymentMethod, decimal Amount, string Currency, DateOnly Date, Guid CategoryId, string Type, Guid? EnvelopeId, decimal? RefundPercentage, Guid? CardId);
 
     /// <summary>The manual create (LEDGER-2): <c>source = manual</c>.</summary>
     public Task<(TransactionResponse? Transaction, ErrorResponse? Error)> CreateAsync(CreateTransactionRequest r, CancellationToken cancellationToken) =>
-        CreateAsync(new CreateTransactionCommand(r.Payee, r.BankId, r.PaymentMethod, r.OriginalAmount, r.Currency, r.TransactionDate, r.CategoryId, r.TransactionType, r.ExchangeRate, r.EnvelopeId, r.RefundExpected, r.RefundPercentage), cancellationToken);
+        CreateAsync(new CreateTransactionCommand(r.Payee, r.BankId, r.PaymentMethod, r.OriginalAmount, r.Currency, r.TransactionDate, r.CategoryId, r.TransactionType, r.ExchangeRate, r.EnvelopeId, r.RefundExpected, r.RefundPercentage, CardId: r.CardId), cancellationToken);
 
     /// <summary>
     /// The Core contract (ADR-V010): the same create for another slice's caller — the review queue books a
@@ -52,7 +53,7 @@ public sealed class TransactionHandler(
     private async Task<(TransactionResponse? Transaction, ErrorResponse? Error)> CreateAsync(CreateTransactionCommand r, CancellationToken cancellationToken)
     {
         if (tenant.TenantId is not { } tenantId) return (null, NoTenant());
-        var (v, invalid) = await ValidateAsync(r.Payee, r.BankId, r.PaymentMethod, r.OriginalAmount, r.Currency, r.TransactionDate, r.CategoryId, r.TransactionType, r.EnvelopeId, r.RefundExpected, r.RefundPercentage, cancellationToken);
+        var (v, invalid) = await ValidateAsync(r.Payee, r.BankId, r.PaymentMethod, r.OriginalAmount, r.Currency, r.TransactionDate, r.CategoryId, r.TransactionType, r.EnvelopeId, r.RefundExpected, r.RefundPercentage, r.CardId, cancellationToken);
         if (invalid is not null) return (null, invalid);
         if (r.ExchangeRate is <= 0) return (null, Invalid("exchange_rate must be positive"));
 
@@ -72,7 +73,7 @@ public sealed class TransactionHandler(
             var (month, staged) = await months.GetOrCreateForDateAsync(tenantId, v.Date, cancellationToken);
             var tx = new Transaction
             {
-                TenantId = tenantId, MonthId = month.Id, BankId = v.BankId, CategoryId = v.CategoryId, EnvelopeId = v.EnvelopeId,
+                TenantId = tenantId, MonthId = month.Id, BankId = v.BankId, CategoryId = v.CategoryId, EnvelopeId = v.EnvelopeId, CardId = v.CardId,
                 Payee = v.Payee, PaymentMethod = v.PaymentMethod, OriginalAmount = CurrencyMath.Round2(v.Amount), Currency = v.Currency,
                 TransactionDate = v.Date, AmountCrc = amountCrc, AmountUsd = amountUsd, ExchangeRateUsed = rate,
                 TransactionType = v.Type, Source = r.Source, CreatedAt = now, UpdatedAt = now,
@@ -99,7 +100,7 @@ public sealed class TransactionHandler(
     public async Task<(TransactionResponse? Transaction, ErrorResponse? Error)> UpdateAsync(Guid id, UpdateTransactionRequest r, CancellationToken cancellationToken)
     {
         if (tenant.TenantId is not { } tenantId) return (null, NoTenant());
-        var (v, invalid) = await ValidateAsync(r.Payee, r.BankId, r.PaymentMethod, r.OriginalAmount, r.Currency, r.TransactionDate, r.CategoryId, r.TransactionType, r.EnvelopeId, r.RefundExpected, r.RefundPercentage, cancellationToken);
+        var (v, invalid) = await ValidateAsync(r.Payee, r.BankId, r.PaymentMethod, r.OriginalAmount, r.Currency, r.TransactionDate, r.CategoryId, r.TransactionType, r.EnvelopeId, r.RefundExpected, r.RefundPercentage, r.CardId, cancellationToken);
         if (invalid is not null) return (null, invalid);
 
         var tx = await transactions.Query().FirstOrDefaultAsync(t => t.Id == id, cancellationToken);
@@ -119,7 +120,7 @@ public sealed class TransactionHandler(
 
             tx.Payee = v.Payee; tx.BankId = v.BankId; tx.PaymentMethod = v.PaymentMethod; tx.OriginalAmount = CurrencyMath.Round2(v.Amount);
             tx.Currency = v.Currency; tx.TransactionDate = v.Date; tx.CategoryId = v.CategoryId; tx.TransactionType = v.Type;
-            tx.EnvelopeId = v.EnvelopeId; tx.MonthId = month.Id; tx.AmountCrc = amountCrc; tx.AmountUsd = amountUsd; tx.UpdatedAt = now;
+            tx.EnvelopeId = v.EnvelopeId; tx.CardId = v.CardId; tx.MonthId = month.Id; tx.AmountCrc = amountCrc; tx.AmountUsd = amountUsd; tx.UpdatedAt = now;
             transactions.Update(tx);
 
             var (refund, removedInflow) = await SyncRefundAsync(tx, v.RefundPercentage, now, cancellationToken);
@@ -190,11 +191,13 @@ public sealed class TransactionHandler(
             .ToListAsync(cancellationToken);
         var categoryNames = await categories.Query().ToDictionaryAsync(c => c.Id, c => c.Name, cancellationToken);
         var bankNames = await banks.Query().ToDictionaryAsync(b => b.Id, b => b.Name, cancellationToken);
+        var cardNames = await cards.Query().ToDictionaryAsync(c => c.Id, c => c.Name, cancellationToken);
 
         return rows.Select(t => new TransactionListItemResponse(
             t.Id, t.Payee, t.TransactionDate,
             categoryNames.GetValueOrDefault(t.CategoryId), bankNames.GetValueOrDefault(t.BankId),
-            t.PaymentMethod, t.TransactionType, t.AmountCrc, t.AmountUsd, t.Source)).ToList();
+            t.PaymentMethod, t.TransactionType, t.AmountCrc, t.AmountUsd, t.Source,
+            t.CardId is { } cardId ? cardNames.GetValueOrDefault(cardId) : null)).ToList();
     }
 
     /// <summary>
@@ -260,7 +263,7 @@ public sealed class TransactionHandler(
     /// <summary>Field rules shared by create and update (donor US-006/007/012 + ADR-V007), then the catalog references (must exist in the household and be active).</summary>
     private async Task<(Valid? Valid, ErrorResponse? Error)> ValidateAsync(
         string? payee, Guid? bankId, string? paymentMethod, decimal amount, string? currency, DateOnly? date,
-        Guid? categoryId, string? type, Guid? envelopeId, bool refundExpected, decimal? refundPercentage, CancellationToken cancellationToken)
+        Guid? categoryId, string? type, Guid? envelopeId, bool refundExpected, decimal? refundPercentage, Guid? cardId, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(payee)) return (null, Invalid("payee is required"));
         if (payee.Trim().Length > 200) return (null, Invalid("payee must be 200 characters or fewer"));
@@ -282,10 +285,11 @@ public sealed class TransactionHandler(
         if (!await categories.Query().AnyAsync(c => c.Id == category && c.IsActive, cancellationToken)) return (null, Invalid("unknown or inactive category"));
         if (!await banks.Query().AnyAsync(b => b.Id == bank && b.IsActive, cancellationToken)) return (null, Invalid("unknown or inactive bank"));
         if (isContribution && !await envelopes.Query().AnyAsync(e => e.Id == envelopeId && e.IsActive, cancellationToken)) return (null, Invalid("unknown or inactive envelope"));
+        if (cardId is { } card && !await cards.Query().AnyAsync(c => c.Id == card && c.IsActive, cancellationToken)) return (null, Invalid("unknown or inactive card")); // CARDS-1: optional, but real when given
 
         // The refund flag only means something on an unplanned essential (donor US-012); elsewhere it is ignored, never an error.
         var pct = refundExpected && t == TransactionTypes.UnplannedEssential ? refundPercentage : null;
-        return (new Valid(payee.Trim(), bank, method, amount, cur, d, category, t, isContribution ? envelopeId : null, pct), null);
+        return (new Valid(payee.Trim(), bank, method, amount, cur, d, category, t, isContribution ? envelopeId : null, pct, cardId), null);
     }
 
     private static ErrorResponse Invalid(string message) => new("invalid_request", message);

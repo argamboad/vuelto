@@ -18,6 +18,7 @@ public class RealVoucherFixtureTests
         var v = new BacVoucherExtractor().Extract(Fixture("bac-anthropic.html"));
         Assert.Equal(("ANTHROPIC* CLAUDE SUB", "USD", 83.99m, new DateOnly(2026, 6, 13)), (v.Merchant, v.Currency, v.Amount, v.Date));
         Assert.Equal(("************0000", "000000", "000000000000", "COMPRA"), (v.CardNumber, v.Authorization, v.Reference, v.TransactionType));
+        Assert.Equal("VISA", v.CardBrand); // CARDS-1: the label the number sits under
     }
 
     [Fact]
@@ -26,6 +27,7 @@ public class RealVoucherFixtureTests
         var v = new BnVoucherExtractor().Extract(Fixture("bn-voucher.html"));
         Assert.Equal(("Google YouTubePremium  Mountain View USA", "COMPRA", "CRC", 8390.00m, new DateOnly(2026, 6, 9)), (v.Merchant, v.TransactionType, v.Currency, v.Amount, v.Date));
         Assert.Equal(("************0000", "000000", "000000000000"), (v.CardNumber, v.Authorization, v.Reference));
+        Assert.Equal("MASTERCARD", v.CardBrand);
     }
 
     [Fact]
@@ -35,5 +37,6 @@ public class RealVoucherFixtureTests
         Assert.Equal("ICETELECOMUNICACIONES -  COBRO DE RECIBOS TELEFONICOS", v.Merchant);
         Assert.Equal(("PAGO", "CRC", 29730.00m, new DateOnly(2026, 6, 15)), (v.TransactionType, v.Currency, v.Amount, v.Date));
         Assert.Equal(("XXXXXXXXXXX0000X", "00000000", "00000000"), (v.CardNumber, v.Reference, v.Authorization));
+        Assert.Null(v.CardBrand); // "Tarjeta de crédito" names no brand → the card is created as CARD-0000
     }
 }

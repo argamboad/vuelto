@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
+using Vuelto.Api.Features.Cards;
 using Vuelto.Api.Features.Email;
 using Vuelto.Api.Features.Ledger;
 using Vuelto.Api.Tests.Infrastructure;
@@ -58,21 +59,22 @@ public class PendingVoucherSliceTests(PostgresFixture fixture) : PostgresTestBas
         var current = new TestCurrentTenant { TenantId = tenant };
         var clock = new FakeTimeProvider(T0);
         var months = new MonthHandler(new EfRepository<Month>(db), new EfRepository<Week>(db), new EfRepository<Transaction>(db), new EfRepository<BudgetSettings>(db), new WeekBoundaryService(), current, clock);
-        var transactions = new TransactionHandler(new EfRepository<Transaction>(db), new EfRepository<Refund>(db), new EfRepository<Category>(db), new EfRepository<Bank>(db), new EfRepository<Envelope>(db), months, resolver, current, clock, NullLogger<TransactionHandler>.Instance);
+        var transactions = new TransactionHandler(new EfRepository<Transaction>(db), new EfRepository<Refund>(db), new EfRepository<Category>(db), new EfRepository<Bank>(db), new EfRepository<Envelope>(db), new EfRepository<Card>(db), months, resolver, current, clock, NullLogger<TransactionHandler>.Instance);
         var mappings = new MerchantMappingHandler(new EfRepository<MerchantCategoryMapping>(db), new EfRepository<Category>(db), current, clock, NullLogger<MerchantMappingHandler>.Instance);
-        var handler = new PendingVoucherHandler(new EfRepository<PendingVoucher>(db), transactions, mappings, new EfUnitOfWork(db), clock, NullLogger<PendingVoucherHandler>.Instance);
+        var cards = new CardHandler(new EfRepository<Card>(db), new EfRepository<Vuelto.Core.Entities.CardIdentity>(db), new EfRepository<Transaction>(db), new EfRepository<Bank>(db), current, clock);
+        var handler = new PendingVoucherHandler(new EfRepository<PendingVoucher>(db), transactions, mappings, cards, new EfUnitOfWork(db), clock, NullLogger<PendingVoucherHandler>.Instance);
         return new Ctx(db, tenant, handler, mappings, categoryId, bankId);
     }
 
     private Ctx Sibling(Ctx c) => Build(Fixture.CreateContext(c.Tenant), c.Tenant, c.CategoryId, c.BankId, new FixedRate(500m));
 
-    private static async Task<PendingVoucher> DraftAsync(Ctx c, string merchant = "TACO BELL PLAZA REAL C", decimal? amount = 7620m, string? currency = "CRC", DateOnly? date = null, Guid? bankId = null, string status = PendingVoucherStatuses.Pending, DateTimeOffset? receivedAt = null, string[]? missing = null)
+    private static async Task<PendingVoucher> DraftAsync(Ctx c, string merchant = "TACO BELL PLAZA REAL C", decimal? amount = 7620m, string? currency = "CRC", DateOnly? date = null, Guid? bankId = null, string status = PendingVoucherStatuses.Pending, DateTimeOffset? receivedAt = null, string[]? missing = null, string? cardNumber = null, string? cardBrand = null)
     {
         var fingerprint = Guid.CreateVersion7().ToString("N");
         var draft = new PendingVoucher
         {
             TenantId = c.Tenant, EmailConnectionId = Guid.CreateVersion7(), ProviderMessageId = fingerprint, Fingerprint = fingerprint, ParsedBank = "Bac",
-            BankId = bankId ?? c.BankId, Merchant = merchant, Amount = amount, Currency = currency, Date = date ?? Jun13, Authorization = "662664",
+            BankId = bankId ?? c.BankId, Merchant = merchant, Amount = amount, Currency = currency, Date = date ?? Jun13, Authorization = "662664", CardNumber = cardNumber, CardBrand = cardBrand,
             TransactionType = "COMPRA", MissingFields = missing ?? [], Status = status, ReceivedAt = receivedAt ?? T0, CreatedAt = T0, UpdatedAt = T0,
         };
         c.Db.Add(draft);
@@ -147,6 +149,27 @@ public class PendingVoucherSliceTests(PostgresFixture fixture) : PostgresTestBas
         var usdTx = await c.Db.Transactions.SingleAsync(t => t.Id == usd!.TransactionId);
         Assert.Equal((448.27m, 7620m, 17.00m), (crcTx.ExchangeRateUsed, crcTx.AmountCrc, crcTx.AmountUsd));   // 7,620 / 448.27
         Assert.Equal((453.69m, 9073.80m, 20m), (usdTx.ExchangeRateUsed, usdTx.AmountCrc, usdTx.AmountUsd));   // 20 × 453.69
+    }
+
+    [Fact]
+    public async Task Confirm_LinksTheCardTheVoucherPrinted_CreatingItOnFirstSight_AndReusingItAfter()
+    {
+        // CARDS-1: two vouchers on the same card → one card row (VISA-1234, auto-named, on the voucher's bank), both transactions on it;
+        // a voucher without a card number → no card. Nothing for the user to do at confirm time.
+        var c = await ContextAsync();
+        var first = await DraftAsync(c, cardNumber: "************1234", cardBrand: "VISA");
+        var second = await DraftAsync(c, merchant: "AUTOMERCADO", amount: 15_000m, cardNumber: "************1234", cardBrand: "VISA");
+        var bare = await DraftAsync(c, merchant: "ICE", amount: 29_730m);
+
+        var (t1, e1) = await c.Handler.ConfirmAsync(first.Id, Confirm(c), default);
+        var (t2, e2) = await c.Handler.ConfirmAsync(second.Id, Confirm(c), default);
+        var (t3, e3) = await c.Handler.ConfirmAsync(bare.Id, Confirm(c), default);
+
+        Assert.Null(e1); Assert.Null(e2); Assert.Null(e3);
+        var card = await c.Db.Cards.SingleAsync();
+        Assert.Equal(("VISA-1234", "VISA", "1234", true, c.BankId), (card.Name, card.Brand, card.Last4, card.AutoNamed, card.BankId));
+        var byId = await c.Db.Transactions.ToDictionaryAsync(t => t.Id, t => t.CardId);
+        Assert.Equal((card.Id, card.Id, null), (byId[t1!.TransactionId], byId[t2!.TransactionId], byId[t3!.TransactionId]));
     }
 
     [Fact]
