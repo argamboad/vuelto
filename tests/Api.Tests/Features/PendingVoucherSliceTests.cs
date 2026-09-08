@@ -84,7 +84,7 @@ public class PendingVoucherSliceTests(PostgresFixture fixture) : PostgresTestBas
         return draft;
     }
 
-    private static ConfirmVoucherRequest Confirm(Ctx c, string cls = "budgeted", bool remember = false) => new(c.CategoryId, cls, RememberMerchant: remember);
+    private static ConfirmVoucherRequest Confirm(Ctx c, string cls = "budgeted", bool remember = false, string? notes = null) => new(c.CategoryId, cls, RememberMerchant: remember, Notes: notes);
 
     private static async Task<PendingVoucher> ReloadAsync(Ctx c, Guid id)
     {
@@ -116,10 +116,11 @@ public class PendingVoucherSliceTests(PostgresFixture fixture) : PostgresTestBas
         var c = await ContextAsync();
         var draft = await DraftAsync(c);
 
-        var (confirmed, error) = await c.Handler.ConfirmAsync(draft.Id, Confirm(c, "extraordinary"), default);
+        var (confirmed, error) = await c.Handler.ConfirmAsync(draft.Id, Confirm(c, "extraordinary", notes: "  Lunch with the team  "), default);
 
         Assert.Null(error);
         var tx = await c.Db.Transactions.SingleAsync();
+        Assert.Equal("Lunch with the team", tx.Notes); // the reason, recorded at confirm time, trimmed by the ledger
         Assert.Equal((confirmed!.TransactionId, TransactionSources.Email, "extraordinary", "TACO BELL PLAZA REAL C", 7620m, "CRC", Jun13, c.BankId, c.CategoryId, "credit_card", 500m, 7620m, 15.24m),
             (tx.Id, tx.Source, tx.TransactionType, tx.Payee, tx.OriginalAmount, tx.Currency, tx.TransactionDate, tx.BankId, tx.CategoryId, tx.PaymentMethod, tx.ExchangeRateUsed, tx.AmountCrc, tx.AmountUsd));
         var month = await c.Db.Months.SingleAsync(); // auto-created from the voucher date (ADR-V005)

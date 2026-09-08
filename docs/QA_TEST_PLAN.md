@@ -1565,6 +1565,27 @@ inflow is gone and the next month too if it held nothing else.
 
 ---
 
+### QA-LED-07 — A transaction can carry a short note; the month page shows it as an icon 🟢 (Web / API)
+**Gherkin**
+```gherkin
+Given a month with transactions
+When I open New transaction, fill the fields and type "Tuti's birthday dinner" in Notes
+Then the counter reads 22/250 and Save stores the note trimmed
+When I open the month page
+Then the row shows a small note icon after the payee; hovering reads the note; clicking it opens Edit with the note filled
+When I clear the note on Edit and Save
+Then the icon is gone
+And POST /api/transactions with 251 characters of notes is 400 invalid_request naming notes
+And confirming a voucher with notes books the note on the transaction; Export CSV ends with a notes column
+```
+**Walkthrough:** **New transaction** → **Expected:** a **Notes** box under Payee with `0/250`; type a note →
+the counter follows → **Save** → month page → **Expected:** a note icon next to the payee (hover shows the
+text); rows without a note have none. Click the icon → **Expected:** the Edit page with **Notes** filled. Clear
+it → **Save** → **Expected:** no icon. **Review** → a draft's card has a **Notes** box → confirm with a note →
+**Expected:** the booked row carries the icon. **Export CSV** → **Expected:** the header ends `…,card,notes`.
+Via Postman (**16 · Transactions → Create transaction**) with a 251-character `notes` → **Expected:** 400
+`invalid_request`, message mentions `notes`.
+
 ## 10i. Web — Budget lines: fixed & variable (app slice EXPENSES-1) 🟠
 
 > The budget baseline (ADR-V007/V008): two ordered lists of single-currency lines, each tied to a
@@ -3058,6 +3079,7 @@ Record one row per executed case. Build = API/web commit SHA (`git rev-parse --s
 | QA-LED-04 | Web | | | | | |
 | QA-LED-05 | Web | | | | | |
 | QA-LED-06 | Web | | | | | |
+| QA-LED-07 | Web | | | | | |
 | QA-EXP-01 | Web | | | | | |
 | QA-EXP-02 | Web | | | | | |
 | QA-EXP-03 | Web | | | | | |
@@ -3627,6 +3649,12 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   up; the month page's Income card lists "Other income this month" with the inflows' frozen sum and a link that
   filters the table to them. Client only. QA-LED-06 names both; `DashboardPageTests.Income_ShowsInflows*` and
   `LedgerPagesTests.MonthDetail_IncomeCard_ListsInflows*` pin it. Suite count unchanged (181).
+- **Updated 2026-09-08** — **Transaction notes (owner request).** An optional `notes` (≤ 250 characters, trimmed,
+  blank = null, over the cap = 400) on create/update/get, the month list and the CSV (trailing `notes` column); the
+  voucher confirm accepts it. New/Edit show a Notes box with a `0/250` counter; the month page shows a note icon
+  on the payee whose hover text is the note and whose tap opens the transaction; the review card has the same box.
+  Migration `AddTransactionNotes`. New QA-LED-07 (suite 183); `LedgerSliceTests.Notes_*`, `LedgerEndpointTests`,
+  `PendingVoucherSliceTests`, `TransactionCsvWriterTests.Notes_*` and the bUnit pages pin it.
 - **Updated 2026-09-08** — **Cards (CARDS-1, ADR-V021; owner request).** The card a voucher prints (brand + last
   four) becomes a household catalog entry, created as `VISA-1234` on the first confirm and renamed by the
   household on Settings → Cards; transactions carry an optional `card_id` (voucher confirm fills it, manual

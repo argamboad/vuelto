@@ -156,6 +156,29 @@ public class LedgerSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
     }
 
     [Fact]
+    public async Task Notes_AreOptional_Trimmed_ClearedWhenBlank_AndCappedAt250()
+    {
+        // "Why did we spend this?" — a short note on the row (2026-09-08). Blank means none; over 250 is a 400, never a silent cut.
+        var c = await ContextAsync();
+
+        var (tx, error) = await c.Transactions.CreateAsync(Create(c, Jun5) with { Notes = "  Tuti's birthday dinner  " }, default);
+        Assert.Null(error);
+        Assert.Equal("Tuti's birthday dinner", tx!.Notes);
+        Assert.Equal("Tuti's birthday dinner", (await c.Db.Transactions.SingleAsync()).Notes);
+
+        var (_, tooLong) = await c.Transactions.CreateAsync(Create(c, Jun5) with { Notes = new string('x', 251) }, default);
+        Assert.Equal("invalid_request", tooLong!.Error);
+        Assert.Contains("notes", tooLong.Message);
+
+        var (updated, e2) = await c.Transactions.UpdateAsync(tx.Id, Update(c, Jun5) with { Notes = "   " }, default);
+        Assert.Null(e2);
+        Assert.Null(updated!.Notes); // whitespace clears the note
+
+        var rows = await c.Transactions.ListForMonthAsync(tx.MonthId, default);
+        Assert.Null(Assert.Single(rows!).Notes);
+    }
+
+    [Fact]
     public async Task Create_WithACard_LinksIt_ListsItsAlias_AndRefusesAForeignOrInactiveOne()
     {
         // CARDS-1: the card is optional; when given it must be the household's and active — like the bank.

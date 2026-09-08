@@ -22,6 +22,7 @@ public class TransactionConfiguration : IEntityTypeConfiguration<Transaction>
         b.HasOne<Card>().WithMany().HasForeignKey(x => x.CardId).OnDelete(DeleteBehavior.Restrict); // CARDS-1: a card keeps naming history
 
         b.Property(x => x.Payee).HasMaxLength(200).IsRequired();
+        b.Property(x => x.Notes).HasMaxLength(Transaction.NotesMaxLength);
         b.Property(x => x.Currency).HasMaxLength(3).IsRequired();
         b.Property(x => x.PaymentMethod).HasMaxLength(32).IsRequired();
         b.Property(x => x.TransactionType).HasMaxLength(32).IsRequired();

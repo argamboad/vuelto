@@ -3531,7 +3531,7 @@
                 "transactions"
               ]
             },
-            "description": "201 with the row (amounts derived, rate frozen, source manual, month_id of the resolved-or-created month). Replace bank_id with an id from 12 · Catalog → List banks. Captures {{transactionId}} and {{monthId}}. Set transaction_type unplanned_essential + refund_expected true + refund_percentage (e.g. 30) to spawn an expected refund (see 17 · Refunds); the response echoes refund_expected / refund_percentage.",
+            "description": "201 with the row (amounts derived, rate frozen, source manual, month_id of the resolved-or-created month). Replace bank_id with an id from 12 · Catalog → List banks. Captures {{transactionId}} and {{monthId}}. Set transaction_type unplanned_essential + refund_expected true + refund_percentage (e.g. 30) to spawn an expected refund (see 17 · Refunds); the response echoes refund_expected / refund_percentage. Optional notes (≤ 250 characters, trimmed; blank = null; longer = 400 invalid_request) — the row's \"why\", shown as an icon on the month page.",
             "header": [
               {
                 "key": "Content-Type",
@@ -3540,7 +3540,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"payee\": \"AutoMercado\",\n  \"bank_id\": \"{{bankId}}\",\n  \"payment_method\": \"credit_card\",\n  \"original_amount\": 50000,\n  \"currency\": \"CRC\",\n  \"transaction_date\": \"2026-07-10\",\n  \"category_id\": \"{{categoryId}}\",\n  \"transaction_type\": \"budgeted\",\n  \"exchange_rate\": 500,\n  \"refund_expected\": false,\n  \"refund_percentage\": null\n}"
+              "raw": "{\n  \"payee\": \"AutoMercado\",\n  \"bank_id\": \"{{bankId}}\",\n  \"payment_method\": \"credit_card\",\n  \"original_amount\": 50000,\n  \"currency\": \"CRC\",\n  \"transaction_date\": \"2026-07-10\",\n  \"category_id\": \"{{categoryId}}\",\n  \"transaction_type\": \"budgeted\",\n  \"exchange_rate\": 500,\n  \"refund_expected\": false,\n  \"refund_percentage\": null,\n  \"notes\": \"Weekly shop — stocking up before the trip\"\n}"
             }
           },
           "event": [
@@ -3611,7 +3611,7 @@
                 "{{transactionId}}"
               ]
             },
-            "description": "The row with both amounts and exchange_rate_used. 404 for another household's id."
+            "description": "The row with both amounts and exchange_rate_used. 404 for another household's id. Carries notes (null when none)."
           },
           "event": [
             {
@@ -3640,7 +3640,7 @@
                 "{{transactionId}}"
               ]
             },
-            "description": "200 with the row; amounts re-derived from the FROZEN exchange_rate_used (a rate in the body is ignored — there is no field). A changed transaction_date re-resolves the month (creating the target, deleting the emptied source). 400 derived_transaction for a non-manual row; 404 for another household's id. Set transaction_type unplanned_essential + refund_expected true + refund_percentage (e.g. 30) to spawn an expected refund (see 17 · Refunds); the response echoes refund_expected / refund_percentage.",
+            "description": "200 with the row; amounts re-derived from the FROZEN exchange_rate_used (a rate in the body is ignored — there is no field). A changed transaction_date re-resolves the month (creating the target, deleting the emptied source). 400 derived_transaction for a non-manual row; 404 for another household's id. Set transaction_type unplanned_essential + refund_expected true + refund_percentage (e.g. 30) to spawn an expected refund (see 17 · Refunds); the response echoes refund_expected / refund_percentage. Optional notes (≤ 250 characters, trimmed; blank = null; longer = 400 invalid_request) — the row's \"why\", shown as an icon on the month page.",
             "header": [
               {
                 "key": "Content-Type",
@@ -3649,7 +3649,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"payee\": \"AutoMercado\",\n  \"bank_id\": \"{{bankId}}\",\n  \"payment_method\": \"credit_card\",\n  \"original_amount\": 100000,\n  \"currency\": \"CRC\",\n  \"transaction_date\": \"2026-07-10\",\n  \"category_id\": \"{{categoryId}}\",\n  \"transaction_type\": \"budgeted\",\n  \"refund_expected\": false,\n  \"refund_percentage\": null\n}"
+              "raw": "{\n  \"payee\": \"AutoMercado\",\n  \"bank_id\": \"{{bankId}}\",\n  \"payment_method\": \"credit_card\",\n  \"original_amount\": 100000,\n  \"currency\": \"CRC\",\n  \"transaction_date\": \"2026-07-10\",\n  \"category_id\": \"{{categoryId}}\",\n  \"transaction_type\": \"budgeted\",\n  \"refund_expected\": false,\n  \"refund_percentage\": null,\n  \"notes\": \"Weekly shop — stocking up before the trip\"\n}"
             }
           },
           "event": [
@@ -4436,7 +4436,7 @@
                 }
               ]
             },
-            "description": "200 { download_url, file_name \"transactions-<today>.csv\", row_count, period, expires_in_seconds 900 }. Optional filters: category_id, class (normalized). The CSV (RFC 4180, UTF-8, CRLF): date,payee,category,class,amount_crc,amount_usd,exchange_rate_used,payment_method,bank,source — amounts 2 dp without symbols, exchange_rate_used 4 dp, a trailing card column (the card alias, empty when none — CARDS-1), dates yyyy-MM-dd, rows date desc then created desc, header-only when nothing matches (never 404). Open download_url WITHOUT a token: the signed link is the authorization; it expires after 15 minutes (then 404). Captures the link into {{exportUrl}}. Period: month_id (the month's anchor window — first week start to the LAST week's end date) OR from + to (yyyy-MM-dd, inclusive), never both, never neither → 400 period_required / period_ambiguous / period_incomplete / period_invalid. Unknown or another household's month_id → uniform 404."
+            "description": "200 { download_url, file_name \"transactions-<today>.csv\", row_count, period, expires_in_seconds 900 }. Optional filters: category_id, class (normalized). The CSV (RFC 4180, UTF-8, CRLF): date,payee,category,class,amount_crc,amount_usd,exchange_rate_used,payment_method,bank,source — amounts 2 dp without symbols, exchange_rate_used 4 dp, a trailing card column (the card alias, empty when none — CARDS-1), dates yyyy-MM-dd, rows date desc then created desc, header-only when nothing matches (never 404). Open download_url WITHOUT a token: the signed link is the authorization; it expires after 15 minutes (then 404). Captures the link into {{exportUrl}}. Period: month_id (the month's anchor window — first week start to the LAST week's end date) OR from + to (yyyy-MM-dd, inclusive), never both, never neither → 400 period_required / period_ambiguous / period_incomplete / period_invalid. Unknown or another household's month_id → uniform 404. The last column is notes (the row's note, empty when none)."
           },
           "event": [
             {
@@ -5132,7 +5132,7 @@
                 "confirm"
               ]
             },
-            "description": "200 { transaction_id, month_id, amount_crc, amount_usd, remembered } — books the transaction (source = email) through the ordinary create and flips the draft — linking the card the voucher printed (card_number + card_brand), created as BRAND-1234 on first sight (CARDS-1). category_id + transaction_class (budgeted|extraordinary|unplanned_essential) are required; payee / bank_id / payment_method / original_amount / currency / transaction_date override the parsed values (the UI opens only the blanks); remember_merchant creates a merchant rule (never overwrites); refund_expected + refund_percentage (0 < p ≤ 100) spawn the expected refund exactly like manual entry — only meaningful on unplanned_essential, ignored elsewhere. 400 invalid_request (incl. a bad percentage) / exchange_rate_unavailable (nothing written, draft stays pending); 409 not_pending (already confirmed/discarded, or lost a concurrent confirm — its transaction rolled back); 404 unknown/foreign.",
+            "description": "200 { transaction_id, month_id, amount_crc, amount_usd, remembered } — books the transaction (source = email) through the ordinary create and flips the draft — linking the card the voucher printed (card_number + card_brand), created as BRAND-1234 on first sight (CARDS-1). category_id + transaction_class (budgeted|extraordinary|unplanned_essential) are required; payee / bank_id / payment_method / original_amount / currency / transaction_date override the parsed values (the UI opens only the blanks); remember_merchant creates a merchant rule (never overwrites); refund_expected + refund_percentage (0 < p ≤ 100) spawn the expected refund exactly like manual entry — only meaningful on unplanned_essential, ignored elsewhere. 400 invalid_request (incl. a bad percentage) / exchange_rate_unavailable (nothing written, draft stays pending); 409 not_pending (already confirmed/discarded, or lost a concurrent confirm — its transaction rolled back); 404 unknown/foreign. Optional notes (≤ 250 characters) land on the booked transaction.",
             "header": [
               {
                 "key": "Content-Type",
@@ -5141,7 +5141,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"category_id\": \"{{categoryId}}\",\n  \"transaction_class\": \"budgeted\",\n  \"remember_merchant\": true,\n  \"refund_expected\": false,\n  \"refund_percentage\": null\n}"
+              "raw": "{\n  \"category_id\": \"{{categoryId}}\",\n  \"transaction_class\": \"budgeted\",\n  \"remember_merchant\": true,\n  \"refund_expected\": false,\n  \"refund_percentage\": null,\n  \"notes\": \"Team lunch, split later\"\n}"
             }
           },
           "event": [

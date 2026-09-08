@@ -37,10 +37,11 @@ public class LedgerEndpointTests(IntegrationTestFactory factory)
         {
             payee = "AutoMercado", bank_id = bank.Id, payment_method = "credit_card", original_amount = 50_000m, currency = "CRC",
             transaction_date = "2026-07-10", category_id = category.Id, transaction_type = "budgeted", exchange_rate = 500m,
+            notes = "First big shop of the month",
         });
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         var tx = (await created.Content.ReadFromJsonAsync<TxDto>())!;
-        Assert.Equal((500m, 50_000m, 100m, "manual"), (tx.ExchangeRateUsed, tx.AmountCrc, tx.AmountUsd, tx.Source));
+        Assert.Equal((500m, 50_000m, 100m, "manual", "First big shop of the month"), (tx.ExchangeRateUsed, tx.AmountCrc, tx.AmountUsd, tx.Source, tx.Notes));
 
         var months = (await client.GetFromJsonAsync<List<MonthDto>>("/api/months"))!;
         var month = Assert.Single(months);
@@ -50,7 +51,7 @@ public class LedgerEndpointTests(IntegrationTestFactory factory)
         Assert.Equal(5, detail.Weeks!.Count);
 
         var rows = (await client.GetFromJsonAsync<List<RowDto>>($"/api/months/{month.Id}/transactions"))!;
-        Assert.Equal(("AutoMercado", category.Name, bank.Name), (Assert.Single(rows).Payee, rows[0].CategoryName, rows[0].BankName));
+        Assert.Equal(("AutoMercado", category.Name, bank.Name, "First big shop of the month"), (Assert.Single(rows).Payee, rows[0].CategoryName, rows[0].BankName, rows[0].Notes));
 
         var income = await client.PutAsJsonAsync($"/api/months/{month.Id}/income", new { primary_income_amount = 3750m, primary_income_currency = "USD", secondary_income_amount = 0m, secondary_income_currency = "CRC" });
         Assert.Equal(HttpStatusCode.OK, income.StatusCode);
@@ -89,10 +90,11 @@ public class LedgerEndpointTests(IntegrationTestFactory factory)
     private sealed record TxDto(
         [property: JsonPropertyName("id")] Guid Id,
         [property: JsonPropertyName("month_id")] Guid MonthId,
+        [property: JsonPropertyName("notes")] string? Notes,
         [property: JsonPropertyName("amount_crc")] decimal AmountCrc,
         [property: JsonPropertyName("amount_usd")] decimal AmountUsd,
         [property: JsonPropertyName("exchange_rate_used")] decimal ExchangeRateUsed,
         [property: JsonPropertyName("source")] string Source);
-    private sealed record RowDto([property: JsonPropertyName("payee")] string Payee, [property: JsonPropertyName("category_name")] string? CategoryName, [property: JsonPropertyName("bank_name")] string? BankName);
+    private sealed record RowDto([property: JsonPropertyName("payee")] string Payee, [property: JsonPropertyName("category_name")] string? CategoryName, [property: JsonPropertyName("bank_name")] string? BankName, [property: JsonPropertyName("notes")] string? Notes = null);
     private sealed record ErrorDto([property: JsonPropertyName("error")] string Error, [property: JsonPropertyName("message")] string Message);
 }

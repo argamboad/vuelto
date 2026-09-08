@@ -126,7 +126,7 @@ public sealed class ReportHandler(
         var csv = TransactionCsvWriter.Write(rows.Select(t => new TransactionExportRow(
             t.TransactionDate, t.Payee, categoryNames.GetValueOrDefault(t.CategoryId), t.TransactionType,
             t.AmountCrc, t.AmountUsd, t.ExchangeRateUsed, t.PaymentMethod, bankNames.GetValueOrDefault(t.BankId), t.Source,
-            t.CardId is { } cardId ? cardNames.GetValueOrDefault(cardId) : null)));
+            t.CardId is { } cardId ? cardNames.GetValueOrDefault(cardId) : null, t.Notes)));
 
         // The download filename is the key's basename (server-controlled); a per-export folder keeps two
         // members exporting at the same second from overwriting each other's file.

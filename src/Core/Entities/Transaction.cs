@@ -19,6 +19,9 @@ public class Transaction : ITenantScoped
     /// <summary>The card the money left through (CARDS-1) — optional; a voucher confirm fills it, manual entry may.</summary>
     public Guid? CardId { get; set; }
     public required string Payee { get; set; }
+    /// <summary>Why this transaction, in the household's words (LEDGER-2, 2026-09-08): optional, trimmed, at most <see cref="NotesMaxLength"/> characters; blank saves as null.</summary>
+    public string? Notes { get; set; }
+    public const int NotesMaxLength = 250;
     public string PaymentMethod { get; set; } = PaymentMethods.CreditCard;
     public decimal OriginalAmount { get; set; }
     public string Currency { get; set; } = Currencies.Crc;
