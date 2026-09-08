@@ -123,6 +123,19 @@
         <Exec Command="&quot;$(_AdbExe)&quot; $(AdbTarget) reverse tcp:5238 tcp:5238" ContinueOnError="true" />
     </Target>
 
+
+    <!-- Release APKs must carry APK Signature Scheme v2+ — Android 11+ refuses a v1-only APK and the package
+         installer simply does nothing (first sideload of a downstream app, 2026-09-08). Without a keystore the
+         toolchain falls back to jarsigner (v1 only), so a Release build ALWAYS signs through apksigner: the
+         developer's debug key by default (sideload builds), or the store key when the AndroidSigning* properties
+         are supplied on the command line / in the release pipeline. -->
+    <PropertyGroup Condition="'$(Configuration)' == 'Release' And '$(AndroidKeyStore)' == '' And Exists('$(LOCALAPPDATA)\Xamarin\Mono for Android\debug.keystore')">
+        <AndroidKeyStore>true</AndroidKeyStore>
+        <AndroidSigningKeyStore Condition="'$(AndroidSigningKeyStore)' == ''">$(LOCALAPPDATA)\Xamarin\Mono for Android\debug.keystore</AndroidSigningKeyStore>
+        <AndroidSigningKeyAlias Condition="'$(AndroidSigningKeyAlias)' == ''">androiddebugkey</AndroidSigningKeyAlias>
+        <AndroidSigningKeyPass Condition="'$(AndroidSigningKeyPass)' == ''">android</AndroidSigningKeyPass>
+        <AndroidSigningStorePass Condition="'$(AndroidSigningStorePass)' == ''">android</AndroidSigningStorePass>
+    </PropertyGroup>
     <!-- ═══ Release must not ship the dev localhost API base (v3 audit NAT-3) ═══════════════════════
          A Debug build keeps the localhost fallback + VUELTO_API_BASE_URL override (dev + CI smoke).
          A Release build compiles in the real base from $(ApiBaseUrl) and REFUSES to build without it —

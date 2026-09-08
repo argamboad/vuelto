@@ -368,6 +368,52 @@ notifications. Re-running the file is a no-op. `HouseholdSnapshotTests` proves t
 Postgres and fails the build if a tenant-scoped table is ever added without being listed as included
 or excluded in the script.
 
+## 9. Native clients — an installable build pointed at a host
+
+The MAUI shells (Android, Windows; iOS/macCatalyst on a Mac) are the same app as the web client, so
+"installing the app on my phone against staging" is a **build**, not a deploy: a Release build compiles
+the API base URL in (`-p:ApiBaseUrl`, refused when missing — v3 NAT-3), so one build = one host. Debug
+builds keep the localhost base and are for development only.
+
+**Android (sideload APK)** — from the repo root, on Windows:
+
+```powershell
+dotnet publish src/Maui/Vuelto.Maui.csproj -f net10.0-android -c Release `
+  -p:ApiBaseUrl=https://<your-host> -p:AndroidPackageFormat=apk -p:AcceptAndroidSDKLicenses=true `
+  -o out/android
+```
+
+The installable file is `out/android/<ApplicationId>-Signed.apk`. Send it to the phone (USB, a drive, a
+message to yourself), open it, allow installs from that source. **Signing:** a Release build signs through
+`apksigner` (APK Signature Scheme v2 + v3) with the developer's **debug key** by default — the same key the
+IDE's debug installs use, so the build upgrades over one. Android 11+ **refuses a v1-only APK and the
+installer does nothing**, which is what the old jarsigner fallback produced; the csproj now forces the
+apksigner path. For a store build pass the real keystore instead: `-p:AndroidSigningKeyStore=… `
+`-p:AndroidSigningKeyAlias=… -p:AndroidSigningKeyPass=… -p:AndroidSigningStorePass=…`. Verify any APK
+with `apksigner verify --verbose` (Android SDK `build-tools`; needs a JDK on `JAVA_HOME`) — expect
+`v2 … true`. Do **not** pass `-p:RuntimeIdentifier` for the Android or Windows publish (it drags the
+android inner build into a Mono runtime-pack lookup — NU1102).
+
+**Windows (unpackaged folder)** — no installer, no certificate:
+
+```powershell
+dotnet publish src/Maui/Vuelto.Maui.csproj -f net10.0-windows10.0.19041.0 -c Release `
+  -p:ApiBaseUrl=https://<your-host> -p:WindowsPackageType=None -o out/windows
+```
+
+Run `out/windows/Vuelto.Maui.exe` from that folder (pin a shortcut). SmartScreen warns once because it is
+unsigned — *More info → Run anyway*. An MSIX for the Store needs a signing certificate; not covered here.
+
+**On the host:** native OAuth (Google / Microsoft sign-in from the phone) returns to the app through the
+custom URL scheme, which the API only honours when `Auth__Native__CallbackScheme` is set (`vuelto`-style
+lowercase app name). Without it, email-code sign-in still works and OAuth is refused on the way back.
+Desktop uses a localhost loopback instead and needs nothing.
+
+**Shortcut:** `tools/publish-native.ps1 -ApiBaseUrl https://vuelto-staging.onrender.com` runs both
+publishes and verifies the APK signature (`tools/README.md`).
+
+**iOS / macCatalyst** need a Mac, an Apple developer identity and provisioning — out of scope for this guide.
+
 ## Prod, later
 
 When a downstream app has real users, repeat §1–§5 as a second Render service fed from `main` (an
