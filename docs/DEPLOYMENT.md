@@ -97,9 +97,36 @@ Tear down with `docker compose --profile app down`.
 The billing provider is **fail-closed**: in any non-Development environment the app **refuses to boot**
 without `Billing__Stripe__SecretKey` (the in-memory fake provider trusts an unsigned webhook and must
 never run in Production — GAP-1). For staging, use a **test-mode** secret key (`sk_test_…`) from the
-Stripe dashboard. You don't need working billing to sign in — this just satisfies the guard. (When you
-later wire real billing, add `Billing__Stripe__WebhookSecret` and point a Stripe webhook at
-`/api/billing/webhook`.)
+Stripe dashboard. You don't need working billing to sign in — this just satisfies the guard.
+
+**Wiring real billing (still test mode) — the three ids, where each one hides:**
+
+1. **Price id** (`price_…`) → `Billing__Stripe__Prices__<plan>` (one per paid plan, e.g. `…__pro`).
+   In the dashboard (Test mode / your sandbox): **Billing → Product catalog** (in some layouts it is
+   under **More**; the search box finds "Product catalog" in any layout) → **+ Add product** → name
+   the plan, choose **Recurring** + the interval + the amount → save → in the product's **Pricing**
+   section, the price row's **⋯** menu → **Copy price ID**. Three look-alikes are NOT it: the
+   **`prod_…` product id** at the top of the page (a product can carry several prices — checkout needs
+   the one to charge), the price's **lookup key** (Stripe pre-fills it with two random words such as
+   `playful-rhythm`, and sending it yields `No such price: 'playful-rhythm'` with
+   `param: line_items[0][price]` in the request log), and the price **nickname**.
+2. **Webhook signing secret** (`whsec_…`) → `Billing__Stripe__WebhookSecret`. **Developers → Webhooks →
+   + Add endpoint**, URL `https://<your-host>/api/billing/webhook`, events **`customer.subscription.created`,
+   `customer.subscription.updated`, `customer.subscription.deleted`** (the handler reconciles subscription
+   objects; checkout and invoice events are ignored). The endpoint page shows every delivery with the
+   status code the app answered — your first place to look when a plan does not flip.
+3. **Secret key** (`sk_test_…`) → `Billing__Stripe__SecretKey` — already set by step §3 above. All three
+   must come from the **same** sandbox/account; a sandbox has its own keys, catalog and webhooks.
+
+Then rehearse: **Billing → Upgrade** lands on Stripe's hosted checkout; pay with test card
+`4242 4242 4242 4242` (any future expiry, any CVC) → the subscription event arrives → the Billing page
+shows the paid plan, active, with the portal button, and the owner gets the in-app + email "Subscription
+active" notice (the cancel / past-due notices are its mirror). For a payment **receipt** as well, turn on
+**Settings → Business → Customer emails → Successful payments** in Stripe — the app never sends
+receipts, Stripe does. `4000 0000 0000 0341` attaches but fails to charge
+(→ past due); the portal's cancel drops the plan back. A renewal months out needs a Stripe **test clock**,
+and a customer joins a clock only at creation — Checkout creates the customer itself, so rehearsing
+renewals means creating the customer under a clock first (not built in).
 
 Optionally set **`Billing__Stripe__ExpectLiveKey`** to fail closed on a key/mode mismatch (v3 DEP-10):
 `false` on staging (refuses to boot with an `sk_live_…` key that could make real charges), `true` on

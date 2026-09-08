@@ -185,6 +185,7 @@
   <data name="Billing_Subtitle" xml:space="preserve"><value>Your plan, usage, and subscription.</value></data>
   <data name="Billing_CurrentPlan" xml:space="preserve"><value>Current plan</value></data>
   <data name="Billing_RenewsOn" xml:space="preserve"><value>Renews or ends on {0}.</value></data>
+  <data name="Billing_EndedOn" xml:space="preserve"><value>Your paid subscription ended on {0}. Upgrade any time to start a new one.</value></data>
   <data name="Billing_Seats" xml:space="preserve"><value>Seats</value></data>
   <data name="Billing_SeatsUsage" xml:space="preserve"><value>{0} of {1} used</value></data>
   <data name="Billing_Upgrade" xml:space="preserve"><value>Upgrade to Pro</value></data>
@@ -193,6 +194,8 @@
   <data name="Billing_ErrLoad" xml:space="preserve"><value>Couldn't load billing.</value></data>
   <data name="Billing_ErrCheckout" xml:space="preserve"><value>Couldn't start checkout.</value></data>
   <data name="Billing_ErrPortal" xml:space="preserve"><value>Couldn't open the billing portal.</value></data>
+  <data name="Billing_CheckoutSuccess" xml:space="preserve"><value>Payment received. Your plan updates as soon as the provider confirms it — usually within a few seconds.</value></data>
+  <data name="Billing_CheckoutCancelled" xml:space="preserve"><value>Checkout cancelled — nothing changed.</value></data>
   <data name="Nav_SignOut" xml:space="preserve"><value>Sign out</value></data>
   <data name="Home_HeroSubtitle" xml:space="preserve"><value>Sign in to get started with your household.</value></data>
   <data name="Home_SignInCta" xml:space="preserve"><value>Sign in</value></data>

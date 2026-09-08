@@ -185,6 +185,7 @@
   <data name="Billing_Subtitle" xml:space="preserve"><value>Tu plan, uso y suscripción.</value></data>
   <data name="Billing_CurrentPlan" xml:space="preserve"><value>Plan actual</value></data>
   <data name="Billing_RenewsOn" xml:space="preserve"><value>Se renueva o finaliza el {0}.</value></data>
+  <data name="Billing_EndedOn" xml:space="preserve"><value>Tu suscripción de pago finalizó el {0}. Puedes mejorar el plan cuando quieras para iniciar una nueva.</value></data>
   <data name="Billing_Seats" xml:space="preserve"><value>Asientos</value></data>
   <data name="Billing_SeatsUsage" xml:space="preserve"><value>{0} de {1} usados</value></data>
   <data name="Billing_Upgrade" xml:space="preserve"><value>Mejorar a Pro</value></data>
@@ -193,6 +194,8 @@
   <data name="Billing_ErrLoad" xml:space="preserve"><value>No se pudo cargar la facturación.</value></data>
   <data name="Billing_ErrCheckout" xml:space="preserve"><value>No se pudo iniciar el pago.</value></data>
   <data name="Billing_ErrPortal" xml:space="preserve"><value>No se pudo abrir el portal de facturación.</value></data>
+  <data name="Billing_CheckoutSuccess" xml:space="preserve"><value>Pago recibido. Tu plan se actualiza en cuanto el proveedor lo confirma; normalmente en unos segundos.</value></data>
+  <data name="Billing_CheckoutCancelled" xml:space="preserve"><value>Pago cancelado: no cambió nada.</value></data>
   <data name="Nav_SignOut" xml:space="preserve"><value>Cerrar sesión</value></data>
   <data name="Home_HeroSubtitle" xml:space="preserve"><value>Inicia sesión para empezar con tu hogar.</value></data>
   <data name="Home_SignInCta" xml:space="preserve"><value>Iniciar sesión</value></data>
