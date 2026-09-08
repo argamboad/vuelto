@@ -167,3 +167,46 @@ the fence. Production is a copy of this; staging is where you rehearse it.
 | the app does not boot; log says the database role is a superuser, has BYPASSRLS, or owns the tables | `DefaultConnection` still points at the owner: check `Username=app_runtime` on the host |
 | the app boots but every page is empty | you pasted the runtime string into `Migrations` and the owner into `DefaultConnection` (swapped): the owner serves requests fine, but the guard is not looking at it. Swap them back |
 | household restore fails with `permission denied` | expected: restore with the **owner** connection (see above), never with `app_runtime` |
+
+## Publish the Android and Windows apps against a host
+
+### What this is, in plain words
+
+The phone and desktop apps are the same app as the website, built for a device. A **Release** build has
+the API address baked in, so "the app against staging" is one build and "the app against production" is
+another. This script makes both installables in one go. Full explanation: `docs/DEPLOYMENT.md` §9.
+
+### Prerequisites
+
+- The .NET MAUI workloads (`dotnet workload list` shows `android` and `maui-windows`) — already there if
+  VS Code runs the app.
+- For the signature check only: the Android SDK build-tools and a JDK on the PATH. Skipped if absent.
+
+### Step by step
+
+1. From the repo root:
+
+   ```powershell
+   .\tools\publish-native.ps1
+   ```
+
+   Defaults: both platforms, against `https://vuelto-staging.onrender.com`, into `~\vuelto-builds`.
+   Options: `-ApiBaseUrl https://…`, `-Out C:\somewhere`, `-Android` or `-Windows` alone.
+2. **Phone:** send `~\vuelto-builds\vuelto.apk` to the phone (USB, a drive, a message to yourself), open
+   it, allow installs from that source. It upgrades over a VS Code debug install (same key).
+3. **Desktop:** run `~\vuelto-builds\windows\Vuelto.Maui.exe`; pin a shortcut. SmartScreen warns once
+   (unsigned) — *More info → Run anyway*.
+4. The script ends with `Verified using v2 scheme … true` for the APK. If it says `false`, the phone will
+   refuse the file silently — do not ship it.
+
+### Troubleshooting
+
+- **Tap the APK and nothing happens** → the APK carries only a v1 signature. Rebuild with this script
+  (the project forces apksigner in Release); check with `apksigner verify --verbose`.
+- **Google / Microsoft sign-in never comes back to the phone app** → the host lacks
+  `Auth__Native__CallbackScheme=vuelto` (Render → Environment). Email-code sign-in works regardless.
+- **`JAVA_HOME is set to an invalid directory`** (from `apksigner`) → the variable points at an uninstalled
+  JDK; the script ignores it, but for manual `apksigner` runs point `JAVA_HOME` at the JDK you have
+  (`C:\Program Files\Eclipse Adoptium\jdk-21…`).
+- **NU1102 … Mono.win-x64** → a `-p:RuntimeIdentifier` was passed; don't.
+- **"Release builds require -p:ApiBaseUrl"** → by design: never ship the localhost base.

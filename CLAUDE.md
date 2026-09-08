@@ -189,6 +189,10 @@ deferred items without an explicit decision.
   -RuntimePassword <new>` — provisions `app_runtime` via the compose container's `psql`, proves read-OK /
   DDL-denied, prints the `DefaultConnection` / `Migrations` / `Rls__EnforceRuntimeRole` values for the host.
   `docs/DEPLOYMENT.md` §7; click-by-click in `tools/README.md`.
+- **Installable phone/desktop builds against a host:** `tools/publish-native.ps1 [-ApiBaseUrl …] [-Out …]` — Release
+  Android APK (apksigner v2+v3 with the debug key, upgrades over a VS Code install) + Windows unpackaged exe, the API
+  base compiled in. Recipe + the signing/`RuntimeIdentifier`/callback-scheme gotchas: `docs/DEPLOYMENT.md` §9;
+  owner-level steps in `tools/README.md`.
 - **Port parity reached (P0–P10b merged, PRs #1–#17).** P11 closed the repo side 2026-09-04:
   localization sweep (566 keys, EN/ES parity, zero missing — `LocalizationKeyCoverageTests` gate),
   app-slice QA pass recorded in `docs/qa-runs/2026-09-run-log.md` (29/32 ✅; FX-01, EMAIL-02,
