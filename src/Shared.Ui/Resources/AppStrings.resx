@@ -445,6 +445,8 @@
   <data name="Tx_Bank" xml:space="preserve"><value>Bank</value></data>
   <data name="Tx_Card" xml:space="preserve"><value>Card</value></data>
   <data name="Tx_NoCard" xml:space="preserve"><value>No card</value></data>
+  <data name="Tx_Notes" xml:space="preserve"><value>Notes</value></data>
+  <data name="Tx_NotesHint" xml:space="preserve"><value>Optional — why this transaction, for later (up to 250 characters)</value></data>
   <data name="Tx_PaymentMethod" xml:space="preserve"><value>Payment method</value></data>
   <data name="Tx_CreditCard" xml:space="preserve"><value>Credit card</value></data>
   <data name="Tx_BankAccount" xml:space="preserve"><value>Bank account</value></data>

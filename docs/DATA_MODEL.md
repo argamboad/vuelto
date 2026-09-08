@@ -184,6 +184,7 @@ Money movement, captured in both currencies at a frozen rate.
   `envelope_contribution`
 - `envelope_id` (FK → Envelope, nullable, no cascade; **required when** `envelope_contribution`)
 - `card_id` (FK → Card, nullable, no cascade — null = "no card": cash, transfers, rows from before CARDS-1)
+- `notes` — optional, ≤ 250 characters, trimmed; blank is stored as null (the "why", 2026-09-08)
 - `source` — `manual` | `email` | `refund_realization`
 - indexes: (`tenant_id`, `month_id`), (`tenant_id`, `transaction_date`)
 

@@ -192,6 +192,7 @@ public class ReviewPageTests : ComponentTestBase
         cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("[data-testid='review-confirm']").Count));
         Card(cut, 0).QuerySelector("[data-testid='review-class']")!.Change("budgeted");
         Card(cut, 0).QuerySelector("[data-testid='review-remember']")!.Change(true);
+        Card(cut, 0).QuerySelector("[data-testid='review-notes']")!.Change(" Team lunch, split later ");
         Card(cut, 0).QuerySelector("[data-testid='review-confirm']")!.Click();
 
         cut.WaitForAssertion(() => Assert.Contains("Review_ConfirmedRemembered", cut.Find("[data-testid='review-notice']").TextContent));
@@ -201,6 +202,7 @@ public class ReviewPageTests : ComponentTestBase
         Assert.Contains($"\"category_id\":\"{Cat1}\"", body);
         Assert.Contains("\"transaction_class\":\"budgeted\"", body);
         Assert.Contains("\"remember_merchant\":true", body);
+        Assert.Contains("\"notes\":\"Team lunch, split later\"", body); // the reason travels with the confirm, trimmed
         Assert.Contains("\"original_amount\":null", body);
         Assert.Contains("\"payee\":null", body);
         Assert.Equal(2, Http.Requests.Count(r => r.RequestUri!.AbsolutePath == "/api/pending-vouchers")); // reloaded

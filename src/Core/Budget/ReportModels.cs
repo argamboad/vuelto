@@ -38,4 +38,5 @@ public record TransactionExportRow(
     string PaymentMethod,
     string? BankName,
     string Source,
-    string? CardName = null);
+    string? CardName = null,
+    string? Notes = null);

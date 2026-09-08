@@ -68,7 +68,9 @@ public record ConfirmVoucherRequest(
     [property: JsonPropertyName("remember_merchant")] bool RememberMerchant = false,
     // LEDGER-3 on the queue: same rules as manual entry — only means something on an unplanned essential, needs 0 < p ≤ 100.
     [property: JsonPropertyName("refund_expected")] bool RefundExpected = false,
-    [property: JsonPropertyName("refund_percentage")] decimal? RefundPercentage = null);
+    [property: JsonPropertyName("refund_percentage")] decimal? RefundPercentage = null,
+    // The reason, recorded while the voucher is in front of you — the ledger's optional 250-character note.
+    [property: JsonPropertyName("notes")] string? Notes = null);
 
 public record ConfirmVoucherResponse(
     [property: JsonPropertyName("transaction_id")] Guid TransactionId,

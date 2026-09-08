@@ -41,6 +41,11 @@
                         <label class="form-label small fw-medium mb-1" for="tx-payee">@Localizer["Tx_Payee"]</label>
                         <input class="form-control" id="tx-payee" data-testid="tx-payee" maxlength="200" disabled="@_saving" @bind="_payee" @bind:event="oninput" />
                     </div>
+                    <div class="col-12">
+                        <label class="form-label small fw-medium mb-1" for="tx-notes">@Localizer["Tx_Notes"]</label>
+                        <textarea class="form-control" id="tx-notes" data-testid="tx-notes" rows="2" maxlength="250" placeholder="@Localizer["Tx_NotesHint"]" disabled="@_saving" @bind="_notes" @bind:event="oninput"></textarea>
+                        <div class="form-text text-end" data-testid="tx-notes-count">@_notes.Length/250</div>
+                    </div>
                     <div class="col-8 col-md-5">
                         <label class="form-label small fw-medium mb-1" for="tx-amount">@Localizer["Tx_Amount"]</label>
                         <input class="form-control" type="number" step="0.01" min="0" id="tx-amount" data-testid="tx-amount" disabled="@_saving" @bind="_amount" />
@@ -173,6 +178,7 @@
     private string _categoryId = "";
     private string _bankId = "";
     private string _cardId = ""; // CARDS-1: optional — "" is "no card"
+    private string _notes = ""; // optional; blank is sent as null
     private string _method = "credit_card";
     private string _type = "budgeted";
     private string _envelopeId = "";
@@ -205,7 +211,7 @@
                 var tx = (await res.Content.ReadFromJsonAsync<TxDto>())!;
                 _monthId = tx.MonthId; _payee = tx.Payee; _amount = tx.OriginalAmount; _currency = tx.Currency; _date = tx.TransactionDate;
                 _categoryId = tx.CategoryId.ToString(); _bankId = tx.BankId.ToString(); _method = tx.PaymentMethod; _type = tx.TransactionType;
-                _envelopeId = tx.EnvelopeId?.ToString() ?? ""; _cardId = tx.CardId?.ToString() ?? ""; _rate = tx.ExchangeRateUsed;
+                _envelopeId = tx.EnvelopeId?.ToString() ?? ""; _cardId = tx.CardId?.ToString() ?? ""; _notes = tx.Notes ?? ""; _rate = tx.ExchangeRateUsed;
                 _refundExpected = tx.RefundExpected; _refundPercentage = tx.RefundPercentage;
                 _derived = tx.Source == "refund_realization"; // only refund-derived inflows are read-only; email-booked rows are the user's own
             }
@@ -254,6 +260,7 @@
                 ["transaction_type"] = _type, ["envelope_id"] = _type == "envelope_contribution" ? _envelopeId : null,
                 ["refund_expected"] = refund, ["refund_percentage"] = refund ? _refundPercentage : null,
                 ["card_id"] = _cardId == "" ? null : _cardId,
+                ["notes"] = string.IsNullOrWhiteSpace(_notes) ? null : _notes.Trim(),
             };
             if (Id is null) body["exchange_rate"] = _rate;
 
@@ -303,6 +310,7 @@
         [property: JsonPropertyName("payee")] string Payee,
         [property: JsonPropertyName("bank_id")] Guid BankId,
         [property: JsonPropertyName("card_id")] Guid? CardId,
+        [property: JsonPropertyName("notes")] string? Notes,
         [property: JsonPropertyName("payment_method")] string PaymentMethod,
         [property: JsonPropertyName("original_amount")] decimal OriginalAmount,
         [property: JsonPropertyName("currency")] string Currency,

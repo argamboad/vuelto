@@ -70,8 +70,8 @@ public class ReportEndpointTests(IntegrationTestFactory factory)
         var csv = await download.Content.ReadAsStringAsync();
         var lines = csv.Split("\r\n", StringSplitOptions.RemoveEmptyEntries);
         Assert.Equal(2, lines.Length);
-        Assert.Equal("date,payee,category,class,amount_crc,amount_usd,exchange_rate_used,payment_method,bank,source,card", lines[0]);
-        Assert.Equal($"2026-06-10,\"Café, \"\"El\"\" Punto\",{category.Name},extraordinary,15750.00,31.50,500.0000,credit_card,{bank.Name},manual,", lines[1]);
+        Assert.Equal("date,payee,category,class,amount_crc,amount_usd,exchange_rate_used,payment_method,bank,source,card,notes", lines[0]);
+        Assert.Equal($"2026-06-10,\"Café, \"\"El\"\" Punto\",{category.Name},extraordinary,15750.00,31.50,500.0000,credit_card,{bank.Name},manual,,", lines[1]); // trailing card + notes columns, both empty here
     }
 
     private sealed record NamedDto([property: JsonPropertyName("id")] Guid Id, [property: JsonPropertyName("name")] string Name);

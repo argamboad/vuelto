@@ -85,6 +85,9 @@ realizations) are read-only here → 400 `derived_transaction`. Another househol
 `GET /api/months/{id}/transactions` lists newest first with category/bank names resolved (inactive
 names still render). Any member may edit. **CARDS-1 (2026-09-08):** an optional `card_id` — an active card of
 the household (400 otherwise); the list carries `card_name`; the month page shows, sorts and filters by card.
+**Notes (2026-09-08, owner request):** an optional `notes` field (≤ 250 characters, trimmed, blank = null, over the cap
+= 400) on create, update, the row, the month list and the CSV; the voucher confirm accepts it too. The month page shows
+a note icon on the payee whose hover text is the note; opening the transaction shows it in full.
 
 ```gherkin
 Scenario: Creating a transaction derives both amounts at the frozen rate
@@ -120,6 +123,9 @@ Scenario: The pages
   When I open New transaction, the rate is pre-filled from today's quote (or I am told to enter one),
        the date announces "Goes to July 2026 — a new month will be created", and Save takes me to the month
   When I open Edit, the rate is shown frozen and never sent back
+  And (2026-09-08) New/Edit carry an optional Notes box with a 0/250 counter; a row with a note shows an icon on
+       the month page whose hover text is the note and whose tap opens the transaction; the review queue's
+       confirm card offers the same box; the CSV ends with a notes column
 ```
 
 **Out of scope (P5a):** LEDGER-3 below; the dashboard summary on a month read (P6); the voucher

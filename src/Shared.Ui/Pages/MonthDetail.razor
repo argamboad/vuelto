@@ -165,7 +165,16 @@
                             {
                                 <tr data-testid="month-tx-row">
                                     <td>@t.TransactionDate.ToString("d", CultureInfo.CurrentCulture)</td>
-                                    <td data-testid="month-tx-payee">@t.Payee</td>
+                                    <td data-testid="month-tx-payee">
+                                        @t.Payee
+                                        @if (!string.IsNullOrWhiteSpace(t.Notes))
+                                        {
+                                            @* The note rides on the row as an icon: hover reads it; a tap opens the transaction, which shows it in full. *@
+                                            <a class="ms-1 text-decoration-none align-middle" href="/transactions/@t.Id/edit" data-testid="month-tx-note" title="@t.Notes" aria-label="@t.Notes">
+                                                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" focusable="false"><path d="M2 1.5h8.5L14 5v9.5H2z" opacity=".3"/><path d="M4 7h8v1.2H4zm0 2.6h8v1.2H4zm0 2.6h5v1.2H4z"/></svg>
+                                            </a>
+                                        }
+                                    </td>
                                     <td>@t.CategoryName</td>
                                     <td>@t.BankName</td>
                                     <td class="text-nowrap" data-testid="month-tx-card">@t.CardName</td>
@@ -483,7 +492,8 @@
         [property: JsonPropertyName("amount_crc")] decimal AmountCrc,
         [property: JsonPropertyName("amount_usd")] decimal AmountUsd,
         [property: JsonPropertyName("source")] string Source,
-        [property: JsonPropertyName("card_name")] string? CardName = null);
+        [property: JsonPropertyName("card_name")] string? CardName = null,
+        [property: JsonPropertyName("notes")] string? Notes = null);
 
     private sealed record RefundDto(
         [property: JsonPropertyName("id")] Guid Id,

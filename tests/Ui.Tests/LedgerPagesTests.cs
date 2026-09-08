@@ -97,6 +97,29 @@ public class LedgerPagesTests : ComponentTestBase
     }
 
     [Fact]
+    public async Task NewTransaction_NotesAreOptional_TrimmedOnTheWire_AndCounted()
+    {
+        await SignInAsync();
+        StubCatalogs();
+
+        var cut = Render<TransactionForm>();
+        cut.WaitForAssertion(() => Assert.Equal("510.45", cut.Find("[data-testid='tx-rate']").GetAttribute("value")));
+        Assert.Equal("0/250", cut.Find("[data-testid='tx-notes-count']").TextContent.Trim());
+
+        cut.Find("[data-testid='tx-payee']").Input("AutoMercado");
+        cut.Find("[data-testid='tx-amount']").Change("50000");
+        cut.Find("[data-testid='tx-category']").Change(CatId);
+        cut.Find("[data-testid='tx-bank']").Change(BankId);
+        cut.Find("[data-testid='tx-notes']").Input("  Stocking up before the trip ");
+        Assert.Equal("30/250", cut.Find("[data-testid='tx-notes-count']").TextContent.Trim());
+        cut.Find("[data-testid='tx-save']").Click();
+
+        cut.WaitForAssertion(() => Assert.Single(Http.Requests, r => r.Method == HttpMethod.Post && r.RequestUri!.AbsolutePath == "/api/transactions"));
+        var body = await Http.Requests.Single(r => r.Method == HttpMethod.Post && r.RequestUri!.AbsolutePath == "/api/transactions").Content!.ReadAsStringAsync();
+        Assert.Contains("\"notes\":\"Stocking up before the trip\"", body);
+    }
+
+    [Fact]
     public async Task NewTransaction_CardIsOptional_AndAPickedOneIsPosted()
     {
         // CARDS-1: "No card" by default (cash, transfers); a picked card rides on the payload.
@@ -226,7 +249,7 @@ public class LedgerPagesTests : ComponentTestBase
         await SignInAsync();
         Http.On(HttpMethod.Get, $"/api/months/{MonthId}", $$"""{"id":"{{MonthId}}","year":2026,"month_number":7,"week_count":5,"week1_start_date":"2026-06-25","primary_income_amount":0,"primary_income_currency":"USD","secondary_income_amount":0,"secondary_income_currency":"USD","weeks":[{"week_number":1,"start_date":"2026-06-25","end_date":"2026-07-29"}]}""");
         Http.On(HttpMethod.Get, $"/api/months/{MonthId}/transactions", """
-            [{"id":"dddddddd-0000-0000-0000-000000000001","payee":"Uber","transaction_date":"2026-07-20","category_name":"Transport","bank_name":"BAC","card_name":"VISA-1234","payment_method":"credit_card","transaction_type":"extraordinary","amount_crc":5000,"amount_usd":10,"source":"manual"},
+            [{"id":"dddddddd-0000-0000-0000-000000000001","payee":"Uber","transaction_date":"2026-07-20","category_name":"Transport","bank_name":"BAC","card_name":"VISA-1234","notes":"Airport run, reimbursed by work","payment_method":"credit_card","transaction_type":"extraordinary","amount_crc":5000,"amount_usd":10,"source":"manual"},
              {"id":"dddddddd-0000-0000-0000-000000000002","payee":"AutoMercado","transaction_date":"2026-07-10","category_name":"Groceries","bank_name":"Cash","payment_method":"credit_card","transaction_type":"budgeted","amount_crc":50000,"amount_usd":100,"source":"manual"},
              {"id":"dddddddd-0000-0000-0000-000000000003","payee":"Café Britt","transaction_date":"2026-07-02","category_name":"Groceries","bank_name":"BAC","payment_method":"bank_account","transaction_type":"unplanned_essential","amount_crc":8000,"amount_usd":16,"source":"email"}]
             """);
@@ -234,6 +257,11 @@ public class LedgerPagesTests : ComponentTestBase
         var cut = Render<MonthDetail>(p => p.Add(x => x.Id, Guid.Parse(MonthId)));
         cut.WaitForAssertion(() => Assert.Equal(3, cut.FindAll("[data-testid='month-tx-row']").Count));
         string[] Payees() => cut.FindAll("[data-testid='month-tx-payee']").Select(e => e.TextContent.Trim()).ToArray();
+
+        // Notes ride on the payee cell as an icon whose tooltip is the note; rows without one show nothing.
+        var note = Assert.Single(cut.FindAll("[data-testid='month-tx-note']"));
+        Assert.Equal("Airport run, reimbursed by work", note.GetAttribute("title"));
+        Assert.Equal("/transactions/dddddddd-0000-0000-0000-000000000001/edit", note.GetAttribute("href"));
 
         // CARDS-1: the card column shows the alias; the card filter narrows to it.
         Assert.Equal("VISA-1234", cut.FindAll("[data-testid='month-tx-card']")[0].TextContent.Trim());
