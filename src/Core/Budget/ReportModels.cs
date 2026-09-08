@@ -37,4 +37,5 @@ public record TransactionExportRow(
     decimal ExchangeRateUsed,
     string PaymentMethod,
     string? BankName,
-    string Source);
+    string Source,
+    string? CardName = null);

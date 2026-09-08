@@ -19,6 +19,7 @@ public class TransactionConfiguration : IEntityTypeConfiguration<Transaction>
         b.HasOne<Bank>().WithMany().HasForeignKey(x => x.BankId).OnDelete(DeleteBehavior.Restrict);
         b.HasOne<Category>().WithMany().HasForeignKey(x => x.CategoryId).OnDelete(DeleteBehavior.Restrict);
         b.HasOne<Envelope>().WithMany().HasForeignKey(x => x.EnvelopeId).OnDelete(DeleteBehavior.Restrict);
+        b.HasOne<Card>().WithMany().HasForeignKey(x => x.CardId).OnDelete(DeleteBehavior.Restrict); // CARDS-1: a card keeps naming history
 
         b.Property(x => x.Payee).HasMaxLength(200).IsRequired();
         b.Property(x => x.Currency).HasMaxLength(3).IsRequired();
@@ -33,5 +34,6 @@ public class TransactionConfiguration : IEntityTypeConfiguration<Transaction>
         b.HasIndex(x => new { x.TenantId, x.MonthId });
         b.HasIndex(x => new { x.TenantId, x.TransactionDate });
         b.HasIndex(x => new { x.TenantId, x.CreatedAt });
+        b.HasIndex(x => new { x.TenantId, x.CardId });
     }
 }

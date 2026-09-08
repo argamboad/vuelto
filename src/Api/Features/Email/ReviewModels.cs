@@ -35,6 +35,7 @@ public record PendingVoucherResponse(
     [property: JsonPropertyName("date")] DateOnly? Date,
     [property: JsonPropertyName("bank_id")] Guid? BankId,
     [property: JsonPropertyName("card_number")] string? CardNumber,
+    [property: JsonPropertyName("card_brand")] string? CardBrand,
     [property: JsonPropertyName("authorization")] string? Authorization,
     [property: JsonPropertyName("reference")] string? Reference,
     [property: JsonPropertyName("transaction_type")] string? TransactionType,
@@ -44,7 +45,7 @@ public record PendingVoucherResponse(
     [property: JsonPropertyName("received_at")] DateTimeOffset? ReceivedAt)
 {
     public static PendingVoucherResponse From(PendingVoucher v) => new(
-        v.Id, v.ParsedBank, v.Merchant, v.Amount, v.Currency, v.Date, v.BankId, v.CardNumber, v.Authorization, v.Reference,
+        v.Id, v.ParsedBank, v.Merchant, v.Amount, v.Currency, v.Date, v.BankId, v.CardNumber, v.CardBrand, v.Authorization, v.Reference,
         v.TransactionType, v.MissingFields, v.SuggestedCategoryId, v.SuggestedClass, v.ReceivedAt);
 }
 

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
+using Vuelto.Api.Features.Cards;
 using Vuelto.Api.Features.Ledger;
 using Vuelto.Api.Tests.Infrastructure;
 using Vuelto.Core.Budget;
@@ -56,7 +57,7 @@ public class LedgerSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
         var current = new TestCurrentTenant { TenantId = tenant };
         var clock = new FakeTimeProvider(T0);
         var months = new MonthHandler(new EfRepository<Month>(db), new EfRepository<Week>(db), new EfRepository<Transaction>(db), new EfRepository<BudgetSettings>(db), new WeekBoundaryService(), current, clock);
-        var transactions = new TransactionHandler(new EfRepository<Transaction>(db), new EfRepository<Refund>(db), new EfRepository<Category>(db), new EfRepository<Bank>(db), new EfRepository<Envelope>(db), months, pair is null ? new FixedRate(rate) : new PairRate(pair), current, clock, NullLogger<TransactionHandler>.Instance);
+        var transactions = new TransactionHandler(new EfRepository<Transaction>(db), new EfRepository<Refund>(db), new EfRepository<Category>(db), new EfRepository<Bank>(db), new EfRepository<Envelope>(db), new EfRepository<Card>(db), months, pair is null ? new FixedRate(rate) : new PairRate(pair), current, clock, NullLogger<TransactionHandler>.Instance);
         return new Ctx(db, tenant, months, transactions, category.Id, bank.Id, envelope.Id);
     }
 
@@ -152,6 +153,30 @@ public class LedgerSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
         Assert.Null(e1); Assert.Null(e2);
         Assert.Equal((453.69m, 9073.80m, 20m), (usd!.ExchangeRateUsed, usd.AmountCrc, usd.AmountUsd));      // $20 × venta
         Assert.Equal((448.27m, 50_000m, 111.54m), (crc!.ExchangeRateUsed, crc.AmountCrc, crc.AmountUsd));   // ₡50,000 / compra
+    }
+
+    [Fact]
+    public async Task Create_WithACard_LinksIt_ListsItsAlias_AndRefusesAForeignOrInactiveOne()
+    {
+        // CARDS-1: the card is optional; when given it must be the household's and active — like the bank.
+        var c = await ContextAsync();
+        var cards = new CardHandler(new EfRepository<Card>(c.Db), new EfRepository<Vuelto.Core.Entities.CardIdentity>(c.Db), new EfRepository<Transaction>(c.Db), new EfRepository<Bank>(c.Db), new TestCurrentTenant { TenantId = c.Tenant }, new FakeTimeProvider(T0));
+        var card = (await cards.CreateAsync(new CreateCardRequest("Main", "VISA", "1234", c.BankId), default)).Card!;
+
+        var (tx, error) = await c.Transactions.CreateAsync(Create(c, Jun5) with { CardId = card.Id }, default);
+        Assert.Null(error);
+        Assert.Equal(card.Id, tx!.CardId);
+        var row = Assert.Single((await c.Transactions.ListForMonthAsync(tx.MonthId, default))!);
+        Assert.Equal("Main", row.CardName);
+
+        var (_, foreign) = await c.Transactions.CreateAsync(Create(c, Jun5) with { CardId = Guid.CreateVersion7() }, default);
+        Assert.Equal("invalid_request", foreign!.Error);
+        Assert.Contains("card", foreign.Message);
+
+        await cards.UpdateAsync(card.Id, new UpdateCardRequest("Main", c.BankId, IsActive: false), default);
+        var (_, inactive) = await c.Transactions.CreateAsync(Create(c, Jun5) with { CardId = card.Id }, default);
+        Assert.Contains("inactive card", inactive!.Message);
+        Assert.Equal("Main", Assert.Single((await c.Transactions.ListForMonthAsync(tx.MonthId, default))!).CardName); // history keeps the alias
     }
 
     [Fact]

@@ -3515,7 +3515,7 @@
     },
     {
       "name": "16 · Transactions",
-      "description": "LEDGER-2 (app slice P5a, ADR-V006/V007): money movement in both currencies at a frozen rate. POST validates everything, settles the rate (manual exchange_rate override wins, else the live → cache → last-transaction chain; nothing → 400 exchange_rate_unavailable), resolves or creates the month from transaction_date, derives amount_crc/amount_usd and freezes exchange_rate_used. PUT re-derives from the frozen rate (never sends a rate) and re-resolves the month on a date change; DELETE is hard and removes an emptied month. Rows with source != manual are read-only (400 derived_transaction). Uniform 404 for another household's id. Run 12 · Catalog first so {{categoryId}} and a bank exist. LEDGER-3: an unplanned_essential may carry refund_expected + refund_percentage (0 < p ≤ 100) — a derived Refund (percentage × the frozen amounts) is created/re-derived/removed with the transaction; the flag is ignored on other classes.",
+      "description": "LEDGER-2 (app slice P5a, ADR-V006/V007): money movement in both currencies at a frozen rate. Optional card_id (CARDS-1, an active card of the household; 400 otherwise) on create and update; the response and the month list carry card_id / card_name. POST validates everything, settles the rate (manual exchange_rate override wins, else the live → cache → last-transaction chain; nothing → 400 exchange_rate_unavailable), resolves or creates the month from transaction_date, derives amount_crc/amount_usd and freezes exchange_rate_used. PUT re-derives from the frozen rate (never sends a rate) and re-resolves the month on a date change; DELETE is hard and removes an emptied month. Rows with source != manual are read-only (400 derived_transaction). Uniform 404 for another household's id. Run 12 · Catalog first so {{categoryId}} and a bank exist. LEDGER-3: an unplanned_essential may carry refund_expected + refund_percentage (0 < p ≤ 100) — a derived Refund (percentage × the frozen amounts) is created/re-derived/removed with the transaction; the flag is ignored on other classes.",
       "item": [
         {
           "name": "Create transaction",
@@ -4436,7 +4436,7 @@
                 }
               ]
             },
-            "description": "200 { download_url, file_name \"transactions-<today>.csv\", row_count, period, expires_in_seconds 900 }. Optional filters: category_id, class (normalized). The CSV (RFC 4180, UTF-8, CRLF): date,payee,category,class,amount_crc,amount_usd,exchange_rate_used,payment_method,bank,source — amounts 2 dp without symbols, exchange_rate_used 4 dp, dates yyyy-MM-dd, rows date desc then created desc, header-only when nothing matches (never 404). Open download_url WITHOUT a token: the signed link is the authorization; it expires after 15 minutes (then 404). Captures the link into {{exportUrl}}. Period: month_id (the month's anchor window — first week start to the LAST week's end date) OR from + to (yyyy-MM-dd, inclusive), never both, never neither → 400 period_required / period_ambiguous / period_incomplete / period_invalid. Unknown or another household's month_id → uniform 404."
+            "description": "200 { download_url, file_name \"transactions-<today>.csv\", row_count, period, expires_in_seconds 900 }. Optional filters: category_id, class (normalized). The CSV (RFC 4180, UTF-8, CRLF): date,payee,category,class,amount_crc,amount_usd,exchange_rate_used,payment_method,bank,source — amounts 2 dp without symbols, exchange_rate_used 4 dp, a trailing card column (the card alias, empty when none — CARDS-1), dates yyyy-MM-dd, rows date desc then created desc, header-only when nothing matches (never 404). Open download_url WITHOUT a token: the signed link is the authorization; it expires after 15 minutes (then 404). Captures the link into {{exportUrl}}. Period: month_id (the month's anchor window — first week start to the LAST week's end date) OR from + to (yyyy-MM-dd, inclusive), never both, never neither → 400 period_required / period_ambiguous / period_incomplete / period_invalid. Unknown or another household's month_id → uniform 404."
           },
           "event": [
             {
@@ -5132,7 +5132,7 @@
                 "confirm"
               ]
             },
-            "description": "200 { transaction_id, month_id, amount_crc, amount_usd, remembered } — books the transaction (source = email) through the ordinary create and flips the draft. category_id + transaction_class (budgeted|extraordinary|unplanned_essential) are required; payee / bank_id / payment_method / original_amount / currency / transaction_date override the parsed values (the UI opens only the blanks); remember_merchant creates a merchant rule (never overwrites); refund_expected + refund_percentage (0 < p ≤ 100) spawn the expected refund exactly like manual entry — only meaningful on unplanned_essential, ignored elsewhere. 400 invalid_request (incl. a bad percentage) / exchange_rate_unavailable (nothing written, draft stays pending); 409 not_pending (already confirmed/discarded, or lost a concurrent confirm — its transaction rolled back); 404 unknown/foreign.",
+            "description": "200 { transaction_id, month_id, amount_crc, amount_usd, remembered } — books the transaction (source = email) through the ordinary create and flips the draft — linking the card the voucher printed (card_number + card_brand), created as BRAND-1234 on first sight (CARDS-1). category_id + transaction_class (budgeted|extraordinary|unplanned_essential) are required; payee / bank_id / payment_method / original_amount / currency / transaction_date override the parsed values (the UI opens only the blanks); remember_merchant creates a merchant rule (never overwrites); refund_expected + refund_percentage (0 < p ≤ 100) spawn the expected refund exactly like manual entry — only meaningful on unplanned_essential, ignored elsewhere. 400 invalid_request (incl. a bad percentage) / exchange_rate_unavailable (nothing written, draft stays pending); 409 not_pending (already confirmed/discarded, or lost a concurrent confirm — its transaction rolled back); 404 unknown/foreign.",
             "header": [
               {
                 "key": "Content-Type",
@@ -5333,6 +5333,202 @@
               "script": {
                 "exec": [
                   "pm.test(\"200 both\", () => { pm.response.to.have.status(200); pm.expect(pm.response.json().display_currency).to.eql('both'); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "24 · Cards",
+      "description": "CARDS-1 (ADR-V021): the household's payment cards. A card is identified by what the bank voucher prints — brand (VISA | MASTERCARD | AMEX | CARD when the voucher names none) + last4 — and named by the household (name = the alias; auto_named true while it is still the automatic BRAND-1234 a voucher confirm gave it). Catalog rules like banks: alias unique per household case-insensitively, soft delete, 409 card_exists (active clash, on alias OR identity) / card_exists_inactive + existing_id + existing_name (offer Reactivate via PUT is_active=true), uniform 404 for another household's id. Never seeded — the first confirmed voucher creates one. Any member may read and edit. Optional on transactions (card_id). A card owns every (brand, last4) the bank has printed for it (identities[]): a renewed card arrives auto-named as BRAND-5678 — POST /{id}/merge { into } folds it into the card the household already knows (identities and transactions move, the duplicate goes).",
+      "item": [
+        {
+          "name": "List cards",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/cards?include_inactive=true",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "cards?include_inactive=true"
+              ]
+            },
+            "description": "200 [ { id, name, brand, last4, bank_id, is_active, auto_named } ] ordered by alias; include_inactive=true adds deactivated cards (history still names them)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"array of cards\", () => { const l = pm.response.json(); pm.expect(l).to.be.an('array'); l.forEach(c => pm.expect(c).to.have.all.keys('id', 'name', 'brand', 'last4', 'bank_id', 'is_active', 'auto_named', 'identities')); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create card",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Main card\",\n  \"brand\": \"visa\",\n  \"last4\": \"************1234\",\n  \"bank_id\": null\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/cards",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "cards"
+              ]
+            },
+            "description": "201 with the card; last4 may be the four digits or the masked number a voucher prints (************1234); brand is normalised (visa → VISA, missing → CARD); bank_id optional (must be an active bank of the household). 400 invalid_request (no alias / no four digits); 409 card_exists or card_exists_inactive on an alias or identity clash. Captures {{cardId}}."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"201 or 409 (already there)\", () => pm.expect(pm.response.code).to.be.oneOf([201, 409]));",
+                  "const b = pm.response.json();",
+                  "if (pm.response.code === 201) { pm.environment.set('cardId', b.id); pm.test(\"normalised\", () => { pm.expect(b.brand).to.eql('VISA'); pm.expect(b.last4).to.eql('1234'); pm.expect(b.auto_named).to.eql(false); }); }",
+                  "else { pm.environment.set('cardId', b.existing_id); pm.test(\"conflict names the existing card\", () => pm.expect(b).to.have.property('existing_id')); }"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update card",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Main card (renamed)\",\n  \"bank_id\": null,\n  \"is_active\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/cards/{{cardId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "cards",
+                "{{cardId}}"
+              ]
+            },
+            "description": "200 with the card — alias, bank and state are the household's to change; brand + last4 are what the bank prints and are not edited. A rename clears auto_named. 409 card_exists on an alias clash; 404 unknown/foreign."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"renamed, still VISA ····1234\", () => { const c = pm.response.json(); pm.expect(c.name).to.eql('Main card (renamed)'); pm.expect(c.last4).to.eql('1234'); pm.expect(c.auto_named).to.eql(false); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Merge a renewed card into another",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"into\": \"{{cardId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/cards/{{renewedCardId}}/merge",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "cards",
+                "{{renewedCardId}}",
+                "merge"
+              ]
+            },
+            "description": "200 with the surviving card ({{cardId}}): the merged card's identities and transactions now belong to it, its newest number shows as brand/last4, the merged row is gone. Set {{renewedCardId}} to the auto-named duplicate first (create one with another last4). 400 invalid_request when into is missing or the same card; 404 unknown/foreign."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200, 400 or 404 (set renewedCardId first)\", () => pm.expect(pm.response.code).to.be.oneOf([200, 400, 404]));",
+                  "if (pm.response.code === 200) pm.test(\"two identities on the survivor\", () => pm.expect(pm.response.json().identities.length).to.be.at.least(2));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create card — invalid (400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Broken\",\n  \"brand\": \"VISA\",\n  \"last4\": \"12\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/cards",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "cards"
+              ]
+            },
+            "description": "400 invalid_request; the message names the field (here: last4 must carry four digits)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"error code\", () => pm.expect(pm.response.json().error).to.eql('invalid_request'));"
                 ],
                 "type": "text/javascript"
               }

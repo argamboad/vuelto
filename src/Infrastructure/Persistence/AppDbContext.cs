@@ -97,6 +97,8 @@ public class AppDbContext : DbContext, IDataProtectionKeyContext
     public DbSet<IngestedVoucher> IngestedVouchers => Set<IngestedVoucher>();    // EMAIL-4 (dedup tombstones)
     public DbSet<MerchantCategoryMapping> MerchantCategoryMappings => Set<MerchantCategoryMapping>(); // EMAIL-5 (household suggestion rules)
     public DbSet<UserDisplaySettings> UserDisplaySettings => Set<UserDisplaySettings>(); // DISPLAY-1 (user-keyed, ADR-V020)
+    public DbSet<Card> Cards => Set<Card>(); // CARDS-1 (household payment cards, ADR-V021)
+    public DbSet<CardIdentity> CardIdentities => Set<CardIdentity>(); // CARDS-1: every (brand, last four) a card is known by
 
     // Tenant isolation is structural in BOTH directions: the global query filter (below)
     // scopes reads, and this interceptor scopes writes — stamping the current tenant onto

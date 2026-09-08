@@ -83,7 +83,8 @@ are saved together. `PUT` re-derives the amounts **from the frozen rate** and re
 a date change. `DELETE` is a hard delete. Rows with `source != manual` (email confirms, refund
 realizations) are read-only here → 400 `derived_transaction`. Another household's id is **404**.
 `GET /api/months/{id}/transactions` lists newest first with category/bank names resolved (inactive
-names still render). Any member may edit.
+names still render). Any member may edit. **CARDS-1 (2026-09-08):** an optional `card_id` — an active card of
+the household (400 otherwise); the list carries `card_name`; the month page shows, sorts and filters by card.
 
 ```gherkin
 Scenario: Creating a transaction derives both amounts at the frozen rate

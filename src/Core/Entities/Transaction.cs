@@ -16,6 +16,8 @@ public class Transaction : ITenantScoped
     public Guid BankId { get; set; }
     public Guid CategoryId { get; set; }
     public Guid? EnvelopeId { get; set; }
+    /// <summary>The card the money left through (CARDS-1) — optional; a voucher confirm fills it, manual entry may.</summary>
+    public Guid? CardId { get; set; }
     public required string Payee { get; set; }
     public string PaymentMethod { get; set; } = PaymentMethods.CreditCard;
     public decimal OriginalAmount { get; set; }

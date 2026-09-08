@@ -1303,6 +1303,30 @@ from a *different* household's list → **Expected:** 404 (never 403 — no exis
 
 ---
 
+### QA-CAT-05 — Cards: a voucher names the card, the household renames it, manual entry may pick it 🟠 (Web / API)
+**Gherkin**
+```gherkin
+Given the household has no cards and the review queue holds a BAC voucher printed as VISA ************1234
+When I confirm it
+Then Settings → Cards lists VISA-1234 (VISA ····1234, the voucher's bank) with an "auto-named" badge, and the month row shows VISA-1234 in the Card column
+When I rename it to "Allan's Visa" and confirm a second voucher on the same card
+Then both rows read "Allan's Visa" — one card, the badge is gone
+When I open New transaction
+Then Card defaults to "No card"; picking "Allan's Visa" saves it on the row; the month page filters by card
+And POST /api/cards with the same brand + last four is 409 card_exists naming the existing card; a card from another household on a transaction is 400
+When the bank renews the card and a voucher printed VISA ************5678 is confirmed
+Then VISA-5678 appears auto-named; "Same card as… Allan's Visa" → Merge leaves one card listing ····1234 · ····5678 with every transaction on it
+```
+**Walkthrough:** **Review** → confirm the voucher → **Settings → Manage cards** → **Expected:** one row
+**VISA-1234 · VISA ····1234 · BAC Credomatic · Active** with the **auto-named** badge. **Edit** → alias
+`Allan's Visa` → **Save** → **Expected:** the badge is gone; the identity line stays **VISA ····1234** (not
+editable). Month page → **Expected:** the row's **Card** column reads Allan's Visa; the **Card** filter narrows
+to it. **New transaction** → **Expected:** **Card** = *No card*; pick Allan's Visa → **Save** → the row shows it.
+**Export CSV** → the last column is `card`. Via Postman (**24 · Cards**) → Create card with brand VISA and
+last4 1234 → **Expected:** 409 `card_exists` with `existing_id`; **Create card — invalid** → 400. Renewal: confirm a voucher with a new last four → **Expected:** an
+auto-named **VISA-5678** row with a **Same card as…** button; pick Allan's Visa → **Merge** → one row,
+identity **VISA ····1234 · ····5678**, the month rows all read Allan's Visa.
+
 ## 10f. Web — Exchange rate (app slice FX-1) 🟠
 
 > The day's USD→CRC rate and its honest fallback chain (ADR-V006): live → stale "as of …" → the
@@ -1741,7 +1765,7 @@ bank" = one slice (the bank of the transactions), "Card vs account" = Credit car
 Given Reports shows June 2026 (three spending rows + one inflow)
 When I click Export CSV
 Then "CSV ready — 4 rows. Your download has started." and transactions-<today>.csv lands in Downloads
-And the file's first line is date,payee,category,class,amount_crc,amount_usd,exchange_rate_used,payment_method,bank,source
+And the file's first line is date,payee,category,class,amount_crc,amount_usd,exchange_rate_used,payment_method,bank,source,card
 And rows are newest first, amounts read like 5000.00 and 10.00, exchange_rate_used like 500.0000, no currency symbols
 When I open a month page and click Export CSV
 Then the same file downloads for that month
@@ -1898,7 +1922,7 @@ on, and **Months** shows no new transaction yet.
 Given a pending draft in the Review queue (header badge shows 1, dashboard banner says 1 waiting)
 When I pick a category (or create one right there with "+ New" — every card on the queue then lists it) and class, tick "Remember this merchant" and Confirm
 And when the class is Unplanned, a "Refund expected" switch appears with a percentage and an "Expected back: …" preview; confirming with it books the transaction AND its pending refund in that month
-Then "Confirmed and remembered", the draft leaves the queue, the badge disappears, and the month lists a transaction with source email and the voucher's amount, bank and date
+Then "Confirmed and remembered", the draft leaves the queue, the badge disappears, and the month lists a transaction with source email and the voucher's amount, bank, date and card (the queue card shows "VISA ····1234"; the card is created as VISA-1234 on first sight — QA-CAT-05)
 And Settings → Manage suggestions now has a rule for that merchant
 When I confirm the same draft again through the API
 Then 409 not_pending, and no second transaction exists
@@ -3603,3 +3627,11 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   up; the month page's Income card lists "Other income this month" with the inflows' frozen sum and a link that
   filters the table to them. Client only. QA-LED-06 names both; `DashboardPageTests.Income_ShowsInflows*` and
   `LedgerPagesTests.MonthDetail_IncomeCard_ListsInflows*` pin it. Suite count unchanged (181).
+- **Updated 2026-09-08** — **Cards (CARDS-1, ADR-V021; owner request).** The card a voucher prints (brand + last
+  four) becomes a household catalog entry, created as `VISA-1234` on the first confirm and renamed by the
+  household on Settings → Cards; transactions carry an optional `card_id` (voucher confirm fills it, manual
+  entry may pick one), the month page shows/sorts/filters by card, the CSV gains a trailing `card` column,
+  the review queue shows the card. A card owns every number the bank has printed (a renewal is merged with "Same
+  card as…" — identities and transactions move, history stays whole). Rows without a card are a "no card" bucket — no LEGACY row. New
+  QA-CAT-05 (suite 182); QA-EMAIL-06 and QA-REP-02 name the card; Postman folder 24; migration `AddCards`;
+  `CardIdentityTests`, `CardSliceTests`, `CardEndpointTests`, the ledger/voucher tests and the bUnit pages pin it.

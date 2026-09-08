@@ -1,0 +1,42 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "API",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/src/Api/bin/Debug/net10.0/Vuelto.Api.dll",
+      "cwd": "${workspaceFolder}/src/Api",
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ASPNETCORE_URLS": "https://localhost:7160;http://localhost:5238"
+      }
+    },
+    {
+      // Standalone Blazor WebAssembly: there is no server dll to launch. This debug type starts the
+      // WASM dev server (dotnet run in cwd, first launchSettings profile = https on 7008) and opens a
+      // browser with the WASM debugger attached.
+      "name": "Web",
+      "type": "blazorwasm",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "cwd": "${workspaceFolder}/src/Web",
+      "url": "https://localhost:7008",
+      "browser": "chrome"
+    },
+    {
+      // .NET MAUI extension. Pick the target once in the status bar ("Debug Target" → your Android
+      // emulator or USB device); it is remembered. The Debug build hooks `adb reverse tcp:5238 tcp:5238`
+      // so the app's compiled http://localhost:5238 reaches the API on this machine (docs/MOBILE_TESTING.md).
+      "name": "Android",
+      "type": "maui",
+      "request": "launch",
+      "preLaunchTask": "maui: Build"
+    }
+  ],
+  "compounds": [
+    { "name": "API + Web", "configurations": ["API", "Web"], "stopAll": true },
+    { "name": "API + Android", "configurations": ["API", "Android"], "stopAll": true }
+  ]
+}

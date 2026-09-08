@@ -1,0 +1,316 @@
+@page "/cards"
+@using System.Net
+@using System.Net.Http.Json
+@using System.Text.Json.Serialization
+@using Vuelto.Shared.Ui.Auth
+@inject AuthService Auth
+@inject NavigationManager Nav
+@inject HttpClient Http
+@inject IStringLocalizer<AppStrings> Localizer
+
+<PageTitle>@Localizer["Cards_Title"]</PageTitle>
+
+@* CARDS-1 (ADR-V021): the household's payment cards — the alias is yours, brand + last four are what the bank prints. *@
+<div class="settings-wrapper" data-testid="cards-page">
+    <div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
+        <div>
+            <h1 class="h4 fw-bold mb-1">@Localizer["Cards_Title"]</h1>
+            <p class="text-muted mb-0">@Localizer["Cards_Subtitle"]</p>
+        </div>
+        <button class="btn btn-primary" data-testid="cards-new" disabled="@(_form is not null)" @onclick="OpenNew">@Localizer["Cards_New"]</button>
+    </div>
+
+    @if (_notice is not null) { <div class="alert alert-success py-2" data-testid="cards-notice">@_notice</div> }
+    @if (_error is not null) { <div class="alert alert-danger py-2" data-testid="cards-error">@_error</div> }
+
+    @if (_merge is { } merge)
+    {
+        <div class="card shadow-sm mb-3 border-warning" data-testid="cards-merge">
+            <div class="card-body">
+                <h2 class="h6 fw-bold mb-1">@Localizer["Cards_MergeTitle", merge.Source.Name]</h2>
+                <p class="small text-muted mb-3">@Localizer["Cards_MergeHint"]</p>
+                <div class="row g-3 align-items-end">
+                    <div class="col-12 col-md-6">
+                        <label class="form-label small fw-medium mb-1" for="cards-merge-into">@Localizer["Cards_MergeInto"]</label>
+                        <select class="form-select" id="cards-merge-into" data-testid="cards-merge-into" disabled="@_saving" @bind="merge.Into">
+                            <option value="">—</option>
+                            @foreach (var other in _items.Where(x => x.Id != merge.Source.Id)) { <option value="@other.Id">@other.Name (@IdentityText(other))</option> }
+                        </select>
+                    </div>
+                </div>
+                @if (merge.Error is not null) { <div class="alert alert-danger py-2 mt-3" data-testid="cards-merge-error">@merge.Error</div> }
+                <div class="d-flex gap-2 mt-3">
+                    <button class="btn btn-warning" data-testid="cards-merge-save" disabled="@(_saving || merge.Into == "")" @onclick="Merge">@Localizer["Cards_MergeConfirm"]</button>
+                    <button class="btn btn-outline-secondary" data-testid="cards-merge-cancel" disabled="@_saving" @onclick="() => _merge = null">@Localizer["Catalog_Cancel"]</button>
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (_form is not null)
+    {
+        <div class="card shadow-sm mb-3" data-testid="cards-form">
+            <div class="card-body">
+                <h2 class="h6 fw-bold mb-3">@(_form.Editing is null ? Localizer["Catalog_NewTitle"] : Localizer["Catalog_EditTitle"])</h2>
+                <div class="row g-3 align-items-end">
+                    <div class="col-12 col-md-4">
+                        <label class="form-label small fw-medium mb-1" for="cards-name">@Localizer["Cards_Alias"]</label>
+                        <input class="form-control" id="cards-name" data-testid="cards-name" maxlength="100" disabled="@_saving" @bind="_form.Name" @bind:event="oninput" />
+                    </div>
+                    @if (_form.Editing is null)
+                    {
+                        <div class="col-6 col-md-3">
+                            <label class="form-label small fw-medium mb-1" for="cards-brand">@Localizer["Cards_Brand"]</label>
+                            <select class="form-select" id="cards-brand" data-testid="cards-brand" disabled="@_saving" @bind="_form.Brand">
+                                @foreach (var b in Brands) { <option value="@b">@b</option> }
+                            </select>
+                        </div>
+                        <div class="col-6 col-md-2">
+                            <label class="form-label small fw-medium mb-1" for="cards-last4">@Localizer["Cards_Last4"]</label>
+                            <input class="form-control" id="cards-last4" data-testid="cards-last4" maxlength="4" inputmode="numeric" disabled="@_saving" @bind="_form.Last4" @bind:event="oninput" />
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="col-12 col-md-3">
+                            <div class="small text-muted">@Localizer["Cards_Identity"]</div>
+                            <div class="fw-semibold" data-testid="cards-form-identity">@CardText(_form.Editing.Brand, _form.Editing.Last4)</div>
+                        </div>
+                    }
+                    <div class="col-12 col-md-3">
+                        <label class="form-label small fw-medium mb-1" for="cards-bank">@Localizer["Tx_Bank"]</label>
+                        <select class="form-select" id="cards-bank" data-testid="cards-bank" disabled="@_saving" @bind="_form.BankId">
+                            <option value="">—</option>
+                            @foreach (var b in _banks) { <option value="@b.Id">@b.Name</option> }
+                        </select>
+                    </div>
+                    @if (_form.Editing is not null)
+                    {
+                        <div class="col-12">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="cards-active" data-testid="cards-active" disabled="@_saving" @bind="_form.IsActive" />
+                                <label class="form-check-label" for="cards-active">@Localizer["Catalog_ActiveToggle"]</label>
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                @if (_form.Conflict is not null)
+                {
+                    <div class="alert alert-warning py-2 mt-3 d-flex align-items-center justify-content-between gap-2" data-testid="cards-conflict">
+                        <span>@_form.Conflict.Message</span>
+                        @if (_form.Conflict.Error == "card_exists_inactive")
+                        {
+                            <button class="btn btn-warning btn-sm" data-testid="cards-reactivate" disabled="@_saving" @onclick="Reactivate">@Localizer["Catalog_Reactivate"]</button>
+                        }
+                    </div>
+                }
+                else if (_form.Error is not null)
+                {
+                    <div class="alert alert-danger py-2 mt-3" data-testid="cards-form-error">@_form.Error</div>
+                }
+
+                <div class="d-flex gap-2 mt-3">
+                    <button class="btn btn-primary" data-testid="cards-save" disabled="@_saving" @onclick="Save">
+                        @(_saving ? Localizer["Catalog_Saving"] : _form.Editing is null ? Localizer["Catalog_Create"] : Localizer["Catalog_Save"])
+                    </button>
+                    <button class="btn btn-outline-secondary" data-testid="cards-cancel" disabled="@_saving" @onclick="() => _form = null">@Localizer["Catalog_Cancel"]</button>
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (_loading)
+    {
+        <div class="text-muted"><span class="spinner-border spinner-border-sm me-2"></span>@Localizer["Common_Loading"]</div>
+    }
+    else if (_items.Count == 0)
+    {
+        <p class="text-muted" data-testid="cards-empty">@Localizer["Cards_Empty"]</p>
+    }
+    else
+    {
+        <div class="card shadow-sm">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0" data-testid="cards-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">@Localizer["Cards_Alias"]</th>
+                            <th scope="col">@Localizer["Tx_Card"]</th>
+                            <th scope="col">@Localizer["Tx_Bank"]</th>
+                            <th scope="col">@Localizer["Catalog_Status"]</th>
+                            <th scope="col" class="text-end"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in _items)
+                        {
+                            <tr data-testid="cards-row" class="@(item.IsActive ? null : "text-muted")">
+                                <td data-testid="cards-row-name">
+                                    @item.Name
+                                    @if (item.AutoNamed) { <span class="badge bg-warning-subtle text-warning-emphasis ms-2" data-testid="cards-auto" title="@Localizer["Cards_AutoNamedHint"]">@Localizer["Cards_AutoNamed"]</span> }
+                                </td>
+                                <td class="text-nowrap" data-testid="cards-row-identity">@IdentityText(item)</td>
+                                <td>@(item.BankId is { } bankId ? _banks.FirstOrDefault(b => b.Id == bankId)?.Name : "—")</td>
+                                <td>
+                                    <span class="badge @(item.IsActive ? "bg-success-subtle text-success-emphasis" : "bg-secondary-subtle text-secondary-emphasis")">
+                                        @(item.IsActive ? Localizer["Catalog_Active"] : Localizer["Catalog_Inactive"])
+                                    </span>
+                                </td>
+                                <td class="text-end text-nowrap">
+                                    @if (_items.Count > 1)
+                                    {
+                                        @* A renewed card arrives auto-named (or was named before anyone noticed): "same card as…" folds it into the one the household already knows. *@
+                                        <button class="btn btn-outline-secondary btn-sm me-1" data-testid="cards-same-as" disabled="@(_form is not null)" @onclick="() => OpenMerge(item)">@Localizer["Cards_SameAs"]</button>
+                                    }
+                                    <button class="btn btn-outline-primary btn-sm" data-testid="cards-edit" disabled="@(_form is not null)" @onclick="() => OpenEdit(item)">@Localizer["Catalog_Edit"]</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+    <p class="mt-3"><a href="/settings">← @Localizer["Catalog_BackToSettings"]</a></p>
+</div>
+
+@code {
+    private static readonly string[] Brands = ["VISA", "MASTERCARD", "AMEX", "CARD"];
+
+    private bool _loading = true;
+    private bool _saving;
+    private string? _error;
+    private string? _notice;
+    private List<CardDto> _items = new();
+    private List<NamedDto> _banks = new();
+    private FormState? _form;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
+        try { _banks = await Http.GetFromJsonAsync<List<NamedDto>>("/api/banks?include_inactive=true") ?? new(); } catch { /* the bank column just stays blank */ }
+        await Load();
+    }
+
+    private async Task Load()
+    {
+        _loading = true;
+        try { _items = await Http.GetFromJsonAsync<List<CardDto>>("/api/cards?include_inactive=true") ?? new(); }
+        catch { _error = Localizer["Cards_LoadError"]; }
+        finally { _loading = false; }
+    }
+
+    private static string CardText(string brand, string last4) => $"{brand} ····{last4}";
+
+    /// <summary>"VISA ····1234" — or every number the card has had, oldest first, after a renewal was merged.</summary>
+    private static string IdentityText(CardDto c) => c.Identities is { Count: > 1 }
+        ? $"{c.Brand} " + string.Join(" · ", c.Identities.Select(i => (i.Brand == c.Brand ? "" : i.Brand + " ") + "····" + i.Last4))
+        : CardText(c.Brand, c.Last4);
+
+    private MergeState? _merge;
+    private void OpenMerge(CardDto source) { _notice = null; _form = null; _merge = new MergeState(source); }
+
+    private async Task Merge()
+    {
+        if (_merge is not { } merge || merge.Into == "") return;
+        merge.Error = null;
+        _saving = true;
+        try
+        {
+            var res = await Http.PostAsJsonAsync($"/api/cards/{merge.Source.Id}/merge", new { into = merge.Into });
+            if (res.IsSuccessStatusCode) { _notice = Localizer["Cards_Merged"]; _merge = null; await Load(); }
+            else merge.Error = (await res.Content.ReadFromJsonAsync<ConflictDto>())?.Message ?? Localizer["Catalog_SaveError"];
+        }
+        catch { merge.Error = Localizer["Catalog_SaveError"]; }
+        finally { _saving = false; }
+    }
+
+    private sealed class MergeState(CardDto source)
+    {
+        public CardDto Source { get; } = source;
+        public string Into { get; set; } = "";
+        public string? Error { get; set; }
+    }
+
+    private void OpenNew() { _notice = null; _form = new FormState(null, "", "VISA", "", "", true); }
+    private void OpenEdit(CardDto item) { _notice = null; _form = new FormState(item, item.Name, item.Brand, item.Last4, item.BankId?.ToString() ?? "", item.IsActive); }
+
+    private async Task Save()
+    {
+        if (_form is not { } form) return;
+        form.Error = null; form.Conflict = null;
+        if (string.IsNullOrWhiteSpace(form.Name) || (form.Editing is null && form.Last4.Trim().Length != 4)) { form.Error = Localizer["Cards_Validation"]; return; }
+
+        _saving = true;
+        try
+        {
+            var bankId = form.BankId == "" ? null : form.BankId;
+            var res = form.Editing is null
+                ? await Http.PostAsJsonAsync("/api/cards", new { name = form.Name, brand = form.Brand, last4 = form.Last4, bank_id = bankId })
+                : await Http.PutAsJsonAsync($"/api/cards/{form.Editing.Id}", new { name = form.Name, bank_id = bankId, is_active = form.IsActive });
+
+            if (res.IsSuccessStatusCode)
+            {
+                _notice = form.Editing is null ? Localizer["Catalog_Saved"] : Localizer["Catalog_Updated"];
+                _form = null;
+                await Load();
+            }
+            else if (res.StatusCode == HttpStatusCode.Conflict)
+            {
+                form.Conflict = await res.Content.ReadFromJsonAsync<ConflictDto>();
+                if (form.Conflict is null) form.Error = Localizer["Catalog_SaveError"];
+            }
+            else
+            {
+                form.Error = (await res.Content.ReadFromJsonAsync<ConflictDto>())?.Message ?? Localizer["Catalog_SaveError"];
+            }
+        }
+        catch { form.Error = Localizer["Catalog_SaveError"]; }
+        finally { _saving = false; }
+    }
+
+    private async Task Reactivate()
+    {
+        if (_form is not { Conflict.ExistingId: { } id } form) return;
+        _saving = true;
+        try
+        {
+            var existing = _items.FirstOrDefault(c => c.Id == id);
+            var res = await Http.PutAsJsonAsync($"/api/cards/{id}", new { name = form.Conflict.ExistingName ?? form.Name, bank_id = existing?.BankId, is_active = true });
+            if (res.IsSuccessStatusCode) { _notice = Localizer["Catalog_Updated"]; _form = null; await Load(); }
+            else { form.Conflict = null; form.Error = Localizer["Catalog_ReactivateError"]; }
+        }
+        catch { form.Conflict = null; form.Error = Localizer["Catalog_ReactivateError"]; }
+        finally { _saving = false; }
+    }
+
+    private sealed class FormState(CardDto? editing, string name, string brand, string last4, string bankId, bool isActive)
+    {
+        public CardDto? Editing { get; } = editing;
+        public string Name { get; set; } = name;
+        public string Brand { get; set; } = brand;
+        public string Last4 { get; set; } = last4;
+        public string BankId { get; set; } = bankId;
+        public bool IsActive { get; set; } = isActive;
+        public string? Error { get; set; }
+        public ConflictDto? Conflict { get; set; }
+    }
+
+    private sealed record CardDto(
+        [property: JsonPropertyName("id")] Guid Id,
+        [property: JsonPropertyName("name")] string Name,
+        [property: JsonPropertyName("brand")] string Brand,
+        [property: JsonPropertyName("last4")] string Last4,
+        [property: JsonPropertyName("bank_id")] Guid? BankId,
+        [property: JsonPropertyName("is_active")] bool IsActive,
+        [property: JsonPropertyName("auto_named")] bool AutoNamed,
+        [property: JsonPropertyName("identities")] List<IdentityDto>? Identities = null);
+    private sealed record IdentityDto([property: JsonPropertyName("brand")] string Brand, [property: JsonPropertyName("last4")] string Last4);
+    private sealed record NamedDto([property: JsonPropertyName("id")] Guid Id, [property: JsonPropertyName("name")] string Name);
+    private sealed record ConflictDto(
+        [property: JsonPropertyName("error")] string Error,
+        [property: JsonPropertyName("message")] string Message,
+        [property: JsonPropertyName("existing_id")] Guid? ExistingId,
+        [property: JsonPropertyName("existing_name")] string? ExistingName);
+}

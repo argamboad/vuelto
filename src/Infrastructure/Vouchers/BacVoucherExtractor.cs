@@ -15,7 +15,7 @@ public sealed class BacVoucherExtractor : IBankVoucherExtractor
     {
         try
         {
-            string? merchant = null, currency = null, card = null, auth = null, reference = null, txType = null;
+            string? merchant = null, currency = null, card = null, cardBrand = null, auth = null, reference = null, txType = null;
             decimal? amount = null;
             DateOnly? date = null;
 
@@ -32,7 +32,7 @@ public sealed class BacVoucherExtractor : IBankVoucherExtractor
                         if (VoucherText.TryParseMoney(value, out var cur, out var amt)) { currency = cur; amount = amt; }
                         break;
                     default:
-                        if (VoucherText.IsCardBrand(label)) card = value.Trim();
+                        if (VoucherText.IsCardBrand(label)) { card = value.Trim(); cardBrand = label; }
                         break;
                 }
             }
@@ -40,7 +40,7 @@ public sealed class BacVoucherExtractor : IBankVoucherExtractor
             return new ParsedVoucher
             {
                 Bank = Bank, Merchant = merchant, Amount = amount, Currency = currency, Date = date,
-                CardNumber = card, Authorization = auth, Reference = reference, TransactionType = txType
+                CardNumber = card, CardBrand = cardBrand, Authorization = auth, Reference = reference, TransactionType = txType
             };
         }
         catch

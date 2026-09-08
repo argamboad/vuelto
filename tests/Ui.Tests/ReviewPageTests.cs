@@ -19,7 +19,7 @@ public class ReviewPageTests : ComponentTestBase
     private const string Categories = $$"""[{"id":"{{Cat1}}","name":"Dining","is_active":true},{"id":"{{Cat2}}","name":"Groceries","is_active":true}]""";
     private const string Banks = $$"""[{"id":"{{Bank1}}","name":"BAC Credomatic","is_active":true}]""";
     private const string Queue = $$"""
-        [{"id":"{{V1}}","parsed_bank":"Bac","merchant":"TACO BELL PLAZA REAL C","amount":7620,"currency":"CRC","date":"2026-06-13","bank_id":"{{Bank1}}","card_number":null,"authorization":"662664","reference":null,"transaction_type":"COMPRA","missing_fields":[],"suggested_category_id":"{{Cat1}}","suggested_class":"extraordinary","received_at":"2026-06-16T12:00:00+00:00"},
+        [{"id":"{{V1}}","parsed_bank":"Bac","merchant":"TACO BELL PLAZA REAL C","amount":7620,"currency":"CRC","date":"2026-06-13","bank_id":"{{Bank1}}","card_number":"************1234","card_brand":"VISA","authorization":"662664","reference":null,"transaction_type":"COMPRA","missing_fields":[],"suggested_category_id":"{{Cat1}}","suggested_class":"extraordinary","received_at":"2026-06-16T12:00:00+00:00"},
          {"id":"{{V2}}","parsed_bank":"BN","merchant":null,"amount":null,"currency":null,"date":"2026-06-14","bank_id":"{{Bank1}}","card_number":null,"authorization":null,"reference":"R1","transaction_type":"PAGO","missing_fields":["Merchant","Amount","Currency"],"suggested_category_id":null,"suggested_class":null,"received_at":null}]
         """;
 
@@ -43,6 +43,7 @@ public class ReviewPageTests : ComponentTestBase
         Http.On(HttpMethod.Post, $"/api/pending-vouchers/{V1}/confirm", $$"""{"transaction_id":"{{V1}}","month_id":"{{V1}}","amount_crc":7620,"amount_usd":15,"remembered":false}""");
 
         var cut = Render<Review>();
+        cut.WaitForAssertion(() => Assert.Contains("VISA ····1234", cut.Find("[data-testid='review-card']").TextContent)); // CARDS-1: the card the voucher printed
         cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("[data-testid='review-voucher']").Count));
 
         Card(cut, 0).QuerySelector("[data-testid='review-category-new']")!.Click();

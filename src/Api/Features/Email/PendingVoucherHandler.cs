@@ -23,6 +23,7 @@ public sealed class PendingVoucherHandler(
     IRepository<PendingVoucher> pendingVouchers,
     ITransactionService transactions,
     MerchantMappingHandler mappings,
+    ICardResolver cards,
     IUnitOfWork unitOfWork,
     TimeProvider clock,
     ILogger<PendingVoucherHandler> logger)
@@ -68,7 +69,9 @@ public sealed class PendingVoucherHandler(
         // One boundary: create + guarded flip commit or roll back together (donor US-033 AC1).
         await using var scope = await unitOfWork.BeginTransactionAsync(cancellationToken);
 
-        var (created, error) = await transactions.CreateAsync(command, cancellationToken);
+        // CARDS-1: the card the voucher printed — found, or created as BRAND-1234 on first sight — rides on the transaction.
+        var cardId = await cards.ResolveOrCreateAsync(voucher.CardBrand, voucher.CardNumber, r.BankId ?? voucher.BankId, cancellationToken);
+        var (created, error) = await transactions.CreateAsync(command with { CardId = cardId }, cancellationToken);
         if (created is null) return (null, new ErrorResponse(error!.Error, error.Message)); // nothing written; the draft stays pending
 
         var now = clock.GetUtcNow();

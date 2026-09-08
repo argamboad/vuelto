@@ -11,7 +11,7 @@ namespace Vuelto.Core.Budget;
 /// </summary>
 public static class TransactionCsvWriter
 {
-    public const string Header = "date,payee,category,class,amount_crc,amount_usd,exchange_rate_used,payment_method,bank,source";
+    public const string Header = "date,payee,category,class,amount_crc,amount_usd,exchange_rate_used,payment_method,bank,source,card";
 
     public static string Write(IEnumerable<TransactionExportRow> rows)
     {
@@ -28,7 +28,8 @@ public static class TransactionCsvWriter
               .Append(r.ExchangeRateUsed.ToString("F4", CultureInfo.InvariantCulture)).Append(',')
               .Append(Escape(r.PaymentMethod)).Append(',')
               .Append(Escape(r.BankName)).Append(',')
-              .Append(Escape(r.Source)).Append("\r\n");
+              .Append(Escape(r.Source)).Append(',')
+              .Append(Escape(r.CardName)).Append("\r\n");
         }
         return sb.ToString();
     }

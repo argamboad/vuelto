@@ -1688,3 +1688,28 @@ account adopts the device's choice and pushes it up, so nobody loses a setting o
 an impersonation session is refused with the platform's `impersonation_not_allowed`, same as theme and
 locale. *Consequences:* migration `AddUserDisplaySettings` (no RLS — user-keyed); Postman folder 23;
 QA-DASH-03; the switch itself is unchanged for the user.
+
+**ADR-V021 — Cards are a household catalog keyed by what the bank prints; a transaction may name one; "no card" is a bucket, not a row. (2026-09-08; owner request)**
+
+The vouchers already carry the card: BAC prints `VISA ************1234`, BN `MASTERCARD ************0000`
+or, on a payment receipt, an unlabelled `XXXXXXXXXXX0000X`. The parser captured the masked number and
+dropped it at the review queue. **Decision:** a **`Card`** catalog entry per household — alias
+(`Name`), `Brand` (VISA / MASTERCARD / AMEX / `CARD` when the voucher names none), `Last4`, optional
+bank, soft delete, unique on the alias and on (brand, last four) — and an optional `card_id` on the
+transaction. **Capture is automatic:** a voucher confirm resolves the card by brand + last four
+(`ICardResolver`, the Cards slice's face for the review queue — R7) and creates it as **`VISA-1234`**
+on first sight (`auto_named` until the household renames it — the alias is theirs, the identity is the
+bank's). Manual entry offers the card as an optional picker. **Existing and card-less transactions keep
+`card_id` null** and fall into a "no card" bucket wherever spend is cut by card — no LEGACY row, nothing
+fake in the catalog. *Rationale:* the question "how much went through which card" needs a stable
+identity the household never types (the bank's) and a label it recognises (its own); the two are kept
+apart so renaming never breaks matching. *Consequences:* migration `AddCards` (RLS, `Transactions.CardId`,
+`PendingVouchers.CardBrand`); `GET`/`POST`/`PUT /api/cards`; the month list and the CSV carry the alias;
+the snapshot tool carries the table; the per-card summaries (dashboard table, Reports cut) are the next slice.
+*Renewals (same day, owner question):* a renewed card prints a new number but is the same card, so a card owns a
+**list of identities** (`CardIdentity`, unique per household) rather than one pair; the voucher path matches on any
+of them, and `POST /api/cards/{id}/merge { into }` folds the auto-named newcomer into the card the household knows —
+identities and transactions move, the duplicate goes, the survivor shows the newest number. History never splits.
+*Brandless vouchers:* BN payments print no brand and drafts staged before brand capture carry none, so a brandless
+number resolves to the card already known by those four digits, and a branded number that meets a `CARD`
+placeholder upgrades it in place (`CARD-1966` → `VISA-1966` while still auto-named) — one plastic, one card.

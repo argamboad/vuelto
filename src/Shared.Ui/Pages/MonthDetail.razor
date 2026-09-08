@@ -123,6 +123,13 @@
                         </select>
                     </div>
                     <div>
+                        <label class="form-label small mb-1">@Localizer["Tx_Card"]</label>
+                        <select class="form-select form-select-sm" data-testid="month-tx-filter-card" @bind="_fCard">
+                            <option value="">@Localizer["Month_FilterAll"]</option>
+                            @foreach (var c in Distinct(t => t.CardName)) { <option value="@c">@c</option> }
+                        </select>
+                    </div>
+                    <div>
                         <label class="form-label small mb-1">@Localizer["Tx_Class"]</label>
                         <select class="form-select form-select-sm" data-testid="month-tx-filter-class" @bind="_fClass">
                             <option value="">@Localizer["Month_FilterAll"]</option>
@@ -142,6 +149,7 @@
                                 @SortHeader("payee", Localizer["Tx_Payee"])
                                 @SortHeader("category", Localizer["Tx_Category"])
                                 @SortHeader("bank", Localizer["Tx_Bank"])
+                                @SortHeader("card", Localizer["Tx_Card"])
                                 @SortHeader("class", Localizer["Tx_Class"])
                                 <th scope="col" class="text-end">₡</th>
                                 <th scope="col" class="text-end">$</th>
@@ -151,7 +159,7 @@
                         <tbody>
                             @if (Visible().Count == 0)
                             {
-                                <tr><td colspan="8" class="text-muted text-center py-3" data-testid="month-tx-nomatch">@Localizer["Month_NoMatch"]</td></tr>
+                                <tr><td colspan="9" class="text-muted text-center py-3" data-testid="month-tx-nomatch">@Localizer["Month_NoMatch"]</td></tr>
                             }
                             @foreach (var t in Visible())
                             {
@@ -160,6 +168,7 @@
                                     <td data-testid="month-tx-payee">@t.Payee</td>
                                     <td>@t.CategoryName</td>
                                     <td>@t.BankName</td>
+                                    <td class="text-nowrap" data-testid="month-tx-card">@t.CardName</td>
                                     <td><span class="badge bg-secondary-subtle text-secondary-emphasis">@ClassLabel(t.TransactionType)</span></td>
                                     <td class="text-end">@t.AmountCrc.ToString("N2", CultureInfo.CurrentCulture)</td>
                                     <td class="text-end">@t.AmountUsd.ToString("N2", CultureInfo.CurrentCulture)</td>
@@ -382,11 +391,11 @@
     private string _sortKey = "date";
     private bool _sortAsc = false; // the API's order: newest first
     private DateOnly? _fFrom, _fTo;
-    private string _fPayee = "", _fCategory = "", _fBank = "", _fClass = "";
+    private string _fPayee = "", _fCategory = "", _fBank = "", _fCard = "", _fClass = "";
 
-    private bool FiltersActive => _fFrom is not null || _fTo is not null || _fPayee.Trim().Length > 0 || _fCategory.Length > 0 || _fBank.Length > 0 || _fClass.Length > 0;
+    private bool FiltersActive => _fFrom is not null || _fTo is not null || _fPayee.Trim().Length > 0 || _fCategory.Length > 0 || _fBank.Length > 0 || _fCard.Length > 0 || _fClass.Length > 0;
 
-    private void ClearFilters() { _fFrom = null; _fTo = null; _fPayee = ""; _fCategory = ""; _fBank = ""; _fClass = ""; }
+    private void ClearFilters() { _fFrom = null; _fTo = null; _fPayee = ""; _fCategory = ""; _fBank = ""; _fCard = ""; _fClass = ""; }
 
     private void Sort(string key)
     {
@@ -408,6 +417,7 @@
             (payee.Length == 0 || t.Payee.Contains(payee, StringComparison.CurrentCultureIgnoreCase)) &&
             (_fCategory.Length == 0 || string.Equals(t.CategoryName, _fCategory, StringComparison.Ordinal)) &&
             (_fBank.Length == 0 || string.Equals(t.BankName, _fBank, StringComparison.Ordinal)) &&
+            (_fCard.Length == 0 || string.Equals(t.CardName, _fCard, StringComparison.Ordinal)) &&
             (_fClass.Length == 0 || string.Equals(t.TransactionType, _fClass, StringComparison.Ordinal)));
 
         var cmp = StringComparer.CurrentCultureIgnoreCase;
@@ -416,6 +426,7 @@
             "payee" => _sortAsc ? rows.OrderBy(t => t.Payee, cmp) : rows.OrderByDescending(t => t.Payee, cmp),
             "category" => _sortAsc ? rows.OrderBy(t => t.CategoryName ?? "", cmp) : rows.OrderByDescending(t => t.CategoryName ?? "", cmp),
             "bank" => _sortAsc ? rows.OrderBy(t => t.BankName ?? "", cmp) : rows.OrderByDescending(t => t.BankName ?? "", cmp),
+            "card" => _sortAsc ? rows.OrderBy(t => t.CardName ?? "", cmp) : rows.OrderByDescending(t => t.CardName ?? "", cmp),
             "class" => _sortAsc ? rows.OrderBy(t => ClassLabel(t.TransactionType), cmp) : rows.OrderByDescending(t => ClassLabel(t.TransactionType), cmp),
             _ => _sortAsc ? rows.OrderBy(t => t.TransactionDate) : rows.OrderByDescending(t => t.TransactionDate),
         };
@@ -471,7 +482,8 @@
         [property: JsonPropertyName("transaction_type")] string TransactionType,
         [property: JsonPropertyName("amount_crc")] decimal AmountCrc,
         [property: JsonPropertyName("amount_usd")] decimal AmountUsd,
-        [property: JsonPropertyName("source")] string Source);
+        [property: JsonPropertyName("source")] string Source,
+        [property: JsonPropertyName("card_name")] string? CardName = null);
 
     private sealed record RefundDto(
         [property: JsonPropertyName("id")] Guid Id,

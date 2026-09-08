@@ -1,0 +1,32 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build",
+      "command": "dotnet",
+      "type": "process",
+      "args": ["build", "${workspaceFolder}/Vuelto.slnx", "-v", "q"],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      // Without the MAUI extension (no debugger, just run on the emulator that is already running):
+      // Terminal → Run Task → "android: run". Same command the docs and CI use.
+      "label": "android: run",
+      "command": "dotnet",
+      "type": "process",
+      "args": ["build", "${workspaceFolder}/src/Maui/Vuelto.Maui.csproj", "-t:Run", "-f", "net10.0-android"],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      // Physical phone over USB (USB debugging on, `adb devices` shows it as "device"): AdbTarget=-d
+      // picks the USB device instead of an emulator. adb reverse works over USB too, so nothing
+      // else changes. For Wi-Fi debugging pair the phone first (adb pair / adb connect), then this
+      // task works the same way.
+      "label": "android: run on phone",
+      "command": "dotnet",
+      "type": "process",
+      "args": ["build", "${workspaceFolder}/src/Maui/Vuelto.Maui.csproj", "-t:Run", "-f", "net10.0-android", "-p:AdbTarget=-d"],
+      "problemMatcher": "$msCompile"
+    }
+  ]
+}

@@ -15,7 +15,7 @@
 --     household does not exist yet. Every INSERT is ON CONFLICT DO NOTHING, so a re-run is a no-op.
 --   • Run the restore as the owner / migrations role: the runtime role is fenced by RLS (ADR-020).
 --   • Included (FK order): Users (the members), Tenants, TenantMemberships, UserLogins,
---     BudgetSettings, Categories, Banks, Envelopes, FixedExpenses, VariableExpenses,
+--     BudgetSettings, Categories, Banks, Cards, CardIdentities, Envelopes, FixedExpenses, VariableExpenses,
 --     MerchantCategoryMappings, Months, Weeks, Transactions, Refunds, PendingVouchers, IngestedVouchers.
 --   • Excluded on purpose: EmailConnections (OAuth tokens are bound to the source server's Data
 --     Protection key ring — reconnect the inbox on the target), Subscriptions (billing state belongs to
@@ -36,7 +36,7 @@ DECLARE
     v_kind   text;
     v_tables text[][] := ARRAY[
         ['Users', 'members'], ['Tenants', 'tenant'], ['TenantMemberships', 'tenantid'], ['UserLogins', 'members'],
-        ['BudgetSettings', 'tenantid'], ['Categories', 'tenantid'], ['Banks', 'tenantid'], ['Envelopes', 'tenantid'],
+        ['BudgetSettings', 'tenantid'], ['Categories', 'tenantid'], ['Banks', 'tenantid'], ['Cards', 'tenantid'], ['CardIdentities', 'tenantid'], ['Envelopes', 'tenantid'],
         ['FixedExpenses', 'tenantid'], ['VariableExpenses', 'tenantid'], ['MerchantCategoryMappings', 'tenantid'],
         ['Months', 'tenantid'], ['Weeks', 'tenantid'], ['Transactions', 'tenantid'], ['Refunds', 'tenantid'],
         ['PendingVouchers', 'tenantid'], ['IngestedVouchers', 'tenantid']];

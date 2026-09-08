@@ -73,6 +73,13 @@
                         </select>
                     </div>
                     <div class="col-12 col-md-6">
+                        <label class="form-label small fw-medium mb-1" for="tx-card">@Localizer["Tx_Card"]</label>
+                        <select class="form-select" id="tx-card" data-testid="tx-card" disabled="@_saving" @bind="_cardId">
+                            <option value="">@Localizer["Tx_NoCard"]</option>
+                            @foreach (var c in _cards) { <option value="@c.Id">@c.Name</option> }
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-6">
                         <label class="form-label small fw-medium mb-1" for="tx-method">@Localizer["Tx_PaymentMethod"]</label>
                         <select class="form-select" id="tx-method" data-testid="tx-method" disabled="@_saving" @bind="_method">
                             <option value="credit_card">@Localizer["Tx_CreditCard"]</option>
@@ -165,6 +172,7 @@
     private DateOnly _date = DateOnly.FromDateTime(DateTime.Today);
     private string _categoryId = "";
     private string _bankId = "";
+    private string _cardId = ""; // CARDS-1: optional — "" is "no card"
     private string _method = "credit_card";
     private string _type = "budgeted";
     private string _envelopeId = "";
@@ -174,6 +182,7 @@
     private ResolveDto? _resolved;
     private List<CategoryOption> _categories = new();
     private List<NamedDto> _banks = new();
+    private List<NamedDto> _cards = new();
 
     /// <summary>A category created from the picker joins the list so it can be picked again without a reload.</summary>
     private void AddCategory(CategoryOption c) { if (_categories.All(x => x.Id != c.Id)) _categories.Add(c); }
@@ -186,6 +195,7 @@
         {
             _categories = await Http.GetFromJsonAsync<List<CategoryOption>>("/api/categories") ?? new();
             _banks = await Http.GetFromJsonAsync<List<NamedDto>>("/api/banks") ?? new();
+            try { _cards = await Http.GetFromJsonAsync<List<NamedDto>>("/api/cards") ?? new(); } catch { /* optional picker — the form still works without the list */ }
             _envelopes = await Http.GetFromJsonAsync<List<NamedDto>>("/api/envelopes") ?? new();
 
             if (Id is { } id)
@@ -195,7 +205,7 @@
                 var tx = (await res.Content.ReadFromJsonAsync<TxDto>())!;
                 _monthId = tx.MonthId; _payee = tx.Payee; _amount = tx.OriginalAmount; _currency = tx.Currency; _date = tx.TransactionDate;
                 _categoryId = tx.CategoryId.ToString(); _bankId = tx.BankId.ToString(); _method = tx.PaymentMethod; _type = tx.TransactionType;
-                _envelopeId = tx.EnvelopeId?.ToString() ?? ""; _rate = tx.ExchangeRateUsed;
+                _envelopeId = tx.EnvelopeId?.ToString() ?? ""; _cardId = tx.CardId?.ToString() ?? ""; _rate = tx.ExchangeRateUsed;
                 _refundExpected = tx.RefundExpected; _refundPercentage = tx.RefundPercentage;
                 _derived = tx.Source == "refund_realization"; // only refund-derived inflows are read-only; email-booked rows are the user's own
             }
@@ -243,6 +253,7 @@
                 ["currency"] = _currency, ["transaction_date"] = _date.ToString("yyyy-MM-dd"), ["category_id"] = _categoryId,
                 ["transaction_type"] = _type, ["envelope_id"] = _type == "envelope_contribution" ? _envelopeId : null,
                 ["refund_expected"] = refund, ["refund_percentage"] = refund ? _refundPercentage : null,
+                ["card_id"] = _cardId == "" ? null : _cardId,
             };
             if (Id is null) body["exchange_rate"] = _rate;
 
@@ -291,6 +302,7 @@
         [property: JsonPropertyName("month_id")] Guid MonthId,
         [property: JsonPropertyName("payee")] string Payee,
         [property: JsonPropertyName("bank_id")] Guid BankId,
+        [property: JsonPropertyName("card_id")] Guid? CardId,
         [property: JsonPropertyName("payment_method")] string PaymentMethod,
         [property: JsonPropertyName("original_amount")] decimal OriginalAmount,
         [property: JsonPropertyName("currency")] string Currency,

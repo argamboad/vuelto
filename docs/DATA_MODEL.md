@@ -133,6 +133,19 @@ A money source (a bank or **Cash**). Soft-deleted; unique per household.
 - `id`, `tenant_id`, `name`, `is_active`
 - unique on (`tenant_id`, `name`)
 
+### Card *(CARDS-1, ADR-V021)*
+A payment card the household spends with — identified by what the bank prints, named by the household.
+Soft-deleted; never seeded (the first confirmed voucher creates one as `VISA-1234`, `auto_named`).
+- `id`, `tenant_id`, `name` (the alias), `brand` (`VISA` | `MASTERCARD` | `AMEX` | `CARD`), `last4`
+- `bank_id` (FK → Bank, nullable, no cascade), `auto_named`, `is_active`, `created_at`, `updated_at`
+- `brand` / `last4` are the newest number; every number the bank has printed lives in CardIdentity
+- unique on (`tenant_id`, `name`)
+
+### CardIdentity *(CARDS-1)*
+One (brand, last four) a card is known by — several after a renewal was merged. Goes with its card.
+- `id`, `tenant_id`, `card_id` (FK → Card, cascade), `brand`, `last4`, `created_at`
+- unique on (`tenant_id`, `brand`, `last4`) — a number names exactly one card
+
 ### Envelope
 A savings bucket with an annual target and a reminder cadence. Soft-deleted; a catalog entry
 (`ICatalogEntry`) with two extra facts. Never seeded. Holds no balance — contributions are transactions.
@@ -170,6 +183,7 @@ Money movement, captured in both currencies at a frozen rate.
 - `transaction_type` — `budgeted` | `extraordinary` | `unplanned_essential` | `inflow` |
   `envelope_contribution`
 - `envelope_id` (FK → Envelope, nullable, no cascade; **required when** `envelope_contribution`)
+- `card_id` (FK → Card, nullable, no cascade — null = "no card": cash, transfers, rows from before CARDS-1)
 - `source` — `manual` | `email` | `refund_realization`
 - indexes: (`tenant_id`, `month_id`), (`tenant_id`, `transaction_date`)
 
@@ -191,8 +205,8 @@ A user-maintained "merchant pattern → category (+ class)" suggestion rule.
 An inert review-queue draft parsed from an email. Nothing touches the budget until it is confirmed.
 - `id`, `tenant_id`, `email_connection_id` (Guid, no FK — the connection is user-keyed), `provider_message_id`
 - `fingerprint`, `parsed_bank`, `bank_id` (FK → Bank, nullable, no cascade)
-- `merchant`, `amount`, `currency`, `date`, `card_number`, `authorization`, `reference`,
-  `transaction_type`, `missing_fields[]`
+- `merchant`, `amount`, `currency`, `date`, `card_number`, `card_brand` (the label the number sat under, null
+  when the voucher names none), `authorization`, `reference`, `transaction_type`, `missing_fields[]`
 - `suggested_category_id` (nullable), `suggested_class` (nullable) — copied from a mapping at staging
 - `status` — `pending` | `confirmed` | `discarded`
 - `confirmed_transaction_id` (nullable), `received_at`
@@ -234,9 +248,9 @@ rows that replace the hand-written BAC/BN extractors. Designed when that epic st
 - Tenant 1 — N TenantInvitation *(constant)*
 - LoginToken is keyed by email (no FK — the account is resolved at redemption) *(constant)*
 - Tenant 1 — 1 BudgetSettings
-- Tenant 1 — N Category / Bank / Envelope / FixedExpense / VariableExpense / MerchantCategoryMapping
+- Tenant 1 — N Category / Bank / Card / Envelope / FixedExpense / VariableExpense / MerchantCategoryMapping; Card 1 — N CardIdentity
 - Tenant 1 — N Month 1 — N Week; Month 1 — N Transaction; Month 1 — N Refund
-- Transaction N — 1 Category, N — 1 Bank, N — 0..1 Envelope; Transaction 1 — 0..1 Refund
+- Transaction N — 1 Category, N — 1 Bank, N — 0..1 Card, N — 0..1 Envelope; Transaction 1 — 0..1 Refund
 - Refund 0..1 — 0..1 Transaction (the realized inflow, set-null)
 - FixedExpense / VariableExpense N — 1 Category, N — 0..1 Bank
 - User 1 — 0..1 UserDisplaySettings *(user-keyed)*; User 1 — N EmailConnection *(user-keyed)*; EmailConnection 1 — N PendingVoucher *(logical, cross-axis — no FK)*
