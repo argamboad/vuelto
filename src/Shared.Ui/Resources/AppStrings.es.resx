@@ -521,6 +521,7 @@
   <data name="Dash_Contributed" xml:space="preserve"><value>Aportado este mes</value></data>
   <data name="Dash_Remaining" xml:space="preserve"><value>Restante</value></data>
   <data name="Dash_BankMethod" xml:space="preserve"><value>Por banco y método de pago</value></data>
+  <data name="Dash_MethodTotal" xml:space="preserve"><value>{0}: total</value></data>
   <data name="Nav_Reports" xml:space="preserve"><value>Reportes</value></data>
   <data name="Reports_Title" xml:space="preserve"><value>Análisis por categoría</value></data>
   <data name="Reports_Subtitle" xml:space="preserve"><value>A dónde se fue el dinero, por categoría y clase, en un mes o en cualquier rango de fechas.</value></data>
@@ -575,6 +576,8 @@
   <data name="Reports_TrendNoRate" xml:space="preserve"><value>Las barras de ingreso necesitan el tipo de cambio de hoy, que no está disponible ahora: se muestra solo el gasto.</value></data>
   <data name="Reports_ByBank" xml:space="preserve"><value>Gasto por banco</value></data>
   <data name="Reports_ByMethod" xml:space="preserve"><value>Tarjeta vs cuenta</value></data>
+  <data name="Reports_MethodBudget" xml:space="preserve"><value>Presupuestado vs gastado, por método de pago</value></data>
+  <data name="Reports_MethodCaption" xml:space="preserve"><value>presupuestado {0} · gastado {1}</value></data>
   <data name="Reports_UnknownBank" xml:space="preserve"><value>Banco desconocido</value></data>
   <data name="Chart_Empty" xml:space="preserve"><value>No hay nada que graficar en este período.</value></data>
   <data name="Chart_Actual" xml:space="preserve"><value>Real</value></data>

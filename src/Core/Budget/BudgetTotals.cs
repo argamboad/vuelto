@@ -26,4 +26,24 @@ public static class BudgetTotals
         }
         return new(CurrencyMath.Round2(crc), CurrencyMath.Round2(usd));
     }
+
+    /// <summary>
+    /// The planned month cut by how each line is normally paid (credit card vs bank account) — the "how much is
+    /// budgeted on cards" question. Same conversion as <see cref="Planned"/>; card first, then account; a method
+    /// with no line is absent.
+    /// </summary>
+    public static IReadOnlyList<GroupSpendEntry> PlannedByMethod(IEnumerable<IExpenseLine> lines, FxRates rates)
+    {
+        var totals = new Dictionary<string, (decimal Crc, decimal Usd)>();
+        foreach (var line in lines)
+        {
+            var p = Pair(line, rates);
+            var key = line.PaymentMethod == PaymentMethods.BankAccount ? PaymentMethods.BankAccount : PaymentMethods.CreditCard;
+            totals[key] = totals.TryGetValue(key, out var t) ? (t.Crc + p.Crc, t.Usd + p.Usd) : (p.Crc, p.Usd);
+        }
+        return new[] { PaymentMethods.CreditCard, PaymentMethods.BankAccount }
+            .Where(totals.ContainsKey)
+            .Select(k => new GroupSpendEntry(k, k, CurrencyMath.Round2(totals[k].Crc), CurrencyMath.Round2(totals[k].Usd)))
+            .ToList();
+    }
 }

@@ -35,6 +35,20 @@ public class BudgetTotalsTests
     }
 
     [Fact]
+    public void PlannedByMethod_SplitsTheLinesByHowTheyArePaid_CardFirst()
+    {
+        var account = Line(250_000m, 0m); account.PaymentMethod = "bank_account";
+        var accountUsd = Line(0m, 18.99m); accountUsd.PaymentMethod = "bank_account";
+
+        var byMethod = BudgetTotals.PlannedByMethod([Line(60_000m, 0m), account, accountUsd], 500m);
+
+        Assert.Equal(["credit_card", "bank_account"], byMethod.Select(m => m.Key));
+        Assert.Equal((60_000m, 120m), (byMethod[0].TotalCrc, byMethod[0].TotalUsd));
+        Assert.Equal((259_495m, 518.99m), (byMethod[1].TotalCrc, byMethod[1].TotalUsd));
+        Assert.Single(BudgetTotals.PlannedByMethod([Line(1_000m, 0m)], 500m)); // a method with no line is absent
+    }
+
+    [Fact]
     public void ZeroRate_NeverDivides_AndAnEmptyPlanIsZero()
     {
         Assert.Equal(new MoneyPair(60_000m, 0m), BudgetTotals.Pair(Line(60_000m, 0m), 0m));

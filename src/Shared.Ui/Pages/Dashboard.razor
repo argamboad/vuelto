@@ -214,17 +214,35 @@
                                 <div class="table-responsive">
                                     <table class="table table-sm mb-0">
                                         <thead><tr><th>@Localizer["Tx_Bank"]</th><th>@Localizer["Tx_PaymentMethod"]</th><th class="text-end">@Localizer["Dash_Budgeted"]</th><th class="text-end">@Localizer["Dash_Actual"]</th></tr></thead>
+                                        @* Grouped by payment method with a subtotal each — "how much is budgeted on cards vs the account" reads
+                                           straight off the table (owner question, 2026-09-08); the grand total closes it. *@
                                         <tbody>
-                                            @foreach (var b in s.BankMethodBreakdown)
+                                            @foreach (var method in new[] { "credit_card", "bank_account" })
                                             {
-                                                <tr data-testid="dash-bank-row">
-                                                    <td>@(b.BankId is null ? Localizer["Budget_Unassigned"] : b.BankName)</td>
-                                                    <td>@(b.PaymentMethod == "bank_account" ? Localizer["Tx_BankAccount"] : Localizer["Tx_CreditCard"])</td>
-                                                    <td class="text-end">@Show(b.Budget)</td>
-                                                    <td class="text-end @OverTone(b.Budget, b.Actual)">@Show(b.Actual)</td>
+                                                var rows = s.BankMethodBreakdown.Where(b => b.PaymentMethod == method).ToList();
+                                                if (rows.Count == 0) { continue; }
+                                                var label = method == "bank_account" ? Localizer["Tx_BankAccount"] : Localizer["Tx_CreditCard"];
+                                                foreach (var b in rows)
+                                                {
+                                                    <tr data-testid="dash-bank-row">
+                                                        <td>@(b.BankId is null ? Localizer["Budget_Unassigned"] : b.BankName)</td>
+                                                        <td>@label</td>
+                                                        <td class="text-end">@Show(b.Budget)</td>
+                                                        <td class="text-end @OverTone(b.Budget, b.Actual)">@Show(b.Actual)</td>
+                                                    </tr>
+                                                }
+                                                var methodBudget = Sum(rows.Select(r => r.Budget)); var methodActual = Sum(rows.Select(r => r.Actual));
+                                                <tr class="fw-semibold" data-testid="dash-method-total" data-method="@method">
+                                                    <td colspan="2">@Localizer["Dash_MethodTotal", label]</td>
+                                                    <td class="text-end">@Show(methodBudget)</td>
+                                                    <td class="text-end @OverTone(methodBudget, methodActual)">@Show(methodActual)</td>
                                                 </tr>
                                             }
                                         </tbody>
+                                        @{ var banksBudget = Sum(s.BankMethodBreakdown.Select(b => b.Budget)); var banksActual = Sum(s.BankMethodBreakdown.Select(b => b.Actual)); }
+                                        <tfoot>
+                                            <tr class="fw-semibold border-top" data-testid="dash-banks-total"><td colspan="2">@Localizer["Dash_Total"]</td><td class="text-end">@Show(banksBudget)</td><td class="text-end @OverTone(banksBudget, banksActual)">@Show(banksActual)</td></tr>
+                                        </tfoot>
                                     </table>
                                 </div>
                             </div>
