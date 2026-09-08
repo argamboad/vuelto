@@ -35,6 +35,8 @@ public static class BillingNotifications
     public const string PastDueKind = "billing.past_due";
     public const string CanceledKind = "billing.canceled";
     public const string LapsedKind = "billing.lapsed";
+    /// <summary>The one good-news notice: the subscription just became live (first activation or a resubscribe).</summary>
+    public const string ActivatedKind = "billing.activated";
 
     public static (string Title, string Body) PastDue => (
         "Payment failed",
@@ -43,6 +45,14 @@ public static class BillingNotifications
     public static (string Title, string Body) Canceled => (
         "Subscription canceled",
         "Your subscription has been canceled. You can resubscribe any time from the billing page.");
+
+    /// <summary>Plan key rendered as a name ("pro" → "Pro"); the renewal date when the provider sent one.</summary>
+    public static (string Title, string Body) Activated(string planKey, DateTimeOffset? currentPeriodEnd)
+    {
+        var plan = string.IsNullOrWhiteSpace(planKey) ? "new" : char.ToUpperInvariant(planKey[0]) + planKey[1..];
+        var renews = currentPeriodEnd is { } end ? $" It renews on {end:yyyy-MM-dd}." : "";
+        return ("Subscription active", $"Your {plan} plan is active — thank you.{renews} You can manage it any time from the billing page.");
+    }
 
     public static (string Title, string Body) Lapsed => (
         "Subscription expired",

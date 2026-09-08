@@ -1170,7 +1170,8 @@ And a member opening /billing sees only the "ask your owner" notice
 ```gherkin
 Given the owner on the free plan clicks Upgrade to Pro
 When the checkout redirect fires and the provider webhook lands (subscription active)
-Then /billing shows plan pro, status active, the pro seat limit, and the portal button
+Then the provider returns me to /billing/success — the Billing page with a "Payment received" banner — and the page refetches on its own until it shows plan pro, status active, the pro seat limit, and the portal button
+And cancelling at the provider returns me to /billing/cancel — the same page with a "nothing changed" banner and the plan untouched
 ```
 **Walkthrough**
 1. Click **Upgrade to Pro**. **Expected:** redirect to the provider checkout (fake:
@@ -1178,8 +1179,14 @@ Then /billing shows plan pro, status active, the pro seat limit, and the portal 
 2. Simulate payment completion by POSTing the webhook (fake provider): `POST {api}/api/billing/webhook`
    with header `Stripe-Signature: valid` and a PascalCase JSON body (`EventId`, `TenantId`, `PlanKey:
    "pro"`, `Status: "active"`, `StripeCustomerId`, `OccurredAt`). **Expected:** 200.
-3. Reload `/billing`. **Expected:** plan **Pro** / status **Active** (localized labels; raw tokens on the wire), seats `x of 10`, **Manage
-   subscription** now visible.
+3. Open `/billing/success` (where a real provider returns the browser). **Expected:** the **Payment
+   received** banner, then — within a few seconds, no reload — plan **Pro** / status **Active** (localized
+   labels; raw tokens on the wire), seats `x of 10`, **Manage subscription** now visible, and the owner's
+   bell (+ outbox email) carries a **Subscription active** notice naming the plan and its renewal date.
+   `/billing/cancel` shows the **Checkout cancelled — nothing changed** banner over the unchanged plan.
+4. Cancel from the portal (or delete the customer in Stripe) → the webhook lands. **Expected:** plan **Free**,
+   badge **Canceled**, the line reads **Your paid subscription ended on <date>** (never "renews"), and
+   **Manage subscription** is gone — **Upgrade to Pro** is the way back (a fresh checkout).
 
 ---
 
@@ -2916,7 +2923,7 @@ app fires no published events. (Published events via `IWebhookPublisher` also lo
 | Transactional email delivery | (all email cases) | async via the outbox dispatcher (`OutboxMessages`) |
 | Billing — checkout/portal/webhook + billing page | **BILL-01/02** (§10c, ⚙️ E2E `BillingJourneyTests`) + **DSK-11 / AND-11** (native refresh-on-return — NATIVE-4) + `Api.Tests` (Billing*/Entitlement* tests) | `POST /api/billing/checkout`, `…/portal`, `…/webhook` |
 | Billing — quotas (BILLING-5) | **HH-14** (seat limit blocks invite → 402 upgrade message) + `Api.Tests` (`QuotaServiceTests`) | seats (members + pending invites vs `Plan.SeatLimit`) enforced on `POST /api/household/invitations` → 402 `seat_limit_reached`; metered usage via `IQuotaService.TryConsumeAsync` (monthly `UsageCounter`). Limits in `PlanCatalog` (null = unlimited). |
-| Billing — trial/dunning (BILLING-6) | covered by `Api.Tests` (`BillingWebhookHandlerTests`, `SubscriptionLapseSweepJobTests`); manual via Stripe test triggers | webhook transition into `past_due`/`canceled` → owner **notification** (in-app bell + outbox email, NOTIFY) once; `SubscriptionLapseSweepJob` (6h) nudges the owner once when a paid period lapses without a webhook (`LapseNotifiedAt`). Verify with `stripe trigger invoice.payment_failed` (test mode) → owner sees a billing notification in the bell. |
+| Billing — trial/dunning (BILLING-6) | covered by `Api.Tests` (`BillingWebhookHandlerTests`, `SubscriptionLapseSweepJobTests`); manual via Stripe test triggers | webhook transition into `active`/`trialing` from nothing or a lapsed state → owner **"Subscription active"** notification (`billing.activated`, plan + renewal date) once — a renewal or a trial converting is silent; transition into `past_due`/`canceled` → owner **notification** (in-app bell + outbox email, NOTIFY) once; `SubscriptionLapseSweepJob` (6h) nudges the owner once when a paid period lapses without a webhook (`LapseNotifiedAt`). Verify with `stripe trigger invoice.payment_failed` (test mode) → owner sees a billing notification in the bell. |
 | Billing — dissolve cleanup (BILLING-7) | covered by `Api.Tests` (`BillingDissolveTests`) | on tenant dissolve, `BillingDataContributor` wipes the `Subscription` projection **and** enqueues a `"billing.cancel"` outbox message → `IBillingProvider.CancelSubscriptionAsync` (a deleted tenant stops being billed). `HasDataAsync`=false (billing never blocks leaving); export gains a `billing` section (plan/status/period, no Stripe ids). Manual (Stripe test mode): subscribe a throwaway tenant, delete the account, confirm the Stripe subscription is canceled. |
 | Public API + API keys (PUBAPI, **config-gated off**) | **QA-API-01..04** (curl/Postman) + `Api.Tests` (`ApiKeyServiceTests`, `RateLimitingTests`); boot-verified on/off | `PublicApi:Enabled` toggles it. Owner-only `/api/apikeys` (create → raw `pk_…` once, list, revoke; `Permission.ManageApiKeys`); API-key auth scheme mints a `tenant_id`-scoped principal; demo `/api/public/whoami` (read scope) + `/api/public/echo` (write scope) via `.RequireApiScope`. **PUBAPI-2:** per-key rate limit (60/min, isolated per key → 429) + a leak-free public OpenAPI doc at `/api/public/openapi.json` (only the public routes). **Off (default) ⇒ routes 404.** Manual: `PublicApi__Enabled=true`, mint a key, `curl -H "X-Api-Key: pk_…" /api/public/whoami`; fetch `/api/public/openapi.json`. |
 | Outbound webhooks (HOOKS, **config-gated off**) | **QA-API-01, 05, 06** (curl/webhook.site) + `Api.Tests` (`WebhookSubscriptionServiceTests`, `WebhookDeliveryTests`, `WebhookDeliveryLogTests`) + `Core.Tests` (`WebhookSignatureTests`); boot-verified on/off | `Webhooks:Enabled` toggles it. Owner-only `/api/webhooks` (register → signing secret `whsec_…` once, list, delete, **send test**; `Permission.ManageWebhooks`). `IWebhookPublisher.PublishAsync` fans out to matching active subs → one `"webhook"` **outbox** message each → signed POST (`X-Webhook-Signature`), retry/dead-letter via the outbox. **HOOKS-2:** a delivery log (`GET /api/webhooks/{id}/deliveries` — one row per attempt, success/status/error) + **replay** (`POST /api/webhooks/deliveries/{id}/replay` — re-enqueue the exact payload). **Off (default) ⇒ routes 404.** Manual: `Webhooks__Enabled=true`, register a receiver (e.g. a webhook.site URL), hit **send test**, view deliveries, replay one. |
@@ -3572,3 +3579,13 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   impersonation); the account wins once chosen, a never-chosen account adopts the device's choice. New
   QA-DASH-03 (suite 181); Postman folder 23; `DisplaySettingsSliceTests`, `DisplaySettingsEndpointTests`, the
   impersonation theory and `DashboardPageTests.ShowIn_FollowsTheAccount_AndSavesThere` pin it.
+- **Updated 2026-09-07** — **Sync of the platform's billing return-page fix + Stripe walkthrough.** Stripe
+  now returns the browser to `/billing/success` / `/billing/cancel` and both route to the Billing page with a
+  banner (success refetches on its own until the webhook has flipped the plan) — found on this app's staging,
+  where the first real test-mode checkout ended on the 404 page. QA-BILL-02 rewritten around the return;
+  `NotifyBillingTests.Billing_ReturnFromCheckout_*` pin it; `DEPLOYMENT.md` §3 gains the real-Stripe
+  walkthrough. Suite count unchanged (181).
+  Also the lifecycle's good-news notice, `billing.activated` ("Subscription active", plan + renewal date) on a
+  transition into a granting status — the owner had received the cancellation email but never a confirmation.
+  The cancelled state reads honestly: "Your paid subscription ended on <date>" instead of "renews", and no
+  portal button (nothing live to manage; Upgrade is the way back) — `NotifyBillingTests.Billing_CancelledSubscription_*`.

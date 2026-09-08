@@ -124,7 +124,7 @@ public class BillingWebhookHandlerTests(PostgresFixture fixture) : PostgresTestB
         await HandleAsync(Event(tenant, SubscriptionStatus.PastDue, eventId: "evt_b"));
 
         await using var read = Fixture.CreateContext(tenant);
-        var notes = await read.Set<Notification>().Where(n => n.UserId == ownerId).ToListAsync();
+        var notes = await read.Set<Notification>().Where(n => n.UserId == ownerId && n.Kind != BillingNotifications.ActivatedKind).ToListAsync();
         var note = Assert.Single(notes);
         Assert.Equal(BillingNotifications.PastDueKind, note.Kind);
     }
@@ -143,7 +143,7 @@ public class BillingWebhookHandlerTests(PostgresFixture fixture) : PostgresTestB
         await HandleAsync(Event(tenant, status, eventId: "evt_cold"));
 
         await using var read = Fixture.CreateContext(tenant);
-        Assert.Empty(await read.Set<Notification>().Where(n => n.UserId == ownerId).ToListAsync());
+        Assert.Empty(await read.Set<Notification>().Where(n => n.UserId == ownerId && n.Kind != BillingNotifications.ActivatedKind).ToListAsync());
     }
 
     [Fact]
@@ -158,7 +158,7 @@ public class BillingWebhookHandlerTests(PostgresFixture fixture) : PostgresTestB
         await HandleAsync(Event(tenant, SubscriptionStatus.Canceled, eventId: "evt_b"));
 
         await using var read = Fixture.CreateContext(tenant);
-        var note = Assert.Single(await read.Set<Notification>().Where(n => n.UserId == ownerId).ToListAsync());
+        var note = Assert.Single(await read.Set<Notification>().Where(n => n.UserId == ownerId && n.Kind != BillingNotifications.ActivatedKind).ToListAsync());
         Assert.Equal(BillingNotifications.CanceledKind, note.Kind);
     }
 
@@ -172,7 +172,53 @@ public class BillingWebhookHandlerTests(PostgresFixture fixture) : PostgresTestB
         await HandleAsync(Event(tenant, SubscriptionStatus.Active, eventId: "evt_b")); // still active
 
         await using var read = Fixture.CreateContext(tenant);
-        Assert.Empty(await read.Set<Notification>().Where(n => n.UserId == ownerId).ToListAsync());
+        Assert.Empty(await read.Set<Notification>().Where(n => n.UserId == ownerId && n.Kind != BillingNotifications.ActivatedKind).ToListAsync());
+    }
+
+    // --- activation notice: the mirror image of dunning ---
+
+    [Fact]
+    public async Task SubscriptionActivated_NotifiesOwnerOnce_WithPlanAndRenewal()
+    {
+        var tenant = Guid.CreateVersion7();
+        var ownerId = await SeedOwnerAsync(tenant);
+
+        await HandleAsync(Event(tenant, SubscriptionStatus.Active, eventId: "evt_a"));
+        await HandleAsync(Event(tenant, SubscriptionStatus.Active, eventId: "evt_b")); // a renewal is not news
+
+        await using var read = Fixture.CreateContext(tenant);
+        var note = Assert.Single(await read.Set<Notification>().Where(n => n.UserId == ownerId).ToListAsync());
+        Assert.Equal(BillingNotifications.ActivatedKind, note.Kind);
+        Assert.Contains("Pro plan is active", note.Body);
+        Assert.Contains("renews on", note.Body);
+    }
+
+    [Fact]
+    public async Task Resubscribe_AfterCancel_NotifiesActivationAgain()
+    {
+        var tenant = Guid.CreateVersion7();
+        var ownerId = await SeedOwnerAsync(tenant);
+
+        await HandleAsync(Event(tenant, SubscriptionStatus.Active, eventId: "evt_a"));
+        await HandleAsync(Event(tenant, SubscriptionStatus.Canceled, eventId: "evt_b"));
+        await HandleAsync(Event(tenant, SubscriptionStatus.Active, eventId: "evt_c"));
+
+        await using var read = Fixture.CreateContext(tenant);
+        var kinds = (await read.Set<Notification>().Where(n => n.UserId == ownerId).OrderBy(n => n.CreatedAt).ToListAsync()).Select(n => n.Kind).ToList();
+        Assert.Equal([BillingNotifications.ActivatedKind, BillingNotifications.CanceledKind, BillingNotifications.ActivatedKind], kinds);
+    }
+
+    [Fact]
+    public async Task TrialConvertingToActive_IsNotAnnouncedTwice()
+    {
+        var tenant = Guid.CreateVersion7();
+        var ownerId = await SeedOwnerAsync(tenant);
+
+        await HandleAsync(Event(tenant, SubscriptionStatus.Trialing, eventId: "evt_a")); // the trial is the activation
+        await HandleAsync(Event(tenant, SubscriptionStatus.Active, eventId: "evt_b"));
+
+        await using var read = Fixture.CreateContext(tenant);
+        Assert.Single(await read.Set<Notification>().Where(n => n.UserId == ownerId).ToListAsync());
     }
 
     // --- recency guard (v2 audit LOGIC-B1): out-of-order/redelivered events must not regress state ---
@@ -228,7 +274,7 @@ public class BillingWebhookHandlerTests(PostgresFixture fixture) : PostgresTestB
         await HandleAsync(Event(tenant, SubscriptionStatus.PastDue, "evt_stale", t1));
 
         await using var read = Fixture.CreateContext(tenant);
-        Assert.Single(await read.Set<Notification>().Where(n => n.UserId == ownerId).ToListAsync());
+        Assert.Single(await read.Set<Notification>().Where(n => n.UserId == ownerId && n.Kind != BillingNotifications.ActivatedKind).ToListAsync());
     }
 
     // --- helpers ---

@@ -58,7 +58,10 @@ public sealed class BillingWebhookHandler(
             // failed payment or a cancellation. Only fire on an *applied* event (a stale/out-of-order
             // event is a no-op, so it must not re-notify); same-status redeliveries don't re-notify.
             if (applied)
+            {
+                await MaybeNotifyActivationAsync(evt, previousStatus, cancellationToken);
                 await MaybeNotifyDunningAsync(evt, previousStatus, cancellationToken);
+            }
             await transaction.CommitAsync(cancellationToken); // claim + projection + notification commit atomically
         }
 
@@ -114,6 +117,21 @@ public sealed class BillingWebhookHandler(
 
         await subscriptions.SaveChangesAsync(cancellationToken);
         return (true, previousStatus);
+    }
+
+    /// <summary>
+    /// The mirror image of dunning: notify the owner when the status transitions INTO a granting state — the
+    /// first activation after checkout, or a resubscribe after a cancellation / lapse. A renewal (active →
+    /// active) and a trial converting (trialing → active) are not news; same-status redeliveries don't fire.
+    /// </summary>
+    private async Task MaybeNotifyActivationAsync(BillingWebhookEvent evt, string? previousStatus, CancellationToken cancellationToken)
+    {
+        if (!SubscriptionStatus.IsGranting(evt.Status) || SubscriptionStatus.IsGranting(previousStatus))
+            return;
+
+        var (title, body) = BillingNotifications.Activated(evt.PlanKey, evt.CurrentPeriodEnd);
+        await billingNotifier.NotifyOwnerAsync(evt.TenantId, BillingNotifications.ActivatedKind, title, body, cancellationToken);
+        await subscriptions.SaveChangesAsync(cancellationToken); // flush the staged notification within the tx
     }
 
     private async Task MaybeNotifyDunningAsync(BillingWebhookEvent evt, string? previousStatus, CancellationToken cancellationToken)

@@ -1,4 +1,6 @@
 using Bunit;
+using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.DependencyInjection;
 using Vuelto.Shared.Ui.Components;
 using Vuelto.Shared.Ui.Pages;
 using Vuelto.Ui.Tests.Infrastructure;
@@ -87,5 +89,60 @@ public class NotifyBillingTests : ComponentTestBase
         // The fake localizer echoes the key, proving the token is looked up (not rendered raw).
         Assert.Equal("Plan_free", cut.Find("[data-testid='billing-plan']").TextContent.Trim());
         Assert.Equal("BillingStatus_active", cut.Find("[data-testid='billing-status']").TextContent.Trim());
+    }
+
+    [Fact]
+    public async Task Billing_ReturnFromCheckout_Success_ShowsTheBanner_AndRefetchesUntilThePlanFlips()
+    {
+        // The hosted checkout sends the user back to /billing/success — the same page, with a banner. The webhook
+        // that flips the plan lands a moment later, so the page refetches on its own (no manual reload).
+        await SignInAsync();
+        Http.On(HttpMethod.Get, "/api/billing", """{"plan_key":"free","status":"active"}""");
+        Services.GetRequiredService<NavigationManager>().NavigateTo("/billing/success");
+
+        var cut = Render<Billing>(p => p.Add(x => x.RefreshDelayMs, 10));
+        cut.WaitForElement("[data-testid='billing-plan']");
+        Assert.Contains("Billing_CheckoutSuccess", cut.Find("[data-testid='billing-checkout-success']").TextContent);
+        Assert.Empty(cut.FindAll("[data-testid='billing-checkout-cancel']"));
+
+        Http.On(HttpMethod.Get, "/api/billing", """{"plan_key":"pro","status":"active"}"""); // the webhook landed
+        cut.WaitForAssertion(() => Assert.Equal("Plan_pro", cut.Find("[data-testid='billing-plan']").TextContent.Trim()), TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public async Task Billing_CancelledSubscription_ReadsAsEnded_AndOffersNoPortal()
+    {
+        // After a cancellation the entitlement is free but the record is still "canceled" with its period end:
+        // that date is when the paid plan ENDED (never "renews"), and there is nothing live to manage.
+        await SignInAsync();
+        Http.On(HttpMethod.Get, "/api/billing", """{"plan_key":"free","status":"canceled","current_period_end":"2026-10-07T00:00:00+00:00","has_subscription":true}""");
+
+        var cut = Render<Billing>();
+        cut.WaitForElement("[data-testid='billing-plan']");
+
+        Assert.Contains("Billing_EndedOn[", cut.Find("[data-testid='billing-ended']").TextContent);
+        Assert.Empty(cut.FindAll("[data-testid='billing-renews']"));
+        Assert.Empty(cut.FindAll("[data-testid='billing-portal']"));
+        Assert.NotNull(cut.Find("[data-testid='billing-upgrade']"));
+
+        Http.On(HttpMethod.Get, "/api/billing", """{"plan_key":"pro","status":"active","current_period_end":"2026-10-07T00:00:00+00:00","has_subscription":true}""");
+        var live = Render<Billing>();
+        live.WaitForElement("[data-testid='billing-renews']");
+        Assert.NotNull(live.Find("[data-testid='billing-portal']"));
+    }
+
+    [Fact]
+    public async Task Billing_ReturnFromCheckout_Cancel_ShowsTheHonestBanner_AndChangesNothing()
+    {
+        await SignInAsync();
+        Http.On(HttpMethod.Get, "/api/billing", """{"plan_key":"free","status":"active"}""");
+        Services.GetRequiredService<NavigationManager>().NavigateTo("/billing/cancel");
+
+        var cut = Render<Billing>();
+        cut.WaitForElement("[data-testid='billing-plan']");
+
+        Assert.Contains("Billing_CheckoutCancelled", cut.Find("[data-testid='billing-checkout-cancel']").TextContent);
+        Assert.Empty(cut.FindAll("[data-testid='billing-checkout-success']"));
+        Assert.Equal("Plan_free", cut.Find("[data-testid='billing-plan']").TextContent.Trim());
     }
 }
