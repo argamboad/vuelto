@@ -156,7 +156,7 @@ choices — every one is mainstream, documented, and replaceable. Full rationale
 
 | Layer | Choice | Notes |
 |---|---|---|
-| Runtime | **.NET 10** (SDK 10.0.400) | Latest stable line; policy: never previews |
+| Runtime | **.NET 10** (SDK 10.0.401) | Latest stable line; policy: never previews |
 | Backend API | **ASP.NET Core Web API** | The durable, client-agnostic asset |
 | Web frontend | **Blazor WebAssembly** | A pure client of the API — never touches the DB |
 | UI components | Shared **Razor Class Library** | One UI codebase for web *and* native shells |

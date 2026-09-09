@@ -5,10 +5,10 @@
 # in Core/Infrastructure/Shared.Ui via ProjectReference); Maui is never built here.
 
 # ---- build ---------------------------------------------------------------------------------------
-# Pin the SDK to the single source of truth — global.json (10.0.400) — which generated the committed
+# Pin the SDK to the single source of truth — global.json (10.0.401) — which generated the committed
 # packages.lock.json files. The WASM SDK injects patch-sensitive implicit package refs, so a floating tag
 # breaks --locked-mode. Keep this tag == global.json's version (see the bump-together playbook in CLAUDE.md).
-FROM mcr.microsoft.com/dotnet/sdk:10.0.400 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0.401 AS build
 WORKDIR /src
 
 # Solution-wide build config (warnings-as-error) + Central Package Management + the committed lockfiles.
