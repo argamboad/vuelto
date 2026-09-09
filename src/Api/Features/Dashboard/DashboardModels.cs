@@ -41,6 +41,13 @@ public record BankMethodBreakdownResponse(
     [property: JsonPropertyName("budget")] MoneyPairResponse Budget,
     [property: JsonPropertyName("actual")] MoneyPairResponse Actual);
 
+/// <summary>CARDS-2: the month's expense-class spend on one card; <c>card_id</c> null = "no card" (cash, transfers, older rows), listed last.</summary>
+public record CardSpendResponse(
+    [property: JsonPropertyName("card_id")] Guid? CardId,
+    [property: JsonPropertyName("card_name")] string CardName,
+    [property: JsonPropertyName("actual")] MoneyPairResponse Actual,
+    [property: JsonPropertyName("count")] int Count);
+
 public record DashboardSummaryResponse(
     [property: JsonPropertyName("income_primary")] MoneyPairResponse IncomePrimary,
     [property: JsonPropertyName("income_secondary")] MoneyPairResponse IncomeSecondary,
@@ -64,7 +71,8 @@ public record DashboardSummaryResponse(
     [property: JsonPropertyName("unplanned_essential_total")] MoneyPairResponse UnplannedEssentialTotal,
     [property: JsonPropertyName("refunds_total")] MoneyPairResponse RefundsTotal,
     [property: JsonPropertyName("envelope_reminders")] IReadOnlyList<EnvelopeReminderResponse> EnvelopeReminders,
-    [property: JsonPropertyName("bank_method_breakdown")] IReadOnlyList<BankMethodBreakdownResponse> BankMethodBreakdown)
+    [property: JsonPropertyName("bank_method_breakdown")] IReadOnlyList<BankMethodBreakdownResponse> BankMethodBreakdown,
+    [property: JsonPropertyName("by_card")] IReadOnlyList<CardSpendResponse> ByCard)
 {
     public static DashboardSummaryResponse From(DashboardSummary s) => new(
         MoneyPairResponse.From(s.Income.Primary), MoneyPairResponse.From(s.Income.Secondary), MoneyPairResponse.From(s.Income.Total),
@@ -78,7 +86,8 @@ public record DashboardSummaryResponse(
         MoneyPairResponse.From(s.Balance.CurrentBalance), MoneyPairResponse.From(s.Balance.RemainderForDebts), MoneyPairResponse.From(s.Balance.PendingBudgeted), MoneyPairResponse.From(s.Balance.ActualRemainder),
         MoneyPairResponse.From(s.UnplannedEssentialTotal), MoneyPairResponse.From(s.RefundsTotal),
         s.EnvelopeReminders.Select(e => new EnvelopeReminderResponse(e.Name, MoneyPairResponse.From(e.AnnualTarget), MoneyPairResponse.From(e.ContributedThisMonth), MoneyPairResponse.From(e.Remaining), e.Cadence)).ToList(),
-        s.BankMethodBreakdown.Select(b => new BankMethodBreakdownResponse(b.BankId, b.BankName, b.PaymentMethod, MoneyPairResponse.From(b.Budget), MoneyPairResponse.From(b.Actual))).ToList());
+        s.BankMethodBreakdown.Select(b => new BankMethodBreakdownResponse(b.BankId, b.BankName, b.PaymentMethod, MoneyPairResponse.From(b.Budget), MoneyPairResponse.From(b.Actual))).ToList(),
+        s.ByCard.Select(c => new CardSpendResponse(c.CardId, c.CardName, new MoneyPairResponse(c.TotalCrc, c.TotalUsd), c.Count)).ToList());
 }
 
 /// <summary>The month header the dashboard shows; the full month (with income) lives on <c>GET /api/months/{id}</c>.</summary>

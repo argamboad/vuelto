@@ -255,6 +255,36 @@
                         </div>
                     </div>
                 }
+
+                @* CARDS-2: "how much went through each card?" — only once a card has been used; a lone "No card" row says nothing. *@
+                @if (s.ByCard is { } byCard && byCard.Any(c => c.CardId is not null))
+                {
+                    <div class="col-12 col-lg-6">
+                        <div class="card shadow-sm" data-testid="dash-cards">
+                            <div class="card-body">
+                                <h2 class="h6 fw-bold mb-2">@Localizer["Dash_ByCard"]</h2>
+                                <div class="table-responsive">
+                                    <table class="table table-sm mb-0">
+                                        <thead><tr><th>@Localizer["Tx_Card"]</th><th class="text-end">@Localizer["Dash_Transactions"]</th><th class="text-end">@Localizer["Dash_Actual"]</th></tr></thead>
+                                        <tbody>
+                                            @foreach (var c in byCard)
+                                            {
+                                                <tr data-testid="dash-card-row" data-card="@(c.CardId?.ToString() ?? "none")">
+                                                    <td>@(c.CardId is null ? Localizer["Tx_NoCard"] : c.CardName)</td>
+                                                    <td class="text-end">@c.Count</td>
+                                                    <td class="text-end">@Show(c.Actual)</td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                        <tfoot>
+                                            <tr class="fw-semibold border-top" data-testid="dash-cards-total"><td>@Localizer["Dash_Total"]</td><td class="text-end">@byCard.Sum(c => c.Count)</td><td class="text-end">@Show(Sum(byCard.Select(c => c.Actual)))</td></tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
             </div>
         }
     }
@@ -446,7 +476,9 @@
         [property: JsonPropertyName("unplanned_essential_total")] MoneyDto UnplannedEssentialTotal,
         [property: JsonPropertyName("refunds_total")] MoneyDto RefundsTotal,
         [property: JsonPropertyName("envelope_reminders")] List<EnvelopeDto> EnvelopeReminders,
-        [property: JsonPropertyName("bank_method_breakdown")] List<BankDto> BankMethodBreakdown);
+        [property: JsonPropertyName("bank_method_breakdown")] List<BankDto> BankMethodBreakdown,
+        [property: JsonPropertyName("by_card")] List<CardSpendDto>? ByCard = null);
+    private sealed record CardSpendDto([property: JsonPropertyName("card_id")] Guid? CardId, [property: JsonPropertyName("card_name")] string CardName, [property: JsonPropertyName("actual")] MoneyDto Actual, [property: JsonPropertyName("count")] int Count);
     private sealed record DashMonthDto([property: JsonPropertyName("id")] Guid Id, [property: JsonPropertyName("year")] int Year, [property: JsonPropertyName("month_number")] int MonthNumber, [property: JsonPropertyName("week_count")] int WeekCount, [property: JsonPropertyName("week1_start_date")] DateOnly Week1StartDate, [property: JsonPropertyName("last_day")] DateOnly LastDay);
     private sealed record DashDto(
         [property: JsonPropertyName("month")] DashMonthDto Month,

@@ -65,8 +65,8 @@ public class DashboardSummaryServiceTests
 
     private DashboardSummary With(List<Transaction>? transactions = null, List<FixedExpense>? fixedLines = null, List<VariableExpense>? variableLines = null,
         List<Refund>? refunds = null, List<Envelope>? envelopes = null, decimal rate = 500m, Month? month = null,
-        IReadOnlyDictionary<Guid, string>? categories = null, IReadOnlyDictionary<Guid, string>? banks = null) =>
-        _service.Calculate(month ?? GetMonth(), GetWeeks(), transactions ?? [], fixedLines ?? [], variableLines ?? [], refunds ?? [], envelopes ?? [], rate, categories, banks);
+        IReadOnlyDictionary<Guid, string>? categories = null, IReadOnlyDictionary<Guid, string>? banks = null, IReadOnlyDictionary<Guid, string>? cards = null) =>
+        _service.Calculate(month ?? GetMonth(), GetWeeks(), transactions ?? [], fixedLines ?? [], variableLines ?? [], refunds ?? [], envelopes ?? [], rate, categories, banks, cards);
 
     private static Refund RefundExpected(decimal crc, decimal usd, string status) => new()
     {
@@ -505,6 +505,25 @@ public class DashboardSummaryServiceTests
 
     private static FixedExpense FixedLine(string name, decimal crc, decimal usd, string method, Guid category, Guid? bankId, int order) =>
         new() { TenantId = TenantId, Name = name, BudgetCrc = crc, BudgetUsd = usd, PaymentMethod = method, CategoryId = category, BankId = bankId, SortOrder = order };
+
+    [Fact]
+    public void ByCard_GroupsTheMonthsExpenseRowsByCard_NoCardLast()
+    {
+        // CARDS-2: the dashboard's "By card" table — the same rows the bank table sums, cut by the card that paid.
+        var visa = Guid.NewGuid();
+        Transaction OnCard(Transaction tx, Guid? card) { tx.CardId = card; return tx; }
+        var rows = With(transactions:
+        [
+            OnCard(Tx(DiningCat, 5_000m, 10m, "extraordinary", new DateOnly(2026, 6, 5)), visa),
+            OnCard(Tx(DiningCat, 7_000m, 14m, "budgeted", new DateOnly(2026, 6, 6)), visa),
+            OnCard(Tx(GroceriesCat, 3_000m, 6m, "inflow", new DateOnly(2026, 6, 7)), visa),
+            Tx(GroceriesCat, 9_000m, 18m, "budgeted", new DateOnly(2026, 6, 8), "bank_account")
+        ], cards: new Dictionary<Guid, string> { [visa] = "Allan's Visa" }).ByCard;
+
+        Assert.Equal(2, rows.Count);
+        Assert.Equal(("Allan's Visa", 12_000m, 24m, 2), (rows[0].CardName, rows[0].TotalCrc, rows[0].TotalUsd, rows[0].Count));
+        Assert.Equal((null, 9_000m, 1), (rows[1].CardId, rows[1].TotalCrc, rows[1].Count));
+    }
 
     [Fact]
     public void BankMethodBreakdown_GroupsBudgetByBankAndMethod_BanklessGoesToUnassignedLast()

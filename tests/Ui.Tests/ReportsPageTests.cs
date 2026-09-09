@@ -25,7 +25,8 @@ public class ReportsPageTests : ComponentTestBase
          "budget_by_method":[{"key":"credit_card","label":"credit_card","total_crc":120000,"total_usd":240},{"key":"bank_account","label":"bank_account","total_crc":30000,"total_usd":60}],
          "by_bank":[{"key":"cccccccc-0000-0000-0000-000000000001","label":"BAC","total_crc":90000,"total_usd":180},{"key":"cccccccc-0000-0000-0000-000000000002","label":"","total_crc":9704.87,"total_usd":24.19}],
          "by_method":[{"key":"credit_card","label":"credit_card","total_crc":80000,"total_usd":160},{"key":"bank_account","label":"bank_account","total_crc":19704.87,"total_usd":44.19}],
-         "spend_by_day":[{"date":"2026-06-26","total_crc":8000,"total_usd":16},{"date":"2026-07-03","total_crc":70000,"total_usd":140},{"date":"2026-07-20","total_crc":21704.87,"total_usd":48.19}]}
+         "spend_by_day":[{"date":"2026-06-26","total_crc":8000,"total_usd":16},{"date":"2026-07-03","total_crc":70000,"total_usd":140},{"date":"2026-07-20","total_crc":21704.87,"total_usd":48.19}],
+         "by_card":[{"key":"eeeeeeee-0000-0000-0000-000000000005","label":"Allan's Visa","total_crc":80000,"total_usd":160},{"key":"none","label":"","total_crc":19704.87,"total_usd":44.19}]}
         """;
     private const string Trend = """
         {"months":[{"month_id":"aaaaaaaa-0000-0000-0000-000000000000","year":2026,"month_number":5,"income":{"crc":200000,"usd":400},"spend":{"crc":250000,"usd":500}},
@@ -345,6 +346,12 @@ public class ReportsPageTests : ComponentTestBase
         Assert.Contains("Tx_BankAccount", methods[1].TextContent);
         Assert.Contains("₡19,705", methods[1].TextContent);
         // The plan cut the same way, beside the spend: card ₡120,000 budgeted vs ₡80,000 spent; account ₡30,000 vs ₡19,705.
+        // CARDS-2: "Spend by card" — one bar per card, largest first, the "no card" bucket last with its own label.
+        var cardBars = cut.FindAll("[data-testid='rep-card-bars'] [data-testid='chart-bar']");
+        Assert.Equal(2, cardBars.Count);
+        Assert.Contains("Allan's Visa", cardBars[0].TextContent);
+        Assert.Contains("₡80,000", cardBars[0].QuerySelector("[data-testid='chart-value']")!.TextContent);
+        Assert.Contains("Tx_NoCard", cardBars[1].TextContent);
         var bars = cut.FindAll("[data-testid='rep-method-bars'] [data-testid='chart-bar']");
         Assert.Equal(2, bars.Count);
         Assert.Contains("Tx_CreditCard", bars[0].TextContent);

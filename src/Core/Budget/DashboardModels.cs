@@ -42,4 +42,5 @@ public record DashboardSummary(
     MoneyPair RefundsTotal,
     IReadOnlyList<EnvelopeReminder> EnvelopeReminders,
     IReadOnlyList<CategorySpendSummary> OtherSpending,
-    IReadOnlyList<BankMethodBreakdown> BankMethodBreakdown);
+    IReadOnlyList<BankMethodBreakdown> BankMethodBreakdown,
+    IReadOnlyList<CardSpendEntry> ByCard);

@@ -547,6 +547,8 @@
   <data name="Dash_Contributed" xml:space="preserve"><value>Contributed this month</value></data>
   <data name="Dash_Remaining" xml:space="preserve"><value>Remaining</value></data>
   <data name="Dash_BankMethod" xml:space="preserve"><value>By bank and payment method</value></data>
+  <data name="Dash_ByCard" xml:space="preserve"><value>By card</value></data>
+  <data name="Dash_Transactions" xml:space="preserve"><value>Transactions</value></data>
   <data name="Dash_MethodTotal" xml:space="preserve"><value>{0} — total</value></data>
   <data name="Nav_Reports" xml:space="preserve"><value>Reports</value></data>
   <data name="Reports_Title" xml:space="preserve"><value>Category analysis</value></data>
@@ -602,6 +604,7 @@
   <data name="Reports_TrendNoRate" xml:space="preserve"><value>Income tracks need today's exchange rate, which isn't available right now — the bars show spend only.</value></data>
   <data name="Reports_ByBank" xml:space="preserve"><value>Spend by bank</value></data>
   <data name="Reports_ByMethod" xml:space="preserve"><value>Card vs account</value></data>
+  <data name="Reports_ByCard" xml:space="preserve"><value>Spend by card</value></data>
   <data name="Reports_MethodBudget" xml:space="preserve"><value>Budgeted vs spent, by payment method</value></data>
   <data name="Reports_MethodCaption" xml:space="preserve"><value>budgeted {0} · spent {1}</value></data>
   <data name="Reports_UnknownBank" xml:space="preserve"><value>Unknown bank</value></data>

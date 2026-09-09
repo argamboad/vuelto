@@ -58,7 +58,7 @@ public class DashboardSliceTests(PostgresFixture fixture) : PostgresTestBase(fix
         var handler = new DashboardHandler(
             new EfRepository<Month>(db), new EfRepository<Week>(db), new EfRepository<Transaction>(db), new EfRepository<Refund>(db),
             new EfRepository<Envelope>(db), new EfRepository<FixedExpense>(db), new EfRepository<VariableExpense>(db),
-            new EfRepository<Category>(db), new EfRepository<Bank>(db), new DashboardSummaryService(), pair is null ? new FixedRate(rate) : new PairRate(pair), current);
+            new EfRepository<Category>(db), new EfRepository<Bank>(db), new EfRepository<Card>(db), new DashboardSummaryService(), pair is null ? new FixedRate(rate) : new PairRate(pair), current);
         return new Ctx(db, tenant, month.Id, handler);
     }
 

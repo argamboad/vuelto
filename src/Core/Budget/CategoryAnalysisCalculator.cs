@@ -21,7 +21,8 @@ public static class CategoryAnalysisCalculator
         DateOnly from,
         DateOnly to,
         IReadOnlyList<IExpenseLine>? activeLines,
-        IReadOnlyDictionary<Guid, string>? bankNames = null)
+        IReadOnlyDictionary<Guid, string>? bankNames = null,
+        IReadOnlyDictionary<Guid, string>? cardNames = null)
     {
         var singleMonth = activeLines is not null;
         var budgetByCategory = new Dictionary<Guid, (decimal Crc, decimal Usd)>();
@@ -74,6 +75,7 @@ public static class CategoryAnalysisCalculator
             ForClass(TransactionTypes.Budgeted, singleMonth),
             ForClass(TransactionTypes.Extraordinary, false),
             ForClass(TransactionTypes.UnplannedEssential, false),
-            byBank, byMethod, byDay);
+            byBank, byMethod, byDay,
+            CardSpend.Calculate(expenses, cardNames));
     }
 }

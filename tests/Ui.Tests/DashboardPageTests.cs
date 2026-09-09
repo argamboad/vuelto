@@ -33,7 +33,8 @@ public class DashboardPageTests : ComponentTestBase
          "current_balance":{"crc":1190000,"usd":2380},"remainder_for_debts":{"crc":1150000,"usd":2300},"pending_budgeted":{"crc":50000,"usd":100},"actual_remainder":{"crc":1140000,"usd":2280},
          "unplanned_essential_total":{"crc":10000,"usd":20},"refunds_total":{"crc":5000,"usd":10},
          "envelope_reminders":[{"name":"Marchamo","annual_target":{"crc":718000,"usd":0},"contributed_this_month":{"crc":0,"usd":0},"remaining":{"crc":718000,"usd":0},"cadence":"monthly"}],
-         "bank_method_breakdown":[{"bank_id":"cccccccc-0000-0000-0000-000000000003","bank_name":"BAC","payment_method":"bank_account","budget":{"crc":365000,"usd":730},"actual":{"crc":300000,"usd":600}},{"bank_id":null,"bank_name":"","payment_method":"credit_card","budget":{"crc":0,"usd":0},"actual":{"crc":10000,"usd":20}}]}
+         "bank_method_breakdown":[{"bank_id":"cccccccc-0000-0000-0000-000000000003","bank_name":"BAC","payment_method":"bank_account","budget":{"crc":365000,"usd":730},"actual":{"crc":300000,"usd":600}},{"bank_id":null,"bank_name":"","payment_method":"credit_card","budget":{"crc":0,"usd":0},"actual":{"crc":10000,"usd":20}}],
+         "by_card":[{"card_id":"eeeeeeee-0000-0000-0000-000000000005","card_name":"Allan's Visa","actual":{"crc":10000,"usd":20},"count":1},{"card_id":null,"card_name":"","actual":{"crc":300000,"usd":600},"count":1}]}
         """;
 
     [Fact]
@@ -229,6 +230,14 @@ public class DashboardPageTests : ComponentTestBase
         var banksTotal = cut.Find("[data-testid='dash-banks-total']").QuerySelectorAll("td");
         Assert.Contains("₡365,000.00 · $730.00", banksTotal[1].TextContent);
         Assert.Contains("₡310,000.00 · $620.00", banksTotal[2].TextContent);
+        // CARDS-2: "By card" — the alias, its count and spend; the "no card" bucket last with its own label; a total row.
+        var cardRows = cut.FindAll("[data-testid='dash-card-row']");
+        Assert.Equal(2, cardRows.Count);
+        Assert.Contains("Allan's Visa", cardRows[0].TextContent);
+        Assert.Contains("₡10,000.00 · $20.00", cardRows[0].QuerySelectorAll("td")[2].TextContent);
+        Assert.Equal("none", cardRows[1].GetAttribute("data-card"));
+        Assert.Contains("Tx_NoCard", cardRows[1].TextContent);
+        Assert.Contains("₡310,000.00 · $620.00", cut.Find("[data-testid='dash-cards-total']").QuerySelectorAll("td")[2].TextContent);
         Assert.Equal(2, cut.FindAll("[data-testid='dash-month'] option").Count);
     }
 

@@ -193,6 +193,7 @@ public class ReportSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
         var bank = Assert.Single(report.ByBank);
         Assert.Equal(("BAC", 10_000m), (bank.Label, bank.TotalCrc));
         Assert.Equal(("credit_card", 10_000m), (Assert.Single(report.ByMethod).Key, report.ByMethod[0].TotalCrc));
+        Assert.Equal(("none", "", 10_000m), (Assert.Single(report.ByCard).Key, report.ByCard[0].Label, report.ByCard[0].TotalCrc)); // CARDS-2: no card on these rows → one "none" bucket
         var days = report.SpendByDay!;
         Assert.Equal([new DateOnly(2026, 5, 28), new DateOnly(2026, 6, 10), new DateOnly(2026, 6, 24)], days.Select(d => d.Date));
         Assert.Equal(2_000m, days[1].TotalCrc);

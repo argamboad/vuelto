@@ -24,7 +24,8 @@ public record CategoryAnalysis(
     IReadOnlyList<CategorySpendEntry> UnplannedEssential,
     IReadOnlyList<GroupSpendEntry> ByBank,
     IReadOnlyList<GroupSpendEntry> ByMethod,
-    IReadOnlyList<DaySpendEntry> ByDay);
+    IReadOnlyList<DaySpendEntry> ByDay,
+    IReadOnlyList<CardSpendEntry> ByCard);
 
 /// <summary>One CSV line: names resolved from the all-states catalogs so a deactivated category or bank never blanks history.</summary>
 public record TransactionExportRow(

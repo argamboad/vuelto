@@ -66,6 +66,7 @@ public sealed class ReportHandler(
         var rows = await InPeriod(period).ToListAsync(cancellationToken);
         var names = await categories.Query().ToDictionaryAsync(c => c.Id, c => c.Name, cancellationToken); // all states
         var bankNames = await banks.Query().ToDictionaryAsync(b => b.Id, b => b.Name, cancellationToken);  // all states
+        var cardNames = await cards.Query().ToDictionaryAsync(c => c.Id, c => c.Name, cancellationToken);  // all states (CARDS-2)
 
         List<IExpenseLine>? lines = null;
         MoneyPair? income = null, budgetTotal = null;
@@ -89,7 +90,7 @@ public sealed class ReportHandler(
             }
         }
 
-        return CategoryAnalysisResponse.From(CategoryAnalysisCalculator.Calculate(rows, names, period.From, period.To, lines, bankNames), income, budgetTotal, pair, budgetByMethod);
+        return CategoryAnalysisResponse.From(CategoryAnalysisCalculator.Calculate(rows, names, period.From, period.To, lines, bankNames, cardNames), income, budgetTotal, pair, budgetByMethod);
     }
 
     public const int TrendDefaultCount = 12, TrendMaxCount = 36;

@@ -237,3 +237,23 @@ Scenario: The plan cut by payment method
   When I switch to a date range
   Then the bars are gone (budget_by_method is null) while the Card vs account donut stays
 ```
+
+### REPORTS-6 — Spend by card *(CARDS-2, owner request 2026-09-08)* ✅
+
+**As** a household member, **I want** the period's spend cut by the card that paid, **so that** I can see how much went
+through each card, renewals included (a merged card keeps its history — CARDS-1).
+
+**Context / notes:** the same expense rows as the bank donuts (frozen amounts, any period), grouped by `card_id` through
+Core `CardSpend.Calculate` — largest first, the "no card" bucket last, all-states names. API: `by_card[]` on the analysis
+(`{ key: card id | "none", label, total_crc, total_usd }`). Chart view: **Spend by card** bars beside Card vs account,
+shown once a card has been used (a lone "No card" bar says nothing). The dashboard's **By card** table is the one-month
+twin (`summary.by_card[]` with a count per card).
+
+```gherkin
+Scenario: Spend by card
+  Given June has ₡8,000 on Allan's Visa and ₡2,000 with no card
+  When I open Reports chart view for June
+  Then "Spend by card" shows Allan's Visa ₡8,000 then No card ₡2,000
+  And GET /api/reports/category-analysis?month_id=… carries by_card = [{ <visa id>, "Allan's Visa", 8000, … }, { "none", "", 2000, … }]
+  And the dashboard's "By card" table lists the same two rows with their transaction counts and a Total
+```

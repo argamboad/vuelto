@@ -88,7 +88,8 @@ public record CategoryAnalysisResponse(
     [property: JsonPropertyName("budget_by_method")] IReadOnlyList<GroupSpendResponse>? BudgetByMethod,
     [property: JsonPropertyName("by_bank")] IReadOnlyList<GroupSpendResponse> ByBank,
     [property: JsonPropertyName("by_method")] IReadOnlyList<GroupSpendResponse> ByMethod,
-    [property: JsonPropertyName("spend_by_day")] IReadOnlyList<DaySpendResponse>? SpendByDay)
+    [property: JsonPropertyName("spend_by_day")] IReadOnlyList<DaySpendResponse>? SpendByDay,
+    [property: JsonPropertyName("by_card")] IReadOnlyList<GroupSpendResponse> ByCard)
 {
     /// <summary><c>spend_by_day</c> only for a single month (the pace line is a month picture; a long range would ship hundreds of rows for nothing).</summary>
     public static CategoryAnalysisResponse From(CategoryAnalysis a, MoneyPair? income, MoneyPair? budgetTotal, FxRates? rates = null, IReadOnlyList<GroupSpendEntry>? budgetByMethod = null) => new(
@@ -102,7 +103,8 @@ public record CategoryAnalysisResponse(
         budgetByMethod?.Select(GroupSpendResponse.From).ToList(), // the plan cut by payment method (single month with a rate), beside by_method's spend
         a.ByBank.Select(GroupSpendResponse.From).ToList(),
         a.ByMethod.Select(GroupSpendResponse.From).ToList(),
-        a.SingleMonth ? a.ByDay.Select(DaySpendResponse.From).ToList() : null);
+        a.SingleMonth ? a.ByDay.Select(DaySpendResponse.From).ToList() : null,
+        a.ByCard.Select(c => new GroupSpendResponse(c.CardId?.ToString() ?? "none", c.CardName, c.TotalCrc, c.TotalUsd)).ToList()); // CARDS-2: key "none" = no card
 }
 
 /// <summary>
