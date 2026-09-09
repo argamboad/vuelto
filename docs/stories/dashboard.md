@@ -48,6 +48,7 @@ Scenario: The dashboard for a month
   And unplanned_essential_total is ₡10,000 and refunds_total is ₡5,000 (pending only)
   And weekly_budgeted has one row per week with the mortgage in week 2
   And bank_method_breakdown has BAC / bank_account budget ₡350,000 actual ₡300,000
+  And (CARDS-2) by_card lists each card's expense spend and count, largest first, the "no card" bucket last
   And current_balance is ₡1,190,000 and pending_budgeted ₡50,000
 
 Scenario: No rate resolves
@@ -69,7 +70,8 @@ Scenario: The Dashboard page
        − Unplanned spent → = Spent so far → = Left now → − Still planned ("N% of the month elapsed") → = Forecast at month end
        (red + a warning line below zero) + the frozen-rate note; the old Expenses/Balance cards and "Remainder for debts" are gone from the UI
   And Fixed / Variable tables (Line, Budgeted, Actual — green under, red over, judged in the currency the line is set in; `budget_currency` on each line, 2026-09-07), Other spending, Week by week,
-       Unplanned essentials & refunds, Envelope reminders, By bank and payment method
+       Unplanned essentials & refunds, Envelope reminders, By bank and payment method, and (CARDS-2, once a card has been
+       used) By card — alias, transactions, spend, "No card" last, a Total row
   When no rate resolves → the red "projections are blocked" message and no figures
   When there are no months → "Nothing to show yet" with New transaction
   When the month was removed (404) → the month-no-longer-exists message

@@ -1666,6 +1666,7 @@ And Income (with Primary / Secondary underneath; Secondary hidden when zero) hea
 And Fixed expenses shows Mortgage — Budgeted ₡350,000.00 · $700.00 — Actual ₡300,000.00 in green
 And Other spending lists Dining ₡10,000.00; Unplanned essentials shows ₡10,000.00
 And Week by week shows the mortgage in week 2; By bank and payment method shows BAC / Bank account budget ₡350,000 actual ₡300,000, grouped by method with a "Credit card — total" and a "Bank account — total" row and a grand total
+And (CARDS-2) once a card has paid something, By card lists each card's alias, transaction count and spend, "No card" last, with a Total row
 When I Edit Mortgage's budget down to ₡250,000 and reload the dashboard
 Then Mortgage's actual turns red (over budget) and Pending budgeted drops to ₡0.00
 And the Fixed, Variable, Other spending and Week by week tables each end with a Total row (the sum of the rows shown; the lines total keeps the over/under colour)
@@ -1682,7 +1683,9 @@ Nav **Dashboard** → **Expected:** June 2026 with the weeks line and "₡… pe
 Fixed table with Mortgage's actual in **green**; **Other spending** with Dining; **Unplanned essentials
 & refunds** ₡10,000.00; **Week by week** 4 rows, week 2 = ₡300,000.00 budgeted; **By bank and payment
 method** grouped by method — Unassigned · Credit card first, then BAC · Bank account — each group closed by a
-**… — total** row (cards: budget ₡0 / actual ₡10,000; account: ₡350,000 / ₡300,000) and a grand **Total**. **Budget** → **Edit**
+**… — total** row (cards: budget ₡0 / actual ₡10,000; account: ₡350,000 / ₡300,000) and a grand **Total**. Pick a card on
+the Soda transaction → **Dashboard** → **Expected:** a **By card** table (that card · 1 · ₡10,000.00, **No card** · 1 ·
+₡300,000.00, Total ₡310,000.00); with no card on any row the table is absent. **Budget** → **Edit**
 Mortgage → `250000` → **Save** → **Dashboard** → **Expected:** actual ₡300,000.00 now **red**; **Still
 planned** ₡0.00 and the forecast equals Left now. Via Postman (**19 · Dashboard → Month summary**) → 200 with `exchange_rate`,
 `rate_source`, `summary.fixed_expenses[0].actual.crc = 300000`.
@@ -1771,7 +1774,8 @@ Budget lines ₡60,000 (the Supermarket line), Uncommitted = income − ₡60,00
 points (Jun 5, 10, 12), the plan line to ₡60,000 and Today at the right edge (the month is past) — caption
 "100% … · 17% of the plan spent"; "Month by month" with one bar (June) on its income track; "Spend by
 bank" = one slice (the bank of the transactions), "Card vs account" = Credit card only, and under it
-"Budgeted vs spent, by payment method" = one bar pair (card: ₡8,000 spent against the ₡60,000 line); switch to
+"Budgeted vs spent, by payment method" = one bar pair (card: ₡8,000 spent against the ₡60,000 line); (CARDS-2) once a
+row names a card, "Spend by card" = one bar per card, largest first, **No card** last; switch to
 **Date range** → income, budget, pace and trend cards are gone, the two bank donuts stay (the budget-by-method bars go — budgets are per month). Via Postman
 (**20 · Reports → Category analysis (month)**) → 200 with `single_month: true`,
 `budgeted[0].budgeted_crc = 60000`, an `income` `{crc, usd}` pair, `budget_total.crc = 60000`, `by_bank`
@@ -3649,6 +3653,12 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   up; the month page's Income card lists "Other income this month" with the inflows' frozen sum and a link that
   filters the table to them. Client only. QA-LED-06 names both; `DashboardPageTests.Income_ShowsInflows*` and
   `LedgerPagesTests.MonthDetail_IncomeCard_ListsInflows*` pin it. Suite count unchanged (181).
+- **Updated 2026-09-09** — **Per-card summaries (CARDS-2 / REPORTS-6; owner request).** The dashboard gains a **By card**
+  table (alias, transaction count, spend; "No card" last; Total) and the Reports chart view a **Spend by card** bar chart
+  beside Card vs account — both shown once a card has paid something, both over one Core cut (`CardSpend.Calculate`:
+  expense rows by `card_id`, largest first, all-states names). API: `summary.by_card[]` and `by_card[]` on the analysis
+  (key `"none"` = no card). QA-DASH-01 and QA-REP-01 name them; `CardSpendTests`, the dashboard/analysis Core tests,
+  `ReportSliceTests` and the bUnit pages pin it. No entity, no migration.
 - **Updated 2026-09-08** — **Transaction notes (owner request).** An optional `notes` (≤ 250 characters, trimmed,
   blank = null, over the cap = 400) on create/update/get, the month list and the CSV (trailing `notes` column); the
   voucher confirm accepts it. New/Edit show a Notes box with a `0/250` counter; the month page shows a note icon

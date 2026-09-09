@@ -111,7 +111,8 @@ and named by us (the alias). A confirmed voucher links its card, **creating it a
 sight (`auto_named` until renamed); the alias is edited on **Settings → Cards** (`/cards`), never the
 identity. Manual transactions get an optional card picker; the month page shows and filters by card; the
 CSV gains a trailing `card` column. Transactions from before, or without a card, keep `card_id` null —
-a "no card" bucket in every summary, no LEGACY row. Rules under `/api/cards`: alias unique
+a "no card" bucket in every summary, no LEGACY row (the summaries themselves — dashboard "By card", Reports "Spend by
+card" — are CARDS-2, REPORTS-6, 2026-09-09). Rules under `/api/cards`: alias unique
 case-insensitively, `card_exists` (alias **or** identity clash) / `card_exists_inactive` + `existing_id`
 + `existing_name`, uniform 404, never seeded. BN payment receipts name no brand → `CARD-0000`.
 

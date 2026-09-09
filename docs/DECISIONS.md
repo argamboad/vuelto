@@ -1705,7 +1705,8 @@ fake in the catalog. *Rationale:* the question "how much went through which card
 identity the household never types (the bank's) and a label it recognises (its own); the two are kept
 apart so renaming never breaks matching. *Consequences:* migration `AddCards` (RLS, `Transactions.CardId`,
 `PendingVouchers.CardBrand`); `GET`/`POST`/`PUT /api/cards`; the month list and the CSV carry the alias;
-the snapshot tool carries the table; the per-card summaries (dashboard table, Reports cut) are the next slice.
+the snapshot tool carries the table; the per-card summaries (dashboard "By card" table, Reports "Spend by card" bars)
+shipped as CARDS-2 (2026-09-09) over one Core cut, `CardSpend.Calculate` — expense rows by `card_id`, "no card" last.
 *Renewals (same day, owner question):* a renewed card prints a new number but is the same card, so a card owns a
 **list of identities** (`CardIdentity`, unique per household) rather than one pair; the voucher path matches on any
 of them, and `POST /api/cards/{id}/merge { into }` folds the auto-named newcomer into the card the household knows —

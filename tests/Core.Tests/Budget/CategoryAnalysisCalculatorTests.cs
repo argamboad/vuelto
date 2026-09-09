@@ -70,6 +70,22 @@ public class CategoryAnalysisCalculatorTests
     // ---- REPORTS-4: by bank, by payment method, by day ----
 
     [Fact]
+    public void ByCard_GroupsExpenseRows_LargestFirst_NoCardLast_WithAllStatesNames()
+    {
+        // CARDS-2: the Reports "Spend by card" cut — any period, stored amounts, an inactive card still names its bar.
+        var visa = Guid.NewGuid(); var old = Guid.NewGuid();
+        Transaction On(Guid? card, string type, decimal crc) { var t = Tx(Groceries, type, crc, crc / 500m); t.CardId = card; return t; }
+
+        var report = CategoryAnalysisCalculator.Calculate(
+            [On(visa, "budgeted", 1_000m), On(old, "extraordinary", 4_000m), On(null, "budgeted", 9_000m), On(visa, "inflow", 50_000m)],
+            Names, From, To, null, null, new Dictionary<Guid, string> { [visa] = "Allan's Visa", [old] = "Old Amex" });
+
+        Assert.Equal(["Old Amex", "Allan's Visa", ""], report.ByCard.Select(c => c.CardName));
+        Assert.Equal((old, 4_000m, 8m, 1), (report.ByCard[0].CardId, report.ByCard[0].TotalCrc, report.ByCard[0].TotalUsd, report.ByCard[0].Count));
+        Assert.Null(report.ByCard[2].CardId);
+    }
+
+    [Fact]
     public void ByBank_GroupsExpenseRows_LargestFirst_WithAllStatesNames_InflowsExcluded()
     {
         var bac = Guid.NewGuid(); var bn = Guid.NewGuid(); var closed = Guid.NewGuid();
