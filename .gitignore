@@ -1,5 +1,8 @@
-# Local dev environment — never commit secrets
+# Local dev environment — never commit secrets.
+# `.env` alone does NOT match names like `myapp-staging.env`, so match any *.env too
+# (`.env.example` is unaffected — it ends in .example — and stays committed).
 .env
+*.env
 
 # .NET build output
 bin/

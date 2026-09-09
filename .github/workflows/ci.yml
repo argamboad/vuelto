@@ -779,6 +779,20 @@ jobs:
           dotnet build src/Web/Vuelto.Web.csproj -c Debug --no-restore
           dotnet build tests/E2E.Tests/Vuelto.E2E.Tests.csproj -c Debug --no-restore
 
+      - name: Drop the runner's Google Chrome apt repo
+        # Playwright fetches Chromium from its own CDN; `--with-deps` only needs the Ubuntu
+        # archives. The runner image ships Google's chrome-stable apt source, and its CDN can
+        # serve mismatched index metadata (Release vs Packages.gz "Hash Sum mismatch"), which
+        # hard-fails the apt-get update inside `install --with-deps` — killed the 2026-09-09
+        # develop run twice (34383035730). A repo we never install from can't be allowed to
+        # fail the job. Match by CONTENT, not filename — a hardcoded google-chrome.list missed
+        # it on the live image (the source ships under varying names/formats: .list vs deb822
+        # .sources). The `ls` documents the actual layout in the job log. Ubuntu's own sources
+        # (ubuntu.sources) never reference dl.google.com, so they can't match.
+        run: |
+          ls -la /etc/apt/sources.list.d/
+          grep -rl "dl.google.com" /etc/apt/sources.list.d/ | xargs -r sudo rm -fv
+
       - name: Install Chromium (Playwright)
         run: pwsh tests/E2E.Tests/bin/Debug/net10.0/playwright.ps1 install --with-deps chromium
 
