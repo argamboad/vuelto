@@ -22,7 +22,7 @@ public static class CategoryAnalysisCalculator
         DateOnly to,
         IReadOnlyList<IExpenseLine>? activeLines,
         IReadOnlyDictionary<Guid, string>? bankNames = null,
-        IReadOnlyDictionary<Guid, string>? cardNames = null)
+        IReadOnlyDictionary<Guid, CardLabel>? cardNames = null)
     {
         var singleMonth = activeLines is not null;
         var budgetByCategory = new Dictionary<Guid, (decimal Crc, decimal Usd)>();

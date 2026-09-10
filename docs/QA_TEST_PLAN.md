@@ -1692,7 +1692,7 @@ And Income (with Primary / Secondary underneath; Secondary hidden when zero) hea
 And Fixed expenses shows Mortgage — Budgeted ₡350,000.00 · $700.00 — Actual ₡300,000.00 in green
 And Other spending lists Dining ₡10,000.00; Unplanned essentials shows ₡10,000.00
 And Week by week shows the mortgage in week 2; By bank and payment method shows BAC / Bank account budget ₡350,000 actual ₡300,000, grouped by method with a "Credit card — total" and a "Bank account — total" row and a grand total
-And (CARDS-2) once a card has paid something, By card lists each card's alias, transaction count and spend, "No card" last, with a Total row
+And (CARDS-2/3) once a card has paid something, By card sits beside the bank table and lists each card's alias, kind, transaction count, spend and share of the month, "No card" last, with a Total row
 When I Edit Mortgage's budget down to ₡250,000 and reload the dashboard
 Then Mortgage's actual turns red (over budget) and Pending budgeted drops to ₡0.00
 And the Fixed, Variable, Other spending and Week by week tables each end with a Total row (the sum of the rows shown; the lines total keeps the over/under colour)
@@ -1801,7 +1801,8 @@ points (Jun 5, 10, 12), the plan line to ₡60,000 and Today at the right edge (
 "100% … · 17% of the plan spent"; "Month by month" with one bar (June) on its income track; "Spend by
 bank" = one slice (the bank of the transactions), "Card vs account" = Credit card only, and under it
 "Budgeted vs spent, by payment method" = one bar pair (card: ₡8,000 spent against the ₡60,000 line); (CARDS-2) once a
-row names a card, "Spend by card" = one bar per card, largest first, **No card** last; switch to
+row names a card, **Spend by card** is a donut beside **Spend by bank**, largest first with **No card** last, and
+**Card vs account** sits below them full width (donut left, budget bars right); switch to
 **Date range** → income, budget, pace and trend cards are gone, the two bank donuts stay (the budget-by-method bars go — budgets are per month). Via Postman
 (**20 · Reports → Category analysis (month)**) → 200 with `single_month: true`,
 `budgeted[0].budgeted_crc = 60000`, an `income` `{crc, usd}` pair, `budget_total.crc = 60000`, `by_bank`
@@ -3680,6 +3681,13 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   up; the month page's Income card lists "Other income this month" with the inflows' frozen sum and a link that
   filters the table to them. Client only. QA-LED-06 names both; `DashboardPageTests.Income_ShowsInflows*` and
   `LedgerPagesTests.MonthDetail_IncomeCard_ListsInflows*` pin it. Suite count unchanged (181).
+- **Updated 2026-09-10** — **Where the money left from, read as one idea (owner request).** "By card" had been appended
+  to whichever grid had room, so it sat half-width and alone on both pages. The dashboard now pairs **By bank and payment
+  method** (7 cols) with **By card** (5 cols), and By card gains the card's **kind** and its **share** of the month.
+  Reports pairs **Spend by card** with **Spend by bank** as two donuts — one shape for one question — and drops
+  **Card vs account** below them at full width, donut left and the budgeted-vs-spent bars right, where they finally fit.
+  The review queue also calls out cards a voucher named but nobody has renamed, with a link to Manage cards, so an
+  automatic alias and the credit default stop sitting wrong unseen. Presentation only; `summary.by_card[]` gains `kind`.
 - **Updated 2026-09-10** — **Credit or debit on a card (CARDS-3; owner question).** Every voucher confirm booked
   `credit_card`, so debit purchases were counted as card spending everywhere the card-versus-account split appears.
   `Card.Kind` (`credit` default | `debit`) now decides: the confirm and the manual picker derive `payment_method`

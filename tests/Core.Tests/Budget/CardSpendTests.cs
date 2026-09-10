@@ -21,11 +21,11 @@ public class CardSpendTests
         [
             Tx(Visa, "budgeted", 1_000m), Tx(Amex, "extraordinary", 5_000m), Tx(Visa, "unplanned_essential", 2_500m),
             Tx(null, "budgeted", 9_000m), Tx(Visa, "inflow", 90_000m), Tx(Amex, "envelope_contribution", 7_000m)
-        ], new Dictionary<Guid, string> { [Visa] = "Allan's Visa", [Amex] = "Old Amex" });
+        ], new Dictionary<Guid, CardLabel> { [Visa] = new("Allan's Visa", CardKinds.Debit), [Amex] = new("Old Amex", CardKinds.Credit) });
 
         Assert.Equal(["Old Amex", "Allan's Visa", ""], rows.Select(r => r.CardName));
         Assert.Equal((Amex, 5_000m, 10m, 1), (rows[0].CardId, rows[0].TotalCrc, rows[0].TotalUsd, rows[0].Count));
-        Assert.Equal((Visa, 3_500m, 2), (rows[1].CardId, rows[1].TotalCrc, rows[1].Count));
+        Assert.Equal((Visa, "debit", 3_500m, 2), (rows[1].CardId, rows[1].CardKind, rows[1].TotalCrc, rows[1].Count)); // the kind rides along for the dashboard column
         Assert.Equal((null, 9_000m), (rows[2].CardId, rows[2].TotalCrc)); // the "no card" bucket closes the list, whatever its size
     }
 
@@ -34,6 +34,6 @@ public class CardSpendTests
     {
         Assert.Empty(CardSpend.Calculate([Tx(Visa, "inflow", 100m)], null));
         var unknown = Assert.Single(CardSpend.Calculate([Tx(Visa, "budgeted", 100m)], null));
-        Assert.Equal((Visa, ""), (unknown.CardId, unknown.CardName));
+        Assert.Equal((Visa, "", "credit"), (unknown.CardId, unknown.CardName, unknown.CardKind)); // an unknown card reads as credit, the default
     }
 }

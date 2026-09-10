@@ -211,10 +211,11 @@
                     </div>
                 </div>
 
+                @* Where the money left from, read two ways side by side: by the account it came out of, and by the plastic. *@
                 @if (s.BankMethodBreakdown.Count > 0)
                 {
-                    <div class="col-12">
-                        <div class="card shadow-sm" data-testid="dash-banks">
+                    <div class="col-12 col-lg-7">
+                        <div class="card shadow-sm h-100" data-testid="dash-banks">
                             <div class="card-body">
                                 <h2 class="h6 fw-bold mb-2">@Localizer["Dash_BankMethod"]</h2>
                                 <div class="table-responsive">
@@ -233,21 +234,21 @@
                                                     <tr data-testid="dash-bank-row">
                                                         <td>@(b.BankId is null ? Localizer["Budget_Unassigned"] : b.BankName)</td>
                                                         <td>@label</td>
-                                                        <td class="text-end">@Show(b.Budget)</td>
-                                                        <td class="text-end @OverTone(b.Budget, b.Actual)">@Show(b.Actual)</td>
+                                                        <td class="text-end text-nowrap">@Show(b.Budget)</td>
+                                                        <td class="text-end text-nowrap @OverTone(b.Budget, b.Actual)">@Show(b.Actual)</td>
                                                     </tr>
                                                 }
                                                 var methodBudget = Sum(rows.Select(r => r.Budget)); var methodActual = Sum(rows.Select(r => r.Actual));
                                                 <tr class="fw-semibold" data-testid="dash-method-total" data-method="@method">
                                                     <td colspan="2">@Localizer["Dash_MethodTotal", label]</td>
-                                                    <td class="text-end">@Show(methodBudget)</td>
-                                                    <td class="text-end @OverTone(methodBudget, methodActual)">@Show(methodActual)</td>
+                                                    <td class="text-end text-nowrap">@Show(methodBudget)</td>
+                                                    <td class="text-end text-nowrap @OverTone(methodBudget, methodActual)">@Show(methodActual)</td>
                                                 </tr>
                                             }
                                         </tbody>
                                         @{ var banksBudget = Sum(s.BankMethodBreakdown.Select(b => b.Budget)); var banksActual = Sum(s.BankMethodBreakdown.Select(b => b.Actual)); }
                                         <tfoot>
-                                            <tr class="fw-semibold border-top" data-testid="dash-banks-total"><td colspan="2">@Localizer["Dash_Total"]</td><td class="text-end">@Show(banksBudget)</td><td class="text-end @OverTone(banksBudget, banksActual)">@Show(banksActual)</td></tr>
+                                            <tr class="fw-semibold border-top" data-testid="dash-banks-total"><td colspan="2">@Localizer["Dash_Total"]</td><td class="text-end text-nowrap">@Show(banksBudget)</td><td class="text-end text-nowrap @OverTone(banksBudget, banksActual)">@Show(banksActual)</td></tr>
                                         </tfoot>
                                     </table>
                                 </div>
@@ -259,25 +260,34 @@
                 @* CARDS-2: "how much went through each card?" — only once a card has been used; a lone "No card" row says nothing. *@
                 @if (s.ByCard is { } byCard && byCard.Any(c => c.CardId is not null))
                 {
-                    <div class="col-12 col-lg-6">
-                        <div class="card shadow-sm" data-testid="dash-cards">
+                    <div class="col-12 col-lg-5">
+                        <div class="card shadow-sm h-100" data-testid="dash-cards">
                             <div class="card-body">
                                 <h2 class="h6 fw-bold mb-2">@Localizer["Dash_ByCard"]</h2>
                                 <div class="table-responsive">
                                     <table class="table table-sm mb-0">
-                                        <thead><tr><th>@Localizer["Tx_Card"]</th><th class="text-end">@Localizer["Dash_Transactions"]</th><th class="text-end">@Localizer["Dash_Actual"]</th></tr></thead>
+                                        @{ var cardsTotal = byCard.Sum(c => c.Actual.Crc); }
+                                        <thead><tr><th>@Localizer["Tx_Card"]</th><th class="text-end">@Localizer["Dash_Actual"]</th><th class="text-end">@Localizer["Dash_Share"]</th></tr></thead>
                                         <tbody>
                                             @foreach (var c in byCard)
                                             {
                                                 <tr data-testid="dash-card-row" data-card="@(c.CardId?.ToString() ?? "none")">
-                                                    <td>@(c.CardId is null ? Localizer["Tx_NoCard"] : c.CardName)</td>
-                                                    <td class="text-end">@c.Count</td>
-                                                    <td class="text-end">@Show(c.Actual)</td>
+                                                    <td>
+                                                        @(c.CardId is null ? Localizer["Tx_NoCard"] : c.CardName)
+                                                        <div class="small text-muted" data-testid="dash-card-meta">
+                                                            @(c.CardId is null
+                                                                ? Localizer["Dash_CardCount", c.Count]
+                                                                : Localizer["Dash_CardMeta", c.Kind == "debit" ? Localizer["Cards_KindDebit"] : Localizer["Cards_KindCredit"], c.Count])
+                                                        </div>
+                                                    </td>
+                                                    <td class="text-end text-nowrap">@Show(c.Actual)</td>
+                                                    @* The share is what makes two cards comparable at a glance; colones carry it, both sides scale together. *@
+                                                    <td class="text-end text-muted" data-testid="dash-card-share">@Share(c.Actual.Crc, cardsTotal)</td>
                                                 </tr>
                                             }
                                         </tbody>
                                         <tfoot>
-                                            <tr class="fw-semibold border-top" data-testid="dash-cards-total"><td>@Localizer["Dash_Total"]</td><td class="text-end">@byCard.Sum(c => c.Count)</td><td class="text-end">@Show(Sum(byCard.Select(c => c.Actual)))</td></tr>
+                                            <tr class="fw-semibold border-top" data-testid="dash-cards-total"><td>@Localizer["Dash_Total"]<div class="small text-muted fw-normal">@Localizer["Dash_CardCount", byCard.Sum(c => c.Count)]</div></td><td class="text-end text-nowrap">@Show(Sum(byCard.Select(c => c.Actual)))</td><td class="text-end">@Share(cardsTotal, cardsTotal)</td></tr>
                                         </tfoot>
                                     </table>
                                 </div>
@@ -356,6 +366,8 @@
     /// <summary>The page's "show in" (MoneyDisplay): ₡, $, or both sides. Picking one currency also points the bar at it.</summary>
     private string _display = MoneyDisplay.Both;
     private string Show(MoneyDto m) => MoneyDisplay.Format(m.Crc, m.Usd, _display);
+
+    private static string Share(decimal part, decimal total) => total == 0 ? "—" : (part / total).ToString("P0", CultureInfo.CurrentCulture);
 
     private async Task SetDisplayAsync(string display)
     {
@@ -478,7 +490,7 @@
         [property: JsonPropertyName("envelope_reminders")] List<EnvelopeDto> EnvelopeReminders,
         [property: JsonPropertyName("bank_method_breakdown")] List<BankDto> BankMethodBreakdown,
         [property: JsonPropertyName("by_card")] List<CardSpendDto>? ByCard = null);
-    private sealed record CardSpendDto([property: JsonPropertyName("card_id")] Guid? CardId, [property: JsonPropertyName("card_name")] string CardName, [property: JsonPropertyName("actual")] MoneyDto Actual, [property: JsonPropertyName("count")] int Count);
+    private sealed record CardSpendDto([property: JsonPropertyName("card_id")] Guid? CardId, [property: JsonPropertyName("card_name")] string CardName, [property: JsonPropertyName("actual")] MoneyDto Actual, [property: JsonPropertyName("count")] int Count, [property: JsonPropertyName("kind")] string? Kind = null);
     private sealed record DashMonthDto([property: JsonPropertyName("id")] Guid Id, [property: JsonPropertyName("year")] int Year, [property: JsonPropertyName("month_number")] int MonthNumber, [property: JsonPropertyName("week_count")] int WeekCount, [property: JsonPropertyName("week1_start_date")] DateOnly Week1StartDate, [property: JsonPropertyName("last_day")] DateOnly LastDay);
     private sealed record DashDto(
         [property: JsonPropertyName("month")] DashMonthDto Month,

@@ -2,8 +2,11 @@ using Vuelto.Core.Entities;
 
 namespace Vuelto.Core.Budget;
 
+/// <summary>What a card is called and what kind of plastic it is — the labels a spend cut needs (CARDS-2/3).</summary>
+public record CardLabel(string Name, string Kind);
+
 /// <summary>Spend on one card over a set of rows (CARDS-2). <c>CardId</c> null = the "no card" bucket (cash, transfers, rows from before CARDS-1).</summary>
-public record CardSpendEntry(Guid? CardId, string CardName, decimal TotalCrc, decimal TotalUsd, int Count);
+public record CardSpendEntry(Guid? CardId, string CardName, string CardKind, decimal TotalCrc, decimal TotalUsd, int Count);
 
 /// <summary>
 /// CARDS-2: "how much went through each card?" — the expense-class rows (budgeted, extraordinary, unplanned essential;
@@ -13,14 +16,18 @@ public record CardSpendEntry(Guid? CardId, string CardName, decimal TotalCrc, de
 /// </summary>
 public static class CardSpend
 {
-    public static IReadOnlyList<CardSpendEntry> Calculate(IEnumerable<Transaction> transactions, IReadOnlyDictionary<Guid, string>? cardNames)
+    public static IReadOnlyList<CardSpendEntry> Calculate(IEnumerable<Transaction> transactions, IReadOnlyDictionary<Guid, CardLabel>? cards)
     {
-        var names = cardNames ?? new Dictionary<Guid, string>();
+        var labels = cards ?? new Dictionary<Guid, CardLabel>();
         return transactions
             .Where(t => TransactionTypes.Expenses.Contains(t.TransactionType))
             .GroupBy(t => t.CardId)
-            .Select(g => new CardSpendEntry(g.Key, g.Key is { } id ? names.GetValueOrDefault(id, "") : "",
-                CurrencyMath.Round2(g.Sum(t => t.AmountCrc)), CurrencyMath.Round2(g.Sum(t => t.AmountUsd)), g.Count()))
+            .Select(g =>
+            {
+                var label = g.Key is { } id ? labels.GetValueOrDefault(id) : null;
+                return new CardSpendEntry(g.Key, label?.Name ?? "", label?.Kind ?? CardKinds.Credit,
+                    CurrencyMath.Round2(g.Sum(t => t.AmountCrc)), CurrencyMath.Round2(g.Sum(t => t.AmountUsd)), g.Count());
+            })
             .OrderBy(e => e.CardId is null).ThenByDescending(e => e.TotalCrc).ThenBy(e => e.CardName, StringComparer.OrdinalIgnoreCase)
             .ToList();
     }

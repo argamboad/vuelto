@@ -215,42 +215,46 @@
                             </div>
                         </div>
                     </div>
-                    <div class="col-12 col-lg-6">
-                        <div class="card shadow-sm h-100" data-testid="rep-method-card">
-                            <div class="card-body">
-                                <h2 class="h6 fw-bold mb-2">@Localizer["Reports_ByMethod"]</h2>
-                                <DonutChart TestId="rep-method-donut" Currency="@_chartCurrency" Title="@Localizer["Reports_ByMethod"].Value" Slices="MethodSlices()" />
-                                @* Single month with a rate: the plan cut the same way, beside the spend — "budgeted on cards vs the account". *@
-                                @if (_report.BudgetByMethod is { Count: > 0 })
-                                {
-                                    <div class="mt-3">
-                                        <h3 class="small fw-semibold text-muted mb-1">@Localizer["Reports_MethodBudget"]</h3>
-                                        <BarChart TestId="rep-method-bars" Currency="@_chartCurrency" Title="@Localizer["Reports_MethodBudget"].Value" Items="MethodBars()"
-                                                  ActualLabel="@Localizer["Reports_TrendSpend"].Value" BudgetLabel="@Localizer["Chart_Budget"].Value" />
-                                        @* The bar prints the spend; the question is the plan — say both, per method. *@
-                                        <ul class="list-unstyled small text-muted mb-0 mt-1">
-                                            @foreach (var m in MethodBars())
-                                            {
-                                                <li data-testid="rep-method-caption">@m.Label: @Localizer["Reports_MethodCaption", Amount(m.Budget ?? 0), Amount(m.Value)]</li>
-                                            }
-                                        </ul>
-                                    </div>
-                                }
-                            </div>
-                        </div>
-                    </div>
-                    @* CARDS-2: spend by card over the period — stored amounts, so any period; only once a card has been used. *@
+                    @* CARDS-2: spend by card over the period — a donut, like its neighbour: both answer "which source". *@
                     @if (_report.ByCard is { } byCard && byCard.Any(c => c.Key != "none"))
                     {
                         <div class="col-12 col-lg-6">
                             <div class="card shadow-sm h-100" data-testid="rep-card-card">
                                 <div class="card-body">
                                     <h2 class="h6 fw-bold mb-2">@Localizer["Reports_ByCard"]</h2>
-                                    <BarChart TestId="rep-card-bars" Currency="@_chartCurrency" Title="@Localizer["Reports_ByCard"].Value" Items="CardBars()" ActualLabel="@Localizer["Reports_TrendSpend"].Value" />
+                                    <DonutChart TestId="rep-card-donut" Currency="@_chartCurrency" Title="@Localizer["Reports_ByCard"].Value" Slices="CardSlices()" />
                                 </div>
                             </div>
                         </div>
                     }
+                    @* Card vs account is the tall one — the donut and the plan-vs-spend bars side by side across the full width. *@
+                    <div class="col-12">
+                        <div class="card shadow-sm" data-testid="rep-method-card">
+                            <div class="card-body">
+                                <h2 class="h6 fw-bold mb-2">@Localizer["Reports_ByMethod"]</h2>
+                                <div class="row g-3">
+                                    <div class="col-12 col-lg-5">
+                                        <DonutChart TestId="rep-method-donut" Currency="@_chartCurrency" Title="@Localizer["Reports_ByMethod"].Value" Slices="MethodSlices()" />
+                                    </div>
+                                    @if (_report.BudgetByMethod is { Count: > 0 })
+                                    {
+                                        <div class="col-12 col-lg-7">
+                                            <h3 class="small fw-semibold text-muted mb-1">@Localizer["Reports_MethodBudget"]</h3>
+                                            <BarChart TestId="rep-method-bars" Currency="@_chartCurrency" Title="@Localizer["Reports_MethodBudget"].Value" Items="MethodBars()"
+                                                      ActualLabel="@Localizer["Reports_TrendSpend"].Value" BudgetLabel="@Localizer["Chart_Budget"].Value" />
+                                            @* The bar prints the spend; the question is the plan — say both, per method. *@
+                                            <ul class="list-unstyled small text-muted mb-0 mt-1">
+                                                @foreach (var m in MethodBars())
+                                                {
+                                                    <li data-testid="rep-method-caption">@m.Label: @Localizer["Reports_MethodCaption", Amount(m.Budget ?? 0), Amount(m.Value)]</li>
+                                                }
+                                            </ul>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 }
                 <div class="col-12">@Section(Localizer["Tx_Budgeted"], _report.Budgeted, "rep-budgeted", _report.SingleMonth)</div>
                 <div class="col-12 col-lg-6">@Section(Localizer["Tx_Extraordinary"], _report.Extraordinary, "rep-extraordinary", false)</div>
@@ -412,9 +416,9 @@
             .ToList();
     }
 
-    /// <summary>One bar per card, largest first, the "no card" bucket last with its own label (CARDS-2).</summary>
-    private List<BarItem> CardBars() => (_report?.ByCard ?? [])
-        .Select(c => new BarItem(c.Key == "none" ? Localizer["Tx_NoCard"].Value : c.Label, Side(c.TotalCrc, c.TotalUsd)))
+    /// <summary>One slice per card, largest first, the "no card" bucket last with its own label (CARDS-2).</summary>
+    private List<DonutSlice> CardSlices() => (_report?.ByCard ?? [])
+        .Select((c, i) => new DonutSlice(c.Key == "none" ? Localizer["Tx_NoCard"].Value : c.Label, Side(c.TotalCrc, c.TotalUsd), Palette[i % Palette.Length]))
         .ToList();
 
     private List<DonutSlice> MethodSlices() => (_report?.ByMethod ?? [])

@@ -234,10 +234,14 @@ public class DashboardPageTests : ComponentTestBase
         var cardRows = cut.FindAll("[data-testid='dash-card-row']");
         Assert.Equal(2, cardRows.Count);
         Assert.Contains("Allan's Visa", cardRows[0].TextContent);
-        Assert.Contains("₡10,000.00 · $20.00", cardRows[0].QuerySelectorAll("td")[2].TextContent);
+        Assert.Contains("₡10,000.00 · $20.00", cardRows[0].QuerySelectorAll("td")[1].TextContent);
+        // Only money earns a column; the kind (which explains the Bank account row next door) and the count ride under the alias.
+        Assert.Equal("Dash_CardMeta[Cards_KindCredit, 1]", cardRows[0].QuerySelector("[data-testid='dash-card-meta']")!.TextContent.Trim());
+        Assert.Equal("Dash_CardCount[1]", cardRows[1].QuerySelector("[data-testid='dash-card-meta']")!.TextContent.Trim()); // the "no card" bucket has no kind
+        Assert.Equal(["3%", "97%"], cardRows.Select(r => r.QuerySelector("[data-testid='dash-card-share']")!.TextContent.Trim()));
         Assert.Equal("none", cardRows[1].GetAttribute("data-card"));
         Assert.Contains("Tx_NoCard", cardRows[1].TextContent);
-        Assert.Contains("₡310,000.00 · $620.00", cut.Find("[data-testid='dash-cards-total']").QuerySelectorAll("td")[2].TextContent);
+        Assert.Contains("₡310,000.00 · $620.00", cut.Find("[data-testid='dash-cards-total']").QuerySelectorAll("td")[1].TextContent);
         Assert.Equal(2, cut.FindAll("[data-testid='dash-month'] option").Count);
     }
 

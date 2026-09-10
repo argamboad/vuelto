@@ -66,7 +66,7 @@ public sealed class ReportHandler(
         var rows = await InPeriod(period).ToListAsync(cancellationToken);
         var names = await categories.Query().ToDictionaryAsync(c => c.Id, c => c.Name, cancellationToken); // all states
         var bankNames = await banks.Query().ToDictionaryAsync(b => b.Id, b => b.Name, cancellationToken);  // all states
-        var cardNames = await cards.Query().ToDictionaryAsync(c => c.Id, c => c.Name, cancellationToken);  // all states (CARDS-2)
+        var cardNames = await cards.Query().ToDictionaryAsync(c => c.Id, c => new CardLabel(c.Name, c.Kind), cancellationToken); // all states (CARDS-2/3)
 
         List<IExpenseLine>? lines = null;
         MoneyPair? income = null, budgetTotal = null;
