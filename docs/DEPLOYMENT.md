@@ -375,33 +375,59 @@ The MAUI shells (Android, Windows; iOS/macCatalyst on a Mac) are the same app as
 the API base URL in (`-p:ApiBaseUrl`, refused when missing — v3 NAT-3), so one build = one host. Debug
 builds keep the localhost base and are for development only.
 
-**Android (sideload APK)** — from the repo root, on Windows:
+**Use the script.** Every sideloading failure below is silent — the phone shows nothing, or "app not
+installed", and none of them says why. `tools/publish-native.ps1` exists so there is no choice to get wrong:
+it publishes, picks the signed APK, copies it to `out/<app>.apk` and prints the signature schemes.
 
 ```powershell
-dotnet publish src/Maui/Vuelto.Maui.csproj -f net10.0-android -c Release `
+pwsh tools/publish-native.ps1 -ApiBaseUrl https://<your-host>            # both platforms
+pwsh tools/publish-native.ps1 -ApiBaseUrl https://<your-host> -Android   # just the phone
+```
+
+Send `out/<app>.apk`. Expect `Verified using v2 scheme … true` in the output; if you do not see it, do not
+ship the file.
+
+**The three ways a sideload fails without telling you:**
+
+1. **The wrong file.** A publish leaves *two* APKs in `out/android`: `<ApplicationId>.apk` is **unsigned**
+   (no `META-INF/MANIFEST.MF`) and Android drops it on the floor. Only `<ApplicationId>-Signed.apk`
+   installs. The script copies that one out for you.
+2. **A v1-only signature.** Android 11+ refuses it and the installer does nothing — what the old jarsigner
+   fallback produced. A Release build now forces `apksigner` (v2 + v3) with the developer's **debug key**,
+   the same key the IDE's debug installs use, so a sideload upgrades over one.
+3. **The app is running.** Android will not replace a package that is in the foreground. Close it on the
+   phone first.
+
+**Raw commands** (the fallback, when you cannot run the script):
+
+```powershell
+dotnet publish src/Maui/<App>.Maui.csproj -f net10.0-android -c Release `
   -p:ApiBaseUrl=https://<your-host> -p:AndroidPackageFormat=apk -p:AcceptAndroidSDKLicenses=true `
   -o out/android
 ```
 
-The installable file is `out/android/<ApplicationId>-Signed.apk`. Send it to the phone (USB, a drive, a
-message to yourself), open it, allow installs from that source. **Signing:** a Release build signs through
-`apksigner` (APK Signature Scheme v2 + v3) with the developer's **debug key** by default — the same key the
-IDE's debug installs use, so the build upgrades over one. Android 11+ **refuses a v1-only APK and the
-installer does nothing**, which is what the old jarsigner fallback produced; the csproj now forces the
-apksigner path. For a store build pass the real keystore instead: `-p:AndroidSigningKeyStore=… `
-`-p:AndroidSigningKeyAlias=… -p:AndroidSigningKeyPass=… -p:AndroidSigningStorePass=…`. Verify any APK
-with `apksigner verify --verbose` (Android SDK `build-tools`; needs a JDK on `JAVA_HOME`) — expect
-`v2 … true`. Do **not** pass `-p:RuntimeIdentifier` for the Android or Windows publish (it drags the
-android inner build into a Mono runtime-pack lookup — NU1102).
-
-**Windows (unpackaged folder)** — no installer, no certificate:
+Then verify by hand before sending `out/android/<ApplicationId>-Signed.apk`:
 
 ```powershell
-dotnet publish src/Maui/Vuelto.Maui.csproj -f net10.0-windows10.0.19041.0 -c Release `
+& "$env:LOCALAPPDATA\Android\Sdk\build-tools\<newest>\apksigner.bat" verify --verbose out/android/<ApplicationId>-Signed.apk
+```
+
+`apksigner.bat` reads `JAVA_HOME` and dies when it points at a JDK you have since uninstalled — a common
+state after a JDK update, and the reason the check gets skipped. The script drops a stale value and finds a
+JDK itself. For a store build pass the real keystore instead: `-p:AndroidSigningKeyStore=… `
+`-p:AndroidSigningKeyAlias=… -p:AndroidSigningKeyPass=… -p:AndroidSigningStorePass=…`. Do **not** pass
+`-p:RuntimeIdentifier` for the Android or Windows publish (it drags the android inner build into a Mono
+runtime-pack lookup — NU1102).
+
+**Windows (unpackaged folder)** — no installer, no certificate; the same script does it
+(`-Windows`), or by hand:
+
+```powershell
+dotnet publish src/Maui/<App>.Maui.csproj -f net10.0-windows10.0.19041.0 -c Release `
   -p:ApiBaseUrl=https://<your-host> -p:WindowsPackageType=None -o out/windows
 ```
 
-Run `out/windows/Vuelto.Maui.exe` from that folder (pin a shortcut). SmartScreen warns once because it is
+Run `out/windows/<App>.Maui.exe` from that folder (pin a shortcut). SmartScreen warns once because it is
 unsigned — *More info → Run anyway*. An MSIX for the Store needs a signing certificate; not covered here.
 
 **On the host:** native OAuth (Google / Microsoft sign-in from the phone) returns to the app through the
