@@ -358,6 +358,11 @@
   <data name="Catalog_ManageCategories" xml:space="preserve"><value>Administrar categorías</value></data>
   <data name="Catalog_ManageBanks" xml:space="preserve"><value>Administrar bancos</value></data>
   <data name="Cards_SettingsLink" xml:space="preserve"><value>Administrar tarjetas</value></data>
+  <data name="Cards_Kind" xml:space="preserve"><value>Tipo</value></data>
+  <data name="Cards_KindCredit" xml:space="preserve"><value>Crédito</value></data>
+  <data name="Cards_KindDebit" xml:space="preserve"><value>Débito</value></data>
+  <data name="Cards_Backfill" xml:space="preserve"><value>Corregir también las transacciones pasadas de esta tarjeta</value></data>
+  <data name="Cards_Backfilled" xml:space="preserve"><value>Actualizada. {0} transacción(es) pasada(s) ahora coinciden con esta tarjeta.</value></data>
   <data name="Cards_Title" xml:space="preserve"><value>Tarjetas</value></data>
   <data name="Cards_Subtitle" xml:space="preserve"><value>Las tarjetas con las que se pagan tus transacciones. Una tarjeta confirmada desde un voucher aparece aquí como VISA-1234 hasta que le pongas nombre; la marca y los últimos cuatro dígitos son lo que imprime el banco.</value></data>
   <data name="Cards_New" xml:space="preserve"><value>Nueva tarjeta</value></data>

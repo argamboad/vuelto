@@ -30,6 +30,8 @@ public class PendingVoucher : ITenantScoped
     public string? CardNumber { get; set; }
     /// <summary>The brand label the voucher printed the card under (CARDS-1); null when it names none.</summary>
     public string? CardBrand { get; set; }
+    /// <summary>What the card row said about credit vs debit, when it said anything (CARDS-3).</summary>
+    public string? CardKind { get; set; }
     public string? Authorization { get; set; }
     public string? Reference { get; set; }
     public string? TransactionType { get; set; }

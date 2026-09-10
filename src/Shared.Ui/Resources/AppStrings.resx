@@ -358,6 +358,11 @@
   <data name="Catalog_ManageCategories" xml:space="preserve"><value>Manage categories</value></data>
   <data name="Catalog_ManageBanks" xml:space="preserve"><value>Manage banks</value></data>
   <data name="Cards_SettingsLink" xml:space="preserve"><value>Manage cards</value></data>
+  <data name="Cards_Kind" xml:space="preserve"><value>Kind</value></data>
+  <data name="Cards_KindCredit" xml:space="preserve"><value>Credit</value></data>
+  <data name="Cards_KindDebit" xml:space="preserve"><value>Debit</value></data>
+  <data name="Cards_Backfill" xml:space="preserve"><value>Also correct past transactions on this card to match</value></data>
+  <data name="Cards_Backfilled" xml:space="preserve"><value>Updated. {0} past transaction(s) now match this card.</value></data>
   <data name="Cards_Title" xml:space="preserve"><value>Cards</value></data>
   <data name="Cards_Subtitle" xml:space="preserve"><value>The cards your transactions are paid with. A card confirmed from a voucher appears here as VISA-1234 until you give it a name; brand and last four digits are what the bank prints.</value></data>
   <data name="Cards_New" xml:space="preserve"><value>New card</value></data>

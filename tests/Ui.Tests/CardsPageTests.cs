@@ -120,6 +120,32 @@ public class CardsPageTests : ComponentTestBase
     }
 
     [Fact]
+    public async Task Kind_ShowsOnTheRow_AndEditPostsItWithTheOptInBackfill()
+    {
+        // CARDS-3: the kind is set once on the card; correcting past transactions is a deliberate extra tick.
+        await SignInAsync();
+        Http.On(HttpMethod.Get, "/api/banks", Banks);
+        Http.On(HttpMethod.Get, "/api/cards", $$"""
+            [{"id":"{{Auto}}","name":"Allan's Debit","brand":"VISA","last4":"4444","bank_id":null,"is_active":true,"auto_named":false,"kind":"debit","identities":[{"brand":"VISA","last4":"4444"}]}]
+            """);
+        Http.On(HttpMethod.Put, $"/api/cards/{Auto}", $$"""{"id":"{{Auto}}","name":"Allan's Debit","brand":"VISA","last4":"4444","bank_id":null,"is_active":true,"auto_named":false,"kind":"debit","backfilled":7,"identities":[{"brand":"VISA","last4":"4444"}]}""");
+
+        var cut = Render<Cards>();
+        cut.WaitForAssertion(() => Assert.Equal("Cards_KindDebit", cut.Find("[data-testid='cards-row-kind']").TextContent.Trim()));
+
+        cut.Find("[data-testid='cards-edit']").Click();
+        Assert.Equal("debit", cut.Find("[data-testid='cards-kind']").GetAttribute("value"));
+        cut.Find("[data-testid='cards-backfill']").Change(true);
+        cut.Find("[data-testid='cards-save']").Click();
+
+        cut.WaitForAssertion(() => Assert.Contains("Cards_Backfilled[7]", cut.Find("[data-testid='cards-notice']").TextContent));
+        var put = Assert.Single(Http.Requests, r => r.Method == HttpMethod.Put);
+        var body = await put.Content!.ReadAsStringAsync();
+        Assert.Contains("\"kind\":\"debit\"", body);
+        Assert.Contains("\"backfill_payment_method\":true", body);
+    }
+
+    [Fact]
     public async Task InactiveClash_OffersReactivate()
     {
         await SignInAsync();

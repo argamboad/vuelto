@@ -68,13 +68,13 @@ public class PendingVoucherSliceTests(PostgresFixture fixture) : PostgresTestBas
 
     private Ctx Sibling(Ctx c) => Build(Fixture.CreateContext(c.Tenant), c.Tenant, c.CategoryId, c.BankId, new FixedRate(500m));
 
-    private static async Task<PendingVoucher> DraftAsync(Ctx c, string merchant = "TACO BELL PLAZA REAL C", decimal? amount = 7620m, string? currency = "CRC", DateOnly? date = null, Guid? bankId = null, string status = PendingVoucherStatuses.Pending, DateTimeOffset? receivedAt = null, string[]? missing = null, string? cardNumber = null, string? cardBrand = null)
+    private static async Task<PendingVoucher> DraftAsync(Ctx c, string merchant = "TACO BELL PLAZA REAL C", decimal? amount = 7620m, string? currency = "CRC", DateOnly? date = null, Guid? bankId = null, string status = PendingVoucherStatuses.Pending, DateTimeOffset? receivedAt = null, string[]? missing = null, string? cardNumber = null, string? cardBrand = null, string? cardKind = null)
     {
         var fingerprint = Guid.CreateVersion7().ToString("N");
         var draft = new PendingVoucher
         {
             TenantId = c.Tenant, EmailConnectionId = Guid.CreateVersion7(), ProviderMessageId = fingerprint, Fingerprint = fingerprint, ParsedBank = "Bac",
-            BankId = bankId ?? c.BankId, Merchant = merchant, Amount = amount, Currency = currency, Date = date ?? Jun13, Authorization = "662664", CardNumber = cardNumber, CardBrand = cardBrand,
+            BankId = bankId ?? c.BankId, Merchant = merchant, Amount = amount, Currency = currency, Date = date ?? Jun13, Authorization = "662664", CardNumber = cardNumber, CardBrand = cardBrand, CardKind = cardKind,
             TransactionType = "COMPRA", MissingFields = missing ?? [], Status = status, ReceivedAt = receivedAt ?? T0, CreatedAt = T0, UpdatedAt = T0,
         };
         c.Db.Add(draft);
@@ -237,6 +237,23 @@ public class PendingVoucherSliceTests(PostgresFixture fixture) : PostgresTestBas
         Assert.Equal(("VISA-1234", "VISA", "1234", true, c.BankId), (card.Name, card.Brand, card.Last4, card.AutoNamed, card.BankId));
         var byId = await c.Db.Transactions.ToDictionaryAsync(t => t.Id, t => t.CardId);
         Assert.Equal((card.Id, card.Id, null), (byId[t1!.TransactionId], byId[t2!.TransactionId], byId[t3!.TransactionId]));
+    }
+
+    [Fact]
+    public async Task Confirm_ADebitVoucher_BooksItAgainstTheAccount_NotTheCard()
+    {
+        // CARDS-3: the card the voucher names decides the payment method — a debit card spends the account.
+        // Without this every email transaction was a credit-card purchase, which skewed the card-vs-account split.
+        var c = await ContextAsync();
+        var debit = await DraftAsync(c, merchant: "SUPER", cardNumber: "************4444", cardBrand: "VISA", cardKind: "debit");
+        var credit = await DraftAsync(c, merchant: "CAFE", cardNumber: "************1234", cardBrand: "VISA");
+
+        await c.Handler.ConfirmAsync(debit.Id, Confirm(c), default);
+        await c.Handler.ConfirmAsync(credit.Id, Confirm(c), default);
+
+        var rows = await c.Db.Transactions.OrderBy(t => t.Payee).ToListAsync();
+        Assert.Equal([("CAFE", "credit_card"), ("SUPER", "bank_account")], rows.Select(t => (t.Payee, t.PaymentMethod)));
+        Assert.Equal("debit", (await c.Db.Cards.SingleAsync(x => x.Last4 == "4444")).Kind);
     }
 
     [Fact]

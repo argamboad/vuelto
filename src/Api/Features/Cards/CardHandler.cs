@@ -34,6 +34,7 @@ public sealed class CardHandler(IRepository<Card> cards, IRepository<CardIdentit
         if (Identity.Last4(r.Last4) is not { } last4) return (null, Invalid("last4 must carry the card's last four digits"));
         var brand = Identity.NormalizeBrand(r.Brand);
         if (brand.Length > 20) return (null, Invalid("brand must be 20 characters or fewer"));
+        if (CardKinds.Normalize(r.Kind) is not { } kind) return (null, Invalid($"kind must be one of: {string.Join(", ", CardKinds.All)}"));
         if (r.BankId is { } bankId && !await banks.Query().AnyAsync(b => b.Id == bankId && b.IsActive, cancellationToken)) return (null, Invalid("unknown or inactive bank"));
 
         var name = r.Name.Trim();
@@ -41,7 +42,7 @@ public sealed class CardHandler(IRepository<Card> cards, IRepository<CardIdentit
         if (await FindByIdentityAsync(brand, last4, cancellationToken) is { } sameId && await cards.Query().FirstAsync(c => c.Id == sameId, cancellationToken) is { } same) return (null, Conflict(same, "card"));
 
         var now = clock.GetUtcNow();
-        var card = new Card { TenantId = tenantId, Name = name, Brand = brand, Last4 = last4, BankId = r.BankId, AutoNamed = false, IsActive = true, CreatedAt = now, UpdatedAt = now };
+        var card = new Card { TenantId = tenantId, Name = name, Brand = brand, Last4 = last4, BankId = r.BankId, Kind = kind, AutoNamed = false, IsActive = true, CreatedAt = now, UpdatedAt = now };
         await cards.AddAsync(card, cancellationToken);
         await identities.AddAsync(new CardIdentity { TenantId = tenantId, CardId = card.Id, Brand = brand, Last4 = last4, CreatedAt = now }, cancellationToken);
         await cards.SaveChangesAsync(cancellationToken);
@@ -61,14 +62,29 @@ public sealed class CardHandler(IRepository<Card> cards, IRepository<CardIdentit
         var name = r.Name.Trim();
         if (await FindByNameAsync(name, cancellationToken) is { } clash && clash.Id != id) return (null, Conflict(clash, "alias"));
 
+        if (CardKinds.Normalize(r.Kind ?? card.Kind) is not { } kind) return (null, Invalid($"kind must be one of: {string.Join(", ", CardKinds.All)}"));
+
         if (!string.Equals(card.Name, name, StringComparison.Ordinal)) card.AutoNamed = false; // a rename is the household's word from now on
         card.Name = name;
         card.BankId = r.BankId;
         card.IsActive = r.IsActive;
+        card.Kind = kind;
         card.UpdatedAt = clock.GetUtcNow();
         cards.Update(card);
+
+        // CARDS-3: the card says how money leaves; correcting its past rows is opt-in, because a card
+        // flipped to debit today does not necessarily mean last year's purchases were mis-booked.
+        int? backfilled = null;
+        if (r.BackfillPaymentMethod)
+        {
+            var method = CardKinds.PaymentMethod(kind);
+            backfilled = await transactions.Query()
+                .Where(t => t.CardId == card.Id && t.PaymentMethod != method)
+                .ExecuteUpdateAsync(u => u.SetProperty(t => t.PaymentMethod, method).SetProperty(t => t.UpdatedAt, card.UpdatedAt), cancellationToken);
+        }
+
         await cards.SaveChangesAsync(cancellationToken);
-        return (CardResponse.From(card, (await IdentitiesAsync(cancellationToken)).GetValueOrDefault(card.Id)), null);
+        return (CardResponse.From(card, (await IdentitiesAsync(cancellationToken)).GetValueOrDefault(card.Id), backfilled), null);
     }
 
     /// <summary>
@@ -102,32 +118,36 @@ public sealed class CardHandler(IRepository<Card> cards, IRepository<CardIdentit
     /// still labels history) or created as <c>BRAND-1234</c>. A first-sight race on the unique index is absorbed
     /// by re-reading. Null when the text carries no card number.
     /// </summary>
-    public async Task<Guid?> ResolveOrCreateAsync(string? brand, string? cardNumber, Guid? bankId, CancellationToken cancellationToken = default)
+    public async Task<CardResolution?> ResolveOrCreateAsync(string? brand, string? cardNumber, Guid? bankId, string? kind = null, CancellationToken cancellationToken = default)
     {
         if (tenant.TenantId is not { } tenantId) return null;
         if (Identity.Parse(brand, cardNumber) is not var (b, last4)) return null;
 
-        if (await FindByIdentityAsync(b, last4, cancellationToken) is { } existing) return existing;
-        if (await ReconcileBrandAsync(b, last4, cancellationToken) is { } sameCard) return sameCard;
+        if (await FindByIdentityAsync(b, last4, cancellationToken) is { } existing) return await ResolutionAsync(existing, cancellationToken);
+        if (await ReconcileBrandAsync(b, last4, cancellationToken) is { } sameCard) return await ResolutionAsync(sameCard, cancellationToken);
 
         var now = clock.GetUtcNow();
         var name = Identity.AutoName(b, last4);
         if (await FindByNameAsync(name, cancellationToken) is not null) name = $"{name} ({last4})"; // the alias is taken by another card — keep the identity, vary the alias
-        var card = new Card { TenantId = tenantId, Name = name, Brand = b, Last4 = last4, BankId = bankId, AutoNamed = true, IsActive = true, CreatedAt = now, UpdatedAt = now };
+        // The voucher's word only ever sets the kind at creation; an existing card keeps whatever the household chose.
+        var card = new Card { TenantId = tenantId, Name = name, Brand = b, Last4 = last4, BankId = bankId, Kind = CardKinds.Normalize(kind) ?? CardKinds.Credit, AutoNamed = true, IsActive = true, CreatedAt = now, UpdatedAt = now };
         var identity = new CardIdentity { TenantId = tenantId, CardId = card.Id, Brand = b, Last4 = last4, CreatedAt = now };
         await cards.AddAsync(card, cancellationToken);
         await identities.AddAsync(identity, cancellationToken);
         try
         {
             await cards.SaveChangesAsync(cancellationToken);
-            return card.Id;
+            return new CardResolution(card.Id, card.Kind);
         }
         catch (DbUpdateException)
         {
             identities.Remove(identity); cards.Remove(card); // Added → Detached: a concurrent confirm created it first
-            return await FindByIdentityAsync(b, last4, cancellationToken);
+            return await FindByIdentityAsync(b, last4, cancellationToken) is { } winner ? await ResolutionAsync(winner, cancellationToken) : null;
         }
     }
+
+    private async Task<CardResolution?> ResolutionAsync(Guid cardId, CancellationToken cancellationToken) =>
+        await cards.Query().Where(c => c.Id == cardId).Select(c => new CardResolution(c.Id, c.Kind)).FirstOrDefaultAsync(cancellationToken);
 
     /// <summary>
     /// Vouchers do not all print the brand (BN payments say "TARJETA DE CREDITO"; drafts staged before brand capture

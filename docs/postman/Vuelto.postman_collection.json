@@ -5407,7 +5407,7 @@
               "script": {
                 "exec": [
                   "pm.test(\"200\", () => pm.response.to.have.status(200));",
-                  "pm.test(\"array of cards\", () => { const l = pm.response.json(); pm.expect(l).to.be.an('array'); l.forEach(c => pm.expect(c).to.have.all.keys('id', 'name', 'brand', 'last4', 'bank_id', 'is_active', 'auto_named', 'identities')); });"
+                  "pm.test(\"array of cards\", () => { const l = pm.response.json(); pm.expect(l).to.be.an('array'); l.forEach(c => pm.expect(c).to.have.all.keys('id', 'name', 'brand', 'last4', 'bank_id', 'is_active', 'auto_named', 'identities', 'kind', 'backfilled')); });"
                 ],
                 "type": "text/javascript"
               }
@@ -5426,7 +5426,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Main card\",\n  \"brand\": \"visa\",\n  \"last4\": \"************1234\",\n  \"bank_id\": null\n}"
+              "raw": "{\n  \"name\": \"Main card\",\n  \"brand\": \"visa\",\n  \"last4\": \"************1234\",\n  \"bank_id\": null,\n  \"kind\": \"credit\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/cards",
@@ -5438,7 +5438,7 @@
                 "cards"
               ]
             },
-            "description": "201 with the card; last4 may be the four digits or the masked number a voucher prints (************1234); brand is normalised (visa → VISA, missing → CARD); bank_id optional (must be an active bank of the household). 400 invalid_request (no alias / no four digits); 409 card_exists or card_exists_inactive on an alias or identity clash. Captures {{cardId}}."
+            "description": "201 with the card; last4 may be the four digits or the masked number a voucher prints (************1234); brand is normalised (visa → VISA, missing → CARD); bank_id optional (must be an active bank of the household). 400 invalid_request (no alias / no four digits); 409 card_exists or card_exists_inactive on an alias or identity clash. Captures {{cardId}}. kind is credit (default) or debit (CARDS-3) — a debit card books its transactions against the bank account."
           },
           "event": [
             {
@@ -5467,7 +5467,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Main card (renamed)\",\n  \"bank_id\": null,\n  \"is_active\": true\n}"
+              "raw": "{\n  \"name\": \"Main card (renamed)\",\n  \"bank_id\": null,\n  \"is_active\": true,\n  \"kind\": \"debit\",\n  \"backfill_payment_method\": false\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/cards/{{cardId}}",
@@ -5480,7 +5480,7 @@
                 "{{cardId}}"
               ]
             },
-            "description": "200 with the card — alias, bank and state are the household's to change; brand + last4 are what the bank prints and are not edited. A rename clears auto_named. 409 card_exists on an alias clash; 404 unknown/foreign."
+            "description": "200 with the card — alias, bank and state are the household's to change; brand + last4 are what the bank prints and are not edited. A rename clears auto_named. 409 card_exists on an alias clash; 404 unknown/foreign. kind changes how FUTURE transactions on this card are booked; backfill_payment_method true also corrects the ones already booked and the response carries backfilled with the count."
           },
           "event": [
             {

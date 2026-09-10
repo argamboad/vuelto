@@ -50,5 +50,6 @@ public class RealVoucherFixtureTests
         Assert.Equal(("PAGO", "CRC", 29730.00m, new DateOnly(2026, 6, 15)), (v.TransactionType, v.Currency, v.Amount, v.Date));
         Assert.Equal(("XXXXXXXXXXX0000X", "00000000", "00000000"), (v.CardNumber, v.Reference, v.Authorization));
         Assert.Null(v.CardBrand); // "Tarjeta de crédito" names no brand → the card is created as CARD-0000
+        Assert.Equal("credit", v.CardKind); // CARDS-3: but the row label does say which kind of plastic it is
     }
 }

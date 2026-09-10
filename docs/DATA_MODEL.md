@@ -139,6 +139,7 @@ Soft-deleted; never seeded (the first confirmed voucher creates one as `VISA-123
 - `id`, `tenant_id`, `name` (the alias), `brand` (`VISA` | `MASTERCARD` | `AMEX` | `CARD`), `last4`
 - `bank_id` (FK → Bank, nullable, no cascade), `auto_named`, `is_active`, `created_at`, `updated_at`
 - `brand` / `last4` are the newest number; every number the bank has printed lives in CardIdentity
+- `kind` — `credit` (default) | `debit`; decides the `payment_method` of transactions booked through the card (CARDS-3)
 - unique on (`tenant_id`, `name`)
 
 ### CardIdentity *(CARDS-1)*
@@ -183,7 +184,8 @@ Money movement, captured in both currencies at a frozen rate.
 - `transaction_type` — `budgeted` | `extraordinary` | `unplanned_essential` | `inflow` |
   `envelope_contribution`
 - `envelope_id` (FK → Envelope, nullable, no cascade; **required when** `envelope_contribution`)
-- `card_id` (FK → Card, nullable, no cascade — null = "no card": cash, transfers, rows from before CARDS-1)
+- `card_id` (FK → Card, nullable, no cascade — null = "no card": cash, transfers, rows from before CARDS-1);
+  the card's `kind` sets `payment_method` on a voucher confirm and when one is picked by hand (CARDS-3)
 - `notes` — optional, ≤ 250 characters, trimmed; blank is stored as null (the "why", 2026-09-08)
 - `source` — `manual` | `email` | `refund_realization`
 - indexes: (`tenant_id`, `month_id`), (`tenant_id`, `transaction_date`)

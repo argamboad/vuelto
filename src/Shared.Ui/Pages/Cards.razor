@@ -77,6 +77,13 @@
                             <div class="fw-semibold" data-testid="cards-form-identity">@CardText(_form.Editing.Brand, _form.Editing.Last4)</div>
                         </div>
                     }
+                    <div class="col-6 col-md-2">
+                        <label class="form-label small fw-medium mb-1" for="cards-kind">@Localizer["Cards_Kind"]</label>
+                        <select class="form-select" id="cards-kind" data-testid="cards-kind" disabled="@_saving" @bind="_form.Kind">
+                            <option value="credit">@Localizer["Cards_KindCredit"]</option>
+                            <option value="debit">@Localizer["Cards_KindDebit"]</option>
+                        </select>
+                    </div>
                     <div class="col-12 col-md-3">
                         <label class="form-label small fw-medium mb-1" for="cards-bank">@Localizer["Tx_Bank"]</label>
                         <select class="form-select" id="cards-bank" data-testid="cards-bank" disabled="@_saving" @bind="_form.BankId">
@@ -90,6 +97,11 @@
                             <div class="form-check form-switch">
                                 <input class="form-check-input" type="checkbox" id="cards-active" data-testid="cards-active" disabled="@_saving" @bind="_form.IsActive" />
                                 <label class="form-check-label" for="cards-active">@Localizer["Catalog_ActiveToggle"]</label>
+                            </div>
+                            @* CARDS-3: changing the kind decides how FUTURE transactions are booked; correcting the past is a choice. *@
+                            <div class="form-check form-switch mt-1">
+                                <input class="form-check-input" type="checkbox" id="cards-backfill" data-testid="cards-backfill" disabled="@_saving" @bind="_form.Backfill" />
+                                <label class="form-check-label" for="cards-backfill">@Localizer["Cards_Backfill"]</label>
                             </div>
                         </div>
                     }
@@ -137,6 +149,7 @@
                         <tr>
                             <th scope="col">@Localizer["Cards_Alias"]</th>
                             <th scope="col">@Localizer["Tx_Card"]</th>
+                            <th scope="col">@Localizer["Cards_Kind"]</th>
                             <th scope="col">@Localizer["Tx_Bank"]</th>
                             <th scope="col">@Localizer["Catalog_Status"]</th>
                             <th scope="col" class="text-end"></th>
@@ -151,6 +164,7 @@
                                     @if (item.AutoNamed) { <span class="badge bg-warning-subtle text-warning-emphasis ms-2" data-testid="cards-auto" title="@Localizer["Cards_AutoNamedHint"]">@Localizer["Cards_AutoNamed"]</span> }
                                 </td>
                                 <td class="text-nowrap" data-testid="cards-row-identity">@IdentityText(item)</td>
+                                <td data-testid="cards-row-kind">@KindLabel(item.Kind)</td>
                                 <td>@(item.BankId is { } bankId ? _banks.FirstOrDefault(b => b.Id == bankId)?.Name : "—")</td>
                                 <td>
                                     <span class="badge @(item.IsActive ? "bg-success-subtle text-success-emphasis" : "bg-secondary-subtle text-secondary-emphasis")">
@@ -203,6 +217,8 @@
 
     private static string CardText(string brand, string last4) => $"{brand} ····{last4}";
 
+    private string KindLabel(string? kind) => kind == "debit" ? Localizer["Cards_KindDebit"] : Localizer["Cards_KindCredit"];
+
     /// <summary>"VISA ····1234" — or every number the card has had, oldest first, after a renewal was merged.</summary>
     private static string IdentityText(CardDto c) => c.Identities is { Count: > 1 }
         ? $"{c.Brand} " + string.Join(" · ", c.Identities.Select(i => (i.Brand == c.Brand ? "" : i.Brand + " ") + "····" + i.Last4))
@@ -233,8 +249,8 @@
         public string? Error { get; set; }
     }
 
-    private void OpenNew() { _notice = null; _form = new FormState(null, "", "VISA", "", "", true); }
-    private void OpenEdit(CardDto item) { _notice = null; _form = new FormState(item, item.Name, item.Brand, item.Last4, item.BankId?.ToString() ?? "", item.IsActive); }
+    private void OpenNew() { _notice = null; _form = new FormState(null, "", "VISA", "", "", true, "credit"); }
+    private void OpenEdit(CardDto item) { _notice = null; _form = new FormState(item, item.Name, item.Brand, item.Last4, item.BankId?.ToString() ?? "", item.IsActive, item.Kind ?? "credit"); }
 
     private async Task Save()
     {
@@ -247,12 +263,15 @@
         {
             var bankId = form.BankId == "" ? null : form.BankId;
             var res = form.Editing is null
-                ? await Http.PostAsJsonAsync("/api/cards", new { name = form.Name, brand = form.Brand, last4 = form.Last4, bank_id = bankId })
-                : await Http.PutAsJsonAsync($"/api/cards/{form.Editing.Id}", new { name = form.Name, bank_id = bankId, is_active = form.IsActive });
+                ? await Http.PostAsJsonAsync("/api/cards", new { name = form.Name, brand = form.Brand, last4 = form.Last4, bank_id = bankId, kind = form.Kind })
+                : await Http.PutAsJsonAsync($"/api/cards/{form.Editing.Id}", new { name = form.Name, bank_id = bankId, is_active = form.IsActive, kind = form.Kind, backfill_payment_method = form.Backfill });
 
             if (res.IsSuccessStatusCode)
             {
-                _notice = form.Editing is null ? Localizer["Catalog_Saved"] : Localizer["Catalog_Updated"];
+                var saved = await res.Content.ReadFromJsonAsync<CardDto>();
+                _notice = form.Editing is null ? Localizer["Catalog_Saved"]
+                    : saved?.Backfilled is > 0 ? Localizer["Cards_Backfilled", saved.Backfilled!.Value]
+                    : Localizer["Catalog_Updated"];
                 _form = null;
                 await Load();
             }
@@ -285,8 +304,10 @@
         finally { _saving = false; }
     }
 
-    private sealed class FormState(CardDto? editing, string name, string brand, string last4, string bankId, bool isActive)
+    private sealed class FormState(CardDto? editing, string name, string brand, string last4, string bankId, bool isActive, string kind)
     {
+        public string Kind { get; set; } = kind;
+        public bool Backfill { get; set; }
         public CardDto? Editing { get; } = editing;
         public string Name { get; set; } = name;
         public string Brand { get; set; } = brand;
@@ -305,7 +326,9 @@
         [property: JsonPropertyName("bank_id")] Guid? BankId,
         [property: JsonPropertyName("is_active")] bool IsActive,
         [property: JsonPropertyName("auto_named")] bool AutoNamed,
-        [property: JsonPropertyName("identities")] List<IdentityDto>? Identities = null);
+        [property: JsonPropertyName("identities")] List<IdentityDto>? Identities = null,
+        [property: JsonPropertyName("kind")] string? Kind = null,
+        [property: JsonPropertyName("backfilled")] int? Backfilled = null);
     private sealed record IdentityDto([property: JsonPropertyName("brand")] string Brand, [property: JsonPropertyName("last4")] string Last4);
     private sealed record NamedDto([property: JsonPropertyName("id")] Guid Id, [property: JsonPropertyName("name")] string Name);
     private sealed record ConflictDto(

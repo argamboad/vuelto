@@ -18,6 +18,7 @@ public class PendingVoucherConfiguration : IEntityTypeConfiguration<PendingVouch
         p.Property(x => x.Currency).HasMaxLength(3);
         p.Property(x => x.CardNumber).HasMaxLength(40);
         p.Property(x => x.CardBrand).HasMaxLength(20);
+        p.Property(x => x.CardKind).HasMaxLength(10);
         p.Property(x => x.Authorization).HasMaxLength(64);
         p.Property(x => x.Reference).HasMaxLength(64);
         p.Property(x => x.TransactionType).HasMaxLength(40);

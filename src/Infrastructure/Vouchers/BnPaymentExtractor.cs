@@ -1,5 +1,6 @@
 using System.Text;
 using HtmlAgilityPack;
+using Vuelto.Core.Budget;
 using Vuelto.Core.Vouchers;
 
 namespace Vuelto.Infrastructure.Vouchers;
@@ -20,7 +21,7 @@ public sealed class BnPaymentExtractor : IBankVoucherExtractor
         try
         {
             var doc = HtmlVouchers.Load(htmlBody);
-            string? currency = null, card = null, auth = null, reference = null;
+            string? currency = null, card = null, auth = null, reference = null, cardKind = null;
             decimal? amount = null;
             DateOnly? date = null;
 
@@ -40,7 +41,8 @@ public sealed class BnPaymentExtractor : IBankVoucherExtractor
                         case "MONTO":
                             if (VoucherText.TryParseMoney(value, out var cur, out var amt)) { amount = amt; currency ??= cur; }
                             break;
-                        case "TARJETA DE CREDITO": card = value; break;
+                        case "TARJETA DE CREDITO": card = value; cardKind = CardKinds.Credit; break;
+                        case "TARJETA DE DEBITO": card = value; cardKind = CardKinds.Debit; break;
                         case "FECHA Y HORA DEL PAGO": date = SpanishDateParser.TryParse(value); break;
                     }
                 }
@@ -49,7 +51,7 @@ public sealed class BnPaymentExtractor : IBankVoucherExtractor
             return new ParsedVoucher
             {
                 Bank = Bank, Merchant = merchant, Amount = amount, Currency = currency, Date = date,
-                CardNumber = card, Authorization = auth, Reference = reference, TransactionType = "PAGO"
+                CardNumber = card, CardKind = cardKind, Authorization = auth, Reference = reference, TransactionType = "PAGO"
             };
         }
         catch

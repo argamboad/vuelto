@@ -104,20 +104,20 @@ public class CardSliceTests(PostgresFixture fixture) : PostgresTestBase(fixture)
         var cards = (await c.Handler.ListAsync(true, default))!.OrderBy(x => x.Name).ToList();
         Assert.Equal(["CARD-0000", "VISA-1234"], cards.Select(x => x.Name));
         Assert.All(cards, x => Assert.True(x.AutoNamed));
-        Assert.Equal(((Guid?)c.BankId, bn), (cards[0].BankId, (Guid?)cards[0].Id));
+        Assert.Equal(((Guid?)c.BankId, (Guid?)bn!.CardId), (cards[0].BankId, (Guid?)cards[0].Id));
     }
 
     [Fact]
     public async Task Rename_ClearsTheAutoFlag_AndTheVoucherPathStillFindsTheCard()
     {
         var c = await ContextAsync();
-        var id = (await c.Handler.ResolveOrCreateAsync("VISA", "************1234", null, default))!.Value;
+        var id = (await c.Handler.ResolveOrCreateAsync("VISA", "************1234", null, default))!.CardId;
 
         var (renamed, error) = await c.Handler.UpdateAsync(id, new UpdateCardRequest("Tarjeta de Allan", c.BankId, IsActive: true), default);
 
         Assert.Null(error);
         Assert.Equal(("Tarjeta de Allan", false, c.BankId), (renamed!.Name, renamed.AutoNamed, renamed.BankId));
-        Assert.Equal(id, await c.Handler.ResolveOrCreateAsync("VISA", "************1234", null, default)); // identity, not alias, is the key
+        Assert.Equal(id, (await c.Handler.ResolveOrCreateAsync("VISA", "************1234", null, default))!.CardId); // identity, not alias, is the key
     }
 
     [Fact]
@@ -125,13 +125,13 @@ public class CardSliceTests(PostgresFixture fixture) : PostgresTestBase(fixture)
     {
         // A BN payment prints no brand; a draft staged before brand capture carries none. One plastic, one card.
         var c = await ContextAsync();
-        var visa = (await c.Handler.ResolveOrCreateAsync("VISA", "************1234", c.BankId, default))!.Value;
-        Assert.Equal(visa, await c.Handler.ResolveOrCreateAsync(null, "************1234", null, default)); // brandless → the Visa
+        var visa = (await c.Handler.ResolveOrCreateAsync("VISA", "************1234", c.BankId, default))!.CardId;
+        Assert.Equal(visa, (await c.Handler.ResolveOrCreateAsync(null, "************1234", null, default))!.CardId); // brandless → the Visa
 
-        var placeholder = (await c.Handler.ResolveOrCreateAsync(null, "************1966", c.BankId, default))!.Value;
+        var placeholder = (await c.Handler.ResolveOrCreateAsync(null, "************1966", c.BankId, default))!.CardId;
         Assert.Equal("CARD-1966", (await c.Handler.ListAsync(true, default))!.Single(x => x.Id == placeholder).Name);
 
-        Assert.Equal(placeholder, await c.Handler.ResolveOrCreateAsync("VISA", "************1966", null, default)); // the brand arrives → same card, upgraded
+        Assert.Equal(placeholder, (await c.Handler.ResolveOrCreateAsync("VISA", "************1966", null, default))!.CardId); // the brand arrives → same card, upgraded
         var upgraded = (await c.Handler.ListAsync(true, default))!.Single(x => x.Id == placeholder);
         Assert.Equal(("VISA-1966", "VISA", "1966", true), (upgraded.Name, upgraded.Brand, upgraded.Last4, upgraded.AutoNamed));
         Assert.Equal([("VISA", "1966")], upgraded.Identities.Select(i => (i.Brand, i.Last4)));
@@ -143,9 +143,9 @@ public class CardSliceTests(PostgresFixture fixture) : PostgresTestBase(fixture)
     {
         // The bank renewed the plastic: a new last four arrived as VISA-5678. "Same card" → one card, two identities, whole history.
         var c = await ContextAsync();
-        var original = (await c.Handler.ResolveOrCreateAsync("VISA", "************1234", c.BankId, default))!.Value;
+        var original = (await c.Handler.ResolveOrCreateAsync("VISA", "************1234", c.BankId, default))!.CardId;
         await c.Handler.UpdateAsync(original, new UpdateCardRequest("Allan's Visa", c.BankId, IsActive: true), default);
-        var renewed = (await c.Handler.ResolveOrCreateAsync("VISA", "************5678", c.BankId, default))!.Value;
+        var renewed = (await c.Handler.ResolveOrCreateAsync("VISA", "************5678", c.BankId, default))!.CardId;
         var category = new Category { TenantId = c.Tenant, Name = "Groceries", CreatedAt = T0, UpdatedAt = T0 };
         var month = new Month { TenantId = c.Tenant, Year = 2026, MonthNumber = 9, WeekCount = 5, Week1StartDate = new DateOnly(2026, 8, 25), PrimaryIncomeCurrency = "USD", SecondaryIncomeCurrency = "USD", CreatedAt = T0, UpdatedAt = T0 };
         c.Db.AddRange(category, month,
@@ -161,11 +161,58 @@ public class CardSliceTests(PostgresFixture fixture) : PostgresTestBase(fixture)
         Assert.Equal(["1234", "5678"], merged.Identities.Select(i => i.Last4));
         Assert.Single((await c.Handler.ListAsync(true, default))!);
         Assert.All(await c.Db.Transactions.ToListAsync(), t => Assert.Equal(original, t.CardId));
-        Assert.Equal(original, await c.Handler.ResolveOrCreateAsync("VISA", "************5678", null, default)); // the renewed number now finds the survivor
-        Assert.Equal(original, await c.Handler.ResolveOrCreateAsync("VISA", "************1234", null, default));
+        Assert.Equal(original, (await c.Handler.ResolveOrCreateAsync("VISA", "************5678", null, default))!.CardId); // the renewed number now finds the survivor
+        Assert.Equal(original, (await c.Handler.ResolveOrCreateAsync("VISA", "************1234", null, default))!.CardId);
 
         Assert.Equal("invalid_request", (await c.Handler.MergeAsync(original, original, default)).Error!.Error);
         Assert.Equal("not_found", (await c.Handler.MergeAsync(original, Guid.CreateVersion7(), default)).Error!.Error);
+    }
+
+    [Fact]
+    public async Task Kind_DefaultsToCredit_DecidesThePaymentMethod_AndBackfillsOnlyWhenAsked()
+    {
+        // CARDS-3: the card knows how money leaves. Flipping it to debit changes what gets booked from now on;
+        // the past is corrected only on request, and then it really is corrected.
+        var c = await ContextAsync();
+        var (card, _) = await c.Handler.CreateAsync(new CreateCardRequest("Allan's Visa", "VISA", "1234", c.BankId), default);
+        Assert.Equal("credit", card!.Kind); // no kind given → credit, like every card from before this slice
+
+        var category = new Category { TenantId = c.Tenant, Name = "Groceries", CreatedAt = T0, UpdatedAt = T0 };
+        var month = new Month { TenantId = c.Tenant, Year = 2026, MonthNumber = 9, WeekCount = 5, Week1StartDate = new DateOnly(2026, 8, 25), PrimaryIncomeCurrency = "USD", SecondaryIncomeCurrency = "USD", CreatedAt = T0, UpdatedAt = T0 };
+        c.Db.AddRange(category, month,
+            new Transaction { TenantId = c.Tenant, MonthId = month.Id, BankId = c.BankId, CategoryId = category.Id, CardId = card.Id, Payee = "Super", PaymentMethod = "credit_card", OriginalAmount = 1m, TransactionDate = new DateOnly(2026, 9, 1), AmountCrc = 1m, AmountUsd = 0.01m, ExchangeRateUsed = 500m, CreatedAt = T0, UpdatedAt = T0 });
+        await c.Db.SaveChangesAsync();
+        c.Db.ChangeTracker.Clear();
+
+        // Flip to debit WITHOUT the backfill: history is left exactly as it was.
+        var (quiet, _) = await c.Handler.UpdateAsync(card.Id, new UpdateCardRequest("Allan's Visa", c.BankId, IsActive: true, Kind: "debit"), default);
+        Assert.Equal(("debit", null), (quiet!.Kind, quiet.Backfilled));
+        Assert.Equal("credit_card", (await c.Db.Transactions.AsNoTracking().SingleAsync()).PaymentMethod);
+
+        // Ask for it, and the card's past rows are brought in line.
+        var (corrected, _) = await c.Handler.UpdateAsync(card.Id, new UpdateCardRequest("Allan's Visa", c.BankId, IsActive: true, Kind: "debit", BackfillPaymentMethod: true), default);
+        Assert.Equal(1, corrected!.Backfilled);
+        Assert.Equal("bank_account", (await c.Db.Transactions.AsNoTracking().SingleAsync()).PaymentMethod);
+
+        // Nothing left to correct the second time, and an unknown kind is refused.
+        Assert.Equal(0, (await c.Handler.UpdateAsync(card.Id, new UpdateCardRequest("Allan's Visa", c.BankId, IsActive: true, Kind: "debit", BackfillPaymentMethod: true), default)).Card!.Backfilled);
+        Assert.Equal("invalid_request", (await c.Handler.UpdateAsync(card.Id, new UpdateCardRequest("Allan's Visa", c.BankId, IsActive: true, Kind: "prepaid"), default)).Error!.Error);
+    }
+
+    [Fact]
+    public async Task ResolveOrCreate_TakesTheKindTheVoucherNamed_ButNeverRewritesAnExistingCard()
+    {
+        var c = await ContextAsync();
+
+        var debit = await c.Handler.ResolveOrCreateAsync("VISA", "************4444", c.BankId, "debit", default);
+        Assert.Equal(("debit", "bank_account"), (debit!.Kind, debit.PaymentMethod));
+
+        // The same card seen again, this time with no word on the kind (or the wrong one): the household's card wins.
+        Assert.Equal("debit", (await c.Handler.ResolveOrCreateAsync("VISA", "************4444", null, null, default))!.Kind);
+        Assert.Equal("debit", (await c.Handler.ResolveOrCreateAsync("VISA", "************4444", null, "credit", default))!.Kind);
+
+        var silent = await c.Handler.ResolveOrCreateAsync("VISA", "************5555", c.BankId, null, default);
+        Assert.Equal(("credit", "credit_card"), (silent!.Kind, silent.PaymentMethod)); // no word → credit
     }
 
     [Fact]
@@ -178,7 +225,7 @@ public class CardSliceTests(PostgresFixture fixture) : PostgresTestBase(fixture)
         Assert.Empty((await b.Handler.ListAsync(true, default))!);
         Assert.Equal("not_found", (await b.Handler.UpdateAsync(aCard.Id, new UpdateCardRequest("Hijacked", null, false), default)).Error!.Error);
         Assert.Null((await b.Handler.CreateAsync(new CreateCardRequest("A only", "VISA", "1234", null), default)).Error); // the same card is free in B
-        Assert.NotEqual(aCard.Id, await b.Handler.ResolveOrCreateAsync("VISA", "1234", null, default));
+        Assert.NotEqual(aCard.Id, (await b.Handler.ResolveOrCreateAsync("VISA", "1234", null, default))?.CardId);
     }
 
     [Fact]
