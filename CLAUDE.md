@@ -189,7 +189,7 @@ deferred items without an explicit decision.
   -RuntimePassword <new>` — provisions `app_runtime` via the compose container's `psql`, proves read-OK /
   DDL-denied, prints the `DefaultConnection` / `Migrations` / `Rls__EnforceRuntimeRole` values for the host.
   `docs/DEPLOYMENT.md` §7; click-by-click in `tools/README.md`.
-- **Installable phone/desktop builds against a host:** `tools/publish-native.ps1 [-ApiBaseUrl …] [-Out …]` — Release
+- **Installable phone/desktop builds against a host:** `tools/publish-native.ps1 -ApiBaseUrl <host> [-Out …]` (host required) — Release
   Android APK (apksigner v2+v3 with the debug key, upgrades over a VS Code install) + Windows unpackaged exe, the API
   base compiled in. Recipe + the signing/`RuntimeIdentifier`/callback-scheme gotchas: `docs/DEPLOYMENT.md` §9;
   owner-level steps in `tools/README.md`.

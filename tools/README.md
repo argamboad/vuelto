@@ -187,14 +187,16 @@ another. This script makes both installables in one go. Full explanation: `docs/
 1. From the repo root:
 
    ```powershell
-   .\tools\publish-native.ps1
+   pwsh tools/publish-native.ps1 -ApiBaseUrl https://vuelto-staging.onrender.com
    ```
 
-   Defaults: both platforms, against `https://vuelto-staging.onrender.com`, into `out\` at the repo root
-   (gitignored; the same folder DEPLOYMENT §9 publishes to).
-   Options: `-ApiBaseUrl https://…`, `-Out C:\somewhere`, `-Android` or `-Windows` alone.
-2. **Phone:** send `out\vuelto.apk` to the phone (USB, a drive, a message to yourself), open
-   it, allow installs from that source. It upgrades over a VS Code debug install (same key).
+   `-ApiBaseUrl` is **required** — a Release build compiles the host in, and there is no safe default.
+   Output goes to `out\` at the repo root (gitignored; the same folder DEPLOYMENT §9 publishes to).
+   Options: `-Out C:\somewhere`, `-Android` or `-Windows` alone.
+2. **Phone:** send `out\Vuelto.apk` — that exact file, the one the script copied out of the publish
+   folder for you (the folder also holds an unsigned twin Android drops without a word). Open it on the
+   phone, allow installs from that source. It upgrades over a VS Code debug install (same key), but
+   **close the app first**: Android will not replace one that is running.
 3. **Desktop:** run `out\windows\Vuelto.Maui.exe`; pin a shortcut. SmartScreen warns once
    (unsigned) — *More info → Run anyway*.
 4. The script ends with `Verified using v2 scheme … true` for the APK. If it says `false`, the phone will
