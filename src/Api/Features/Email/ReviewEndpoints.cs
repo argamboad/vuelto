@@ -56,6 +56,13 @@ public static class ReviewEndpoints
             return error is not null ? ToResult(error) : Results.NoContent();
         });
 
+        // EMAIL-7: empty the queue and forget those emails were seen, so the inbox is read again.
+        group.MapPost("/clear", async (ClearQueueRequest request, PendingVoucherHandler handler, CancellationToken ct) =>
+        {
+            var (result, error) = await handler.ClearPendingAsync(request.Confirm, ct);
+            return error is not null ? ToResult(error) : Results.Ok(result);
+        });
+
         return app;
     }
 
@@ -63,7 +70,7 @@ public static class ReviewEndpoints
     {
         { Error: "not_found" } => Results.NotFound(error),
         { Error: "invalid_token" } => Results.Json(error, statusCode: StatusCodes.Status401Unauthorized),
-        { Error: "mapping_exists" or "not_pending" } => Results.Conflict(error),
+        { Error: "mapping_exists" or "not_pending" or "confirmation_required" } => Results.Conflict(error),
         _ => Results.BadRequest(error), // invalid_request, exchange_rate_unavailable
     };
 }

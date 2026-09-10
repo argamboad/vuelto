@@ -5186,6 +5186,46 @@
               }
             }
           ]
+        },
+        {
+          "name": "Clear the review queue",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"confirm\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/pending-vouchers/clear",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "pending-vouchers",
+                "clear"
+              ]
+            },
+            "description": "200 { cleared, inboxes_rewound } (EMAIL-7): deletes every PENDING draft and its dedup tombstone, then pulls each inbox that staged one back to a minute before the oldest cleared draft (clamped at its import_from, never moved forward) so the next sync re-reads exactly those emails. Confirmed and discarded vouchers keep their tombstones and never come back; no transaction, month or refund is touched. Without \"confirm\": true it is 409 confirmation_required and nothing is written."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"reports what it did\", () => pm.expect(pm.response.json()).to.have.all.keys('cleared', 'inboxes_rewound'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         }
       ]
     },

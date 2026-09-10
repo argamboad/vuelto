@@ -62,7 +62,7 @@ public class PendingVoucherSliceTests(PostgresFixture fixture) : PostgresTestBas
         var transactions = new TransactionHandler(new EfRepository<Transaction>(db), new EfRepository<Refund>(db), new EfRepository<Category>(db), new EfRepository<Bank>(db), new EfRepository<Envelope>(db), new EfRepository<Card>(db), months, resolver, current, clock, NullLogger<TransactionHandler>.Instance);
         var mappings = new MerchantMappingHandler(new EfRepository<MerchantCategoryMapping>(db), new EfRepository<Category>(db), current, clock, NullLogger<MerchantMappingHandler>.Instance);
         var cards = new CardHandler(new EfRepository<Card>(db), new EfRepository<Vuelto.Core.Entities.CardIdentity>(db), new EfRepository<Transaction>(db), new EfRepository<Bank>(db), current, clock);
-        var handler = new PendingVoucherHandler(new EfRepository<PendingVoucher>(db), transactions, mappings, cards, new EfUnitOfWork(db), clock, NullLogger<PendingVoucherHandler>.Instance);
+        var handler = new PendingVoucherHandler(new EfRepository<PendingVoucher>(db), new EfRepository<IngestedVoucher>(db), new EfRepository<EmailConnection>(db), transactions, mappings, cards, new EfUnitOfWork(db), clock, NullLogger<PendingVoucherHandler>.Instance);
         return new Ctx(db, tenant, handler, mappings, categoryId, bankId);
     }
 
@@ -108,6 +108,72 @@ public class PendingVoucherSliceTests(PostgresFixture fixture) : PostgresTestBas
         Assert.Equal(("NEW", 7620m, "CRC", Jun13, c.BankId, "Bac"), (list[0].Merchant, list[0].Amount, list[0].Currency, list[0].Date, list[0].BankId, list[0].ParsedBank));
         Assert.Equal(2, await c.Handler.CountPendingAsync(default));
         Assert.Equal(1, await other.Handler.CountPendingAsync(default));
+    }
+
+    [Fact]
+    public async Task Clear_RemovesOnlyTheWaitingDrafts_WithTheirTombstones_AndRewindsTheInbox()
+    {
+        // EMAIL-7: start over on what is still waiting. Confirmed and discarded vouchers keep their
+        // tombstones — nothing already booked or thrown away can come back — and the cursor is pulled
+        // back so the next sync actually re-reads the cleared mail.
+        var c = await ContextAsync();
+        var connectionId = Guid.CreateVersion7();
+        var owner = new User { Email = $"owner-{connectionId:N}@example.com" }; // EmailConnection is user-keyed and FK'd to Users
+        c.Db.Add(owner);
+        c.Db.Add(new EmailConnection
+        {
+            Id = connectionId, UserId = owner.Id, Provider = "microsoft", AccessToken = "t", RefreshToken = "r", SubjectFilters = ["Voucher"],
+            ImportFrom = T0.AddDays(-30), LastPolledAt = T0.AddDays(1), PollingIntervalMinutes = 15, Status = "active", CreatedAt = T0, UpdatedAt = T0,
+        });
+        await c.Db.SaveChangesAsync();
+        var waiting = await DraftAsync(c, merchant: "WAITING", receivedAt: T0.AddHours(-3));
+        await DraftAsync(c, merchant: "ALSO WAITING", receivedAt: T0.AddHours(-1));
+        var booked = await DraftAsync(c, merchant: "DONE", status: PendingVoucherStatuses.Confirmed);
+        var thrown = await DraftAsync(c, merchant: "GONE", status: PendingVoucherStatuses.Discarded);
+        await c.Db.PendingVouchers.Where(v => v.Status == PendingVoucherStatuses.Pending).ExecuteUpdateAsync(u => u.SetProperty(v => v.EmailConnectionId, connectionId));
+        c.Db.ChangeTracker.Clear();
+
+        Assert.Equal("confirmation_required", (await c.Handler.ClearPendingAsync(false, default)).Error!.Error);
+        Assert.Equal(2, await c.Handler.CountPendingAsync(default)); // the refusal wrote nothing
+
+        var (result, error) = await c.Handler.ClearPendingAsync(true, default);
+
+        Assert.Null(error);
+        Assert.Equal((2, 1), (result!.Cleared, result.InboxesRewound));
+        Assert.Equal(0, await c.Handler.CountPendingAsync(default));
+        var left = await c.Db.PendingVouchers.Select(v => v.Merchant).ToListAsync();
+        Assert.Equal(["DONE", "GONE"], left.Order());
+        var tombstones = await c.Db.IngestedVouchers.Select(i => i.PendingVoucherId).ToListAsync();
+        Assert.Equal([booked.Id, thrown.Id], tombstones.Order()); // only the acted-on ones still block their email
+        Assert.DoesNotContain(waiting.Id, tombstones);
+        var connection = await c.Db.EmailConnections.SingleAsync();
+        Assert.Equal(T0.AddHours(-3).AddMinutes(-1), connection.LastPolledAt); // just before the oldest cleared draft
+    }
+
+    [Fact]
+    public async Task Clear_AnEmptyQueue_IsANoOp_AndNeverMovesACursorForward()
+    {
+        var c = await ContextAsync();
+        var connectionId = Guid.CreateVersion7();
+        var owner = new User { Email = $"owner-{connectionId:N}@example.com" };
+        c.Db.Add(owner);
+        c.Db.Add(new EmailConnection
+        {
+            Id = connectionId, UserId = owner.Id, Provider = "google", AccessToken = "t", RefreshToken = "r", SubjectFilters = ["Voucher"],
+            ImportFrom = T0.AddDays(-30), LastPolledAt = T0.AddDays(-29), PollingIntervalMinutes = 15, Status = "active", CreatedAt = T0, UpdatedAt = T0,
+        });
+        await c.Db.SaveChangesAsync();
+        var draft = await DraftAsync(c, receivedAt: T0);
+        await c.Db.PendingVouchers.Where(v => v.Id == draft.Id).ExecuteUpdateAsync(u => u.SetProperty(v => v.EmailConnectionId, connectionId));
+        c.Db.ChangeTracker.Clear();
+
+        var (first, _) = await c.Handler.ClearPendingAsync(true, default);
+        Assert.Equal((1, 0), (first!.Cleared, first.InboxesRewound)); // the cursor already sat further back — leave it there
+        Assert.Equal(T0.AddDays(-29), (await c.Db.EmailConnections.SingleAsync()).LastPolledAt);
+
+        var (again, error) = await c.Handler.ClearPendingAsync(true, default);
+        Assert.Null(error);
+        Assert.Equal((0, 0), (again!.Cleared, again.InboxesRewound));
     }
 
     [Fact]

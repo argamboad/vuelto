@@ -72,6 +72,14 @@ public record ConfirmVoucherRequest(
     // The reason, recorded while the voucher is in front of you — the ledger's optional 250-character note.
     [property: JsonPropertyName("notes")] string? Notes = null);
 
+/// <summary>EMAIL-7: the guard on the queue reset — the client has to say it means it (the household-dissolve shape, ADR-V009).</summary>
+public record ClearQueueRequest([property: JsonPropertyName("confirm")] bool Confirm = false);
+
+/// <summary>What the reset did: drafts deleted, and how many inboxes had their cursor pulled back so those emails are read again.</summary>
+public record ClearQueueResponse(
+    [property: JsonPropertyName("cleared")] int Cleared,
+    [property: JsonPropertyName("inboxes_rewound")] int InboxesRewound);
+
 public record ConfirmVoucherResponse(
     [property: JsonPropertyName("transaction_id")] Guid TransactionId,
     [property: JsonPropertyName("month_id")] Guid MonthId,

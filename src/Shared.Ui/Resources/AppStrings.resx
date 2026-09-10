@@ -617,6 +617,13 @@
   <data name="Email_SettingsTitle" xml:space="preserve"><value>Email inboxes</value></data>
   <data name="Email_SettingsHint" xml:space="preserve"><value>Connect your Outlook or Gmail inbox so bank vouchers become drafts to review. Read-only, and it's yours — not the household's.</value></data>
   <data name="Email_SettingsLink" xml:space="preserve"><value>Manage inboxes</value></data>
+  <data name="Email_QueueSection" xml:space="preserve"><value>Review queue</value></data>
+  <data name="Email_QueueCount" xml:space="preserve"><value>{0} draft(s) waiting to be reviewed.</value></data>
+  <data name="Email_Clear" xml:space="preserve"><value>Clear the review queue</value></data>
+  <data name="Email_ClearWarning" xml:space="preserve"><value>This deletes the {0} draft(s) still waiting and forgets those emails were read, so the next sync brings them back from your inbox. Transactions you already confirmed are not touched, and neither are drafts you discarded. This cannot be undone.</value></data>
+  <data name="Email_ClearConfirm" xml:space="preserve"><value>Yes, clear the queue</value></data>
+  <data name="Email_QueueCleared" xml:space="preserve"><value>Queue cleared: {0} draft(s) removed, {1} inbox(es) will read them again on the next sync.</value></data>
+  <data name="Email_ClearError" xml:space="preserve"><value>The queue could not be cleared. Try again.</value></data>
   <data name="Email_Title" xml:space="preserve"><value>Email inboxes</value></data>
   <data name="Email_Subtitle" xml:space="preserve"><value>Read-only connections to the inboxes that receive your bank vouchers. Nothing is marked read, moved or deleted.</value></data>
   <data name="Email_NoInboxes" xml:space="preserve"><value>No inbox connected yet.</value></data>

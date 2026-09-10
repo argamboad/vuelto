@@ -1586,6 +1586,27 @@ it → **Save** → **Expected:** no icon. **Review** → a draft's card has a *
 Via Postman (**16 · Transactions → Create transaction**) with a 251-character `notes` → **Expected:** 400
 `invalid_request`, message mentions `notes`.
 
+### QA-EMAIL-07 — Clearing the review queue re-reads those emails and spares everything else 🟠 (Web / API)
+**Gherkin**
+```gherkin
+Given drafts wait in the review queue, at least one voucher was confirmed and one discarded
+When I open Settings → Email and press "Clear the review queue"
+Then a warning names the number of drafts and says confirmed transactions and discarded drafts are untouched
+When I confirm
+Then the queue is empty, the header badge drops to zero, and no transaction, month or refund changed
+When I press Sync now on the inbox
+Then the cleared emails are staged again with today's parser; the confirmed and discarded ones do not come back
+And POST /api/pending-vouchers/clear without confirm is 409 confirmation_required
+```
+**Walkthrough:** **Settings → Email** → bottom of the page → **Expected:** "N draft(s) waiting to be
+reviewed" and a **Clear the review queue** button, disabled when N is 0. Press it → **Expected:** an amber
+warning naming N and stating what survives. **Yes, clear the queue** → **Expected:** the notice reads
+"Queue cleared: N draft(s) removed, M inbox(es) will read them again", the **Review** badge is gone, and
+**Months** shows every transaction unchanged. **Sync now** → **Expected:** the same N drafts return (a
+voucher whose date failed under the old parser now shows its date); nothing you confirmed reappears. Via
+Postman (**22 · Review queue → Clear the review queue**) with `confirm: false` → **Expected:** 409
+`confirmation_required`.
+
 ## 10i. Web — Budget lines: fixed & variable (app slice EXPENSES-1) 🟠
 
 > The budget baseline (ADR-V007/V008): two ordered lists of single-currency lines, each tied to a
@@ -3097,6 +3118,7 @@ Record one row per executed case. Build = API/web commit SHA (`git rev-parse --s
 | QA-EMAIL-04 | Web | | | | | |
 | QA-EMAIL-05 | Web | | | | | |
 | QA-EMAIL-06 | Web | | | | | |
+| QA-EMAIL-07 | Web | | | | | |
 | … | | | | | | |
 
 **§14a adversarial / tenant-isolation (QA-ADV-*).** All rows are **Not-run** (blank) until executed.
@@ -3653,6 +3675,14 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   up; the month page's Income card lists "Other income this month" with the inflows' frozen sum and a link that
   filters the table to them. Client only. QA-LED-06 names both; `DashboardPageTests.Income_ShowsInflows*` and
   `LedgerPagesTests.MonthDetail_IncomeCard_ListsInflows*` pin it. Suite count unchanged (181).
+- **Updated 2026-09-10** — **The 12-hour voucher date, and clearing the review queue (owner request).** Banco
+  Nacional started printing "Sep 1, 2026 - 10:13 a.m."; no culture reads the dotted Spanish meridiem, so the whole
+  date failed and the draft sat blocked with "Could not read: Date". `SpanishDateParser` now cuts the time off
+  before parsing (the date is all we keep), which covers every meridiem spelling at once; the real body rides along
+  as the `bn-voucher-12h` fixture. Settings → Email gains a two-step **Clear the review queue**
+  (`POST /api/pending-vouchers/clear`, 409 without `confirm`): pending drafts and their tombstones go, each inbox's
+  cursor is pulled back to just before the oldest of them, and confirmed/discarded vouchers and every transaction
+  are untouched. New QA-EMAIL-07 (suite 184); story EMAIL-7; Postman folder 22.
 - **Updated 2026-09-09** — **Per-card summaries (CARDS-2 / REPORTS-6; owner request).** The dashboard gains a **By card**
   table (alias, transaction count, spend; "No card" last; Total) and the Reports chart view a **Spend by card** bar chart
   beside Card vs account — both shown once a card has paid something, both over one Core cut (`CardSpend.Calculate`:

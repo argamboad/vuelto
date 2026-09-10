@@ -31,6 +31,18 @@ public class RealVoucherFixtureTests
     }
 
     [Fact]
+    public void BnVoucher_TwelveHourClock_ParsesTheDate()
+    {
+        // The real body that broke on 2026-09-10: same BN template, but the time reads "10:13 a.m."
+        // instead of "07:28". Everything else parsed; the date came back empty and the draft sat blocked.
+        var v = new BnVoucherExtractor().Extract(Fixture("bn-voucher-12h.html"));
+        Assert.Equal(new DateOnly(2026, 9, 1), v.Date);
+        Assert.Equal(("COMPRA", "CRC", 2350.00m), (v.TransactionType, v.Currency, v.Amount));
+        Assert.Equal(("MASTERCARD", "************0000"), (v.CardBrand, v.CardNumber));
+        Assert.Contains("DELIMART", v.Merchant);
+    }
+
+    [Fact]
     public void BnPayment_RealBody_ParsesTheServiceName_NotTheTableHeader()
     {
         var v = new BnPaymentExtractor().Extract(Fixture("bn-payment.html"));
