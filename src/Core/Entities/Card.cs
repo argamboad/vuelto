@@ -19,6 +19,8 @@ public class Card : ICatalogEntry
     public required string Brand { get; set; }
     public required string Last4 { get; set; }
     public Guid? BankId { get; set; }
+    /// <summary><c>credit</c> or <c>debit</c> (CARDS-3, <see cref="CardKinds"/>) — decides the payment method of every transaction booked through this card.</summary>
+    public string Kind { get; set; } = CardKinds.Credit;
     /// <summary>True while the alias is still the automatic <c>BRAND-1234</c>; cleared by the first rename.</summary>
     public bool AutoNamed { get; set; }
     public bool IsActive { get; set; } = true;

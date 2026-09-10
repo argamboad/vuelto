@@ -109,7 +109,7 @@ public sealed class PendingVoucherHandler(
         var command = new CreateTransactionCommand(
             Payee: string.IsNullOrWhiteSpace(r.Payee) ? voucher.Merchant : r.Payee,
             BankId: r.BankId ?? voucher.BankId,
-            PaymentMethod: r.PaymentMethod,
+            PaymentMethod: r.PaymentMethod, // may be null here — the resolved card decides below (CARDS-3)
             OriginalAmount: r.OriginalAmount ?? voucher.Amount ?? 0m,
             Currency: r.Currency ?? voucher.Currency,
             TransactionDate: r.TransactionDate ?? voucher.Date,
@@ -125,8 +125,10 @@ public sealed class PendingVoucherHandler(
         await using var scope = await unitOfWork.BeginTransactionAsync(cancellationToken);
 
         // CARDS-1: the card the voucher printed — found, or created as BRAND-1234 on first sight — rides on the transaction.
-        var cardId = await cards.ResolveOrCreateAsync(voucher.CardBrand, voucher.CardNumber, r.BankId ?? voucher.BankId, cancellationToken);
-        var (created, error) = await transactions.CreateAsync(command with { CardId = cardId }, cancellationToken);
+        var card = await cards.ResolveOrCreateAsync(voucher.CardBrand, voucher.CardNumber, r.BankId ?? voucher.BankId, voucher.CardKind, cancellationToken);
+        // CARDS-3: the card says how the money left — a debit card spends the account. An explicit choice still wins.
+        var command2 = command with { CardId = card?.CardId, PaymentMethod = r.PaymentMethod ?? card?.PaymentMethod };
+        var (created, error) = await transactions.CreateAsync(command2, cancellationToken);
         if (created is null) return (null, new ErrorResponse(error!.Error, error.Message)); // nothing written; the draft stays pending
 
         var now = clock.GetUtcNow();

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Vuelto.Core.Budget;
 using Vuelto.Core.Entities;
 
 namespace Vuelto.Infrastructure.Persistence.Configurations;
@@ -13,6 +14,7 @@ public class CardConfiguration : IEntityTypeConfiguration<Card>
         b.Property(x => x.Name).HasMaxLength(100).IsRequired();
         b.Property(x => x.Brand).HasMaxLength(20).IsRequired();
         b.Property(x => x.Last4).HasMaxLength(4).IsRequired();
+        b.Property(x => x.Kind).HasMaxLength(10).IsRequired().HasDefaultValue(CardKinds.Credit); // CARDS-3: existing rows are credit
         b.HasIndex(x => new { x.TenantId, x.Name }).IsUnique();
         b.HasOne<Bank>().WithMany().HasForeignKey(x => x.BankId).OnDelete(DeleteBehavior.Restrict);
     }

@@ -35,6 +35,8 @@ public record ParsedVoucher
     public string? CardNumber { get; init; }
     /// <summary>The brand label the voucher printed the card under (VISA / MASTERCARD…); null when it names none (CARDS-1).</summary>
     public string? CardBrand { get; init; }
+    /// <summary><c>credit</c> / <c>debit</c> when the card row names it (BN payments do); null when the row is just a brand (CARDS-3).</summary>
+    public string? CardKind { get; init; }
     public string? Authorization { get; init; }
     public string? Reference { get; init; }
     public string? TransactionType { get; init; }    // raw bank wording, e.g. "COMPRA" / "PAGO"

@@ -143,6 +143,33 @@ Scenario: Manual entry
   Then it has no card; picking one links it; a card from another household or an inactive one is 400
 ```
 
+### CARDS-3 — Credit or debit *(owner question, 2026-09-10)* ✅
+
+**As** a household member, **I want** each card marked credit or debit, **so that** the card-versus-account split
+tells the truth about debit purchases.
+
+**Context / notes:** every voucher confirm booked `credit_card`, because the review queue never sends a payment
+method and `PaymentMethods.Normalize(null)` defaults to credit — debit purchases were counted as card spending in
+the dashboard split, the bank × method table and both Reports cuts. Credit or debit is a property of the plastic,
+so it lives on the card (`Card.Kind`, default `credit`), and `CardKinds.PaymentMethod` maps it: debit spends the
+account, credit spends the card. The confirm derives the method from the resolved card (an explicit method still
+wins); the manual form sets it when you pick a card, still overridable. Where a voucher names the kind — BN payment
+receipts label the row "Tarjeta de crédito" / "Tarjeta de débito" — the card takes it **at creation only**; an
+existing card keeps whatever the household chose. Changing the kind never rewrites history: the edit form has an
+opt-in "also correct past transactions on this card", and the response says how many moved.
+
+```gherkin
+Scenario: A debit card spends the account
+  Given a voucher on a card marked debit is confirmed
+  Then the transaction reads bank_account, still names the card, and shows under it in "By card"
+
+Scenario: Flipping a card, and the past
+  When I set a card to debit and save
+  Then future transactions follow it and history is untouched
+  When I tick "also correct past transactions" and save
+  Then every transaction on that card is corrected and the notice says how many
+```
+
 **Definition of done:** `CardIdentityTests`; `CardSliceTests` (normalise, alias/identity 409, reactivate, resolve-or-create,
 rename clears auto, tenant isolation, contributor); ledger + voucher-confirm tests; `CardEndpointTests`; bUnit
 `CardsPageTests` + form/month/review assertions; migration `AddCards` with RLS; Postman folder 24; QA-CAT-05 +

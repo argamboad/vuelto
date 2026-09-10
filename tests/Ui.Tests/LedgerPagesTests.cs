@@ -21,7 +21,7 @@ public class LedgerPagesTests : ComponentTestBase
     {
         Http.On(HttpMethod.Get, "/api/categories", $$"""[{"id":"{{CatId}}","name":"Groceries","is_active":true}]""");
         Http.On(HttpMethod.Get, "/api/banks", $$"""[{"id":"{{BankId}}","name":"Cash","is_active":true}]""");
-        Http.On(HttpMethod.Get, "/api/cards", $$"""[{"id":"{{CardId}}","name":"VISA-1234","brand":"VISA","last4":"1234","bank_id":null,"is_active":true,"auto_named":true}]""");
+        Http.On(HttpMethod.Get, "/api/cards", $$"""[{"id":"{{CardId}}","name":"VISA-1234","brand":"VISA","last4":"1234","bank_id":null,"is_active":true,"auto_named":true,"kind":"debit"}]""");
         Http.On(HttpMethod.Get, "/api/envelopes", "[]");
         Http.On(HttpMethod.Get, "/api/exchange-rate", """{"rate":510.45,"source":"live","as_of":"2026-09-03T12:00:00+00:00"}""");
         Http.On(HttpMethod.Get, "/api/months/resolve", """{"month_id":null,"year":2026,"month_number":7,"is_new":true}""");
@@ -137,6 +137,7 @@ public class LedgerPagesTests : ComponentTestBase
         cut.Find("[data-testid='tx-category']").Change(CatId);
         cut.Find("[data-testid='tx-bank']").Change(BankId);
         cut.Find("[data-testid='tx-card']").Change(CardId);
+        Assert.Equal("bank_account", cut.Find("[data-testid='tx-method']").GetAttribute("value")); // CARDS-3: a debit card spends the account
         cut.Find("[data-testid='tx-save']").Click();
 
         cut.WaitForAssertion(() => Assert.Single(Http.Requests, r => r.Method == HttpMethod.Post && r.RequestUri!.AbsolutePath == "/api/transactions"));

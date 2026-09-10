@@ -1323,7 +1323,12 @@ Then VISA-5678 appears auto-named; "Same card as… Allan's Visa" → Merge leav
 editable). Month page → **Expected:** the row's **Card** column reads Allan's Visa; the **Card** filter narrows
 to it. **New transaction** → **Expected:** **Card** = *No card*; pick Allan's Visa → **Save** → the row shows it.
 **Export CSV** → the last column is `card`. Via Postman (**24 · Cards**) → Create card with brand VISA and
-last4 1234 → **Expected:** 409 `card_exists` with `existing_id`; **Create card — invalid** → 400. Renewal: confirm a voucher with a new last four → **Expected:** an
+last4 1234 → **Expected:** 409 `card_exists` with `existing_id`; **Create card — invalid** → 400. **Kind (CARDS-3):** a card shows **Credit** or **Debit**; edit one to
+**Debit** → **Save** → **Expected:** "Updated"; past rows unchanged. Edit again ticking **Also correct past
+transactions on this card** → **Expected:** "Updated. N past transaction(s) now match this card", and those rows
+read **Bank account** on the month page. **New transaction** → pick the debit card → **Expected:** Payment method
+flips to **Bank account** by itself, and you can still change it. Confirm a voucher on that card → **Expected:**
+the booked row is **Bank account**. Renewal: confirm a voucher with a new last four → **Expected:** an
 auto-named **VISA-5678** row with a **Same card as…** button; pick Allan's Visa → **Merge** → one row,
 identity **VISA ····1234 · ····5678**, the month rows all read Allan's Visa.
 
@@ -3675,6 +3680,12 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   up; the month page's Income card lists "Other income this month" with the inflows' frozen sum and a link that
   filters the table to them. Client only. QA-LED-06 names both; `DashboardPageTests.Income_ShowsInflows*` and
   `LedgerPagesTests.MonthDetail_IncomeCard_ListsInflows*` pin it. Suite count unchanged (181).
+- **Updated 2026-09-10** — **Credit or debit on a card (CARDS-3; owner question).** Every voucher confirm booked
+  `credit_card`, so debit purchases were counted as card spending everywhere the card-versus-account split appears.
+  `Card.Kind` (`credit` default | `debit`) now decides: the confirm and the manual picker derive `payment_method`
+  from the card, BN payment receipts set the kind at creation when the row names it, and the edit form offers an
+  opt-in backfill that corrects the card's past transactions and reports the count. Migration `AddCardKind`.
+  QA-CAT-05 gains the kind walkthrough; story CARDS-3; Postman folder 24 carries `kind`.
 - **Updated 2026-09-10** — **The 12-hour voucher date, and clearing the review queue (owner request).** Banco
   Nacional started printing "Sep 1, 2026 - 10:13 a.m."; no culture reads the dotted Spanish meridiem, so the whole
   date failed and the draft sat blocked with "Could not read: Date". `SpanishDateParser` now cuts the time off

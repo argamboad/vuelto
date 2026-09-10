@@ -88,7 +88,7 @@ public sealed class VoucherStagingService(
                     {
                         TenantId = householdId.Value, EmailConnectionId = connection.Id, ProviderMessageId = message.MessageId, Fingerprint = effectiveFingerprint,
                         ParsedBank = parsed.Bank.ToString(), BankId = bankIds.For(parsed.Bank), Merchant = parsed.Merchant, Amount = parsed.Amount,
-                        Currency = parsed.Currency, Date = parsed.Date, CardNumber = parsed.CardNumber, CardBrand = parsed.CardBrand, Authorization = parsed.Authorization,
+                        Currency = parsed.Currency, Date = parsed.Date, CardNumber = parsed.CardNumber, CardBrand = parsed.CardBrand, CardKind = parsed.CardKind, Authorization = parsed.Authorization,
                         Reference = parsed.Reference, TransactionType = parsed.TransactionType, MissingFields = parsed.MissingFields.ToArray(),
                         SuggestedCategoryId = rule?.CategoryId, SuggestedClass = rule is null ? null : rule.SuggestedClass ?? SuggestibleClasses.Default,
                         Status = PendingVoucherStatuses.Pending, ReceivedAt = message.ReceivedAt, CreatedAt = now, UpdatedAt = now,
