@@ -245,8 +245,9 @@ through each card, renewals included (a merged card keeps its history — CARDS-
 
 **Context / notes:** the same expense rows as the bank donuts (frozen amounts, any period), grouped by `card_id` through
 Core `CardSpend.Calculate` — largest first, the "no card" bucket last, all-states names. API: `by_card[]` on the analysis
-(`{ key: card id | "none", label, total_crc, total_usd }`). Chart view: **Spend by card** bars beside Card vs account,
-shown once a card has been used (a lone "No card" bar says nothing). The dashboard's **By card** table is the one-month
+(`{ key: card id | "none", label, total_crc, total_usd }`). Chart view: **Spend by card** is a donut beside **Spend by
+bank** — both answer "which source", so they share a shape — and **Card vs account**, the taller card, sits below them
+across the full width with its donut and the budgeted-vs-spent bars side by side. Shown once a card has been used. The dashboard's **By card** table is the one-month
 twin (`summary.by_card[]` with a count per card).
 
 ```gherkin

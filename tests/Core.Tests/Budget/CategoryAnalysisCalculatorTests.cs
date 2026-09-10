@@ -78,7 +78,7 @@ public class CategoryAnalysisCalculatorTests
 
         var report = CategoryAnalysisCalculator.Calculate(
             [On(visa, "budgeted", 1_000m), On(old, "extraordinary", 4_000m), On(null, "budgeted", 9_000m), On(visa, "inflow", 50_000m)],
-            Names, From, To, null, null, new Dictionary<Guid, string> { [visa] = "Allan's Visa", [old] = "Old Amex" });
+            Names, From, To, null, null, new Dictionary<Guid, CardLabel> { [visa] = new("Allan's Visa", "credit"), [old] = new("Old Amex", "credit") });
 
         Assert.Equal(["Old Amex", "Allan's Visa", ""], report.ByCard.Select(c => c.CardName));
         Assert.Equal((old, 4_000m, 8m, 1), (report.ByCard[0].CardId, report.ByCard[0].TotalCrc, report.ByCard[0].TotalUsd, report.ByCard[0].Count));

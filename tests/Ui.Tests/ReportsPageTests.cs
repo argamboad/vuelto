@@ -346,12 +346,12 @@ public class ReportsPageTests : ComponentTestBase
         Assert.Contains("Tx_BankAccount", methods[1].TextContent);
         Assert.Contains("₡19,705", methods[1].TextContent);
         // The plan cut the same way, beside the spend: card ₡120,000 budgeted vs ₡80,000 spent; account ₡30,000 vs ₡19,705.
-        // CARDS-2: "Spend by card" — one bar per card, largest first, the "no card" bucket last with its own label.
-        var cardBars = cut.FindAll("[data-testid='rep-card-bars'] [data-testid='chart-bar']");
-        Assert.Equal(2, cardBars.Count);
-        Assert.Contains("Allan's Visa", cardBars[0].TextContent);
-        Assert.Contains("₡80,000", cardBars[0].QuerySelector("[data-testid='chart-value']")!.TextContent);
-        Assert.Contains("Tx_NoCard", cardBars[1].TextContent);
+        // CARDS-2: "Spend by card" is a donut beside "Spend by bank" — both answer "which source", so they match.
+        var cardSlices = cut.FindAll("[data-testid='rep-card-donut'] [data-testid='chart-legend-item']");
+        Assert.Equal(2, cardSlices.Count);
+        Assert.Contains("Allan's Visa", cardSlices[0].TextContent);
+        Assert.Contains("₡80,000", cardSlices[0].TextContent);
+        Assert.Contains("Tx_NoCard", cardSlices[1].TextContent);
         var bars = cut.FindAll("[data-testid='rep-method-bars'] [data-testid='chart-bar']");
         Assert.Equal(2, bars.Count);
         Assert.Contains("Tx_CreditCard", bars[0].TextContent);

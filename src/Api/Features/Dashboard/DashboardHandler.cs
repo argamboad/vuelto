@@ -48,9 +48,9 @@ public sealed class DashboardHandler(
         var variableLines = await variableExpenses.Query().ToListAsync(cancellationToken);
         var categoryNames = await categories.Query().ToDictionaryAsync(c => c.Id, c => c.Name, cancellationToken); // all states
         var bankNames = await banks.Query().ToDictionaryAsync(b => b.Id, b => b.Name, cancellationToken);         // all states
-        var cardNames = await cards.Query().ToDictionaryAsync(c => c.Id, c => c.Name, cancellationToken);         // all states (CARDS-2)
+        var cardLabels = await cards.Query().ToDictionaryAsync(c => c.Id, c => new CardLabel(c.Name, c.Kind), cancellationToken); // all states (CARDS-2/3)
 
-        var calc = summary.Calculate(month, monthWeeks, monthTransactions, fixedLines, variableLines, monthRefunds, allEnvelopes, resolved.Rates, categoryNames, bankNames, cardNames);
+        var calc = summary.Calculate(month, monthWeeks, monthTransactions, fixedLines, variableLines, monthRefunds, allEnvelopes, resolved.Rates, categoryNames, bankNames, cardLabels);
         return new DashboardResponse(header, resolved.Rate, resolved.Rates.Buy, resolved.Source, resolved.AsOf, RateUnavailable: false, DashboardSummaryResponse.From(calc));
     }
 }

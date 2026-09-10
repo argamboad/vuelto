@@ -180,6 +180,37 @@ public class ReviewPageTests : ComponentTestBase
     }
 
     [Fact]
+    public async Task AutoNamedCards_AreCalledOutOnTheQueue_WithAWayToFixThem()
+    {
+        // CARDS-3: a voucher can create a card silently — the queue is where you find out, not the Cards page.
+        await SignInAsync();
+        StubQueue();
+        Http.On(HttpMethod.Get, "/api/cards", """
+            [{"id":"11111111-0000-0000-0000-000000000001","name":"VISA-1966","auto_named":true},
+             {"id":"11111111-0000-0000-0000-000000000002","name":"CARD-7112","auto_named":true},
+             {"id":"11111111-0000-0000-0000-000000000003","name":"Allan's Visa","auto_named":false}]
+            """);
+
+        var cut = Render<Review>();
+
+        cut.WaitForAssertion(() => Assert.Contains("Review_CardsNeedNaming[2]", cut.Find("[data-testid='review-cards-nudge']").TextContent));
+        Assert.Equal("/cards", cut.Find("[data-testid='review-cards-nudge'] a").GetAttribute("href"));
+    }
+
+    [Fact]
+    public async Task NoAutoNamedCards_MeansNoNudge()
+    {
+        await SignInAsync();
+        StubQueue();
+        Http.On(HttpMethod.Get, "/api/cards", """[{"id":"11111111-0000-0000-0000-000000000003","name":"Allan's Visa","auto_named":false}]""");
+
+        var cut = Render<Review>();
+
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("[data-testid='review-voucher']")));
+        Assert.Empty(cut.FindAll("[data-testid='review-cards-nudge']"));
+    }
+
+    [Fact]
     public async Task Confirm_PostsTheDecision_WithoutOverridesForParsedFields_AndReloads()
     {
         await SignInAsync();

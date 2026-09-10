@@ -46,7 +46,8 @@ public record CardSpendResponse(
     [property: JsonPropertyName("card_id")] Guid? CardId,
     [property: JsonPropertyName("card_name")] string CardName,
     [property: JsonPropertyName("actual")] MoneyPairResponse Actual,
-    [property: JsonPropertyName("count")] int Count);
+    [property: JsonPropertyName("count")] int Count,
+    [property: JsonPropertyName("kind")] string Kind = "credit");
 
 public record DashboardSummaryResponse(
     [property: JsonPropertyName("income_primary")] MoneyPairResponse IncomePrimary,
@@ -87,7 +88,7 @@ public record DashboardSummaryResponse(
         MoneyPairResponse.From(s.UnplannedEssentialTotal), MoneyPairResponse.From(s.RefundsTotal),
         s.EnvelopeReminders.Select(e => new EnvelopeReminderResponse(e.Name, MoneyPairResponse.From(e.AnnualTarget), MoneyPairResponse.From(e.ContributedThisMonth), MoneyPairResponse.From(e.Remaining), e.Cadence)).ToList(),
         s.BankMethodBreakdown.Select(b => new BankMethodBreakdownResponse(b.BankId, b.BankName, b.PaymentMethod, MoneyPairResponse.From(b.Budget), MoneyPairResponse.From(b.Actual))).ToList(),
-        s.ByCard.Select(c => new CardSpendResponse(c.CardId, c.CardName, new MoneyPairResponse(c.TotalCrc, c.TotalUsd), c.Count)).ToList());
+        s.ByCard.Select(c => new CardSpendResponse(c.CardId, c.CardName, new MoneyPairResponse(c.TotalCrc, c.TotalUsd), c.Count, c.CardKind)).ToList());
 }
 
 /// <summary>The month header the dashboard shows; the full month (with income) lives on <c>GET /api/months/{id}</c>.</summary>

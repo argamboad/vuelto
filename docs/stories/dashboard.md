@@ -70,8 +70,9 @@ Scenario: The Dashboard page
        − Unplanned spent → = Spent so far → = Left now → − Still planned ("N% of the month elapsed") → = Forecast at month end
        (red + a warning line below zero) + the frozen-rate note; the old Expenses/Balance cards and "Remainder for debts" are gone from the UI
   And Fixed / Variable tables (Line, Budgeted, Actual — green under, red over, judged in the currency the line is set in; `budget_currency` on each line, 2026-09-07), Other spending, Week by week,
-       Unplanned essentials & refunds, Envelope reminders, By bank and payment method, and (CARDS-2, once a card has been
-       used) By card — alias, transactions, spend, "No card" last, a Total row
+       Unplanned essentials & refunds, Envelope reminders, and — side by side, both answering "where did the money leave from" —
+       By bank and payment method (7 columns) next to By card (5 columns; alias, kind, transactions, spend, share of the month,
+       "No card" last, a Total row), the pair shown once a card has been used
   When no rate resolves → the red "projections are blocked" message and no figures
   When there are no months → "Nothing to show yet" with New transaction
   When the month was removed (404) → the month-no-longer-exists message

@@ -552,6 +552,11 @@
   <data name="Dash_Contributed" xml:space="preserve"><value>Contributed this month</value></data>
   <data name="Dash_Remaining" xml:space="preserve"><value>Remaining</value></data>
   <data name="Dash_BankMethod" xml:space="preserve"><value>By bank and payment method</value></data>
+  <data name="Dash_Share" xml:space="preserve"><value>Share</value></data>
+  <data name="Review_CardsNeedNaming" xml:space="preserve"><value>{0} card(s) still carry the name a voucher gave them. Check the alias, and whether each is credit or debit.</value></data>
+  <data name="Review_CardsNeedNamingAction" xml:space="preserve"><value>Manage cards</value></data>
+  <data name="Dash_CardMeta" xml:space="preserve"><value>{0} · {1} transaction(s)</value></data>
+  <data name="Dash_CardCount" xml:space="preserve"><value>{0} transaction(s)</value></data>
   <data name="Dash_ByCard" xml:space="preserve"><value>By card</value></data>
   <data name="Dash_Transactions" xml:space="preserve"><value>Transactions</value></data>
   <data name="Dash_MethodTotal" xml:space="preserve"><value>{0} — total</value></data>

@@ -21,7 +21,7 @@ public interface IDashboardSummaryService
         FxRates rate, // the day's buy/sell pair (ADR-V019); a bare decimal converts to one rate for both sides
         IReadOnlyDictionary<Guid, string>? categoryNames = null, // ALL categories (a deactivated name still labels "other spending")
         IReadOnlyDictionary<Guid, string>? bankNames = null,    // ALL banks (a deactivated bank still names its cell)
-        IReadOnlyDictionary<Guid, string>? cardNames = null);   // ALL cards (CARDS-2: an inactive card still names its row)
+        IReadOnlyDictionary<Guid, CardLabel>? cards = null);    // ALL cards (CARDS-2/3: an inactive card still names its row, and the kind rides along)
 }
 
 public sealed class DashboardSummaryService : IDashboardSummaryService
@@ -34,7 +34,7 @@ public sealed class DashboardSummaryService : IDashboardSummaryService
         IReadOnlyList<FixedExpense> fixedExpenses, IReadOnlyList<VariableExpense> variableExpenses,
         IReadOnlyList<Refund> refunds, IReadOnlyList<Envelope> envelopes, FxRates rate,
         IReadOnlyDictionary<Guid, string>? categoryNames = null, IReadOnlyDictionary<Guid, string>? bankNames = null,
-        IReadOnlyDictionary<Guid, string>? cardNames = null)
+        IReadOnlyDictionary<Guid, CardLabel>? cardLabels = null)
     {
         var income = CalculateIncome(month, transactions, rate);
         var expenses = CalculateExpenseSummary(income, transactions);
@@ -57,7 +57,7 @@ public sealed class DashboardSummaryService : IDashboardSummaryService
             CalculateEnvelopeReminders(month, envelopes, transactions),
             CalculateOtherSpending(activeFixed, activeVariable, transactions, categoryNames ?? new Dictionary<Guid, string>()),
             CalculateBankMethodBreakdown(activeFixed, activeVariable, transactions, rate, bankNames ?? new Dictionary<Guid, string>()),
-            CardSpend.Calculate(transactions, cardNames)); // CARDS-2: the month's spend by card, "no card" last
+            CardSpend.Calculate(transactions, cardLabels)); // CARDS-2: the month's spend by card, "no card" last
     }
 
     // Income (configured incomes at the passed-in rate + inflows' frozen amounts) is the shared

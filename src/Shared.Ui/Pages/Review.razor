@@ -35,6 +35,16 @@
         <div class="alert @(_noticeOk ? "alert-success" : "alert-danger") py-2" data-testid="review-notice">@_notice</div>
     }
 
+    @* CARDS-3: a voucher can create a card silently — say so here, where the vouchers are, instead of letting
+       the automatic alias and the credit default sit wrong until someone happens to open the Cards page. *@
+    @if (_unnamedCards > 0)
+    {
+        <div class="alert alert-warning py-2 d-flex align-items-center justify-content-between flex-wrap gap-2" data-testid="review-cards-nudge">
+            <span>@Localizer["Review_CardsNeedNaming", _unnamedCards]</span>
+            <a class="btn btn-warning btn-sm" href="/cards">@Localizer["Review_CardsNeedNamingAction"]</a>
+        </div>
+    }
+
     @if (_loading)
     {
         <div class="text-muted"><span class="spinner-border spinner-border-sm me-2"></span>@Localizer["Common_Loading"]</div>
@@ -179,6 +189,9 @@
             _categories = await Http.GetFromJsonAsync<List<CategoryOption>>("/api/categories") ?? new();
             _banks = await Http.GetFromJsonAsync<List<NamedDto>>("/api/banks") ?? new();
             _vouchers = await Http.GetFromJsonAsync<List<VoucherDto>>("/api/pending-vouchers") ?? new();
+            // Its own call and its own catch: the nudge is a footnote, never a reason the queue fails to render.
+            try { _unnamedCards = (await Http.GetFromJsonAsync<List<CardNudgeDto>>("/api/cards"))?.Count(c => c.AutoNamed) ?? 0; }
+            catch { _unnamedCards = 0; }
             foreach (var v in _vouchers) v.InitForm();
         }
         catch { Fail(Localizer["Review_LoadError"]); }
@@ -337,6 +350,8 @@
         [property: JsonPropertyName("staged")] int Staged,
         [property: JsonPropertyName("duplicates")] int Duplicates,
         [property: JsonPropertyName("unrecognized")] int Unrecognized);
+    private int _unnamedCards;
+    private sealed record CardNudgeDto([property: JsonPropertyName("auto_named")] bool AutoNamed);
     private sealed record ConfirmDto([property: JsonPropertyName("transaction_id")] Guid TransactionId, [property: JsonPropertyName("remembered")] bool Remembered);
     private sealed record ErrorDto([property: JsonPropertyName("error")] string Error, [property: JsonPropertyName("message")] string Message);
 }

@@ -159,6 +159,10 @@ existing card keeps whatever the household chose. Changing the kind never rewrit
 opt-in "also correct past transactions on this card", and the response says how many moved.
 
 ```gherkin
+Scenario: A card a voucher named is called out
+  Given a voucher created VISA-1966 and nobody has renamed it
+  Then the review queue says a card still carries the name a voucher gave it, with a link to Manage cards
+
 Scenario: A debit card spends the account
   Given a voucher on a card marked debit is confirmed
   Then the transaction reads bank_account, still names the card, and shows under it in "By card"

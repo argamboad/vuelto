@@ -65,7 +65,7 @@ public class DashboardSummaryServiceTests
 
     private DashboardSummary With(List<Transaction>? transactions = null, List<FixedExpense>? fixedLines = null, List<VariableExpense>? variableLines = null,
         List<Refund>? refunds = null, List<Envelope>? envelopes = null, decimal rate = 500m, Month? month = null,
-        IReadOnlyDictionary<Guid, string>? categories = null, IReadOnlyDictionary<Guid, string>? banks = null, IReadOnlyDictionary<Guid, string>? cards = null) =>
+        IReadOnlyDictionary<Guid, string>? categories = null, IReadOnlyDictionary<Guid, string>? banks = null, IReadOnlyDictionary<Guid, CardLabel>? cards = null) =>
         _service.Calculate(month ?? GetMonth(), GetWeeks(), transactions ?? [], fixedLines ?? [], variableLines ?? [], refunds ?? [], envelopes ?? [], rate, categories, banks, cards);
 
     private static Refund RefundExpected(decimal crc, decimal usd, string status) => new()
@@ -518,7 +518,7 @@ public class DashboardSummaryServiceTests
             OnCard(Tx(DiningCat, 7_000m, 14m, "budgeted", new DateOnly(2026, 6, 6)), visa),
             OnCard(Tx(GroceriesCat, 3_000m, 6m, "inflow", new DateOnly(2026, 6, 7)), visa),
             Tx(GroceriesCat, 9_000m, 18m, "budgeted", new DateOnly(2026, 6, 8), "bank_account")
-        ], cards: new Dictionary<Guid, string> { [visa] = "Allan's Visa" }).ByCard;
+        ], cards: new Dictionary<Guid, CardLabel> { [visa] = new("Allan's Visa", CardKinds.Debit) }).ByCard;
 
         Assert.Equal(2, rows.Count);
         Assert.Equal(("Allan's Visa", 12_000m, 24m, 2), (rows[0].CardName, rows[0].TotalCrc, rows[0].TotalUsd, rows[0].Count));
