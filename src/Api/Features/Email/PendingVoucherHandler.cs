@@ -21,6 +21,8 @@ namespace Vuelto.Api.Features.Email;
 /// </summary>
 public sealed class PendingVoucherHandler(
     IRepository<PendingVoucher> pendingVouchers,
+    IRepository<IngestedVoucher> ingestedVouchers,
+    IRepository<EmailConnection> connections,
     ITransactionService transactions,
     MerchantMappingHandler mappings,
     ICardResolver cards,
@@ -28,6 +30,58 @@ public sealed class PendingVoucherHandler(
     TimeProvider clock,
     ILogger<PendingVoucherHandler> logger)
 {
+    /// <summary>
+    /// EMAIL-7 — the queue reset (owner request, 2026-09-10): every draft still waiting disappears, its dedup
+    /// tombstone with it, and each inbox that staged one has its cursor pulled back to just before the oldest
+    /// of them, so the next sync reads those emails again. Confirmed and discarded drafts keep their tombstones,
+    /// so nothing you already booked or threw away can come back. Transactions are never touched. One scope:
+    /// drafts, tombstones and cursors commit together or not at all. Without <c>confirm</c> it is a 409.
+    /// </summary>
+    public async Task<(ClearQueueResponse? Result, ErrorResponse? Error)> ClearPendingAsync(bool confirm, CancellationToken cancellationToken)
+    {
+        if (!confirm) return (null, new ErrorResponse("confirmation_required", "Set confirm to clear the review queue."));
+
+        var pending = await pendingVouchers.Query()
+            .Where(v => v.Status == PendingVoucherStatuses.Pending)
+            .Select(v => new { v.Id, v.EmailConnectionId, v.ReceivedAt })
+            .ToListAsync(cancellationToken);
+        if (pending.Count == 0) return (new ClearQueueResponse(0, 0), null);
+
+        await using var scope = await unitOfWork.BeginTransactionAsync(cancellationToken);
+
+        var ids = pending.Select(p => p.Id).ToList();
+        await ingestedVouchers.Query().Where(i => ids.Contains(i.PendingVoucherId)).ExecuteDeleteAsync(cancellationToken);
+        var cleared = await pendingVouchers.Query().Where(v => ids.Contains(v.Id) && v.Status == PendingVoucherStatuses.Pending).ExecuteDeleteAsync(cancellationToken);
+
+        // The connection is user-keyed (ADR-V002) and may belong to another member of the household — rewinding
+        // it is still right: it staged these drafts, and the rewind can only bring back what we just cleared
+        // (every other tombstone survives). Never move a cursor forward, and never behind the user's import_from.
+        var rewound = 0;
+        foreach (var group in pending.GroupBy(p => p.EmailConnectionId))
+        {
+            // ReceivedAt is nullable (a draft staged before the reader recorded it); with no arrival time at
+            // all there is nothing to aim the cursor at, so that inbox keeps its cursor.
+            var arrivals = group.Where(p => p.ReceivedAt is not null).Select(p => p.ReceivedAt!.Value).ToList();
+            if (arrivals.Count == 0) continue;
+            var connection = await connections.Query().FirstOrDefaultAsync(c => c.Id == group.Key, cancellationToken);
+            if (connection is null) continue; // the inbox was disconnected since; nothing to rewind
+
+            var target = arrivals.Min().AddMinutes(-1);
+            if (target < connection.ImportFrom) target = connection.ImportFrom;
+            if (connection.LastPolledAt is { } current && current <= target) continue;
+
+            connection.LastPolledAt = target;
+            connection.UpdatedAt = clock.GetUtcNow();
+            connections.Update(connection);
+            rewound++;
+        }
+
+        await connections.SaveChangesAsync(cancellationToken);
+        await scope.CommitAsync(cancellationToken);
+        logger.LogInformation("Review queue cleared: {Cleared} draft(s) removed, {Rewound} inbox cursor(s) rewound", cleared, rewound);
+        return (new ClearQueueResponse(cleared, rewound), null);
+    }
+
     /// <summary>Pending drafts, newest mail first.</summary>
     public async Task<IReadOnlyList<PendingVoucherResponse>> ListPendingAsync(CancellationToken cancellationToken)
     {

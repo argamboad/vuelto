@@ -148,6 +148,21 @@ public class ReviewEndpointTests(IntegrationTestFactory factory)
         return draft.Id;
     }
 
+    [Fact]
+    public async Task Clear_NeedsConfirmation_ThenEmptiesTheQueue()
+    {
+        var member = await _factory.SeedUserAsync(TenantRoles.Member);
+        var client = _factory.CreateClientFor(member);
+
+        var unconfirmed = await client.PostAsJsonAsync("/api/pending-vouchers/clear", new { confirm = false });
+        Assert.Equal(HttpStatusCode.Conflict, unconfirmed.StatusCode);
+
+        var cleared = await client.PostAsJsonAsync("/api/pending-vouchers/clear", new { confirm = true });
+        Assert.Equal(HttpStatusCode.OK, cleared.StatusCode);
+        Assert.Equal(0, (await cleared.Content.ReadFromJsonAsync<ClearedDto>())!.Cleared);
+    }
+
+    private sealed record ClearedDto([property: JsonPropertyName("cleared")] int Cleared, [property: JsonPropertyName("inboxes_rewound")] int InboxesRewound);
     private sealed record NamedDto([property: JsonPropertyName("id")] Guid Id, [property: JsonPropertyName("name")] string Name);
     private sealed record ErrorDto([property: JsonPropertyName("error")] string Error, [property: JsonPropertyName("message")] string Message);
     private sealed record MappingDto([property: JsonPropertyName("id")] Guid Id, [property: JsonPropertyName("merchant_pattern")] string MerchantPattern, [property: JsonPropertyName("category_name")] string? CategoryName, [property: JsonPropertyName("suggested_class")] string? SuggestedClass);

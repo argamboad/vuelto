@@ -374,3 +374,28 @@ enter manually), bulk confirm, an audit of who confirmed what (Slice-8 candidate
 two-context concurrency proof and the nothing-partial cases; `ReviewEndpointTests` over HTTP with a seeded
 draft and the rate resolved through the chain's last tier); Ui.Tests (`ReviewPageTests`, `ReviewBadgeTests`);
 `ITransactionService` bound in `Program.cs` (R7/R8 gates green); Postman folder 22; QA-EMAIL-06; merged.
+
+### EMAIL-7 — Clear the review queue *(owner request, 2026-09-10)* ✅
+
+**As** a household member, **I want** to empty the review queue and have those emails read again,
+**so that** a batch parsed by an older, buggier parser can be re-ingested instead of hand-fixed.
+
+**Context / notes:** Settings → Email, under the inboxes: a two-step **Clear the review queue** whose warning
+names the count. `POST /api/pending-vouchers/clear { "confirm": true }` (409 `confirmation_required` without it)
+deletes every **pending** draft and its dedup tombstone, then pulls each inbox that staged one back to a minute
+before the oldest cleared draft — clamped at that inbox's `import_from`, never moved forward — so the next sync
+re-reads exactly those emails. Confirmed and discarded drafts keep their tombstones, so nothing already booked or
+thrown away returns. Transactions are never touched. Drafts, tombstones and cursors commit in one scope.
+The cursor may belong to another member's inbox (connections are user-keyed, ADR-V002); rewinding it is bounded
+by the surviving tombstones. **Not covered:** re-opening a voucher whose transaction was deleted — deleting an
+email-sourced transaction still strands its voucher as `confirmed` (a separate story).
+
+```gherkin
+Scenario: Start the queue over
+  Given 3 drafts wait, 1 is confirmed and 1 discarded
+  When I clear the review queue from Settings -> Email and confirm the warning
+  Then the 3 drafts and their tombstones are gone, the confirmed and discarded ones are untouched,
+       the inbox cursor sits just before the oldest cleared draft, and no transaction changed
+  When I press Sync now
+  Then those 3 emails are staged again - parsed by today's parser
+```

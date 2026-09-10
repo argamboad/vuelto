@@ -617,6 +617,13 @@
   <data name="Email_SettingsTitle" xml:space="preserve"><value>Bandejas de correo</value></data>
   <data name="Email_SettingsHint" xml:space="preserve"><value>Conecta tu bandeja de Outlook o Gmail para que los vouchers del banco se conviertan en borradores por revisar. Solo lectura, y es tuya, no del hogar.</value></data>
   <data name="Email_SettingsLink" xml:space="preserve"><value>Administrar bandejas</value></data>
+  <data name="Email_QueueSection" xml:space="preserve"><value>Cola de revisión</value></data>
+  <data name="Email_QueueCount" xml:space="preserve"><value>{0} borrador(es) esperando revisión.</value></data>
+  <data name="Email_Clear" xml:space="preserve"><value>Vaciar la cola de revisión</value></data>
+  <data name="Email_ClearWarning" xml:space="preserve"><value>Esto borra los {0} borrador(es) en espera y olvida que esos correos ya se leyeron, así que la próxima sincronización los trae de nuevo desde tu bandeja. Las transacciones que ya confirmaste no se tocan, ni los borradores que descartaste. No se puede deshacer.</value></data>
+  <data name="Email_ClearConfirm" xml:space="preserve"><value>Sí, vaciar la cola</value></data>
+  <data name="Email_QueueCleared" xml:space="preserve"><value>Cola vaciada: {0} borrador(es) eliminados, {1} bandeja(s) los leerán de nuevo en la próxima sincronización.</value></data>
+  <data name="Email_ClearError" xml:space="preserve"><value>No se pudo vaciar la cola. Inténtalo de nuevo.</value></data>
   <data name="Email_Title" xml:space="preserve"><value>Bandejas de correo</value></data>
   <data name="Email_Subtitle" xml:space="preserve"><value>Conexiones de solo lectura a las bandejas que reciben tus vouchers bancarios. Nada se marca como leído, se mueve ni se borra.</value></data>
   <data name="Email_NoInboxes" xml:space="preserve"><value>Todavía no hay bandejas conectadas.</value></data>

@@ -26,6 +26,13 @@ public class SpanishDateParserTests
 
     [Theory]
     [InlineData("Ene 13, 2026, 14:01", 2026, 1, 13)]   // BAC shape
+    // BN switched to a 12-hour clock with the Spanish dotted meridiem (2026-09-10): the time is cut off,
+    // whatever its spelling, instead of being handed to a culture that cannot read it.
+    [InlineData("Sep 1, 2026 - 10:13 a.m.", 2026, 9, 1)]
+    [InlineData("Sep 1, 2026 - 10:13 p.m.", 2026, 9, 1)]
+    [InlineData("Set 1, 2026 - 10:13 a. m.", 2026, 9, 1)]
+    [InlineData("Dic 24, 2026 - 11:59 PM", 2026, 12, 24)]
+    [InlineData("24/12/2026 11:59 p.m.", 2026, 12, 24)]
     [InlineData("Abr 03, 2026, 09:30", 2026, 4, 3)]
     [InlineData("Ago 18, 2026, 23:05", 2026, 8, 18)]
     [InlineData("Dic 31, 2026, 00:01", 2026, 12, 31)]

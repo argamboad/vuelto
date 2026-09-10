@@ -20,6 +20,30 @@ public class EmailSettingsPageTests : ComponentTestBase
         """;
 
     [Fact]
+    public async Task ClearQueue_IsTwoStep_WarnsWithTheCount_AndPostsTheConfirmedReset()
+    {
+        // EMAIL-7: the destructive control reads its own count, warns, and only then posts.
+        await SignInAsync();
+        Http.On(HttpMethod.Get, "/api/email/connections", List);
+        Http.On(HttpMethod.Get, "/api/pending-vouchers/count", """{"count":3}""");
+        Http.On(HttpMethod.Post, "/api/pending-vouchers/clear", """{"cleared":3,"inboxes_rewound":1}""");
+
+        var cut = Render<EmailSettings>();
+        cut.WaitForAssertion(() => Assert.Contains("Email_QueueCount[3]", cut.Find("[data-testid='email-queue-count']").TextContent));
+        Assert.Empty(cut.FindAll("[data-testid='email-clear-warning']"));
+
+        cut.Find("[data-testid='email-clear']").Click();
+        Assert.Contains("Email_ClearWarning[3]", cut.Find("[data-testid='email-clear-warning']").TextContent);
+
+        Http.On(HttpMethod.Get, "/api/pending-vouchers/count", """{"count":0}""");
+        cut.Find("[data-testid='email-clear-confirm']").Click();
+
+        cut.WaitForAssertion(() => Assert.Contains("Email_QueueCleared[3, 1]", cut.Find("[data-testid='email-notice']").TextContent));
+        var post = Assert.Single(Http.Requests, r => r.Method == HttpMethod.Post && r.RequestUri!.AbsolutePath == "/api/pending-vouchers/clear");
+        Assert.Contains("\"confirm\":true", await post.Content!.ReadAsStringAsync());
+    }
+
+    [Fact]
     public async Task Lists_Connections_WithProviderAccountStatus_AndReconnectForDeadOnes()
     {
         await SignInAsync();
