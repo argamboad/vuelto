@@ -22,6 +22,8 @@ public class RefundConfiguration : IEntityTypeConfiguration<Refund>
 
         b.Property(x => x.Payee).HasMaxLength(200).IsRequired();
         b.Property(x => x.Status).HasMaxLength(16).IsRequired();
+        b.Property(x => x.CaseNumber).HasMaxLength(Refund.CaseNumberMaxLength);
+        b.Property(x => x.Notes).HasMaxLength(Refund.NotesMaxLength);
         b.Property(x => x.Percentage).HasPrecision(5, 2);
         b.Property(x => x.AmountCrc).HasPrecision(12, 2);
         b.Property(x => x.AmountUsd).HasPrecision(12, 2);

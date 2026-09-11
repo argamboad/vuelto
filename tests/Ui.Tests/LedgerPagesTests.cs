@@ -16,6 +16,7 @@ public class LedgerPagesTests : ComponentTestBase
     private const string BankId = "cccccccc-0000-0000-0000-000000000003";
     private const string TxId = "dddddddd-0000-0000-0000-000000000004";
     private const string CardId = "eeeeeeee-0000-0000-0000-000000000005";
+    private const string RefundId = "ffffffff-0000-0000-0000-000000000006";
 
     private void StubCatalogs()
     {
@@ -94,6 +95,36 @@ public class LedgerPagesTests : ComponentTestBase
         cut.Find("[data-testid='tx-rate']").Change("460");
         cut.Find("[data-testid='tx-currency']").Change("USD");
         Assert.Equal("460", cut.Find("[data-testid='tx-rate']").GetAttribute("value"));
+    }
+
+    [Fact]
+    public async Task MonthRefunds_ShowTheCaseAndNote_AndTheInlineEditPutsThem()
+    {
+        // LEDGER-4: the claim it is chased under and why it is expected, edited where the refund already is.
+        await SignInAsync();
+        StubCatalogs();
+        Http.On(HttpMethod.Get, $"/api/months/{MonthId}", $$"""{"id":"{{MonthId}}","year":2026,"month_number":7,"week_count":5,"week1_start_date":"2026-06-25","primary_income_amount":3750,"primary_income_currency":"USD","secondary_income_amount":0,"secondary_income_currency":"CRC","weeks":[{"week_number":1,"start_date":"2026-06-25","end_date":"2026-07-01"}]}""");
+        Http.On(HttpMethod.Get, $"/api/months/{MonthId}/transactions", "[]");
+        Http.On(HttpMethod.Get, $"/api/months/{MonthId}/refunds", $$"""
+            [{"id":"{{RefundId}}","payee":"Clinic","transaction_date":"2026-07-10","percentage":50,"amount_crc":25000,"amount_usd":50,"status":"pending","case_number":"CASE-2026-4471","notes":"Lent to Diego"}]
+            """);
+        Http.On(HttpMethod.Put, $"/api/refunds/{RefundId}/details", $$"""{"id":"{{RefundId}}","payee":"Clinic","transaction_date":"2026-07-10","percentage":50,"amount_crc":25000,"amount_usd":50,"status":"pending","case_number":"CASE-9","notes":""}""");
+
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"http://localhost/months/{MonthId}");
+        var cut = Render<MonthDetail>(p => p.Add(x => x.Id, Guid.Parse(MonthId)));
+
+        cut.WaitForAssertion(() => Assert.Equal("CASE-2026-4471", cut.Find("[data-testid='refund-case']").TextContent.Trim()));
+        Assert.Equal("Lent to Diego", cut.Find("[data-testid='refund-note']").GetAttribute("title"));
+
+        cut.Find("[data-testid='refund-edit']").Click();
+        cut.Find("[data-testid='refund-case-input']").Input("CASE-9");
+        cut.Find("[data-testid='refund-notes-input']").Input("  ");   // blank clears
+        cut.Find("[data-testid='refund-details-save']").Click();
+
+        cut.WaitForAssertion(() => Assert.Single(Http.Requests, r => r.Method == HttpMethod.Put && r.RequestUri!.AbsolutePath.EndsWith("/details")));
+        var body = await Http.Requests.Single(r => r.Method == HttpMethod.Put && r.RequestUri!.AbsolutePath.EndsWith("/details")).Content!.ReadAsStringAsync();
+        Assert.Contains("\"case_number\":\"CASE-9\"", body);
+        Assert.Contains("\"notes\":null", body);
     }
 
     [Fact]

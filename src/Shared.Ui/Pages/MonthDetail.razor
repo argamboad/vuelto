@@ -220,6 +220,7 @@
                             <tr>
                                 <th scope="col">@Localizer["Tx_Date"]</th>
                                 <th scope="col">@Localizer["Tx_Payee"]</th>
+                                <th scope="col">@Localizer["Refund_CaseNumber"]</th>
                                 <th scope="col" class="text-end">%</th>
                                 <th scope="col" class="text-end">₡</th>
                                 <th scope="col" class="text-end">$</th>
@@ -232,7 +233,17 @@
                             {
                                 <tr data-testid="month-refund-row">
                                     <td>@r.TransactionDate.ToString("d", CultureInfo.CurrentCulture)</td>
-                                    <td>@r.Payee</td>
+                                    <td>
+                                        @r.Payee
+                                        @if (!string.IsNullOrWhiteSpace(r.Notes))
+                                        {
+                                            @* Same affordance as a transaction's note: an icon that reads on hover. *@
+                                            <span class="ms-1 text-muted align-middle" data-testid="refund-note" title="@r.Notes" aria-label="@r.Notes">
+                                                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" focusable="false"><path d="M2 1.5h8.5L14 5v9.5H2z" opacity=".3"/><path d="M4 7h8v1.2H4zm0 2.6h8v1.2H4zm0 2.6h5v1.2H4z"/></svg>
+                                            </span>
+                                        }
+                                    </td>
+                                    <td data-testid="refund-case">@(string.IsNullOrWhiteSpace(r.CaseNumber) ? "—" : r.CaseNumber)</td>
                                     <td class="text-end">@r.Percentage.ToString("N0", CultureInfo.CurrentCulture)%</td>
                                     <td class="text-end">@r.AmountCrc.ToString("N2", CultureInfo.CurrentCulture)</td>
                                     <td class="text-end">@r.AmountUsd.ToString("N2", CultureInfo.CurrentCulture)</td>
@@ -255,11 +266,35 @@
                                             <input type="date" id="received-@r.Id" class="form-control form-control-sm d-inline-block w-auto me-2" data-testid="refund-received-date"
                                                    min="@r.TransactionDate.ToString("yyyy-MM-dd")" @bind:get="ReceivedDateFor(r)" @bind:set="v => _receivedDates[r.Id] = v" />
                                         }
+                                        <button class="btn btn-outline-secondary btn-sm me-1" data-testid="refund-edit" disabled="@(_saving || _editingRefund == r.Id)" @onclick="() => OpenRefundEdit(r)">@Localizer["Catalog_Edit"]</button>
                                         <button class="btn btn-outline-primary btn-sm" data-testid="refund-toggle" disabled="@_saving" @onclick="() => FlipRefundAsync(r)">
                                             @(r.Status == "received" ? Localizer["Refund_MarkPending"] : Localizer["Refund_MarkReceived"])
                                         </button>
                                     </td>
                                 </tr>
+                                @if (_editingRefund == r.Id)
+                                {
+                                    @* LEDGER-4: the claim it is chased under, and why it is expected — the two fields
+                                       the household owns, edited where the refund already is. *@
+                                    <tr data-testid="refund-edit-row">
+                                        <td colspan="8">
+                                            <div class="row g-2 align-items-end">
+                                                <div class="col-12 col-md-4">
+                                                    <label class="form-label small fw-medium mb-1" for="case-@r.Id">@Localizer["Refund_CaseNumber"]</label>
+                                                    <input class="form-control form-control-sm" id="case-@r.Id" data-testid="refund-case-input" maxlength="60" disabled="@_saving" @bind="_editCase" @bind:event="oninput" />
+                                                </div>
+                                                <div class="col-12 col-md-6">
+                                                    <label class="form-label small fw-medium mb-1" for="rnotes-@r.Id">@Localizer["Tx_Notes"]</label>
+                                                    <input class="form-control form-control-sm" id="rnotes-@r.Id" data-testid="refund-notes-input" maxlength="250" placeholder="@Localizer["Refund_NotesHint"]" disabled="@_saving" @bind="_editNotes" @bind:event="oninput" />
+                                                </div>
+                                                <div class="col-12 col-md-2 d-flex gap-2">
+                                                    <button class="btn btn-primary btn-sm" data-testid="refund-details-save" disabled="@_saving" @onclick="() => SaveRefundDetailsAsync(r)">@Localizer["Catalog_Save"]</button>
+                                                    <button class="btn btn-outline-secondary btn-sm" data-testid="refund-details-cancel" disabled="@_saving" @onclick="() => _editingRefund = null">@Localizer["Common_Cancel"]</button>
+                                                </div>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
                             }
                         </tbody>
                     </table>
@@ -344,6 +379,35 @@
     }
 
     /// <summary>LEDGER-3: pending → received books the derived inflow; received → pending removes it. A lost concurrent flip is a 409.</summary>
+    private Guid? _editingRefund;
+    private string _editCase = "";
+    private string _editNotes = "";
+
+    private void OpenRefundEdit(RefundDto r)
+    {
+        _notice = null; _error = null;
+        _editingRefund = r.Id;
+        _editCase = r.CaseNumber ?? "";
+        _editNotes = r.Notes ?? "";
+    }
+
+    private async Task SaveRefundDetailsAsync(RefundDto r)
+    {
+        _notice = null; _error = null; _saving = true;
+        try
+        {
+            var res = await Http.PutAsJsonAsync($"/api/refunds/{r.Id}/details", new
+            {
+                case_number = string.IsNullOrWhiteSpace(_editCase) ? null : _editCase.Trim(),
+                notes = string.IsNullOrWhiteSpace(_editNotes) ? null : _editNotes.Trim(),
+            });
+            if (res.IsSuccessStatusCode) { _editingRefund = null; _notice = Localizer["Catalog_Updated"]; await LoadAsync(); }
+            else _error = Localizer["Catalog_SaveError"];
+        }
+        catch { _error = Localizer["Catalog_SaveError"]; }
+        finally { _saving = false; }
+    }
+
     private async Task FlipRefundAsync(RefundDto r)
     {
         _notice = null; _error = null; _saving = true;
@@ -504,7 +568,9 @@
         [property: JsonPropertyName("amount_usd")] decimal AmountUsd,
         [property: JsonPropertyName("status")] string Status,
         [property: JsonPropertyName("received_date")] DateOnly? ReceivedDate = null,
-        [property: JsonPropertyName("inflow_month_id")] Guid? InflowMonthId = null);
+        [property: JsonPropertyName("inflow_month_id")] Guid? InflowMonthId = null,
+        [property: JsonPropertyName("case_number")] string? CaseNumber = null,
+        [property: JsonPropertyName("notes")] string? Notes = null);
 
     private sealed record ErrorDto(
         [property: JsonPropertyName("error")] string Error,

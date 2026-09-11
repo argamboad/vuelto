@@ -1645,6 +1645,27 @@ voucher whose date failed under the old parser now shows its date); nothing you 
 Postman (**22 · Review queue → Clear the review queue**) with `confirm: false` → **Expected:** 409
 `confirmation_required`.
 
+### QA-LED-08 — A refund carries a case number and a note, and edits do not wipe them 🟠 (Web / API)
+**Gherkin**
+```gherkin
+Given an unplanned essential expecting a 50% refund
+When I open the month page and Edit the refund
+Then I can set Case No. and a note, and blank clears either
+When I change the transaction's amount
+Then the refund's ₡/$ re-derive and both fields survive
+When I untick "refund expected" on the transaction
+Then the refund row is gone, and with it the case number and note
+And PUT /api/refunds/{id}/details with a 61-character case number is 400; an unknown id is 404
+```
+**Walkthrough:** create an **Unplanned** transaction with **refund expected** `50` → month page → **Expected
+refunds** → **Expected:** a row with **Case No.** reading "—". **Edit** → `CASE-2026-4471` and `lent to Diego`
+→ **Save** → **Expected:** the case number in its column and a note icon beside the payee whose hover text is
+the note. **Edit the transaction** → double the amount → **Save** → month page → **Expected:** the refund's
+amounts doubled, the case number and note untouched. **Edit the refund** → clear both → **Save** →
+**Expected:** "—" again and no icon. **Edit the transaction** → untick refund expected → **Save** →
+**Expected:** the refund row is gone. Via Postman (**17 · Refunds → Set case number and note**) with a
+61-character `case_number` → **Expected:** 400 naming `case_number`.
+
 ## 10i. Web — Budget lines: fixed & variable (app slice EXPENSES-1) 🟠
 
 > The budget baseline (ADR-V007/V008): two ordered lists of single-currency lines, each tied to a
@@ -3267,6 +3288,7 @@ Record one row per executed case. Build = API/web commit SHA (`git rev-parse --s
 | QA-LED-05 | Web/API | | | | | |
 | QA-LED-06 | Web/API | | | | | |
 | QA-LED-07 | Web/API | | | | | |
+| QA-LED-08 | Web/API | | | | | |
 | QA-EMAIL-07 | Web/API | | | | | |
 | QA-EXP-01 | Web/API | | | | | |
 | QA-EXP-02 | Web/API | | | | | |
