@@ -35,8 +35,27 @@ def text_of(pdf: Path) -> str:
     return re.sub(r"\s+", " ", _DATE.sub("<date>", raw)).strip()
 
 
+def signoff_drift() -> list[str]:
+    """
+    Every case gets exactly one sign-off row, and every row an existing case. The sheet had silently
+    stopped being filled in (58 rows against 184 cases, 2026-09-10) — a row that nobody adds is a case
+    nobody runs. Rows live in two tables: §16 for everything, §14a for the QA-ADV-* set with its notes.
+    """
+    plan = (HERE / "QA_TEST_PLAN.md").read_text(encoding="utf-8")
+    cases = set(re.findall(r"^### (QA-[A-Z0-9]+-\d+) — ", plan, re.M))
+    rows = re.findall(r"^\| (QA-[A-Z0-9]+-\d+) \|", plan, re.M)
+    problems = []
+    if missing := sorted(cases - set(rows)):
+        problems.append(f"cases with no sign-off row (add them to §16): {', '.join(missing)}")
+    if orphan := sorted(set(rows) - cases):
+        problems.append(f"sign-off rows for cases that no longer exist: {', '.join(orphan)}")
+    if dupes := sorted({r for r in rows if rows.count(r) > 1}):
+        problems.append(f"listed on both sheets — pick one: {', '.join(dupes)}")
+    return problems
+
+
 def main() -> int:
-    drift = []
+    drift = signoff_drift()
     for script, out in ARTIFACTS:
         committed = HERE / out
         if not committed.exists():
@@ -56,7 +75,7 @@ def main() -> int:
         print("QA artifacts have drifted from QA_TEST_PLAN.md:\n  - " + "\n  - ".join(drift), file=sys.stderr)
         return 1
 
-    print("QA PDFs are in sync with QA_TEST_PLAN.md.")
+    print("QA PDFs and the sign-off sheet are in sync with QA_TEST_PLAN.md.")
     return 0
 
 
