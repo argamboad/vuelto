@@ -1309,28 +1309,61 @@ from a *different* household's list → **Expected:** 404 (never 403 — no exis
 Given the household has no cards and the review queue holds a BAC voucher printed as VISA ************1234
 When I confirm it
 Then Settings → Cards lists VISA-1234 (VISA ····1234, the voucher's bank) with an "auto-named" badge, and the month row shows VISA-1234 in the Card column
+And the review queue says a card still carries the name a voucher gave it, with a link to Manage cards
 When I rename it to "Allan's Visa" and confirm a second voucher on the same card
-Then both rows read "Allan's Visa" — one card, the badge is gone
+Then both rows read "Allan's Visa" — one card, the badge is gone, and the queue stops nudging
 When I open New transaction
 Then Card defaults to "No card"; picking "Allan's Visa" saves it on the row; the month page filters by card
 And POST /api/cards with the same brand + last four is 409 card_exists naming the existing card; a card from another household on a transaction is 400
-When the bank renews the card and a voucher printed VISA ************5678 is confirmed
-Then VISA-5678 appears auto-named; "Same card as… Allan's Visa" → Merge leaves one card listing ····1234 · ····5678 with every transaction on it
 ```
-**Walkthrough:** **Review** → confirm the voucher → **Settings → Manage cards** → **Expected:** one row
-**VISA-1234 · VISA ····1234 · BAC Credomatic · Active** with the **auto-named** badge. **Edit** → alias
-`Allan's Visa` → **Save** → **Expected:** the badge is gone; the identity line stays **VISA ····1234** (not
-editable). Month page → **Expected:** the row's **Card** column reads Allan's Visa; the **Card** filter narrows
-to it. **New transaction** → **Expected:** **Card** = *No card*; pick Allan's Visa → **Save** → the row shows it.
-**Export CSV** → the last column is `card`. Via Postman (**24 · Cards**) → Create card with brand VISA and
-last4 1234 → **Expected:** 409 `card_exists` with `existing_id`; **Create card — invalid** → 400. **Kind (CARDS-3):** a card shows **Credit** or **Debit**; edit one to
-**Debit** → **Save** → **Expected:** "Updated"; past rows unchanged. Edit again ticking **Also correct past
-transactions on this card** → **Expected:** "Updated. N past transaction(s) now match this card", and those rows
-read **Bank account** on the month page. **New transaction** → pick the debit card → **Expected:** Payment method
-flips to **Bank account** by itself, and you can still change it. Confirm a voucher on that card → **Expected:**
-the booked row is **Bank account**. Renewal: confirm a voucher with a new last four → **Expected:** an
-auto-named **VISA-5678** row with a **Same card as…** button; pick Allan's Visa → **Merge** → one row,
-identity **VISA ····1234 · ····5678**, the month rows all read Allan's Visa.
+**Walkthrough:** **Review** → **Expected:** before confirming anything, no nudge. Confirm the voucher →
+**Settings → Manage cards** → **Expected:** one row **VISA-1234 · VISA ····1234 · Credit · BAC Credomatic ·
+Active** with the **auto-named** badge; back on **Review**, the amber "1 card still carries the name a voucher
+gave it" line with **Manage cards**. **Edit** → alias `Allan's Visa` → **Save** → **Expected:** the badge and
+the nudge are gone; the identity line stays **VISA ····1234** (not editable). Month page → **Expected:** the
+row's **Card** column reads Allan's Visa; the **Card** filter narrows to it. **New transaction** →
+**Expected:** **Card** = *No card*; pick Allan's Visa → **Save** → the row shows it. **Export CSV** → the last
+columns are `card,notes`. Via Postman (**24 · Cards**) → Create card with brand VISA and last4 1234 →
+**Expected:** 409 `card_exists` with `existing_id`; **Create card — invalid** → 400.
+
+### QA-CAT-06 — A renewed card is the same card: merge keeps the history 🟠 (Web / API)
+**Gherkin**
+```gherkin
+Given "Allan's Visa" (VISA ····1234) with transactions on it
+When the bank renews the card and a voucher printed VISA ************5678 is confirmed
+Then VISA-5678 appears auto-named, carrying that transaction, and the queue nudges about it
+When I choose "Same card as… Allan's Visa" and Merge
+Then one card remains, listing ····1234 · ····5678, every transaction on it, and the newest number as its own
+And the next voucher on EITHER number lands on that card; POST /api/cards/{id}/merge into itself is 400
+```
+**Walkthrough:** confirm a voucher whose last four differ from the card you have → **Settings → Manage
+cards** → **Expected:** a second, auto-named row. Press **Same card as…** on it → pick the card you know →
+**Merge** → **Expected:** the notice "Merged — one card, all its numbers", a single row whose Card column
+reads **VISA ····1234 · ····5678**, and the alias you chose (not the automatic one). Month page →
+**Expected:** the rows that were on the renewed card now read the surviving alias. Via Postman
+(**24 · Cards → Merge a renewed card into another**) with `into` set to the same id → **Expected:** 400
+`invalid_request`.
+
+### QA-CAT-07 — Credit or debit lives on the card and decides the payment method 🟠 (Web / API)
+**Gherkin**
+```gherkin
+Given a card marked Credit (the default for every card that existed before this) with transactions on it
+When I edit it to Debit and save without ticking the backfill
+Then the card reads Debit and not one past transaction moved
+When I edit it again ticking "Also correct past transactions on this card"
+Then the notice names how many moved, and those rows read Bank account on the month page
+When I open New transaction and pick that card
+Then Payment method becomes Bank account by itself, and I can still change it
+And confirming a voucher on that card books the transaction against the bank account, still naming the card
+```
+**Walkthrough:** **Settings → Manage cards** → **Expected:** a **Kind** column reading Credit or Debit.
+**Edit** a card → **Kind** → `Debit` → **Save** → **Expected:** "Updated", the row reads Debit, and the month
+page is unchanged. **Edit** → tick **Also correct past transactions on this card** → **Save** → **Expected:**
+"Updated. N past transaction(s) now match this card"; those rows now read **Bank account**, and the
+dashboard's **By bank and payment method** moves that money from the card group to the account group. **New
+transaction** → pick the debit card → **Expected:** **Payment method** flips to **Bank account** on its own.
+Confirm a voucher on it → **Expected:** the booked row is **Bank account**. Via Postman (**24 · Cards →
+Update card**) with `kind: "prepaid"` → **Expected:** 400 naming `kind`.
 
 ## 10f. Web — Exchange rate (app slice FX-1) 🟠
 
@@ -1687,34 +1720,25 @@ Given a household with fixed line Mortgage ₡350,000 (Housing, BAC, Bank accoun
 And June transactions: Mortgage ₡300,000 bank account on Jun 5, and a ₡10,000 Unplanned lunch on Jun 12 in category Dining
 When I open Dashboard (nav)
 Then the newest month loads with "4 weeks · 28/5/2026 – 24/6/2026" and the rate line
-And the "This month" card opens with a stacked bar — the full width is the income, filled by Budgeted, Discretionary, Unplanned and Still planned, the green rest is the Forecast, a dashed Today marker at the month's elapsed share, a red tail past the income when the plan does not fit; it draws in the currency the page's "Show in" selects (₡ when "Both", with the $ amounts listed in its legend)
-And Income (with Primary / Secondary underneath; Secondary hidden when zero) heads the waterfall, which reads Income → − Budgeted spent ₡300,000.00 → − Discretionary spent ₡0.00 → − Unplanned spent ₡10,000.00 → = Spent so far ₡310,000.00 → = Left now → − Still planned (with "N% of the month elapsed") → = Forecast at month end (red, with a warning line, when below zero)
 And Fixed expenses shows Mortgage — Budgeted ₡350,000.00 · $700.00 — Actual ₡300,000.00 in green
 And Other spending lists Dining ₡10,000.00; Unplanned essentials shows ₡10,000.00
-And Week by week shows the mortgage in week 2; By bank and payment method shows BAC / Bank account budget ₡350,000 actual ₡300,000, grouped by method with a "Credit card — total" and a "Bank account — total" row and a grand total
-And (CARDS-2/3) once a card has paid something, By card sits beside the bank table and lists each card's alias, kind, transaction count, spend and share of the month, "No card" last, with a Total row
+And Week by week shows the mortgage in week 2
 When I Edit Mortgage's budget down to ₡250,000 and reload the dashboard
-Then Mortgage's actual turns red (over budget) and Pending budgeted drops to ₡0.00
+Then Mortgage's actual turns red (over budget) and Still planned drops to ₡0.00
 And the Fixed, Variable, Other spending and Week by week tables each end with a Total row (the sum of the rows shown; the lines total keeps the over/under colour)
 And a line budgeted in dollars is judged in dollars: a $2.99 line paid at $2.99 is green even when its colón projection sits a few colones under the frozen colón actual (the totals turn red only when over on both sides)
 When I set "Show in" (top right) to $
-Then every pair on the page reads in dollars only — except each budget line's Budgeted cell, which stays in the currency the line is set in — and the "This month" bar draws in $ too (the card has no switch of its own)
-And "Both" brings the pairs back and the bar's legend lists each segment in ₡ and $; the choice is remembered on this device and shared with Reports
+Then every pair on the page reads in dollars only — except each budget line's Budgeted cell, which stays in the currency the line is set in
 ```
 **Walkthrough:** **Budget** → add fixed `Mortgage` `350000` CRC, Housing, BAC, Bank account. **New
 transaction** → `Bank`, `300000` CRC, Housing, BAC, Bank account, `2026-06-05`, Budgeted → **Save**.
 **New transaction** → `Soda`, `10000` CRC, Dining, BAC, Credit card, `2026-06-12`, Unplanned → **Save**.
-Nav **Dashboard** → **Expected:** June 2026 with the weeks line and "₡… per $1 …"; the Income card and the
-**This month** waterfall (income → the three class rows → spent → left now → still planned → forecast); the
-Fixed table with Mortgage's actual in **green**; **Other spending** with Dining; **Unplanned essentials
-& refunds** ₡10,000.00; **Week by week** 4 rows, week 2 = ₡300,000.00 budgeted; **By bank and payment
-method** grouped by method — Unassigned · Credit card first, then BAC · Bank account — each group closed by a
-**… — total** row (cards: budget ₡0 / actual ₡10,000; account: ₡350,000 / ₡300,000) and a grand **Total**. Pick a card on
-the Soda transaction → **Dashboard** → **Expected:** a **By card** table (that card · 1 · ₡10,000.00, **No card** · 1 ·
-₡300,000.00, Total ₡310,000.00); with no card on any row the table is absent. **Budget** → **Edit**
-Mortgage → `250000` → **Save** → **Dashboard** → **Expected:** actual ₡300,000.00 now **red**; **Still
-planned** ₡0.00 and the forecast equals Left now. Via Postman (**19 · Dashboard → Month summary**) → 200 with `exchange_rate`,
-`rate_source`, `summary.fixed_expenses[0].actual.crc = 300000`.
+Nav **Dashboard** → **Expected:** June 2026 with the weeks line and "₡… per $1 …"; the Fixed table with
+Mortgage's actual in **green**; **Other spending** with Dining; **Unplanned essentials & refunds**
+₡10,000.00; **Week by week** 4 rows, week 2 = ₡300,000.00 budgeted. **Budget** → **Edit** Mortgage →
+`250000` → **Save** → **Dashboard** → **Expected:** actual ₡300,000.00 now **red**; **Still planned**
+₡0.00. Via Postman (**19 · Dashboard → Month summary**) → 200 with `exchange_rate`, `rate_source`,
+`summary.fixed_expenses[0].actual.crc = 300000`.
 
 ### QA-DASH-02 — Month selector, entry points, empty state, and the blocked projections when no rate resolves 🟠 (Web / API)
 **Gherkin**
@@ -1763,6 +1787,43 @@ app in a private window (same account, sign in) → **Expected:** the dashboard 
 display settings — invalid (400)** → **Expected:** 400 `invalid_request`; **Reset display settings to
 both** → 200. (The impersonation refusal and the account-erasure wipe are covered by `Api.Tests`.)
 
+### QA-DASH-04 — "This month": the stacked bar and the waterfall down to the forecast 🟠 (Web)
+**Gherkin**
+```gherkin
+Given the month above (income configured, ₡310,000 spent against a ₡350,000 plan)
+When I open Dashboard
+Then a stacked bar heads the card: the full width is the income, filled by Budgeted, Discretionary, Unplanned and Still planned, the green rest is the Forecast, with a dashed Today marker at the month's elapsed share
+And below it the waterfall reads Income (Primary / Secondary underneath, Secondary hidden when zero) → − Budgeted spent → − Discretionary spent → − Unplanned spent → = Spent so far → = Left now → − Still planned ("N% of the month elapsed") → = Forecast at month end
+And Other income (inflows) appears as its own sub-row under Income when an inflow exists
+When the plan does not fit the income
+Then the forecast is red with a warning line, and the bar grows a red tail past the income
+When I set "Show in" to $
+Then the bar draws in $ too — the card has no switch of its own — and in "Both" its legend lists each segment in ₡ and $
+```
+**Walkthrough:** **Dashboard** → **Expected:** the **This month** card opens with the bar, then the
+waterfall in that order; Spent so far = the three class rows added up; Left now = income − spent. Add a
+budget line big enough to exceed the income → reload → **Expected:** **Forecast at month end** in **red**
+with the warning line beneath it, and the bar's red tail. Enter an **Income (inflow)** transaction →
+**Expected:** an **Other income** sub-row under Income, and the income total grows by it.
+
+### QA-DASH-05 — Where the money left from: bank × method beside the card table 🟠 (Web)
+**Gherkin**
+```gherkin
+Given the month above, with at least one transaction naming a card
+When I open Dashboard
+Then "By bank and payment method" and "By card" sit side by side on one row
+And the bank table groups by payment method (card first), each group closed by a "… — total" row, with a grand Total
+And By card lists each card's alias with its kind and transaction count beneath, its spend, and its share of the month — "No card" last, and a Total row
+When no transaction names a card
+Then the By card table is absent entirely (a lone "No card" row says nothing)
+```
+**Walkthrough:** **Dashboard** → scroll to the pair → **Expected:** two cards on one row, neither table
+scrolling sideways and no money pair broken across two lines (check in **Both** currency mode, the widest).
+The bank table: **Unassigned · Credit card** first, then **BAC · Bank account**, each group closed by a
+**… — total** row, then a grand **Total**. **By card:** the card's alias with "Credit · N transaction(s)"
+under it, its spend, and a share that adds to 100%. Remove the card from every transaction → reload →
+**Expected:** the By card card is gone and the bank table sits alone.
+
 ### QA-REP-01 — Category analysis by month shows budgets; a date range doesn't 🟠 (Web / API)
 **Gherkin**
 ```gherkin
@@ -1776,13 +1837,6 @@ Then the note says "custom range — monthly budgets don't apply" and the Budget
 When I set From 2026-06-30 and To 2026-06-01 and Load
 Then "From must not be after To" and nothing loads
 And a line budgeted in dollars is judged in dollars: $18.99 spent against $18.99 is green, $25 is red (never red just because its colón side is above ₡0)
-When I switch View to Chart
-Then each class shows the same rows as horizontal bars (largest first) with the budget as a muted track and the actual on top — red past it — plus a "Spend by class" donut with shares; the ₡/$ switch redraws in the other currency; the choice is remembered on this device
-And beside it an "Income vs spend" donut: the same class slices plus a muted Remaining slice, the month's income in the hole (income = configured incomes at today's rate + inflows, as on the dashboard); overspent → no Remaining and a red "Over income by ₡…"; in Date-range mode the income card is absent
-And an "Income vs budget" donut: Budget lines (every active line, a $ line converted at today's rate) and Uncommitted, the income in the hole; a plan above the income → no Uncommitted and a red "Budget exceeds income by ₡…"; absent in Date-range mode too
-And a "Pace" line: cumulative spend stepping through the days that had spend, the straight plan line to the budget total, a dashed Today marker, and the caption "N% of the month elapsed · M% of the plan spent" (month mode only)
-And "Month by month": one bar per month, oldest first, spend on an income track, red for a month that spent more than its income (month mode only; loaded on entering Chart view)
-And "Spend by bank" and "Card vs account" donuts under them — present in Date-range mode as well
 When I set "Show in" to $
 Then every actual reads in dollars only, each budget line still shows in the currency it is set in, and the Budgeted total is one figure at today's rate (colón lines at buy, dollar lines at sell)
 And "Both" brings the ₡ · $ pairs back; the choice is remembered on this device and shared with the dashboard
@@ -1792,24 +1846,11 @@ Groceries Budgeted `5000` (`2026-06-05`) and `3000` (`2026-06-12`), Dining Discr
 (`2026-06-10`), plus an **Income (inflow)** `9000`. Nav **Reports** → **Expected:** the month selector on
 the newest month; the Budgeted card with the budget column and the green actual; Dining under
 Discretionary; the inflow absent from every card. **Period** → **Date range** → From `2026-01-01`, To
-`2026-06-30` → **Load** → **Expected:** the multi-month note, no budget column, same totals. Reverse
-the dates → **Load** → **Expected:** the red order message. **View → Chart** (month mode) → **Expected:**
-the "Income vs spend" card next to "Spend by class": Remaining = the month's income − ₡10,000 spent, the
-income in the hole (the inflow counts as income here, never as spend); the "Income vs budget" card:
-Budget lines ₡60,000 (the Supermarket line), Uncommitted = income − ₡60,000; the "Pace" card with three
-points (Jun 5, 10, 12), the plan line to ₡60,000 and Today at the right edge (the month is past) — caption
-"100% … · 17% of the plan spent"; "Month by month" with one bar (June) on its income track; "Spend by
-bank" = one slice (the bank of the transactions), "Card vs account" = Credit card only, and under it
-"Budgeted vs spent, by payment method" = one bar pair (card: ₡8,000 spent against the ₡60,000 line); (CARDS-2) once a
-row names a card, **Spend by card** is a donut beside **Spend by bank**, largest first with **No card** last, and
-**Card vs account** sits below them full width (donut left, budget bars right); switch to
-**Date range** → income, budget, pace and trend cards are gone, the two bank donuts stay (the budget-by-method bars go — budgets are per month). Via Postman
-(**20 · Reports → Category analysis (month)**) → 200 with `single_month: true`,
-`budgeted[0].budgeted_crc = 60000`, an `income` `{crc, usd}` pair, `budget_total.crc = 60000`, `by_bank`
-/ `by_method` arrays and `spend_by_day` with three dates; (**date range**) → `income: null`,
-`budget_total: null`, `spend_by_day: null`, the bank/method arrays present; (**Months trend (last 12)**)
-→ 200, `months` oldest first, each with `spend` and `income`; (**Category analysis — no period (400)**)
-→ `period_required`.
+`2026-06-30` → **Load** → **Expected:** the multi-month note, no budget column, same totals. Reverse the
+dates → **Load** → **Expected:** the red order message. Via Postman (**20 · Reports → Category analysis
+(month)**) → 200 with `single_month: true`, `budgeted[0].budgeted_crc = 60000`, an `income` `{crc, usd}`
+pair, `budget_total.crc = 60000`; (**date range**) → `income: null`, `budget_total: null`,
+`spend_by_day: null`; (**Category analysis — no period (400)**) → `period_required`.
 
 ### QA-REP-02 — Export CSV downloads the shown period; the file has the fixed columns and 4-decimal rate 🟠 (Web / API)
 **Gherkin**
@@ -1835,6 +1876,46 @@ on local storage), `file_name`, `row_count`; open the URL **without** a token �
 `month_id` → 404.
 
 ---
+
+### QA-REP-03 — Chart view: the class bars and the three donuts 🟠 (Web)
+**Gherkin**
+```gherkin
+Given the June data above, in month mode
+When I switch View to Chart
+Then each class shows the same rows as horizontal bars (largest first) with the budget as a muted track and the actual on top — red past it — plus a "Spend by class" donut with shares
+And an "Income vs spend" donut: the same class slices plus a muted Remaining slice, the month's income in the hole (income = configured incomes at today's rate + inflows, as on the dashboard); overspent → no Remaining and a red "Over income by ₡…"
+And an "Income vs budget" donut: Budget lines (every active line, a $ line converted at today's rate) and Uncommitted, the income in the hole; a plan above the income → no Uncommitted and a red "Budget exceeds income by ₡…"
+When I switch the chart currency to $
+Then every chart redraws in the other currency, and the choice is remembered on this device
+When I switch Period to Date range
+Then the income and budget donuts are gone (both are per month) while the class bars stay
+```
+**Walkthrough:** **Reports** → **View → Chart** → **Expected:** "Income vs spend" beside "Spend by class",
+Remaining = the month's income − ₡10,000 spent, the income in the hole (the inflow counts as income here,
+never as spend); "Income vs budget" with Budget lines ₡60,000 and Uncommitted = income − ₡60,000. Flip the
+₡/$ switch → **Expected:** every figure redraws; reload the page → the choice stuck. **Date range** →
+**Expected:** both income cards gone, the class bars unchanged.
+
+### QA-REP-04 — Chart view: pace, month by month, and where the money left from 🟠 (Web)
+**Gherkin**
+```gherkin
+Given the June data above, in month mode, with at least one transaction naming a card
+When I look at the Pace card
+Then a line steps through the days that had spend, against a straight plan line to the budget total, with a dashed Today marker and "N% of the month elapsed · M% of the plan spent"
+And "Month by month" shows one bar per month, oldest first, spend on an income track, red for a month that spent more than its income
+And "Spend by bank" and "Spend by card" sit side by side as two donuts — same shape, same question — with "No card" last in the card one
+And "Card vs account" sits below them across the full width: its donut on the left, and on the right "Budgeted vs spent, by payment method" with one bar pair per method and a caption naming both figures
+When I switch Period to Date range
+Then pace and month-by-month are gone, the two donuts stay, and the budget-by-method bars go (budgets are per month)
+```
+**Walkthrough:** **Reports → Chart** (month mode) → **Expected:** the **Pace** card with three points
+(Jun 5, 10, 12), the plan line to ₡60,000 and Today at the right edge — caption "100% … · 17% of the plan
+spent"; **Month by month** with one bar (June) on its income track. Scroll on → **Expected:** **Spend by
+bank** and **Spend by card** on one row, both donuts; below them **Card vs account** full width with the
+bars using the space, captioned "budgeted ₡… · spent ₡…" per method. Switch to **Date range** →
+**Expected:** pace and trend gone, the two donuts still there, the method bars gone. Via Postman
+(**20 · Reports → Category analysis (month)**) → `by_bank`, `by_method` and `by_card` arrays (the card one
+keyed `"none"` for the no-card bucket) and `spend_by_day` with three dates.
 
 ## 10l. Web — Email inboxes: connect, filters & readers (app slice EMAIL-2/3) 🟠
 
@@ -3093,38 +3174,170 @@ Record one row per executed case. Build = API/web commit SHA (`git rev-parse --s
 |---------|--------|--------------------------|--------|-------------|------|---------------------|
 | QA-SMK-01 | Web | | | | | |
 | QA-SMK-02 | Web | | | | | |
+| QA-SMK-03 | Web | | | | | |
+| QA-SMK-04 | Web | | | | | |
+| QA-SMK-05 | Web | | | | | |
+| QA-SMK-06 | Web | | | | | |
+| QA-SMK-07 | Platform | | | | | |
+| QA-AUTH-01 | Web | | | | | |
+| QA-AUTH-02 | Web | | | | | |
+| QA-AUTH-03 | Web | | | | | |
+| QA-AUTH-04 | Web | | | | | |
+| QA-AUTH-11 | Web | | | | | |
+| QA-AUTH-05 | Web | | | | | |
+| QA-AUTH-06 | Web | | | | | |
+| QA-AUTH-07 | Web | | | | | |
+| QA-AUTH-08 | Web | | | | | |
+| QA-AUTH-09 | Web | | | | | |
+| QA-AUTH-10 | Web | | | | | |
+| QA-ONB-01 | Web | | | | | |
+| QA-ONB-02 | Web | | | | | |
+| QA-HH-01 | Web | | | | | |
+| QA-HH-02 | Web | | | | | |
+| QA-HH-03 | Web | | | | | |
+| QA-HH-04 | Web | | | | | |
+| QA-HH-05 | Web | | | | | |
+| QA-HH-06 | Web | | | | | |
+| QA-HH-07 | Web | | | | | |
+| QA-HH-08 | Web | | | | | |
+| QA-HH-09 | Web | | | | | |
+| QA-HH-10 | Web | | | | | |
+| QA-HH-11 | Web | | | | | |
+| QA-HH-12 | Web | | | | | |
+| QA-HH-13 | Web | | | | | |
+| QA-HH-14 | Web | | | | | |
+| QA-INV-01 | Web | | | | | |
+| QA-INV-02 | Web | | | | | |
+| QA-INV-03 | Web | | | | | |
+| QA-INV-04 | Web | | | | | |
+| QA-INV-05 | Web | | | | | |
+| QA-INV-06 | Web | | | | | |
+| QA-INV-07 | Web | | | | | |
+| QA-INV-08 | Web | | | | | |
+| QA-INV-09 | Web | | | | | |
+| QA-INV-10 | Web | | | | | |
+| QA-SET-01 | Web | | | | | |
+| QA-SET-02 | Web | | | | | |
+| QA-SET-03 | Web | | | | | |
+| QA-SET-04 | Web | | | | | |
+| QA-SET-05 | Web | | | | | |
+| QA-SET-06 | Web | | | | | |
+| QA-SET-07 | Web | | | | | |
+| QA-SET-08 | Web | | | | | |
+| QA-MFA-01 | Web | | | | | |
+| QA-MFA-02 | Web | | | | | |
+| QA-MFA-03 | Web | | | | | |
+| QA-MFA-04 | Web | | | | | |
+| QA-MFA-05 | Desktop/Android | | | | | |
+| QA-NOTIF-01 | Web | | | | | |
+| QA-NOTIF-02 | Web | | | | | |
+| QA-NOTIF-04 | Web | | | | | |
+| QA-NOTIF-03 | Web | | | | | |
+| QA-I18N-01 | Web | | | | | |
+| QA-I18N-02 | Web | | | | | |
+| QA-I18N-03 | Web | | | | | |
+| QA-I18N-04 | Web | | | | | |
+| QA-ADMIN-01 | Web | | | | | |
+| QA-ADMIN-02 | Web | | | | | |
+| QA-ADMIN-03 | Web | | | | | |
+| QA-ADMIN-04 | Web | | | | | |
+| QA-ADMIN-05 | Web | | | | | |
+| QA-ADMIN-06 | Web | | | | | |
+| QA-ADMIN-07 | Web | | | | | |
+| QA-BILL-01 | Web | | | | | |
+| QA-BILL-02 | Web | | | | | |
 | QA-BUD-01 | Web | | | | | |
 | QA-BUD-02 | Web | | | | | |
-| QA-BUD-03 | Web | | | | | |
+| QA-BUD-03 | Web/API | | | | | |
 | QA-CAT-01 | Web | | | | | |
 | QA-CAT-02 | Web | | | | | |
 | QA-CAT-03 | Web | | | | | |
-| QA-CAT-04 | Web | | | | | |
-| QA-FX-01 | Web | | | | | |
-| QA-FX-02 | Web | | | | | |
-| QA-ENV-01 | Web | | | | | |
-| QA-ENV-02 | Web | | | | | |
-| QA-LED-01 | Web | | | | | |
-| QA-LED-02 | Web | | | | | |
-| QA-LED-03 | Web | | | | | |
-| QA-LED-04 | Web | | | | | |
-| QA-LED-05 | Web | | | | | |
-| QA-LED-06 | Web | | | | | |
-| QA-LED-07 | Web | | | | | |
-| QA-EXP-01 | Web | | | | | |
-| QA-EXP-02 | Web | | | | | |
-| QA-EXP-03 | Web | | | | | |
-| QA-DASH-01 | Web | | | | | |
-| QA-DASH-02 | Web | | | | | |
-| QA-REP-01 | Web | | | | | |
-| QA-REP-02 | Web | | | | | |
-| QA-EMAIL-01 | Web | | | | | |
+| QA-CAT-04 | Web/API | | | | | |
+| QA-CAT-05 | Web/API | | | | | |
+| QA-CAT-06 | Web/API | | | | | |
+| QA-CAT-07 | Web/API | | | | | |
+| QA-FX-01 | Web/API | | | | | |
+| QA-FX-02 | Web/API | | | | | |
+| QA-ENV-01 | Web/API | | | | | |
+| QA-ENV-02 | Web/API | | | | | |
+| QA-LED-01 | Web/API | | | | | |
+| QA-LED-02 | Web/API | | | | | |
+| QA-LED-03 | Web/API | | | | | |
+| QA-LED-04 | Web/API | | | | | |
+| QA-LED-05 | Web/API | | | | | |
+| QA-LED-06 | Web/API | | | | | |
+| QA-LED-07 | Web/API | | | | | |
+| QA-EMAIL-07 | Web/API | | | | | |
+| QA-EXP-01 | Web/API | | | | | |
+| QA-EXP-02 | Web/API | | | | | |
+| QA-EXP-03 | Web/API | | | | | |
+| QA-DASH-01 | Web/API | | | | | |
+| QA-DASH-02 | Web/API | | | | | |
+| QA-DASH-03 | Web/API | | | | | |
+| QA-DASH-04 | Web | | | | | |
+| QA-DASH-05 | Web | | | | | |
+| QA-REP-01 | Web/API | | | | | |
+| QA-REP-02 | Web/API | | | | | |
+| QA-REP-03 | Web | | | | | |
+| QA-REP-04 | Web | | | | | |
+| QA-EMAIL-01 | Web/API | | | | | |
 | QA-EMAIL-02 | Web | | | | | |
-| QA-EMAIL-03 | Web | | | | | |
-| QA-EMAIL-04 | Web | | | | | |
-| QA-EMAIL-05 | Web | | | | | |
-| QA-EMAIL-06 | Web | | | | | |
-| QA-EMAIL-07 | Web | | | | | |
+| QA-EMAIL-03 | Web/API | | | | | |
+| QA-EMAIL-04 | Web/API | | | | | |
+| QA-EMAIL-05 | Web/API | | | | | |
+| QA-EMAIL-06 | Web/API | | | | | |
+| QA-MAIL-01 | Web | | | | | |
+| QA-MAIL-02 | Web | | | | | |
+| QA-MAIL-03 | Web | | | | | |
+| QA-MAIL-04 | Web | | | | | |
+| QA-DSK-01 | Web | | | | | |
+| QA-DSK-02 | Desktop | | | | | |
+| QA-DSK-03 | Desktop | | | | | |
+| QA-DSK-04 | Desktop | | | | | |
+| QA-DSK-05 | Desktop | | | | | |
+| QA-DSK-06 | Desktop | | | | | |
+| QA-DSK-07 | Desktop | | | | | |
+| QA-DSK-08 | Desktop | | | | | |
+| QA-DSK-09 | Desktop | | | | | |
+| QA-DSK-10 | Desktop | | | | | |
+| QA-DSK-11 | Desktop | | | | | |
+| QA-DSK-12 | Desktop | | | | | |
+| QA-DSK-13 | Desktop | | | | | |
+| QA-DSK-14 | Desktop | | | | | |
+| QA-DSK-15 | Desktop | | | | | |
+| QA-AND-01 | Web | | | | | |
+| QA-AND-02 | Android | | | | | |
+| QA-AND-03 | Android | | | | | |
+| QA-AND-04 | Android | | | | | |
+| QA-AND-05 | Android | | | | | |
+| QA-AND-06 | Android | | | | | |
+| QA-AND-07 | Android | | | | | |
+| QA-AND-08 | Android | | | | | |
+| QA-AND-09 | Android | | | | | |
+| QA-AND-10 | Android | | | | | |
+| QA-AND-11 | Android | | | | | |
+| QA-AND-12 | Android | | | | | |
+| QA-AND-13 | Android | | | | | |
+| QA-AND-14 | Android | | | | | |
+| QA-AND-15 | Android | | | | | |
+| QA-IOS-01 | iOS | | | | | |
+| QA-IOS-02 | iOS | | | | | |
+| QA-IOS-03 | iOS | | | | | |
+| QA-IOS-04 | iOS | | | | | |
+| QA-MAC-01 | macCatalyst | | | | | |
+| QA-MAC-02 | macCatalyst | | | | | |
+| QA-MAC-03 | macCatalyst | | | | | |
+| QA-SEC-01 | Web | | | | | |
+| QA-SEC-02 | Web | | | | | |
+| QA-SEC-03 | Web | | | | | |
+| QA-SEC-04 | Desktop/Android | | | | | |
+| QA-SEC-05 | Web | | | | | |
+| QA-API-01 | curl | | | | | |
+| QA-API-02 | curl | | | | | |
+| QA-API-03 | curl/Postman | | | | | |
+| QA-API-04 | curl | | | | | |
+| QA-API-05 | curl | | | | | |
+| QA-API-06 | curl | | | | | |
 | … | | | | | | |
 
 **§14a adversarial / tenant-isolation (QA-ADV-*).** All rows are **Not-run** (blank) until executed.
@@ -3681,6 +3894,16 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   up; the month page's Income card lists "Other income this month" with the inflows' frozen sum and a link that
   filters the table to them. Client only. QA-LED-06 names both; `DashboardPageTests.Income_ShowsInflows*` and
   `LedgerPagesTests.MonthDetail_IncomeCard_ListsInflows*` pin it. Suite count unchanged (181).
+- **Updated 2026-09-10** — **App-side rebalance (owner question: "I don't want only platform stuff sitting there").**
+  The app's own families had grown by appending to existing cases rather than adding them, so the biggest
+  walkthroughs had swollen past 40 lines and nobody would run them. Split into one case per feature:
+  **QA-CAT-05** keeps the cards catalog, **QA-CAT-06** takes renewals and merging, **QA-CAT-07** takes credit
+  vs debit and the backfill; **QA-DASH-01** keeps lines vs actuals, **QA-DASH-04** takes the This-month bar
+  and waterfall, **QA-DASH-05** takes the bank × method / By card pair; **QA-REP-01** keeps the table view,
+  **QA-REP-03** takes the chart donuts, **QA-REP-04** takes pace, trend and the where-from charts. Suite 184
+  → 190, app-side 34 → 40. The **§16 sign-off sheet** listed 58 of 184 cases (it had silently stopped being
+  filled in — QA-CAT-05 and QA-DASH-03 were both missing); it now lists every case, and
+  `check_qa_artifacts.py` fails when a case has no row or a row has no case, so it cannot drift again.
 - **Updated 2026-09-10** — **Where the money left from, read as one idea (owner request).** "By card" had been appended
   to whichever grid had room, so it sat half-width and alone on both pages. The dashboard now pairs **By bank and payment
   method** (7 cols) with **By card** (5 cols), and By card gains the card's **kind** and its **share** of the month.
