@@ -85,7 +85,7 @@ public abstract class E2ETestBase : PageTest
         await login.GotoAsync();
         await Assertions.Expect(login.Email).ToBeVisibleAsync(new() { Timeout = 30_000 });
         await login.SignInWithOtpAsync(email);
-        await Assertions.Expect(page.GetByTestId("sign-out")).ToBeVisibleAsync(new() { Timeout = 30_000 });
+        await Assertions.Expect(page.GetByTestId("user-menu")).ToBeVisibleAsync(new() { Timeout = 30_000 });
     }
 
     /// <summary>Clears Mailpit, signs the user in, and lands on the Household page.</summary>

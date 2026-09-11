@@ -35,7 +35,7 @@ public class ThemeJourneyTests : E2ETestBase
 
         // Survives a reload: theme.js re-applies from localStorage before first paint.
         await Page.ReloadAsync();
-        await Expect(Page.GetByTestId("sign-out")).ToBeVisibleAsync(new() { Timeout = 30_000 });
+        await Expect(Page.GetByTestId("user-menu")).ToBeVisibleAsync(new() { Timeout = 30_000 });
         await Expect(Page.Locator("html")).ToHaveAttributeAsync("data-bs-theme", "dark");
 
         // "New device": a fresh context has no localStorage, so it renders light — and the
@@ -56,7 +56,7 @@ public class ThemeJourneyTests : E2ETestBase
         await Expect(secondPage.Locator("html")).ToHaveAttributeAsync("data-bs-theme", "light");
 
         await Page.ReloadAsync();
-        await Expect(Page.GetByTestId("sign-out")).ToBeVisibleAsync(new() { Timeout = 30_000 });
+        await Expect(Page.GetByTestId("user-menu")).ToBeVisibleAsync(new() { Timeout = 30_000 });
         await Expect(Page.Locator("html")).ToHaveAttributeAsync("data-bs-theme", "light", new() { Timeout = 30_000 });
     }
 }
