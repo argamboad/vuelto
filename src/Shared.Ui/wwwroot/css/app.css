@@ -90,19 +90,16 @@
     --bs-primary-border-subtle: #363E82;
 }
 
-[data-bs-theme="dark"] a,
+/* Links go light in dark theme — but an anchor that is really a BUTTON is excluded, because this
+   rule is specificity 0,1,1 and outranks every .btn-* colour at 0,1,0. Without the :not(.btn) an
+   <a class="btn btn-warning"> renders pale lavender on amber (1.9:1) while an identical <button>
+   renders correctly, which is a genuinely confusing bug: same classes, different result, decided by
+   the tag. This was previously patched for .btn-primary alone; every other variant still fell
+   through, and "Review now" on the dashboard was the one that showed it.
+   .btn-link is named separately on purpose: it carries .btn but IS a link, so it opts back in. */
+[data-bs-theme="dark"] a:not(.btn),
 [data-bs-theme="dark"] .btn-link {
     color: var(--brand-accent-light);
-}
-
-/* ...but not an anchor that is really a button. The rule above is specificity 0,1,1 and beats
-   .btn-primary at 0,1,0, so in dark theme an <a class="btn btn-primary"> takes the light accent and
-   sits on the indigo fill — 3.04:1, where AA wants 4.5:1. It fires for anchors only, which is why an
-   identical <button> looks right and the two render differently from the same class. */
-[data-bs-theme="dark"] a.btn-primary,
-[data-bs-theme="dark"] a.btn-primary:hover,
-[data-bs-theme="dark"] a.btn-primary:focus {
-    color: #fff;
 }
 
 /* Same collision, on the header. The bar is the primary indigo in BOTH themes, so its wordmark is
