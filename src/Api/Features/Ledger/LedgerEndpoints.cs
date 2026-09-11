@@ -62,6 +62,14 @@ public static class LedgerEndpoints
             return error is not null ? ToResult(error) : Results.Ok(refund);
         });
 
+        // LEDGER-4: the case number and the note — the household's own fields, off the status route so that an
+        // omitted value is never ambiguous between "leave alone" and "clear".
+        refundsGroup.MapPut("/{id:guid}/details", async (Guid id, UpdateRefundDetailsRequest request, RefundHandler handler, CancellationToken ct) =>
+        {
+            var (refund, error) = await handler.SetDetailsAsync(id, request, ct);
+            return error is not null ? ToResult(error) : Results.Ok(refund);
+        });
+
         var transactions = app.MapTenantFeatureGroup("/api/transactions");
 
         transactions.MapPost("/", async (CreateTransactionRequest request, TransactionHandler handler, CancellationToken ct) =>

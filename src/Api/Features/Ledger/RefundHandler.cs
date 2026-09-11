@@ -47,6 +47,32 @@ public sealed class RefundHandler(
             .ToDictionaryAsync(t => t.Id, t => (Guid?)t.MonthId, cancellationToken);
     }
 
+    /// <summary>
+    /// LEDGER-4: the household's own two fields. Both are replaced by what is sent and blank clears them; nothing
+    /// else on the row moves, and the transaction's own re-derivation leaves these alone. Uniform 404 for a foreign id.
+    /// </summary>
+    public async Task<(RefundResponse? Refund, ErrorResponse? Error)> SetDetailsAsync(Guid id, UpdateRefundDetailsRequest request, CancellationToken cancellationToken)
+    {
+        if (tenant.TenantId is null) return (null, new ErrorResponse("invalid_token", "No household on the token"));
+
+        var caseNumber = string.IsNullOrWhiteSpace(request.CaseNumber) ? null : request.CaseNumber.Trim();
+        var notes = string.IsNullOrWhiteSpace(request.Notes) ? null : request.Notes.Trim();
+        if (caseNumber?.Length > Refund.CaseNumberMaxLength)
+            return (null, new ErrorResponse("invalid_request", $"case_number must be {Refund.CaseNumberMaxLength} characters or fewer"));
+        if (notes?.Length > Refund.NotesMaxLength)
+            return (null, new ErrorResponse("invalid_request", $"notes must be {Refund.NotesMaxLength} characters or fewer"));
+
+        var refund = await refunds.Query().FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
+        if (refund is null) return (null, new ErrorResponse("not_found", "refund not found"));
+
+        refund.CaseNumber = caseNumber;
+        refund.Notes = notes;
+        refund.UpdatedAt = clock.GetUtcNow();
+        refunds.Update(refund);
+        await refunds.SaveChangesAsync(cancellationToken);
+        return (RefundResponse.From(refund), null);
+    }
+
     public async Task<(RefundResponse? Refund, ErrorResponse? Error)> SetStatusAsync(Guid id, UpdateRefundStatusRequest request, CancellationToken cancellationToken)
     {
         if (tenant.TenantId is not { } tenantId) return (null, new ErrorResponse("invalid_token", "No household on the token"));

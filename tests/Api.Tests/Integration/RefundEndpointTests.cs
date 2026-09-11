@@ -66,6 +66,16 @@ public class RefundEndpointTests(IntegrationTestFactory factory)
         Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/api/months/{Guid.CreateVersion7()}/refunds")).StatusCode);
     }
 
+    [Fact]
+    public async Task Details_RoundTripOverHttp()
+    {
+        var member = await _factory.SeedUserAsync(TenantRoles.Member);
+        var client = _factory.CreateClientFor(member);
+
+        Assert.Equal(HttpStatusCode.NotFound,
+            (await client.PutAsJsonAsync($"/api/refunds/{Guid.CreateVersion7()}/details", new { case_number = "CASE-1", notes = "x" })).StatusCode);
+    }
+
     private sealed record NamedDto([property: JsonPropertyName("id")] Guid Id, [property: JsonPropertyName("name")] string Name);
     private sealed record TxDto(
         [property: JsonPropertyName("id")] Guid Id,

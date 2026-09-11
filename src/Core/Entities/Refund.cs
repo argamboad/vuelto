@@ -40,6 +40,17 @@ public class Refund : ITenantScoped
     /// </summary>
     public DateOnly? ReceivedDate { get; set; }
 
+    /// <summary>
+    /// The household's own two fields (LEDGER-4): the claim or case this refund is being chased under, and why it is
+    /// expected at all ("lent to Diego"). Everything else on this row is derived from the transaction and rewritten on
+    /// every edit — these two are never touched by that, so they survive an amount or percentage change.
+    /// </summary>
+    public string? CaseNumber { get; set; }
+    public string? Notes { get; set; }
+
+    public const int CaseNumberMaxLength = 60;
+    public const int NotesMaxLength = 250;
+
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 }

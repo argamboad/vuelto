@@ -483,6 +483,8 @@
   <data name="Tx_Validation_Refund" xml:space="preserve"><value>Ingresa un porcentaje de reembolso entre 0 y 100.</value></data>
   <data name="Month_Refunds" xml:space="preserve"><value>Reembolsos esperados</value></data>
   <data name="Month_NoRefunds" xml:space="preserve"><value>No se esperan reembolsos este mes.</value></data>
+  <data name="Refund_CaseNumber" xml:space="preserve"><value>Número de caso</value></data>
+  <data name="Refund_NotesHint" xml:space="preserve"><value>Por qué esperás que vuelva; por ejemplo "prestado a Diego"</value></data>
   <data name="Refund_Pending" xml:space="preserve"><value>Pendiente</value></data>
   <data name="Refund_Received" xml:space="preserve"><value>Recibido</value></data>
   <data name="Refund_MarkReceived" xml:space="preserve"><value>Marcar recibido</value></data>

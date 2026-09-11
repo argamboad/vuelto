@@ -227,3 +227,29 @@ create → month → list → income → delete → gone loop, 400 shape, unifor
 (form create/edit/validation/rate states, month page list/income/delete, months list); migration
 `AddLedger` with RLS DDL for three tables; contributor; Postman folders; QA-LED-01..04 + regenerated
 PDFs; EN/ES resx; nav + Home entry points; merged, app working.
+
+### LEDGER-4 — A refund carries its case number and a note *(owner request, 2026-09-11)* ✅
+
+**As** a household member, **I want** a case number and a note on an expected refund, **so that** I can chase an
+insurance claim by its reference and remember why the money is owed at all.
+
+**Context / notes:** a refund is **derived** — `SyncRefundAsync` rewrites its month, payee, date, percentage and
+amounts every time the transaction changes — so the two user-owned fields sit beside that and are never touched
+by the re-derivation. They are lost only when "refund expected" is unticked, which deletes the row outright.
+`Refund.CaseNumber` (≤ 60) and `Refund.Notes` (≤ 250, the same cap as a transaction's note) move through
+`PUT /api/refunds/{id}/details { case_number, notes }`, deliberately **off** the status route: there an omitted
+field would be ambiguous between "leave alone" and "clear", and here blank means clear. The month page's
+Expected refunds table gains a **Case No.** column and a note icon on the payee (the same affordance a
+transaction's note has), with an inline **Edit** row for both. Any household member may edit them (ADR-V002);
+a foreign or unknown id is the uniform 404.
+
+```gherkin
+Scenario: An insurance claim, and a loan to a son
+  Given an unplanned essential expecting a refund
+  When I set its Case No. to "CASE-2026-4471" and its note to "lent to Diego"
+  Then the refund row shows the case number and a note icon reading it on hover
+  When I edit the transaction's amount
+  Then the refund's amounts re-derive and both fields are still there
+  When I clear them
+  Then blank stores null, not an empty string
+```
