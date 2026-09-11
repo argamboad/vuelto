@@ -68,6 +68,9 @@
   <data name="Theme_Dark" xml:space="preserve"><value>Dark</value></data>
   <data name="Login_Title" xml:space="preserve"><value>Sign in</value></data>
   <data name="Login_Subtitle" xml:space="preserve"><value>Choose how you'd like to continue</value></data>
+  <data name="Login_PromiseHeadline" xml:space="preserve"><value>Two currencies, one household budget.</value></data>
+  <data name="Login_PromiseBody" xml:space="preserve"><value>Every expense captured in colones and dollars at that day's rate, on your pay cycle — not the calendar's.</value></data>
+  <data name="Login_Region" xml:space="preserve"><value>Costa Rica · ₡ + $</value></data>
   <data name="Login_ContinueWith" xml:space="preserve"><value>Continue with {0}</value></data>
   <data name="Login_OrWithEmail" xml:space="preserve"><value>or sign in with email</value></data>
   <data name="Login_EmailLabel" xml:space="preserve"><value>Email address</value></data>

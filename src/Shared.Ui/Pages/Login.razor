@@ -10,15 +10,40 @@
 
 <PageTitle>@Localizer["Login_Title"]</PageTitle>
 
-<div class="login-wrapper">
-    <div class="login-card card shadow-sm">
-        <div class="card-body p-4 p-md-5">
+@* SKIN-3 · the split sign-in. Brand and promise on the indigo panel at lg and up; the four authentication
+   paths on the form pane, which IS the card — there is no card shell around it. Below lg the panel drops out
+   entirely and the lockup moves above the heading, so the phone screen is form-first.
 
-            <div class="text-center mb-4">
-                <img src="_content/Vuelto.Shared.Ui/brand/lockup_light_1520.png" alt="¿Y el vuelto?"
-                     class="login-lockup mb-3" />
-                <h1 class="h5 fw-bold mb-0">@Localizer["Login_Title"]</h1>
-                <p class="text-muted small mt-1">@Localizer["Login_Subtitle"]</p>
+   The panel is aria-hidden: it is marketing copy, and announcing it would only delay reaching the form. The
+   tab order therefore starts at the first provider button.
+
+   Every control below keeps its markup, its order and its data-testid. Four of those ids — login-email,
+   login-send-otp, login-otp-code, login-verify-otp — are how SEVEN E2E journey files sign in on their way to
+   testing something else, so breaking one turns most of that suite red rather than just this screen. *@
+<div class="login-split">
+
+    <aside class="login-brand" aria-hidden="true">
+        @* Always on indigo, in BOTH themes, so this is the light-on-transparent lockup and it deliberately
+           does NOT take the .login-lockup class — that class is the one app.css swaps per theme. *@
+        <img src="_content/Vuelto.Shared.Ui/brand/lockup_dark_1520.png" alt="" class="login-brand-lockup" />
+        <div class="login-promise">
+            <h2>@Localizer["Login_PromiseHeadline"]</h2>
+            <p>@Localizer["Login_PromiseBody"]</p>
+        </div>
+        <p class="login-region">@Localizer["Login_Region"]</p>
+    </aside>
+
+    <div class="login-pane">
+        <div class="login-form">
+
+            @* Below lg only — the panel is gone there, so the mark comes back above the heading. Keeps the
+               .login-lockup class so app.css's existing per-theme swap rule still applies to it. *@
+            <img src="_content/Vuelto.Shared.Ui/brand/lockup_light_1520.png" alt="¿Y el vuelto?"
+                 class="login-lockup" />
+
+            <div class="login-heading">
+                <h1>@Localizer["Login_Title"]</h1>
+                <p>@Localizer["Login_Subtitle"]</p>
             </div>
 
             @if (!string.IsNullOrEmpty(Error))
@@ -173,9 +198,11 @@
                 <button class="btn btn-link btn-sm mt-2 p-0" @onclick="Reset">@Localizer["Login_UseDifferentEmail"]</button>
             }
 
-            <div class="d-flex justify-content-center gap-2 mt-4">
-                <div style="max-width:170px;width:100%"><LanguageSwitcher /></div>
-                <div style="max-width:130px;width:100%"><ThemeSwitcher /></div>
+            @* Side by side at every width (build notes). Unauthenticated, so both write device-local
+               storage only — there is no user row to reconcile against until sign-in. *@
+            <div class="login-prefs">
+                <div><LanguageSwitcher /></div>
+                <div><ThemeSwitcher /></div>
             </div>
 
         </div>
