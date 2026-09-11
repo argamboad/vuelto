@@ -5,6 +5,12 @@ on:
     branches: [main, develop]
   pull_request:
     branches: [main, develop]
+  # LOCALCI-3. The Apple smoke bills 87 minutes because macOS runners cost 10x, so in hosted-fallback
+  # mode it runs on a cadence instead of on every push. A scheduled run is ONLY that job — every
+  # other one carries `github.event_name != 'schedule'`.
+  schedule:
+    - cron: "0 6 * * 1" # Mondays, 06:00 UTC
+  workflow_dispatch:
 
 # Least privilege for every job (v3 audit DEP-8). No job here consumes GITHUB_TOKEN — nothing pushes,
 # comments, or releases — but several execute freshly-downloaded third-party binaries (gitleaks, mailpit,
@@ -15,6 +21,8 @@ permissions:
 
 jobs:
   build-test:
+    needs: changes
+    if: github.event_name != 'schedule' && needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -76,7 +84,10 @@ jobs:
   # Secret scan (v2 audit B11-5). Runs the gitleaks OSS binary directly (no marketplace action, so no
   # org-license requirement) over the full history + working tree. Config + allowlist in .gitleaks.toml;
   # real secrets live only in the gitignored .env, which is never committed.
+  # Runs on EVERY change, including docs-only (LOCALCI-3): a credential pasted into a markdown file
+  # is still a leaked credential, and this is the gate that would catch it.
   secret-scan:
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -101,7 +112,11 @@ jobs:
   # docs/QA_TEST_PLAN.md; this job regenerates them and fails if the committed PDFs' text has drifted from
   # the plan — i.e. the plan was edited without re-running the generators (plan ⇄ PDFs must change
   # together). reportlab/pypdf are pinned so regeneration matches the committed artifacts.
+  # Runs on EVERY change, and a docs-only one above all (LOCALCI-3): editing the plan without
+  # regenerating the PDFs is the ONLY way to break this, so gating it on code would switch it off
+  # for precisely the change it exists to catch.
   qa-artifacts:
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -118,7 +133,7 @@ jobs:
 
       # The §16 sign-off sheet is the QA RUN LOG — executed (tester/date-stamped) rows are history
       # and must survive verbatim; re-runs append a new row (v3 audit S0-G5, T49 / R75). Unknown
-      # diff base (force push, branch creation) fails OPEN, mirroring the native-paths gate.
+      # diff base (force push, branch creation) fails OPEN, mirroring the `changes` gate.
       - name: QA run-log is append-only
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
@@ -139,6 +154,8 @@ jobs:
   # licenses (MIT, Apache-2.0, BSD, PostgreSQL, ...) never trip a false positive. Kept a separate
   # job so a license failure is distinguishable from a build/test failure.
   license-scan:
+    needs: changes
+    if: github.event_name != 'schedule' && needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -177,6 +194,8 @@ jobs:
   # compose-parity smoke (boot + migrate + serve) needs a database and is a local/manual step per
   # docs/DEPLOYMENT.md. This just stops the Dockerfile silently rotting.
   docker-build:
+    needs: changes
+    if: github.event_name != 'schedule' && needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -191,6 +210,8 @@ jobs:
   # The Maui project is outside the locked-mode restore path by design (host-conditional TFMs — see the
   # csproj note); CPM pins its package versions.
   native-build:
+    needs: changes
+    if: github.event_name != 'schedule' && needs.changes.outputs.code == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -249,34 +270,72 @@ jobs:
   # Anything that could affect a native binary or the smoke harness (src/**, the E2E project,
   # package pins, this workflow) still runs them. A schedule can't replace this: scheduled
   # workflows execute from the DEFAULT branch (main here, which is deploy-only and behind develop).
-  native-paths:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+  # LOCALCI-3. One job answers "could this change have broken that?", and every other job gates on
+  # its output. It began as `native-paths`, which asked the same question for the Apple legs only,
+  # while a docs-only push still billed build-test, e2e, docker-build, license-scan and two native
+  # builds — about thirty minutes for markdown.
+  #
+  # A JOB with needs/if rather than `on: paths:`, deliberately: a trigger-level filter skips the
+  # WHOLE workflow, and two gates must run no matter what the change looks like (see below). A
+  # skipped job is not a failed one — GitHub reports a skipped required check as passing — so a
+  # docs-only pull request still merges.
+  changes:
     runs-on: ubuntu-latest
     outputs:
-      changed: ${{ steps.diff.outputs.changed }}
+      code: ${{ steps.diff.outputs.code }}
+      native: ${{ steps.diff.outputs.native }}
+      docs: ${{ steps.diff.outputs.docs }}
     steps:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - id: diff
+        env:
+          # A pull request diffs against its base; a push against what was there before.
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
-          # Unknown before-SHA (force push, branch creation) ⇒ fail open: run the legs.
-          if ! git cat-file -e ${{ github.event.before }} 2>/dev/null; then
-            echo "changed=true" >> "$GITHUB_OUTPUT"; exit 0
-          fi
-          if git diff --name-only ${{ github.event.before }} ${{ github.sha }} \
-              | grep -qE '^(src/|tests/E2E\.Tests/|tests/native-smoke-android/|Directory\.Packages\.props|\.github/workflows/ci\.yml|global\.json)'; then
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::docs-only push — skipping the Apple builds and native smokes."
+          # Unknown base — a force push, a new branch, a scheduled or dispatched run — FAILS OPEN.
+          # Skipping a gate because the diff could not be read is the one failure mode worth
+          # spending thirty minutes to avoid.
+          if [ -z "$BASE_SHA" ] || ! git cat-file -e "$BASE_SHA" 2>/dev/null; then
+            {
+              echo "code=true"
+              echo "native=true"
+              echo "docs=false"
+            } >> "$GITHUB_OUTPUT"
+            echo "::notice::Diff base unavailable — running every gate."
+            exit 0
           fi
 
+          files=$(git diff --name-only "$BASE_SHA" "${{ github.sha }}")
+          match() { printf '%s\n' "$files" | grep -qE "$1" && echo true || echo false; }
+
+          # Anything that can change what the code DOES or how it is built. Lockfiles and the
+          # workflow itself are in here on purpose: a change to either can break a build that no
+          # source file touched.
+          code=$(match '^(src/|tests/|Directory\.Packages\.props|Directory\.Build\.props|global\.json|Dockerfile|docker-compose\.yml|\.config/dotnet-tools\.json|\.github/(workflows/ci\.yml|scripts/)|.*packages\.lock\.json)')
+
+          # Narrower, and unchanged from the old native-paths regex: what the expensive native legs
+          # can actually be broken by.
+          native=$(match '^(src/|tests/E2E\.Tests/|tests/native-smoke-android/|Directory\.Packages\.props|\.github/workflows/ci\.yml|global\.json)')
+
+          {
+            echo "code=$code"
+            echo "native=$native"
+            echo "docs=$(match '^docs/')"
+          } >> "$GITHUB_OUTPUT"
+
+          [ "$code" = "true" ] || echo "::notice::No code touched — build, test, e2e, docker and license gates skipped."
+
   # Apple half of the native build gate (NATIVE-1). Develop pushes only, and only when the push
-  # touched native-relevant paths (see native-paths): macOS runners bill at 10× on a private repo.
+  # touched native-relevant paths (see `changes`): macOS runners bill at 10× on a private repo.
   native-build-apple:
-    needs: native-paths
-    if: needs.native-paths.outputs.changed == 'true'
+    needs: changes
+    # Develop pushes only, and only when the push could have broken it. The develop-only test moved
+    # here from the gate job when LOCALCI-3 made that gate serve every job.
+    if: >-
+      github.event_name == 'push' && github.ref == 'refs/heads/develop'
+      && needs.changes.outputs.native == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -331,8 +390,19 @@ jobs:
   # email is sent in a boot smoke. Not in deploy-staging needs (same accepted-risk note as the
   # other native smokes). macOS bills 10× — develop pushes with native-relevant changes only.
   native-smoke-apple:
-    needs: native-paths
-    if: needs.native-paths.outputs.changed == 'true'
+    needs: changes
+    # LOCALCI-3, and the one cadence change in this slice. At 87 billed minutes it is the most
+    # expensive job in the workflow, so in hosted-fallback mode it moves to Monday mornings and to
+    # manual dispatch. The moment a self-hosted Mac is configured it is free, and it goes back to
+    # running on every develop push that could have broken it.
+    #
+    # `vars.CI_MACOS_RUNNER` is LOCALCI-1's variable and does not exist yet; an unset variable reads
+    # as empty, which is exactly the hosted-fallback branch. Nothing here waits on that slice.
+    if: >-
+      needs.changes.outputs.native == 'true'
+      && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+          || (github.event_name == 'push' && github.ref == 'refs/heads/develop'
+              && vars.CI_MACOS_RUNNER != ''))
     # Same Xcode reasoning as native-build-apple: pinned image + workload set 10.0.400.1 (iOS
     # 26.5.10315, requires Xcode 26.6) + DEVELOPER_DIR pinning the image's default Xcode 26.6.
     runs-on: macos-26
@@ -473,11 +543,13 @@ jobs:
   # WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS when the host runs elevated (GitHub runners do), so the CDP
   # endpoint never binds (MicrosoftEdge/WebView2Feedback#5640; runner image 20260707.563+). The
   # UI-driving journey (fill email → OTP → household) still runs end-to-end on the ANDROID leg below,
-  # so that coverage isn't lost. Develop pushes with native-relevant changes only (see native-paths).
+  # so that coverage isn't lost. Develop pushes with native-relevant changes only (see `changes`).
   # Deliberately NOT in the deploy-staging needs — a native run must not block web deploys (ADR-018).
   native-smoke-windows:
-    needs: native-paths
-    if: needs.native-paths.outputs.changed == 'true'
+    needs: changes
+    if: >-
+      github.event_name == 'push' && github.ref == 'refs/heads/develop'
+      && needs.changes.outputs.native == 'true'
     runs-on: windows-latest
     timeout-minutes: 45
     steps:
@@ -582,8 +654,10 @@ jobs:
   # fails to start from a plain `adb install`), and the WebView devtools socket only exists after
   # the app process is up.
   native-smoke-android:
-    needs: native-paths
-    if: needs.native-paths.outputs.changed == 'true'
+    needs: changes
+    if: >-
+      github.event_name == 'push' && github.ref == 'refs/heads/develop'
+      && needs.changes.outputs.native == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     services:
@@ -741,6 +815,8 @@ jobs:
   # the HTTP API, and appsettings.Development already allow-lists the Web origin for CORS + Mailpit SMTP.
   # OAuth/desktop/Android stay manual (they need an external provider / native runners).
   e2e:
+    needs: changes
+    if: github.event_name != 'schedule' && needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     services:
       db:
