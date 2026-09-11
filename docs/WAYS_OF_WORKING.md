@@ -250,7 +250,7 @@ without a test that drove it.
 - Run against the full stack: `docker compose up -d`, then start the API and Web. OTP-based
   tests read codes from **Mailpit**, so the API must send to Mailpit (the dev default) — see
   **`tests/E2E.Tests/README.md`** for the exact commands (incl. overriding a real-SMTP `.env`).
-- Base URL defaults to `https://localhost:7008`; override with `PLAYWRIGHT_BASE_URL`.
+- Base URL defaults to `https://localhost:7108`; override with `PLAYWRIGHT_BASE_URL`.
 
 ### First-time Playwright setup
 ```sh

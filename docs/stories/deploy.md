@@ -72,7 +72,7 @@ on / ignored off — minimal TestServer).
   serves its static files (recorded in ADR-017).
 - **`ApiBaseUrl` becomes optional** in `src/Web`: default to `builder.HostEnvironment.BaseAddress`
   (same origin) when unset, instead of throwing. Local dev config keeps the explicit
-  `https://localhost:7160`; the deployed bundle ships without it. (The e2e CI job's appsettings
+  `https://localhost:7260`; the deployed bundle ships without it. (The e2e CI job's appsettings
   overwrite keeps working — explicit config still wins.)
 - **Forwarded headers.** `UseForwardedHeaders` (`XForwardedFor | XForwardedProto`) — currently missing;
   behind Render every request would look like the proxy's IP, collapsing the per-IP passwordless rate

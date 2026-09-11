@@ -5,8 +5,8 @@
 //
 // Prereqs (the CI job or a local rehearsal provides them): an emulator/device with the DEBUG
 // app installed and launched (EmbedAssembliesIntoApk=true — a fast-deployment APK won't start
-// from a plain `adb install`), `adb reverse tcp:5238 tcp:5238`, the API on
-// http://localhost:5238, Mailpit on MAILPIT_BASE_URL (default http://localhost:8025).
+// from a plain `adb install`), `adb reverse tcp:5338 tcp:5338`, the API on
+// http://localhost:5338, Mailpit on MAILPIT_BASE_URL (default http://localhost:8025).
 const { _android } = require('playwright-core');
 
 const PKG = process.env.NATIVE_SMOKE_PKG || 'com.perezosoft.vuelto';

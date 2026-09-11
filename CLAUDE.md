@@ -18,6 +18,21 @@ the donor's tests as the spec, and **never modify platform code in this repo** �
 its seams; a generic gap goes upstream to `perezosoft-platform` first.
 
 ## Read before you act
+- **This app owns a dev PORT BLOCK, and it is not the platform's.** `perezosoft-platform` seeds every
+  new app with its own ports, so out of the box an app cannot run beside the platform *or* beside a
+  sibling app — same Web port, same API port, first one wins and the second dies. The convention is
+  **+100 per downstream app** on all four. This repo's block:
+
+  | | https | http |
+  |---|---|---|
+  | Web | **7108** | **5269** |
+  | API | **7260** | **5338** |
+
+  (Platform keeps 7008/5169 + 7160/5238; the next app takes 7208/5369 + 7360/5438.) The http API leg
+  is the one the Android emulator reaches through `adb reverse tcp:5338 tcp:5338`, so **provider
+  redirect URIs must name `http://localhost:5338/signin-{provider}`** — see `docs/MOBILE_TESTING.md`.
+  `docs/audits/**` and `docs/qa-runs/**` still record the old ports on purpose: they are logs of what
+  a run actually used.
 - **CI is proportional to the change (LOCALCI-3, inherited from the platform 2026-09-11).** A job
   called `changes` reads the diff once and publishes `code` / `native` / `docs`; every non-deploy job
   gates on it, so a docs-only push does not pay for a build. **`secret-scan` and `qa-artifacts` never

@@ -32,7 +32,7 @@
 **Prerequisites (external, before any code):**
 - A **Stripe account** (test mode is enough to build and ship the whole epic — no real charges).
 - The **Stripe CLI** installed for local webhook forwarding (`stripe listen --forward-to
-  https://localhost:7160/api/billing/webhook`) and event simulation (`stripe trigger`).
+  https://localhost:7260/api/billing/webhook`) and event simulation (`stripe trigger`).
 - A defined **plan catalog** — at least Free + one paid tier — with Stripe Product/Price ids. The
   plan catalog is code/config, **not** tenant data (see ADR-006).
 - The **outbox/inbox** slice (`JOBS-1`/`JOBS-2`) merged first — webhook idempotency rides on it.

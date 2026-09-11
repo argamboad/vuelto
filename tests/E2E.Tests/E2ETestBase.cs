@@ -19,18 +19,18 @@ public abstract class E2ETestBase : PageTest
 {
     // Resolution order: the runsettings TestRunParameter wins (so `-- TestRunParameters...` /
     // playwright.runsettings actually take effect), then the environment variable, then the Web
-    // app's https launch profile (https://localhost:7008).
+    // app's https launch profile (https://localhost:7108).
     protected static string BaseUrl =>
         TestContext.Parameters.Get("PLAYWRIGHT_BASE_URL")
         ?? Environment.GetEnvironmentVariable("PLAYWRIGHT_BASE_URL")
-        ?? "https://localhost:7008";
+        ?? "https://localhost:7108";
 
     // The API's own origin, for tests that simulate an external caller (e.g. the billing-provider
     // webhook). Defaults to the API's https launch profile; CI overrides to its single-origin base.
     protected static string ApiBaseUrl =>
         TestContext.Parameters.Get("E2E_API_BASE_URL")
         ?? Environment.GetEnvironmentVariable("E2E_API_BASE_URL")
-        ?? "https://localhost:7160";
+        ?? "https://localhost:7260";
 
     /// <summary>HttpClient for API calls made by tests themselves (accepts the dev self-signed cert).</summary>
     protected static HttpClient NewApiClient() => new(new HttpClientHandler

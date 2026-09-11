@@ -88,7 +88,7 @@ internal sealed class TestMfaSettings : IMfaSettings
 
 internal sealed class TestAppSettings : IApplicationSettings
 {
-    public string ClientUrl => "https://localhost:7008";
+    public string ClientUrl => "https://localhost:7108";
     public string NativeCallbackScheme => string.Empty;
 }
 

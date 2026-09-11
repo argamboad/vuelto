@@ -12,7 +12,7 @@ public sealed class LocalFileStorageSettings
 
     /// <summary>
     /// Absolute base URL of the API that serves <c>/api/files/{token}</c> (the API's own public
-    /// origin, e.g. <c>https://localhost:7160</c>). When empty, <c>GetDownloadUrlAsync</c> returns a
+    /// origin, e.g. <c>https://localhost:7260</c>). When empty, <c>GetDownloadUrlAsync</c> returns a
     /// relative URL the caller resolves against the API origin.
     /// </summary>
     public string DownloadBaseUrl { get; set; } = "";

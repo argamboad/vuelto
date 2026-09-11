@@ -37,12 +37,12 @@
 
 ```bash
 docker compose up -d                                   # Postgres + Mailpit
-dotnet run --project src/Api --launch-profile https    # binds https:7160 (web/desktop) AND http:5238 (android)
+dotnet run --project src/Api --launch-profile https    # binds https:7260 (web/desktop) AND http:5338 (android)
 ```
 
-- API health/liveness check: `curl -k https://localhost:7160/health` → **200** (`Healthy`);
-  `curl -k https://localhost:7160/health/ready` → **200** when the database is reachable (503 if not).
-  *(The older `curl -k -X POST https://localhost:7160/api/auth/refresh` → **401** reachability check
+- API health/liveness check: `curl -k https://localhost:7260/health` → **200** (`Healthy`);
+  `curl -k https://localhost:7260/health/ready` → **200** when the database is reachable (503 if not).
+  *(The older `curl -k -X POST https://localhost:7260/api/auth/refresh` → **401** reachability check
   still works.)*
 - **Mailpit UI: <http://localhost:8025>** — this is the dev mail trap. Every magic link, OTP code,
   and invitation email lands here. Keep it open in a tab throughout testing.
@@ -63,7 +63,7 @@ dotnet run --project src/Api --launch-profile https    # binds https:7160 (web/d
   > (reliability moved to the background): if an email never arrives while SMTP points at Mailpit, the
   > message is retrying or dead-lettered in the `OutboxMessages` table — it is **no longer** surfaced as
   > a request error.
-- Web app: `dotnet run --project src/Web --launch-profile https` → **<https://localhost:7008>**.
+- Web app: `dotnet run --project src/Web --launch-profile https` → **<https://localhost:7108>**.
   > ⚠️ Always use the **https** profile for both web and API. Chrome treats `http://localhost` and
   > `https://localhost` as different sites, so the refresh cookie is dropped over http and sign-in
   > silently fails to persist. (See `docs/DECISIONS.md` / the schemeful-same-site note.)
@@ -91,17 +91,17 @@ dotnet run --project src/Api --launch-profile https    # binds https:7160 (web/d
 
 ### 1.3 Desktop (MAUI Windows) — additional setup
 - Run the app from Visual Studio (Windows Machine target) or `dotnet build src/Maui -t:Run -f net10.0-windows...`.
-- API must be running on `https://localhost:7160` (the desktop client's base URL).
+- API must be running on `https://localhost:7260` (the desktop client's base URL).
 - OAuth uses a **loopback browser flow** — your default system browser will open a tab during OAuth.
 
 ### 1.4 Android (MAUI) — additional setup
 Follow `docs/MOBILE_TESTING.md`. The essential bits:
 - Emulator (AVD) or USB device running.
-- **`adb reverse tcp:5238 tcp:5238`** — **re-run every time the device/emulator restarts** (it does
+- **`adb reverse tcp:5338 tcp:5338`** — **re-run every time the device/emulator restarts** (it does
   not persist). Verify with `adb reverse --list`.
-- API started with the **https** profile (binds the cleartext `:5238` leg the device uses).
-- Provider redirect URIs registered: `http://localhost:5238/signin-google` and
-  `http://localhost:5238/signin-microsoft`.
+- API started with the **https** profile (binds the cleartext `:5338` leg the device uses).
+- Provider redirect URIs registered: `http://localhost:5338/signin-google` and
+  `http://localhost:5338/signin-microsoft`.
 
 ### 1.5 Environment B — deployed staging (DEPLOY, ADR-017)
 
@@ -197,7 +197,7 @@ Then I am signed in and land on the home page
 And the header shows my household name and my display name
 ```
 **Walkthrough**
-1. Open <https://localhost:7008> → you're redirected to `/login`.
+1. Open <https://localhost:7108> → you're redirected to `/login`.
 2. In the email field enter `qa-smoke@example.com`; click **Email me a 6-digit code**.
 3. **Expected:** the form switches to a code-entry view ("Enter the 6-digit code sent to …").
 4. Open Mailpit (<http://localhost:8025>); open the newest mail; copy the 6-digit code.
@@ -256,8 +256,8 @@ Then /health returns 200 "Healthy"
 And /health/ready returns 200 when the database is reachable, 503 when it is not
 ```
 **Walkthrough**
-1. `curl -k https://localhost:7160/health` → **200**, body `Healthy` (liveness — process up).
-2. `curl -k https://localhost:7160/health/ready` → **200** (readiness — Postgres reachable).
+1. `curl -k https://localhost:7260/health` → **200**, body `Healthy` (liveness — process up).
+2. `curl -k https://localhost:7260/health/ready` → **200** (readiness — Postgres reachable).
 3. *(Optional)* stop the DB (`docker compose stop db`) and re-run step 2 → **503**; then
    `docker compose start db` and confirm it returns to **200**.
 4. **Expected:** liveness is 200 whenever the process runs; readiness tracks DB reachability.
@@ -2299,7 +2299,7 @@ light/dark setting live.
 
 ## 13. Android — MAUI 🟠
 
-> Prereq every run: **`adb reverse tcp:5238 tcp:5238`** + API on the https profile. See
+> Prereq every run: **`adb reverse tcp:5338 tcp:5338`** + API on the https profile. See
 > `docs/MOBILE_TESTING.md`.
 
 ### QA-AND-01 — OTP sign-in 🔴 (Android) ⚙️ Automated in CI
@@ -2310,7 +2310,7 @@ When I request an OTP and enter the code from Mailpit
 Then I am signed in
 ```
 **Walkthrough**
-1. Confirm `adb reverse --list` shows `tcp:5238`. Launch the app.
+1. Confirm `adb reverse --list` shows `tcp:5338`. Launch the app.
 2. Login screen: email field + **Email me a 6-digit code**; Google/Microsoft buttons; **no magic
    link**.
 3. Enter an email → request code → read it in Mailpit (host) → enter it.
@@ -2326,7 +2326,7 @@ Then the in-app browser returns to the app via the perezosoft:// scheme, signed 
 **Walkthrough**
 1. Tap **Continue with Google**. **Expected:** a browser tab opens to Google consent.
 2. Approve. **Expected:** the tab returns control to the app (`perezosoft://auth` intent), now signed
-   in. (Repeat **Microsoft** if its `:5238` redirect is registered.)
+   in. (Repeat **Microsoft** if its `:5338` redirect is registered.)
 
 ### QA-AND-03 — "Remember me" across app restart 🟠 (Android)
 **Walkthrough:** swipe-close the app; reopen. **Expected:** still signed in (refresh token in the
@@ -2439,7 +2439,7 @@ Then approving still signs me in — the redirect relaunches the app and complet
 
 > **These platforms compile in CI but had never been RUN before this pass.** Prereqs: a Mac with
 > **Xcode 26.5** (the CI pin), the repo, and the API + Postgres + Mailpit running on that Mac (the
-> iOS **simulator** shares the host network, so `https://localhost:7160` works; a **physical device**
+> iOS **simulator** shares the host network, so `https://localhost:7260` works; a **physical device**
 > needs the API bound to a LAN address + the dev cert trusted). Launch:
 > `dotnet build src/Maui -t:Run -f net10.0-ios` (simulator) / `-f net10.0-maccatalyst`.
 > The **G7 fix is required** (PR #109) — before it, both platforms crashed at first resolve (no
@@ -2575,7 +2575,7 @@ the API directly:
 > each owner and copy its access token from `POST /api/auth/refresh` or the Swagger **Authorize**
 > button, exactly as §14b describes) so you hold **two JWTs carrying different `tenant_id` claims**. A
 > few cases need the **two browser contexts** of §1.2 (a normal window + an incognito/second profile);
-> those are flagged in the title. Base URL `https://localhost:7160` (use `-k` for the dev cert) locally,
+> those are flagged in the title. Base URL `https://localhost:7260` (use `-k` for the dev cert) locally,
 > or the staging host for Environment B. Grab each tenant's ids up front: `GET /api/household` as A and
 > as B gives you A's/B's household id + member user-ids; note one **B** member user-id, one **B**
 > notification/webhook/api-key id (create them if needed) for the cross-tenant probes.
@@ -2955,7 +2955,7 @@ Then it targets the configured HTTPS API (build fails if none) — no http://loc
 1. Build a **Release** AAB/MSIX without dev overrides. Inspect the effective base URL + Android network
    security config.
 2. **Expected (post-remediation):** base URL is the configured **HTTPS** API; a missing base URL **fails
-   the build**; no `http://localhost:5238` and no cleartext-permitting network config is shipped.
+   the build**; no `http://localhost:5338` and no cleartext-permitting network config is shipped.
 3. **Was (pre-v3 audit NAT-3):** this step used to FAIL and was recorded Blocked. The finding is fixed (v3 remediation, PRs #147–#191) — the assertions above now hold; expect **Pass**.
 
 ### QA-ADV-24 — Windows loopback OAuth binds state (login-CSRF guard) 🟢 (Desktop)
@@ -2989,7 +2989,7 @@ Then it is rejected — no session is minted from an unsolicited/forged callback
 > `Webhooks__Enabled=true`, then restart the API. Management of keys/webhooks is **owner-only**, so sign in
 > as an owner and grab a JWT access token from `POST /api/auth/refresh` (the Swagger "Authorize" button
 > shows one) to call the `/api/apikeys` and `/api/webhooks` management routes below. Base URL in these
-> steps is `https://localhost:7160` (use `-k` for the dev cert).
+> steps is `https://localhost:7260` (use `-k` for the dev cert).
 
 ### QA-API-01 — Config gate: surfaces are 404 when disabled 🟢 (curl)
 **Gherkin**
@@ -3000,7 +3000,7 @@ Then it does not exist (404) — the routes aren't mapped and the API-key scheme
 ```
 **Walkthrough**
 1. With both flags **unset/false**, restart the API and call
-   `curl -k https://localhost:7160/api/public/openapi.json` and `.../api/apikeys` (with a JWT).
+   `curl -k https://localhost:7260/api/public/openapi.json` and `.../api/apikeys` (with a JWT).
 2. **Expected:** **404** for both. Now set the two flags true, restart, and re-check — they become live
    (401/200). Leave them **on** for the rest of this section.
 
@@ -3012,7 +3012,7 @@ When I create an API key
 Then I receive the raw pk_… key exactly once, and listing later shows only its prefix/metadata
 ```
 **Walkthrough**
-1. `curl -k -X POST https://localhost:7160/api/apikeys -H "Authorization: Bearer <JWT>" -H "Content-Type: application/json" -d '{"name":"qa","scopes":["read"]}'`
+1. `curl -k -X POST https://localhost:7260/api/apikeys -H "Authorization: Bearer <JWT>" -H "Content-Type: application/json" -d '{"name":"qa","scopes":["read"]}'`
 2. **Expected:** **201** with a `key` field like `pk_…` — **copy it now** (never shown again). `GET /api/apikeys`
    lists it with `prefix`/`scopes` but **no** `key`.
 3. **Non-owner:** repeat as a member/admin → **403**.
@@ -3025,16 +3025,16 @@ When I call the public API with it
 Then whoami returns my tenant, and a write-scoped route is refused (403 insufficient_scope)
 ```
 **Walkthrough**
-1. `curl -k https://localhost:7160/api/public/whoami -H "X-Api-Key: pk_…"` → **200**, body shows my
+1. `curl -k https://localhost:7260/api/public/whoami -H "X-Api-Key: pk_…"` → **200**, body shows my
    `tenant_id`, the key name, and `["read"]`.
-2. `curl -k -X POST https://localhost:7160/api/public/echo -H "X-Api-Key: pk_…" -d '{"message":"hi"}'`
+2. `curl -k -X POST https://localhost:7260/api/public/echo -H "X-Api-Key: pk_…" -d '{"message":"hi"}'`
    with the **read-only** key → **403 `insufficient_scope`**. (A key created with `"write"` succeeds.)
 3. **No/blank/garbage key** → **401**. **Revoked key** (`DELETE /api/apikeys/{id}`) → **401** afterwards.
 4. **Postman:** import `/api/public/openapi.json`, set an `X-Api-Key` header on the collection, run `whoami`.
 
 ### QA-API-04 — Per-key rate limit 🟠 (curl)
 **Walkthrough**
-1. Fire `whoami` with one key ~65 times in a minute (`for i in $(seq 1 65); do curl -k -s -o /dev/null -w "%{http_code}\n" https://localhost:7160/api/public/whoami -H "X-Api-Key: pk_…"; done`).
+1. Fire `whoami` with one key ~65 times in a minute (`for i in $(seq 1 65); do curl -k -s -o /dev/null -w "%{http_code}\n" https://localhost:7260/api/public/whoami -H "X-Api-Key: pk_…"; done`).
 2. **Expected:** the first 60 are **200**, then **429**. A **second** key still returns **200** (budgets are
    per key, not shared).
 
