@@ -1,0 +1,55 @@
+@using System.Globalization
+
+@* SKIN-2 · the segmented bar that supersedes Charts/StackedBar.razor's inline SVG. Divs rather than SVG, so it
+   inherits the theme tokens directly and needs no viewBox arithmetic; the hatched fill always means "planned,
+   not yet spent"; the marker is where the month is today.
+
+   StackedBar is NOT deleted here — the dashboard and Reports both still draw it, and it dies at the end of
+   SKIN-10 when Reports stops importing it.
+
+   The track is aria-hidden on purpose. Colour and hatching say nothing to a screen reader, so the legend
+   below carries the same facts as text; the bar is the picture, the legend is the copy. *@
+<div class="pace" data-testid="@TestId">
+    <div class="pace-track" data-testid="@Id("track")" aria-hidden="true">
+        @foreach (var s in Segments.Where(s => s.Value > 0))
+        {
+            <div class="pace-segment" data-testid="@Id("segment")" data-tone="@s.Tone"
+                 data-hatched="@(s.Hatched ? "true" : null)" style="width: @Pct(s.Value)" title="@s.Label"></div>
+        }
+        @if (Marker is { } m)
+        {
+            <div class="pace-marker" data-testid="@Id("marker")" style="left: @Percent(Math.Clamp(m, 0m, 1m))"></div>
+        }
+    </div>
+    @if (Segments.Count > 0)
+    {
+        <ul class="pace-legend" data-testid="@Id("legend")">
+            @foreach (var s in Segments.Where(s => s.Value > 0))
+            {
+                <li data-tone="@s.Tone" data-hatched="@(s.Hatched ? "true" : null)">
+                    <span class="pace-key" aria-hidden="true"></span>@s.Label @Pct(s.Value)
+                </li>
+            }
+        </ul>
+    }
+</div>
+
+@code {
+    /// <summary>The bar's full width. Segments are drawn as a share of it.</summary>
+    [Parameter] public decimal Total { get; set; }
+
+    [Parameter] public IReadOnlyList<PaceSegment> Segments { get; set; } = [];
+
+    /// <summary>Where "today" sits, 0..1 of the total. Null hides the marker.</summary>
+    [Parameter] public decimal? Marker { get; set; }
+
+    [Parameter] public string TestId { get; set; } = "pace";
+
+    private string Id(string part) => $"{TestId}-{part}";
+
+    // A zero or negative total would divide by nothing; the floor keeps an empty month rendering its track.
+    private string Pct(decimal value) => Percent(value / Math.Max(Total, 0.01m));
+
+    private static string Percent(decimal fraction) =>
+        (Math.Clamp(fraction, 0m, 1m) * 100m).ToString("0.##", CultureInfo.InvariantCulture) + "%";
+}

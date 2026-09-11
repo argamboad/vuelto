@@ -1,0 +1,31 @@
+.kpi {
+    padding: 15px 17px;
+    border: 1px solid var(--app-border);
+    border-radius: var(--radius-card);
+    background: var(--card-bg);
+}
+
+.kpi-label {
+    font-size: 11px;
+    font-weight: var(--w-body);
+    color: var(--ink-3);
+    margin-bottom: 3px;
+}
+
+.kpi-value {
+    color: var(--ink);
+}
+
+/* Tone colours the NUMBER, never the tile — a green card would read as a state the whole tile is in. */
+.kpi[data-tone="good"] .kpi-value ::deep .money-primary,
+.kpi[data-tone="good"] .kpi-value { color: var(--good); }
+
+.kpi[data-tone="bad"] .kpi-value ::deep .money-primary,
+.kpi[data-tone="bad"] .kpi-value { color: var(--bad); }
+
+.kpi-sub {
+    margin-top: 3px;
+    font-size: 11px;
+    font-weight: var(--w-body);
+    color: var(--ink-3);
+}

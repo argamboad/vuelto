@@ -1,0 +1,41 @@
+@* SKIN-2 · the redesign's first decision: one verdict per screen, at display size, before any table. A caption
+   naming the figure, the figure, and one sentence saying what it means.
+
+   The state is TEXT, not a colour. The dot is aria-hidden and carries no information on its own — a reader
+   who cannot tell green from amber still reads "On track", and so does a screen reader. Tone only tints. *@
+<section class="verdict" data-testid="@TestId" data-tone="@Tone">
+    <p class="verdict-state">
+        <span class="verdict-dot" data-testid="@Id("dot")" aria-hidden="true"></span>
+        <span data-testid="@Id("state")">@State</span>
+    </p>
+    @if (!string.IsNullOrWhiteSpace(Caption))
+    {
+        <p class="verdict-caption" data-testid="@Id("caption")">@Caption</p>
+    }
+    <div class="verdict-value" data-testid="@Id("value")">@Value</div>
+    @if (!string.IsNullOrWhiteSpace(Explanation))
+    {
+        <p class="verdict-explanation" data-testid="@Id("explanation")">@Explanation</p>
+    }
+</section>
+
+@code {
+    /// <summary>good · warn · bad. Tints the dot and the state word; never the only carrier of the state.</summary>
+    [Parameter] public string Tone { get; set; } = "good";
+
+    /// <summary>The state in words — "On track", "Watch", "Over". Always rendered.</summary>
+    [Parameter] public string? State { get; set; }
+
+    /// <summary>What the number is, above it — "Forecast left at month end".</summary>
+    [Parameter] public string? Caption { get; set; }
+
+    /// <summary>The figure. A fragment so a caller can pass a <c>Money</c> at display size.</summary>
+    [Parameter] public RenderFragment? Value { get; set; }
+
+    /// <summary>One sentence on what it means. Omitted when blank.</summary>
+    [Parameter] public string? Explanation { get; set; }
+
+    [Parameter] public string TestId { get; set; } = "verdict";
+
+    private string Id(string part) => $"{TestId}-{part}";
+}

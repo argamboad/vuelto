@@ -1,0 +1,57 @@
+.verdict {
+    padding: 19px 22px;
+    border: 1px solid var(--app-border);
+    border-radius: var(--radius-card);
+    background: var(--card-bg);
+}
+
+.verdict-state {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0 0 9px;
+    font-size: 11px;
+    font-weight: var(--w-display);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.verdict-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--ink-3);
+}
+
+.verdict[data-tone="good"] .verdict-state { color: var(--good); }
+.verdict[data-tone="good"] .verdict-dot { background: var(--good); }
+
+/* "Watch" is attention, not failure — amber, and never the over-budget red. */
+.verdict[data-tone="warn"] .verdict-state { color: var(--ink-2); }
+.verdict[data-tone="warn"] .verdict-dot { background: #C9971F; }
+
+.verdict[data-tone="bad"] .verdict-state { color: var(--bad); }
+.verdict[data-tone="bad"] .verdict-dot { background: var(--bad); }
+
+.verdict-caption {
+    margin: 0 0 2px;
+    font-size: 12px;
+    font-weight: var(--w-body);
+    color: var(--ink-3);
+}
+
+.verdict-explanation {
+    margin: 9px 0 0;
+    max-width: 34em; /* the sentence is read, so it keeps a readable measure */
+    font-size: 12px;
+    font-weight: var(--w-body);
+    color: var(--ink-2);
+}
+
+@media (max-width: 991.98px) {
+    .verdict { padding: 17px 19px; }
+}
+
+@media (max-width: 767.98px) {
+    .verdict { padding: 15px 16px; }
+}

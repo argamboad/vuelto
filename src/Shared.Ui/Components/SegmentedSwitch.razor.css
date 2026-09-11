@@ -1,0 +1,76 @@
+.segmented {
+    border: 0;
+    padding: 0;
+    margin: 0;
+    min-width: 0; /* a fieldset defaults to min-content, which breaks it inside a flex row */
+}
+
+/* The legend names the group for a screen reader. It is visible copy on a card heading and hidden inline,
+   so callers that already have a heading pass no Label and get an empty legend rather than a duplicate. */
+.segmented legend {
+    float: none;
+    width: auto;
+    margin: 0 0 5px;
+    padding: 0;
+    font-size: 11px;
+    font-weight: var(--w-display);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+}
+
+.segmented legend:empty {
+    display: none;
+}
+
+.segmented-track {
+    display: inline-flex;
+    gap: 2px;
+    padding: 2px;
+    border-radius: var(--bs-border-radius);
+    background: var(--rail);
+}
+
+.segmented-option {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 30px;
+    padding: 0 11px;
+    border-radius: calc(var(--bs-border-radius) - 2px);
+    font-size: 12px;
+    font-weight: var(--w-control);
+    color: var(--ink-3);
+    cursor: pointer;
+    user-select: none;
+}
+
+.segmented-option[data-selected="true"] {
+    background: var(--card-bg);
+    color: var(--ink);
+}
+
+/* Visually hidden, still focusable — the whole reason these are radios and not buttons. */
+.segmented-option input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    margin: 0;
+    pointer-events: none;
+}
+
+/* Focus has to be visible on the label, since the input it belongs to is the invisible part. */
+.segmented-option:has(input:focus-visible) {
+    outline: 2px solid var(--bs-primary);
+    outline-offset: 1px;
+}
+
+/* Phone: touch targets are 44px, sized up rather than scaled down from desktop. */
+@media (max-width: 767.98px) {
+    .segmented-option {
+        min-height: 44px;
+        padding: 0 14px;
+    }
+}

@@ -1,0 +1,30 @@
+/* Its own surface with a rail down the left, so the boundary between "the thing you filled in" and "what it
+   will do" stays legible when the panel stops being a side column and stacks under the form on phone. */
+.consequence {
+    padding: 15px 17px;
+    border-left: 3px solid var(--bs-primary);
+    border-radius: var(--radius-bar);
+    background: var(--zebra);
+}
+
+.consequence-eyebrow {
+    margin: 0 0 7px;
+    font-size: 11px;
+    font-weight: var(--w-display);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+}
+
+.consequence-body {
+    font-size: 13px;
+    font-weight: var(--w-body);
+    color: var(--ink-2);
+}
+
+.consequence-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 13px;
+}

@@ -1,0 +1,17 @@
+@inject IStringLocalizer<AppStrings> Localizer
+
+@* SKIN-2 · one chip per transaction class, keyed off the class itself. A call site names the class and gets
+   the right pill; it cannot choose a colour, which is the rule that keeps amber meaning "needs attention" and
+   red meaning "over budget" across every screen. An unrecognised value renders nothing rather than an
+   unlabelled pill — a blank chip would be worse than no chip, and the five values come from the API. *@
+@if (TransactionClasses.LabelKey(Class) is { } key)
+{
+    <span class="class-chip" data-testid="@TestId" data-class="@Class" data-tone="@TransactionClasses.Tone(Class)">@Localizer[key]</span>
+}
+
+@code {
+    /// <summary>One of the <see cref="TransactionClasses"/> values, as the API spells it.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    [Parameter] public string TestId { get; set; } = "class-chip";
+}

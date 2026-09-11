@@ -1,0 +1,47 @@
+@using System.Globalization
+
+@* SKIN-2 · the redesign's second decision, made concrete: dual currency stops doubling every cell. The active
+   currency is primary and large; the other sits muted UNDERNEATH rather than after a middot. "Both" is the
+   display preference (DISPLAY-1) that used to render "₡x · $y" — it is the stacked form now, and ₡/$ alone
+   stay single-line. A figure that exists in ONE currency (a budget line) always shows on its own side
+   whatever the preference, which is MoneyDisplay.Native's rule and why Currency overrides Display.
+
+   MoneyDisplay stays as it is: it returns strings, which is still what a title or an aria-label needs. This
+   renders; that formats. *@
+<span class="money money-@Size" data-testid="@TestId">
+    <span class="money-primary" data-testid="@Id("primary")">@Primary()</span>
+    @if (Stacked)
+    {
+        <span class="money-secondary" data-testid="@Id("secondary")">@Secondary()</span>
+    }
+</span>
+
+@code {
+    [Parameter] public decimal Crc { get; set; }
+    [Parameter] public decimal Usd { get; set; }
+
+    /// <summary>The "show amounts in" preference — one of the <see cref="MoneyDisplay"/> values.</summary>
+    [Parameter] public string Display { get; set; } = MoneyDisplay.Both;
+
+    /// <summary>Set when the figure is native to one currency; it then ignores <see cref="Display"/>.</summary>
+    [Parameter] public string? Currency { get; set; }
+
+    /// <summary>display (verdict) · step (a waterfall step) · row (a table cell). Sizes live in the scoped CSS.</summary>
+    [Parameter] public string Size { get; set; } = "row";
+
+    [Parameter] public string TestId { get; set; } = "money";
+
+    private bool Stacked => Currency is null && Display == MoneyDisplay.Both;
+
+    private string Id(string part) => $"{TestId}-{part}";
+
+    private string Primary() => Currency is not null
+        ? MoneyDisplay.Native(Crc, Usd, Currency)
+        : Display == MoneyDisplay.Usd ? Amount(Usd, "$") : Amount(Crc, "₡");
+
+    // Only reached when stacked, i.e. the preference is "both" — so the other side is always the dollar one.
+    private string Secondary() => Amount(Usd, "$");
+
+    private static string Amount(decimal value, string symbol) =>
+        symbol + value.ToString("N2", CultureInfo.CurrentCulture);
+}

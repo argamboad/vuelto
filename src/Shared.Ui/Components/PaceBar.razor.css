@@ -1,0 +1,79 @@
+/* The track keeps its 8px height at every width — it is the scanning cue, so it does not shrink on phone. */
+.pace-track {
+    position: relative;
+    display: flex;
+    height: 8px;
+    border-radius: var(--radius-bar);
+    background: var(--rail);
+    overflow: hidden;
+}
+
+.pace-segment {
+    height: 100%;
+    min-width: 2px;
+}
+
+.pace-segment[data-tone="primary"] { background: var(--bs-primary); }
+.pace-segment[data-tone="warn"] { background: var(--warn-bg); }
+.pace-segment[data-tone="good"] { background: var(--good); }
+.pace-segment[data-tone="bad"] { background: var(--bad); }
+.pace-segment[data-tone="rail"] { background: var(--brand-accent-light); }
+
+/* Hatching means one thing wherever it appears: planned, not yet spent. Drawn over whatever tone the segment
+   already has, so "planned" reads as a lighter version of the thing it is planned against. */
+.pace-segment[data-hatched="true"] {
+    background-image: repeating-linear-gradient(
+        135deg,
+        color-mix(in srgb, var(--card-bg) 55%, transparent) 0 3px,
+        transparent 3px 6px
+    );
+}
+
+/* Today. A hairline rather than a label — the elapsed share is stated in words beside the bar. */
+.pace-marker {
+    position: absolute;
+    top: -2px;
+    bottom: -2px;
+    width: 2px;
+    background: var(--ink-2);
+    transform: translateX(-1px);
+}
+
+.pace-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 13px;
+    margin: 7px 0 0;
+    padding: 0;
+    list-style: none;
+    font-size: 11px;
+    font-weight: var(--w-control);
+    color: var(--ink-3);
+}
+
+.pace-legend li {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.pace-key {
+    width: 9px;
+    height: 9px;
+    border-radius: 3px;
+    background: var(--rail);
+}
+
+.pace-legend li[data-tone="primary"] .pace-key { background: var(--bs-primary); }
+.pace-legend li[data-tone="warn"] .pace-key { background: var(--warn-bg); }
+.pace-legend li[data-tone="good"] .pace-key { background: var(--good); }
+.pace-legend li[data-tone="bad"] .pace-key { background: var(--bad); }
+.pace-legend li[data-tone="rail"] .pace-key { background: var(--brand-accent-light); }
+
+.pace-legend li[data-hatched="true"] .pace-key {
+    background-image: repeating-linear-gradient(
+        135deg,
+        color-mix(in srgb, var(--card-bg) 55%, transparent) 0 2px,
+        transparent 2px 4px
+    );
+}

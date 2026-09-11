@@ -1,0 +1,61 @@
+/* Money always lines up: tabular numerals so a column of digits has one width per digit, and the stack is a
+   block so the muted side sits under the primary rather than beside it. Sizes are the handout's three money
+   roles at desktop / tablet / phone; weight is 800 on the primary at every size, because weight carries the
+   hierarchy here more than size does. */
+.money {
+    display: inline-block;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.15;
+}
+
+.money-primary {
+    display: block;
+    font-weight: var(--w-display);
+    color: var(--ink);
+}
+
+.money-secondary {
+    display: block;
+    font-weight: var(--w-body);
+    color: var(--ink-3);
+}
+
+/* The verdict number — the one figure a screen opens on. */
+.money-display .money-primary {
+    font-size: 44px;
+    letter-spacing: -0.01em;
+}
+
+.money-display .money-secondary {
+    font-size: 15px;
+}
+
+/* A waterfall step or a KPI tile. */
+.money-step .money-primary {
+    font-size: 23px;
+}
+
+.money-step .money-secondary {
+    font-size: 12px;
+}
+
+/* A table cell or a list row — the default, and by far the most common. */
+.money-row .money-primary {
+    font-size: 13px;
+    font-weight: var(--w-control);
+}
+
+.money-row .money-secondary {
+    font-size: 11px;
+}
+
+@media (max-width: 991.98px) {
+    .money-display .money-primary { font-size: 38px; }
+    .money-step .money-primary { font-size: 21px; }
+    .money-row .money-primary { font-size: 12px; }
+}
+
+@media (max-width: 767.98px) {
+    .money-display .money-primary { font-size: 30px; }
+    .money-step .money-primary { font-size: 18px; }
+}

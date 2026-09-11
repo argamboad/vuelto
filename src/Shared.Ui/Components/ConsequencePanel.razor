@@ -1,0 +1,33 @@
+@* SKIN-2 · the redesign's fifth decision: say what an action will do before it happens. The "Confirming will…"
+   rail on Review and the "Before you save" rail on the transaction form are the same object.
+
+   Two things here are load-bearing rather than decorative. The body precedes the actions in the DOM, so a
+   screen reader meets the consequence before it reaches the button — a caller cannot reorder them, because
+   the actions are their own fragment. And the body is aria-live="polite": its text changes as the form does,
+   and a consequence nobody is told about is not a consequence. *@
+<aside class="consequence" data-testid="@TestId">
+    @if (!string.IsNullOrWhiteSpace(Eyebrow))
+    {
+        <p class="consequence-eyebrow" data-testid="@Id("eyebrow")">@Eyebrow</p>
+    }
+    <div class="consequence-body" data-testid="@Id("body")" aria-live="polite">@ChildContent</div>
+    @if (Actions is not null)
+    {
+        <div class="consequence-actions" data-testid="@Id("actions")">@Actions</div>
+    }
+</aside>
+
+@code {
+    /// <summary>The uppercase label above the statement — "Confirming will", "Before you save".</summary>
+    [Parameter] public string? Eyebrow { get; set; }
+
+    /// <summary>What will happen, in plain language. Always rendered above the actions.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>The controls that carry it out. Optional — the panel is useful as a statement alone.</summary>
+    [Parameter] public RenderFragment? Actions { get; set; }
+
+    [Parameter] public string TestId { get; set; } = "consequence";
+
+    private string Id(string part) => $"{TestId}-{part}";
+}
