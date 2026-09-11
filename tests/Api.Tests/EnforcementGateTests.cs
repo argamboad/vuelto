@@ -63,6 +63,74 @@ public class EnforcementGateTests
     }
 
     [Fact]
+    public void EveryCiJob_EitherGatesOnChanges_OrIsOnTheAlwaysRunList() // LOCALCI-3
+    {
+        // The point of the paths gate is that a docs-only push stops billing thirty minutes for
+        // markdown. A new job added without `needs: changes` silently undoes that for every future
+        // change, and nothing else would notice — the build stays green, it just costs again.
+        //
+        // The ALLOWLIST is the interesting half. These two must never become code-gated:
+        //   secret-scan  — a credential pasted into a markdown file is still a leaked credential.
+        //   qa-artifacts — editing the plan without regenerating the PDFs is the ONLY way to break
+        //                  it, so gating it on code would switch it off for precisely the change it
+        //                  exists to catch.
+        //   changes      — it is the gate.
+        //   deploy-*     — they gate transitively, through the jobs they need.
+        string[] alwaysRun = ["changes", "secret-scan", "qa-artifacts", "deploy-staging", "deploy-prod"];
+
+        var ci = File.ReadAllLines(Path.Combine(RepoRoot(), ".github", "workflows", "ci.yml"));
+
+        // Job blocks are the two-space keys under `jobs:`; a block runs to the next such key. Start
+        // AFTER `jobs:` — the trigger list above it uses the same indentation, so `push` and
+        // `schedule` otherwise read as jobs with no gate.
+        var jobsAt = Array.FindIndex(ci, l => l.TrimEnd() == "jobs:");
+        Assert.True(jobsAt >= 0, "could not find the `jobs:` key in ci.yml");
+
+        var starts = ci.Select((line, i) => (line, i))
+            .Where(x => x.i > jobsAt && Regex.IsMatch(x.line, @"^  [a-z][a-z0-9-]*:\s*$"))
+            .ToList();
+        Assert.True(starts.Count > 8, "could not find the job list — has ci.yml been restructured?");
+
+        var ungated = new List<string>();
+        for (var n = 0; n < starts.Count; n++)
+        {
+            var name = starts[n].line.Trim().TrimEnd(':');
+            if (alwaysRun.Contains(name)) continue;
+
+            var end = n + 1 < starts.Count ? starts[n + 1].i : ci.Length;
+            var body = string.Join("\n", ci[starts[n].i..end]);
+
+            if (!body.Contains("needs: changes", StringComparison.Ordinal)
+                || !body.Contains("needs.changes.outputs.", StringComparison.Ordinal))
+            {
+                ungated.Add(name);
+            }
+        }
+
+        Assert.True(ungated.Count == 0,
+            "These CI jobs run on every push regardless of what changed — add `needs: changes` and an "
+            + "`if:` on one of its outputs, or add them to the allowlist in this test with a reason: "
+            + string.Join(", ", ungated));
+    }
+
+    [Fact]
+    public void TheTwoGatesThatCatchDocsMistakes_AreNeverCodeGated() // LOCALCI-3
+    {
+        // Stated separately from the test above because it is the opposite failure: not "someone
+        // forgot the gate" but "someone added it where it does harm". A docs-only change is exactly
+        // when these two matter, so gating them on code would blind CI to the one class of mistake
+        // a docs commit can make.
+        var ci = File.ReadAllText(Path.Combine(RepoRoot(), ".github", "workflows", "ci.yml"));
+
+        foreach (var job in new[] { "secret-scan", "qa-artifacts" })
+        {
+            var block = Regex.Match(ci, $@"(?ms)^  {Regex.Escape(job)}:\s*$.*?(?=^  [a-z][a-z0-9-]*:\s*$)");
+            Assert.True(block.Success, $"{job} not found in ci.yml");
+            Assert.DoesNotContain("needs.changes.outputs.code", block.Value, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
     public void ClaudeMdDocMap_ListsEveryTopLevelDoc() // R75, doc-map half
     {
         var root = RepoRoot();

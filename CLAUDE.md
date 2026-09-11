@@ -18,6 +18,15 @@ the donor's tests as the spec, and **never modify platform code in this repo** �
 its seams; a generic gap goes upstream to `perezosoft-platform` first.
 
 ## Read before you act
+- **CI is proportional to the change (LOCALCI-3, inherited from the platform 2026-09-11).** A job
+  called `changes` reads the diff once and publishes `code` / `native` / `docs`; every non-deploy job
+  gates on it, so a docs-only push does not pay for a build. **`secret-scan` and `qa-artifacts` never
+  gate on code** — a docs commit can still leak a credential, and editing `QA_TEST_PLAN.md` without
+  regenerating the PDFs is the only way to break the artifacts check, so gating it would blind CI to
+  exactly what it catches. Two tests in `EnforcementGateTests` hold both halves; add a new job with
+  `needs: changes` or the first of them fails. The gate **fails open** on an unreachable diff base.
+  ⚠️ **`native-smoke-apple` now runs weekly, not per push** — a green develop run is NOT a green Apple
+  smoke (QA §13c).
 - **Writing or modifying ANY code → `docs/audits/v3-2026-07/FOUNDATION_RULES_v2.md` (v2.0: R1–R35
   carried from v1.0 + R36–R76) is binding.** It encodes the post-audit invariants (tenancy incl. the
   RLS backstop parity, second-factor/event replay, SSRF, fail-closed normalization, atomic quotas +

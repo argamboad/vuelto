@@ -2497,6 +2497,17 @@ Full per-feature native regression (every case in §12–13b) is for releases th
 (`src/Maui/**`, the RCL seams: `ICulturePersistence` / `IFileDownloadLauncher` / `AppResumeNotifier`)
 or bumped the .NET/MAUI toolchain.
 
+> **⚠️ The Apple smoke's CI cadence is WEEKLY, not per-push (LOCALCI-3).** `native-smoke-apple` bills
+> 87 minutes on hosted runners, because macOS bills at 10×, so it runs on a Monday 06:00 UTC schedule
+> plus manual dispatch rather than on every develop push. It returns to every-push the moment a
+> self-hosted Mac is configured (`vars.CI_MACOS_RUNNER`), where it is free. The Apple **build**
+> (`native-build-apple`) still runs on every develop push that touches native-relevant paths, so
+> compile rot is still caught within one merge.
+>
+> **What that means for a release:** the newest Apple smoke result may be up to a week old. Before
+> shipping a native client, trigger the workflow by hand (`workflow_dispatch`) or run the iOS/macOS
+> cases in §13b on a Mac. Do not read a green develop run as a green Apple smoke.
+
 ---
 
 ## 14. Cross-cutting security 🟠
