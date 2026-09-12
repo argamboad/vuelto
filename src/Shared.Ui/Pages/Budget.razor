@@ -1,20 +1,37 @@
 @page "/budget"
 @using System.Net.Http.Json
+@using System.Text.Json.Serialization
 @using Vuelto.Shared.Ui.Auth
 @using Vuelto.Shared.Ui.Components
 @inject AuthService Auth
 @inject NavigationManager Nav
 @inject HttpClient Http
 @inject IStringLocalizer<AppStrings> Localizer
+@inject DisplayCurrencyStore Display
 
 <PageTitle>@Localizer["Budget_Title"]</PageTitle>
 
-@* EXPENSES-1: the household's budget baseline — fixed and variable lines (ADR-V007). *@
+@* EXPENSES-1: the household's budget baseline — fixed and variable lines (ADR-V007), presented per SKIN-9: a
+   commitment header stating what the plan takes of a typical income, two reorderable lists, and one dialog for
+   creating and editing so the lists never jump. The header is a projection: lines in two currencies add up
+   only at today's rate, and a typical income is the four-week defaults from Settings → Budget. *@
 <div class="settings-wrapper" data-testid="budget-page">
-    <div class="mb-3">
-        <h1 class="h4 fw-bold mb-1">@Localizer["Budget_Title"]</h1>
-        <p class="text-muted mb-0">@Localizer["Budget_Subtitle"]</p>
+    <div class="budget-head">
+        <div>
+            <h1>@Localizer["Budget_Title"]</h1>
+            <p class="budget-subtitle">@Localizer["Budget_Subtitle"]</p>
+        </div>
+        <button type="button" class="btn btn-primary" data-testid="budget-add" disabled="@(_loading || _dialog is not null)" @onclick="OpenNew">+ @Localizer["Budget_AddLine"]</button>
     </div>
+
+    @if (_notice is not null)
+    {
+        <div class="alert alert-success py-2" data-testid="budget-notice">@_notice</div>
+    }
+    @if (_error is not null)
+    {
+        <div class="alert alert-danger py-2" data-testid="budget-error">@_error</div>
+    }
 
     @if (_loading)
     {
@@ -22,22 +39,41 @@
     }
     else
     {
-        @if (_error is not null)
-        {
-            <div class="alert alert-danger py-2" data-testid="budget-error">@_error</div>
-        }
-        <ExpenseLinesSection Kind="fixed" TitleKey="Budget_Fixed" NewKey="Budget_AddFixed" Categories="_categories" Banks="_banks" OnCategoryCreated="AddCategory" />
-        <ExpenseLinesSection Kind="variable" TitleKey="Budget_Variable" NewKey="Budget_AddVariable" Categories="_categories" Banks="_banks" OnCategoryCreated="AddCategory" />
+        <BudgetSummaryHeader PlannedFixed="@BudgetMoney.Side(_fixed, _rate, _display)" PlannedVariable="@BudgetMoney.Side(_variable, _rate, _display)"
+                             PlannedText="@BudgetMoney.Format(_fixed.Concat(_variable), _rate, _display)"
+                             FixedText="@BudgetMoney.Format(_fixed, _rate, _display)" VariableText="@BudgetMoney.Format(_variable, _rate, _display)"
+                             Income="@TypicalIncome()" IncomeText="@(TypicalIncome() is { } i ? BudgetMoney.Amount(i, _display) : "")" HasRate="@(_rate is not null)" />
+
+        <ExpenseLinesSection @ref="_fixedSection" Kind="fixed" TitleKey="Budget_Fixed" HintKey="Budget_FixedHint" Categories="_categories" Banks="_banks"
+                             Rate="_rate" Display="@_display" OnEdit="OpenEdit" OnItemsChanged="items => _fixed = items" />
+        <ExpenseLinesSection @ref="_variableSection" Kind="variable" TitleKey="Budget_Variable" HintKey="Budget_VariableHint" Categories="_categories" Banks="_banks"
+                             Rate="_rate" Display="@_display" OnEdit="OpenEdit" OnItemsChanged="items => _variable = items" />
+    }
+
+    @if (_dialog is { } d)
+    {
+        <BudgetLineDialog Kind="@d.Kind" Editing="d.Editing" Categories="_categories" Banks="_banks"
+                          OnCategoryCreated="AddCategory" OnSaved="OnSavedAsync" OnClose="() => _dialog = null" />
     }
 </div>
 
 @code {
     private bool _loading = true;
     private string? _error;
+    private string? _notice;
     private List<CategoryOption> _categories = new();
     private List<ExpenseLinesSection.NamedItem> _banks = new();
+    private IReadOnlyList<ExpenseLine> _fixed = [];
+    private IReadOnlyList<ExpenseLine> _variable = [];
+    private ExpenseLinesSection? _fixedSection, _variableSection;
+    private decimal? _rate;
+    private SettingsDto? _settings;
+    private string _display = MoneyDisplay.Both;
+    private DialogState? _dialog;
 
-    /// <summary>A category created inline on either list joins the shared list, so both lists can pick it.</summary>
+    private sealed record DialogState(string Kind, ExpenseLine? Editing);
+
+    /// <summary>A category created inline in the dialog joins the shared list, so both lists can pick it.</summary>
     private void AddCategory(CategoryOption c) { if (_categories.All(x => x.Id != c.Id)) _categories.Add(c); }
 
     protected override async Task OnInitializedAsync()
@@ -45,10 +81,44 @@
         if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
         try
         {
+            _display = await Display.LoadAsync();
             _categories = await Http.GetFromJsonAsync<List<CategoryOption>>("/api/categories") ?? new();
             _banks = await Http.GetFromJsonAsync<List<ExpenseLinesSection.NamedItem>>("/api/banks?include_inactive=true") ?? new(); // all states: a deactivated bank still names its line
         }
         catch { _error = Localizer["Budget_LoadError"]; }
         finally { _loading = false; }
+
+        // The header's two projections are best-effort: no rate means no conversion, no defaults means no share.
+        try { var res = await Http.GetAsync("/api/exchange-rate"); if (res.IsSuccessStatusCode) _rate = (await res.Content.ReadFromJsonAsync<RateDto>())?.Rate; } catch { }
+        try { var res = await Http.GetAsync("/api/budget-settings"); if (res.IsSuccessStatusCode) _settings = await res.Content.ReadFromJsonAsync<SettingsDto>(); } catch { }
     }
+
+    /// <summary>The four-week income defaults, both incomes, on the display side at today's rate. Null without a rate or without defaults.</summary>
+    private decimal? TypicalIncome()
+    {
+        if (_settings is not { } s || _rate is not { } r || r <= 0) return null;
+        var crc = (s.PrimaryIncomeCurrency == MoneyDisplay.Crc ? s.PrimaryIncome4w : s.PrimaryIncome4w * r)
+                + (s.SecondaryIncomeCurrency == MoneyDisplay.Crc ? s.SecondaryIncome4w : s.SecondaryIncome4w * r);
+        if (crc <= 0) return null;
+        return _display == MoneyDisplay.Usd ? crc / r : crc;
+    }
+
+    private void OpenNew() { _notice = null; _dialog = new DialogState("fixed", null); }
+
+    private void OpenEdit(ExpenseLine line) { _notice = null; _dialog = new DialogState(_fixed.Any(l => l.Id == line.Id) ? "fixed" : "variable", line); }
+
+    private async Task OnSavedAsync(string kind)
+    {
+        _notice = _dialog?.Editing is null ? Localizer["Catalog_Saved"] : Localizer["Catalog_Updated"];
+        _dialog = null;
+        var section = kind == "fixed" ? _fixedSection : _variableSection;
+        if (section is not null) await section.ReloadAsync();
+    }
+
+    private sealed record RateDto([property: JsonPropertyName("rate")] decimal? Rate);
+    private sealed record SettingsDto(
+        [property: JsonPropertyName("primary_income_4w")] decimal PrimaryIncome4w,
+        [property: JsonPropertyName("primary_income_currency")] string PrimaryIncomeCurrency,
+        [property: JsonPropertyName("secondary_income_4w")] decimal SecondaryIncome4w,
+        [property: JsonPropertyName("secondary_income_currency")] string SecondaryIncomeCurrency);
 }

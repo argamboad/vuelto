@@ -1714,46 +1714,81 @@ amounts doubled, the case number and note untouched. **Edit the refund** → cle
 ## 10i. Web — Budget lines: fixed & variable (app slice EXPENSES-1) 🟠
 
 > The budget baseline (ADR-V007/V008): two ordered lists of single-currency lines, each tied to a
-> category that backs at most one active line across both lists; optional bank; reorder with ▲▼.
-> Never seeded — a fresh household starts empty.
+> category that backs at most one active line across both lists; optional bank; reorder by drag or the
+> handle's move menu. Never seeded — a fresh household starts empty.
+
+> **Presented per SKIN-9 (2026-09-12).** The page opens on a **commitment header**: "Planned every month
+> ₡…" (every active line, both lists, added at today's rate in the "Show in" currency — the header says
+> "at today's rate"), "N% of a typical income" with the income figure at the right (a typical income = the
+> four-week defaults under Settings → Budget; when those are still zero there is no share, and without a
+> rate each currency is summed on its own side, "₡400,000.00 + $13.00"), and a two-tone Fixed / Variable
+> bar. Each list is a card of GRID ROWS, not a table: a drag handle (⠿), the name, the amount in the
+> line's OWN currency (never converted), the category, a "BAC · account" chip for bank + method, and
+> **Edit**; the list total sits in the card header. An inactive line is struck through in muted ink with a
+> small INACTIVE label, has no handle, and keeps Edit (which is how it comes back). One **+ Add a line**
+> button in the page head opens a **dialog** (Fixed / Variable switch, then the same fields as before);
+> Edit opens the same dialog prefilled, without the switch. On tablet the chip column hides; on phone the
+> category goes too and both reappear as a sub-line under the name.
 
 ### QA-EXP-01 — Create fixed and variable lines; the single-currency and category rules hold 🟠 (Web / API)
 **Gherkin**
 ```gherkin
 Given I am on Budget (nav) in a fresh household
-Then both sections show "No lines yet"
-When I add fixed "Mortgage", 300000 CRC, category Housing, bank BAC, Bank account, and Create
-And "+ New" beside Category creates a category in place (it is then offered on the other list too)
-Then it appears with ₡300,000.00 · Housing · BAC · Bank account · Active
-When I add variable "Netflix", 13 USD, category Entertainment, no bank, Credit card
-Then it appears with $13.00 · Entertainment · Unassigned
-When I add fixed "Rent" with category Housing
-Then the form shows "that category already backs another budget line" and nothing is created
+Then both lists show "No lines yet" and the header reads "Planned every month ₡0.00"
+When I click + Add a line, keep Fixed, enter "Mortgage", 300000 CRC, category Housing, bank BAC, Bank account, and Create
+And "+ New" beside Category creates a category in place (it is then offered for either list)
+Then the dialog closes and the row reads Mortgage · ₡300,000.00 · Housing · "BAC · account", with a drag handle
+And the header's planned total is ₡300,000.00 and, if income defaults are saved, its share of a typical income
+When I add a line, switch to Variable, enter "Netflix", 13 USD, category Entertainment, no bank, Credit card
+Then it appears under Variable as $13.00 · Entertainment · "Unassigned · card", and the header adds it at today's rate
+When I add a fixed "Rent" with category Housing
+Then the dialog shows "that category already backs another budget line" and nothing is created
 ```
-**Walkthrough:** nav **Budget** → **Expected:** "No lines yet — add the first one." under both
-headings. **New fixed line** → name `Mortgage`, **Monthly budget** `300000` **CRC**, **Category**
-Housing (or **+ New** → type a name → **Create** → **Expected:** selected in place, and listed on the
-other section's picker as well), **Bank** BAC, **Payment method** Bank account → **Create** → **Expected:**
-"Created." and the row. **Edit** on any row → **Expected:** the page scrolls so the whole form card is in view. **New variable line** → `Netflix`, `13` **USD**, Entertainment, bank left **Unassigned**,
-Credit card → **Create** → **Expected:** the row shows $13.00 and "Unassigned". **New fixed line** →
-`Rent`, `50000` CRC, category **Housing** → **Create** → **Expected:** the red message about the
-category already backing another line. Via Postman (**18 · Expenses → Create fixed expense —
+**Walkthrough:** nav **Budget** → **Expected:** the header "Planned every month ₡0.00" and "No lines yet —
+add the first one." in both cards. **+ Add a line** → **Expected:** a dialog with a **Fixed | Variable**
+switch (Fixed selected) and the fields; the name has focus. Name `Mortgage`, **Monthly budget** `300000`
+**CRC**, **Category** Housing (or **+ New** → type a name → **Create** → **Expected:** selected in place),
+**Bank** BAC, **Payment method** Bank account → **Create** → **Expected:** "Created.", the dialog gone, the
+row with its ⠿ handle, and the header now ₡300,000.00 (with "N% of a typical income" and the income figure
+if Settings → Budget has four-week defaults; "at today's rate" under the bar). **Edit** on the row →
+**Expected:** the same dialog prefilled, no Fixed/Variable switch, an **Active** toggle; **Cancel** or
+Escape closes it. **+ Add a line** → switch **Variable** → `Netflix`, `13` **USD**, Entertainment, bank
+left **Unassigned**, Credit card → **Create** → **Expected:** the row under Variable shows $13.00 (its own
+currency) and the chip "Unassigned · card"; the header total grew by 13 × today's rate and the bar gained
+a lighter Variable segment. **+ Add a line** → `Rent`, `50000` CRC, category **Housing** → **Create** →
+**Expected:** the red message inside the dialog about the category already backing another line. Narrow
+the window below tablet width → **Expected:** the category and chip leave their columns and sit under the
+name as "Housing · BAC · account"; the header stacks its number above the bar. Via Postman (**18 · Expenses → Create fixed expense —
 invalid (400)**) → `invalid_request` ("exactly one of budget_crc or budget_usd…").
 
-### QA-EXP-02 — Reorder with ▲▼; inactive lines stay out of the order 🟠 (Web / API)
+### QA-EXP-02 — Reorder by drag or the handle's move menu; inactive lines stay out of the order 🟠 (Web / API)
 **Gherkin**
 ```gherkin
-Given fixed lines Mortgage (1st) and Water (2nd)
-When I click ▼ on Mortgage
-Then Water is first and Mortgage second, and a reload keeps that order
+Given fixed lines Mortgage (1st), Water (2nd) and Gym (3rd)
+When I drag Mortgage's handle and drop it on Water
+Then Water is first and Mortgage second, immediately, and a reload keeps that order
+When I click Gym's handle
+Then a menu offers Move up, Move down (disabled: last line) and "Move to position" with 3 positions
+When I choose Move up
+Then Gym is second and the menu closes
+When I choose "Move to position" 1 on Mortgage
+Then Mortgage is first again
 When I Edit Water, switch Active off, Save
-Then Water shows Inactive without ▲▼, and Mortgage's ▲▼ are both disabled (only active line)
+Then Water is struck through with INACTIVE and no handle, and the other handles' menus offer only 2 positions
+When the reorder save fails (API down)
+Then the rows return to their previous order and "Couldn't save the order" shows
 ```
-**Walkthrough:** add `Water` (`15000` CRC, another category). **▼** on Mortgage → **Expected:** the
-rows swap; **F5** → order kept. **Edit** Water → **Active** off → **Save** → **Expected:** Inactive
-badge, no arrows on that row, Mortgage's arrows disabled. Via Postman (**18 · Expenses → Reorder
-fixed expenses**) with only one of two active ids → **Expected:** 400 `invalid_request` ("must
-exactly match the active fixed expense lines").
+**Walkthrough:** add `Water` (`15000` CRC) and `Gym` (`25000` CRC), other categories. Drag **⠿** on
+Mortgage onto the Water row → **Expected:** the rows swap at once (optimistic), no flash; **F5** → order
+kept. Click **⠿** on Gym → **Expected:** a small menu: **Move up**, **Move down** (disabled — it is last),
+**Move to position** with positions 1–3; Escape or a click outside closes it. **Move up** → **Expected:**
+Gym second, menu gone. **⠿** on Mortgage → **Move to position** `1` → **Expected:** Mortgage first. The
+menu is the keyboard path (Tab to the handle, Enter, arrow to an item) and the only path on a phone,
+where drag does not exist. **Edit** Water → **Active** off → **Save** → **Expected:** Water struck
+through, INACTIVE, no handle, still an **Edit** link; the other lines' menus now offer positions 1–2.
+Stop the API, move a line → **Expected:** it springs back and "Couldn't save the order" shows above the
+list. Via Postman (**18 · Expenses → Reorder fixed expenses**) with only one of two active ids →
+**Expected:** 400 `invalid_request` ("must exactly match the active fixed expense lines").
 
 ### QA-EXP-03 — Duplicate names per list; the inactive clash restores the line; foreign ids are 404 🟠 (Web / API)
 **Gherkin**
@@ -1764,10 +1799,11 @@ When I add variable "Mortgage" → created (names are unique per list)
 When I add fixed "water" with 20000 CRC → the yellow warning with Reactivate; clicking it makes "Water" Active at ₡20,000.00
 And a PUT to a line id from another household returns 404
 ```
-**Walkthrough:** **New fixed line** `MORTGAGE` → **Expected:** the red message, no row. **New variable
-line** `Mortgage` (any free category) → **Expected:** created. **New fixed line** `water`, `20000` →
-**Create** → **Expected:** "…already exists but is inactive — reactivate it?" with **Reactivate** →
-click → **Expected:** "Updated.", **Water** (stored spelling) Active with ₡20,000.00. Via Postman
+**Walkthrough:** **+ Add a line** (Fixed) `MORTGAGE` → **Expected:** the red message in the dialog, no
+row. **+ Add a line** → **Variable** → `Mortgage` (any free category) → **Expected:** created. **+ Add a
+line** (Fixed) `water`, `20000` → **Create** → **Expected:** the amber "…already exists but is inactive —
+reactivate it?" inside the dialog with **Reactivate** → click → **Expected:** "Updated.", the dialog gone,
+**Water** (stored spelling) back in the list at ₡20,000.00 with its handle. Via Postman
 (**18 · Expenses → Update fixed expense**) with an id copied from a *different* household →
 **Expected:** 404 (never 403 — no existence oracle).
 
@@ -3790,6 +3826,15 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   TTL guard; interrupted links land on Settings' banner). New **QA-AND-15** (on-device kill test;
   renumbered from the branch's QA-AND-14 — that slot went to THEME-1's restart test in the interim).
   Suite 149 → **150** cases.
+- **Updated 2026-09-12** — **Budget: a commitment header, reorderable grid rows, one dialog (SKIN-9, UI
+  redesign).** The page opens on "Planned every month ₡…" with "N% of a typical income" (the four-week
+  defaults, at today's rate — no share without defaults, no conversion without a rate) and a Fixed/Variable
+  bar. The two tables become cards of grid rows: ⠿ handle, name, amount in the line's own currency,
+  category, a "bank · method" chip, Edit; inactive lines are struck through with no handle. ▲▼ are gone:
+  reorder by drag, or by the handle's move menu (up / down / to position — the keyboard and phone path),
+  optimistic with rollback. Creating and editing move into a dialog behind one **+ Add a line** button
+  with a Fixed/Variable switch. **QA-EXP-02 rewritten** (its ▲▼ steps stopped existing); QA-EXP-01/03
+  reworded for the dialog. **Case count unchanged at 191.**
 - **Updated 2026-09-12** — **Months as a card grid, the month page as one ledger (SKIN-8, UI redesign).**
   The months list-group becomes cards (3/2/1 columns) that are single links: chip (Current = the window
   holding today / Closed / Upcoming), window and week count, an 8px spent-vs-planned bar, "Spent ₡…" and

@@ -1,9 +1,9 @@
 # UI redesign — plan
 
-> **Status (2026-09-12): IN PROGRESS on `feat/ui-redesign` — 7 of 11 slices built and committed
-> (SKIN-1 tokens · 2 components · 3 login · 4 shell · 5 dashboard · 6 review · 7 transaction form),
+> **Status (2026-09-12): IN PROGRESS on `feat/ui-redesign` — 8 of 11 slices built and committed
+> (SKIN-1 tokens · 2 components · 3 login · 4 shell · 5 dashboard · 6 review · 7 transaction form · 8 months and month detail),
 > plus three fix commits found by looking (dark-theme anchor buttons, disabled primary buttons, the
-> stated rhythm/radius applied as one source). Remaining: SKIN-8 months + month detail, 9 budget,
+> stated rhythm/radius applied as one source). Remaining: SKIN-9 budget,
 > 10 reports, 11 the fourteen-screen sweep. Nothing pushed.** The source is `UI Handout.pdf`
 > (31 pages, "Seven screens, three widths, two themes", prepared 2026-09-11, produced with Claude
 > Design). This file is the reading of that handout against *this* codebase: what it gets right,
