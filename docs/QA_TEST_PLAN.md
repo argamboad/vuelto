@@ -202,8 +202,11 @@ And the header shows my household name and my display name
 3. **Expected:** the form switches to a code-entry view ("Enter the 6-digit code sent to …").
 4. Open Mailpit (<http://localhost:8025>); open the newest mail; copy the 6-digit code.
 5. Enter the code; click **Verify code**.
-6. **Expected:** you land on the home page; the top header shows a tenant badge (household name)
-   and your display name, plus **Household**, **Settings**, **Sign out** buttons.
+6. **Expected:** you land on the home page; the top header shows the nav (the active item as a filled
+   white pill) and, on the right, the bell and a **user menu** — the tenant chip plus your display name.
+   Opening it shows the theme switcher, then **Household**, **Billing**, **Settings** and **Sign out**.
+   (SKIN-4: those used to sit loose in the bar; the bell stays outside the menu because an unread count
+   you have to open a menu to see is not an indicator.)
 
 ### QA-SMK-02 — Web: Google OAuth sign-in 🔴 (Web)
 **Gherkin**
@@ -227,7 +230,8 @@ Then I am returned to the /login page
 And navigating to /settings redirects me back to /login
 ```
 **Walkthrough**
-1. While signed in, click **Sign out** in the header.
+1. While signed in, open the **user menu** (the tenant chip / your name, top right) and click
+   **Sign out**. Escape closes the menu without signing out; navigating anywhere closes it too.
 2. **Expected:** you land on `/login`.
 3. In the address bar go to `/settings`.
 4. **Expected:** you're bounced back to `/login` (no access without a session).
@@ -407,7 +411,8 @@ Then a human-readable error banner is shown
 
 ### QA-AUTH-10 — Magic link & OTP available on web; OAuth always 🟢 (Web)
 **Walkthrough:** confirm the web login page shows **both** "Email me a magic link" and "Email me a 6-digit code",
-plus Google/Microsoft buttons. (Native clients hide magic link — covered in §11–12.)
+plus Google/Microsoft buttons — all on the form pane, in that order, at every width. (Native clients hide
+magic link — covered in §11–12.)
 
 ---
 
@@ -970,7 +975,9 @@ Given I am on /login in English
 When I choose Español in the language switcher
 Then the page text renders in Spanish
 ```
-**Walkthrough:** on `/login`, use the language switcher (bottom of the card) → **Español**.
+**Walkthrough:** on `/login`, use the language select — beside the theme select, under the sign-in
+controls on the form pane (SKIN-3: at desktop width the page is a split, brand panel left and the form
+pane right; below that the panel drops out and the lockup sits above the heading) → **Español**.
 **Expected:** titles, button labels, and prompts switch to Spanish; the choice persists on reload.
 
 ### QA-I18N-02 — Language persists per user across sessions 🟠 (Web) ⚙️ Automated in CI
@@ -2394,8 +2401,9 @@ Given I am signed in on Android
 When I open the navigation (hamburger)
 Then the menu is tappable and not hidden under the status bar
 ```
-**Walkthrough:** tap the hamburger; use **Household/Settings/Sign out**. **Expected:** the header sits
-below the status bar (safe-area padding) and every item is tappable.
+**Walkthrough:** tap the hamburger; inside the sheet, open the **user menu** (tenant chip / your name)
+and use **Household/Settings/Sign out**. **Expected:** the header sits below the status bar (safe-area
+padding), the menu flows inside the sheet rather than floating over it, and every item is tappable.
 
 ### QA-AND-06 — Core flows on Android 🟢 (Android)
 **Walkthrough:** spot-check language switch, invite (token revealed), and leave. **Expected:** parity
@@ -3759,6 +3767,12 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   TTL guard; interrupted links land on Settings' banner). New **QA-AND-15** (on-device kill test;
   renumbered from the branch's QA-AND-14 — that slot went to THEME-1's restart test in the interim).
   Suite 149 → **150** cases.
+- **Updated 2026-09-12** — **Catch-up: the login split (SKIN-3) and the app shell (SKIN-4).** These two
+  slices shipped their code without their QA prose, against the plan's own rule that the prose travels
+  with the screen. Corrected here: QA-SMK-01 step 6 and QA-SMK-03 now describe the user menu (Household,
+  Billing, Settings and Sign out live behind the tenant chip; the bell stays in the bar), QA-AND-05 the
+  same inside the phone sheet, and QA-I18N-01 / QA-AUTH-10 the form pane of the split sign-in. **Case
+  count unchanged at 191.**
 - **Updated 2026-09-12** — **The transaction form, amount-first (SKIN-7, UI redesign).** Twelve stacked
   fields become the amount at display size (currency toggle inside the input group, live conversion beneath),
   two named groups — What it was / How it was paid — and a **Before you save** rail naming the pay-cycle
