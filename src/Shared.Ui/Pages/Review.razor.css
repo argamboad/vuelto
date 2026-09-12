@@ -13,7 +13,7 @@
 }
 
 .draft-main {
-    padding: 15px 17px;
+    padding: var(--card-pad-y) var(--card-pad-x);
     min-width: 0;
 }
 
@@ -116,5 +116,4 @@
 
 @media (min-width: 992px) {
     .draft { grid-template-columns: 1fr 290px; }
-    .draft-main { padding: 19px 22px; }
 }

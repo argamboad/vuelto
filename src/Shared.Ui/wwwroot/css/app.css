@@ -50,8 +50,23 @@
        card is the single component override below. --radius-bar is for the segmented progress
        bars SKIN-2 builds; a pill chip uses Bootstrap's own --bs-border-radius-pill. */
     --bs-border-radius: 9px;
+    /* The design has ONE control radius, not a scale. Bootstrap derives its small and large variants from
+       their own tokens, so `.btn-sm`, `.form-control-sm` and `.form-select-sm` kept Bootstrap's 4px while
+       full-size controls took the 9 — which is why the same picker looked different on the transaction
+       form (full size) and the review queue (-sm). 119 controls in the app use a -sm variant.
+       The large token is the CARD radius, so a Bootstrap modal matches the cards it opens over. */
+    --bs-border-radius-sm: 9px;
+    --bs-border-radius-lg: 14px;
     --radius-card: 14px;
     --radius-bar: 6px;
+
+    /* Rhythm, from the handout's own table (page 4): card padding 19/22 · 17/19 · 15/16 and card gap
+       15 · 13 · 11, desktop · tablet · phone. Declared smallest-first and stepped UP by the two media
+       blocks below, so every card reads one pair and is correct at all three widths — nine files were
+       each carrying their own approximation before, mostly a value on no step at all. */
+    --card-pad-y: 15px;
+    --card-pad-x: 16px;
+    --card-gap: 11px;
 
     /* Weight carries hierarchy in this design more than size does, so the three steps are named.
        Sizes are deliberately NOT tokens: they vary per breakpoint and per component, and belong
@@ -97,6 +112,14 @@
    the tag. This was previously patched for .btn-primary alone; every other variant still fell
    through, and "Review now" on the dashboard was the one that showed it.
    .btn-link is named separately on purpose: it carries .btn but IS a link, so it opts back in. */
+@media (min-width: 768px) {
+    :root { --card-pad-y: 17px; --card-pad-x: 19px; --card-gap: 13px; }
+}
+
+@media (min-width: 992px) {
+    :root { --card-pad-y: 19px; --card-pad-x: 22px; --card-gap: 15px; }
+}
+
 [data-bs-theme="dark"] a:not(.btn),
 [data-bs-theme="dark"] .btn-link {
     color: var(--brand-accent-light);

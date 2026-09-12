@@ -1,6 +1,6 @@
 .lines {
     height: 100%;
-    padding: 15px 17px;
+    padding: var(--card-pad-y) var(--card-pad-x);
     border: 1px solid var(--app-border);
     border-radius: var(--radius-card);
     background: var(--card-bg);

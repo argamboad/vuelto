@@ -20,7 +20,7 @@
     display: grid;
     grid-template-columns: 1fr;
     gap: 11px;
-    padding: 15px 17px;
+    padding: var(--card-pad-y) var(--card-pad-x);
     border: 1px solid var(--app-border);
     border-radius: var(--radius-card);
     background: var(--card-bg);
@@ -32,7 +32,7 @@
 
 /* ---------------------------------------------------------------- the two groups */
 .tx-group {
-    padding: 15px 17px;
+    padding: var(--card-pad-y) var(--card-pad-x);
     border: 1px solid var(--app-border);
     border-radius: var(--radius-card);
     background: var(--card-bg);
@@ -127,6 +127,5 @@
 
 @media (min-width: 992px) {
     .tx-layout { grid-template-columns: 1fr 320px; }
-    .tx-money, .tx-group { padding: 19px 22px; }
     .tx-fields { grid-template-columns: 1fr 1fr 1fr; }
 }

@@ -1,7 +1,7 @@
 /* Its own surface with a rail down the left, so the boundary between "the thing you filled in" and "what it
    will do" stays legible when the panel stops being a side column and stacks under the form on phone. */
 .consequence {
-    padding: 15px 17px;
+    padding: var(--card-pad-y) var(--card-pad-x);
     border-left: 3px solid var(--bs-primary);
     border-radius: var(--radius-bar);
     background: var(--zebra);

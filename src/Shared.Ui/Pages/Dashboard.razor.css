@@ -67,7 +67,7 @@
 /* ---------------------------------------------------------------- pace card */
 .dash-pace {
     height: 100%;
-    padding: 19px 22px;
+    padding: var(--card-pad-y) var(--card-pad-x);
     border: 1px solid var(--app-border);
     border-radius: var(--radius-card);
     background: var(--card-bg);
@@ -115,7 +115,7 @@
 
 /* ---------------------------------------------------------------- envelopes (conditional strip) */
 .dash-envelopes {
-    padding: 13px 17px;
+    padding: var(--card-pad-y) var(--card-pad-x);
     border: 1px solid var(--app-border);
     border-radius: var(--radius-card);
     background: var(--card-bg);
