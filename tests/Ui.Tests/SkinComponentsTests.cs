@@ -162,6 +162,16 @@ public class SkinComponentsTests : ComponentTestBase
     }
 
     [Fact]
+    public void PaceBar_CanDropItsLegend_WhenTheSameFiguresAlreadySitBesideIt()
+    {
+        // A month card prints "Spent ₡x" and the result as text; a legend under an 8px bar would say it twice.
+        var cut = Render<PaceBar>(p => p.Add(x => x.Total, 100m).Add(x => x.ShowLegend, false)
+            .Add(x => x.Segments, new List<PaceSegment> { new("Spent", 50m, "primary") }).Add(x => x.TestId, "p"));
+        Assert.Empty(cut.FindAll("[data-testid='p-legend']"));
+        Assert.Single(cut.FindAll("[data-testid='p-segment']"));
+    }
+
+    [Fact]
     public void PaceBar_WithNothingSpent_StillRendersItsTrack_RatherThanCollapsing()
     {
         var cut = Render<PaceBar>(p => p.Add(x => x.Total, 1000m)

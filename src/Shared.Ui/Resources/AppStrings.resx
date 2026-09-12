@@ -767,4 +767,23 @@
   <data name="Mapping_Deleted" xml:space="preserve"><value>Rule deleted.</value></data>
   <data name="Mapping_Error" xml:space="preserve"><value>Couldn't save the rule. Try again.</value></data>
   <data name="Mapping_LoadError" xml:space="preserve"><value>Couldn't load the rules.</value></data>
+  <data name="Months_ChipCurrent" xml:space="preserve"><value>Current</value></data>
+  <data name="Months_ChipClosed" xml:space="preserve"><value>Closed</value></data>
+  <data name="Months_ChipUpcoming" xml:space="preserve"><value>Upcoming</value></data>
+  <data name="Months_Spent" xml:space="preserve"><value>Spent {0}</value></data>
+  <data name="Months_ResultLeft" xml:space="preserve"><value>{0} left</value></data>
+  <data name="Months_ResultOver" xml:space="preserve"><value>{0} over</value></data>
+  <data name="Months_NoFigures" xml:space="preserve"><value>Figures unavailable</value></data>
+  <data name="Month_AllMonths" xml:space="preserve"><value>All months</value></data>
+  <data name="Month_WeekChip" xml:space="preserve"><value>W{0} · {1}</value></data>
+  <data name="Month_SaveIncome" xml:space="preserve"><value>Save income</value></data>
+  <data name="Month_SearchPayee" xml:space="preserve"><value>Search payee</value></data>
+  <data name="Month_Filters" xml:space="preserve"><value>Filters</value></data>
+  <data name="Month_FilterAllCategories" xml:space="preserve"><value>All categories</value></data>
+  <data name="Month_FilterAllBanks" xml:space="preserve"><value>All banks</value></data>
+  <data name="Month_FilterAllCards" xml:space="preserve"><value>All cards</value></data>
+  <data name="Month_FilterAllClasses" xml:space="preserve"><value>All classes</value></data>
+  <data name="Month_PaidWith" xml:space="preserve"><value>Paid with</value></data>
+  <data name="Refund_MarkReceivedFor" xml:space="preserve"><value>Mark {0} received</value></data>
+  <data name="Refund_MarkPendingFor" xml:space="preserve"><value>Put {0} back to pending</value></data>
 </root>

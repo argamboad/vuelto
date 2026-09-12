@@ -1482,6 +1482,22 @@ And a PUT to an envelope id from another household returns 404
 > dead. Unchanged: which month a date falls into is the pay-cycle logic's business, and the rate freezes on
 > save, never on edit.
 
+> **Months and the month page are presented per SKIN-8 (2026-09-12).** **Months** is a card grid (three
+> columns at desktop, two on tablet, one on phone): each card is ONE link carrying the month name, a
+> **Current** / **Closed** / **Upcoming** chip (current = the window that holds today, not simply the newest),
+> the window and week count, an 8px spent-versus-planned bar, "Spent ₡…" and the result in green (left) or
+> red (over). The figures come from each month's summary after the grid is already on screen; a month whose
+> rate cannot resolve still shows as a card, with "Figures unavailable". A closed month's bar is solid and its
+> result is what was actually left. The **month page** opens with "← All months" and the Dashboard link, the
+> title, and one chip per week ("W1 · Jun 25"; hover for the full window); **income is one row** (two
+> amount + currency groups and **Save income**); the ledger is one table — Date, Payee, Category, Paid with,
+> Class, Amount — with class CHIPS, a stacked **Amount** cell (the "Show in" currency on top, the other
+> muted beneath; one side only when a single currency is chosen) and **Paid with** = the bank with the
+> card's alias beneath it. Below tablet width Category and Paid with hide and the payee gains a muted
+> sub-line ("Groceries · Cash · Casa VISA") with the class chip beneath it, the date narrows to "Jul 6", and
+> the filters fold behind a **Filters** button next to the payee search; the table never scrolls sideways. Refund rows use a status
+> PILL (amber Pending, green Received — under the payee on a phone) and a stacked amount.
+
 > The core loop (ADR-V005/V006/V007): a transaction's date decides its pay-cycle month; months
 > appear with their first transaction (weeks materialized, income snapshotted) and leave with their
 > last; the exchange rate is frozen at creation. Fixture with the default settings (Thursday /
@@ -1501,9 +1517,9 @@ And I click "+ New" beside Category, type "Viajes" and Create
 Then "Viajes" is selected without leaving the form (it also appears under Settings → Categories); typing "viajes" again just selects it
 Then the date says "Goes to July 2026 — a new month will be created" and the rate is pre-filled
 When I Save
-Then I land on July 2026: 5 weeks (25 Jun – 29 Jul), income 3750 USD / 312500 CRC, one row ₡50,000.00 / $<50000 ÷ rate>
-And the transactions table sorts by Date, Payee, Category, Bank or Class when I click the header (click again to flip; ▲/▼ marks the active one)
-And the filter row above it narrows the rows by date range, payee text, category, bank and class, with "Showing n of m" and a Clear button
+Then I land on July 2026: five week chips (W1 · Jun 25 … W5 · Jul 23), the income row 3750 USD / 312500 CRC, one row whose Amount cell stacks ₡50,000.00 over $<50000 ÷ rate>, its class a "Budgeted" chip
+And the transactions table sorts by Date, Payee, Category, Paid with or Class when I click the header (click again to flip; ▲/▼ marks the active one)
+And the filters above it narrow the rows by payee search, category, bank, card, class and date range, with "Showing n of m" and a Clear button; on a phone the search stays and the rest fold behind a Filters button
 ```
 **Walkthrough:** **Settings → Budget** → save 5-week incomes `3750` USD and `312500` CRC. **Dashboard →
 New transaction** (or nav **Months → New transaction**): fill the fields; beside **Category** click
@@ -1511,12 +1527,18 @@ New transaction** (or nav **Months → New transaction**): fill the fields; besi
 (Enter also creates, Esc cancels; a blank name → "A name is required."; a name matching an inactive
 category offers **Reactivate “…”**). Pick the date `2026-07-10` → **Expected:** the "Goes to July 2026 — a new month will be created" hint under the
 date; the **Exchange rate** field pre-filled (or, without a key, the red hint asking for one — type
-`500`). **Save** → **Expected:** the **July 2026** page with 5 week badges, the income card showing
-3750 USD / 312500 CRC, and the row. With a few rows in place: click **Payee** → **Expected:** A→Z with
-▲; click again → Z→A ▼; **Date** flips newest/oldest. Type `auto` under **Payee contains** →
+`500`). **Save** → **Expected:** the **July 2026** page with five week chips (hover one → its full window), the
+income row showing 3750 USD / 312500 CRC, and the row: a **Budgeted** chip and the amount stacked
+(₡ on top, $ muted beneath — or one side only if **Show in** is set to a single currency on the
+dashboard). With a few rows in place: click **Payee** → **Expected:** A→Z with ▲; click again → Z→A ▼;
+**Date** flips newest/oldest; **Paid with** orders by bank. Type `auto` in **Search payee** →
 **Expected:** only AutoMercado, "Showing 1 of n"; pick a **Category**, **Bank** or **Class** that
 matches nothing → "No transactions match these filters."; **Clear filters** → all rows back (the
 filters and sort are on-screen only — no request, and the CSV export still covers the whole month).
+Narrow the window below tablet width → **Expected:** the Category, Paid with and Class columns are gone,
+each payee carries a muted sub-line with the first two ("Groceries · Cash") and its class chip beneath, the
+date reads "Jul 10", Edit sits over Delete, and the selects sit behind a **Filters** button (a dot on it
+means a filter is active); nothing scrolls sideways.
 Via Postman (**15 · Months → List months**) → 1 month with
 `week_count` 5; **Resolve a date** with `2026-05-30` → `is_new: true`, `month_number` 6 (June's
 window starts 28 May).
@@ -1533,7 +1555,7 @@ Then I land on June 2026 (new, 4 weeks) and July 2026 no longer appears in Month
 **Walkthrough:** on the month page → **Edit** → **Expected:** the amount field's conversion line now reads
 "frozen when this was saved" rather than "frozen when you save", and the rate input disabled with the
 "Frozen when the transaction was created" hint. Amount `100000` → **Save** → **Expected:** the row's
-$ column doubles (same rate). **Edit** → date `2026-06-05` → **Expected:** "Goes to June 2026 — a
+amount doubles on both lines of the stack (same rate). **Edit** → date `2026-06-05` → **Expected:** "Goes to June 2026 — a
 new month will be created" → **Save** → **Expected:** the **June 2026** page (4 weeks); nav
 **Months** → **Expected:** only June — July left with its last transaction. Via Postman
 (**16 · Transactions → Update transaction**) → `exchange_rate_used` unchanged in the response.
@@ -1562,8 +1584,8 @@ Then 400 invalid_request
 When I PUT /api/months/{id}/income with an id from another household
 Then 404
 ```
-**Walkthrough:** on the month page's **Income this month** card → primary `1600000`, currency
-**CRC** → **Save** → **Expected:** "Income updated."; reload → values kept. Via Postman (**15 ·
+**Walkthrough:** on the month page's income row → primary `1600000`, its currency select
+**CRC** → **Save income** → **Expected:** "Income updated."; reload → values kept. Via Postman (**15 ·
 Months → Update month income — invalid (400)**) → `invalid_request`. With an id copied from a
 *different* household's list → **Expected:** 404 (never 403 — no existence oracle). Also
 (**16 · Transactions → Create transaction — invalid (400)**) → `invalid_request` naming the field.
@@ -1584,8 +1606,9 @@ Then the refund is gone
 **Walkthrough:** **New transaction** → **Class** "Unplanned" → **Expected:** the **Refund expected**
 switch appears (it is absent for every other class). Switch it on → **Expected:** the percentage
 field; with `50000` and `30` the hint reads "Expected back: 15,000.00 CRC". Fill the rest and
-**Save** → **Expected:** the month page's **Expected refunds** table shows Hospital · 30% ·
-₡15,000.00 · Pending with a **Mark received** button. **Edit** → amount `80000` → **Save** →
+**Save** → **Expected:** the month page's **Refunds** table shows Hospital · 30% · ₡15,000.00
+stacked over $30 · an amber **Pending** pill, with a **Mark received** button (its accessible name says
+"Mark Hospital received"). **Edit** → amount `80000` → **Save** →
 **Expected:** the refund row reads ₡24,000.00. **Edit** → switch off → **Save** → **Expected:** "No
 refunds expected this month." Via Postman (**16 · Transactions → Create transaction**) with
 `refund_expected: true, refund_percentage: 150` → **Expected:** 400 `invalid_request` naming
@@ -1597,27 +1620,27 @@ refunds expected this month." Via Postman (**16 · Transactions → Create trans
 Given an expected refund of ₡15,000.00 (Pending) on a purchase in this month
 And the Received on date next to Mark received defaults to today and refuses a date before the purchase
 When I keep a date inside this month and click Mark received
-Then the badge reads "Received <date>" and the transactions table gains an Income (inflow) row of ₡15,000.00 on that date, marked "Derived from a refund — read-only"
+Then the pill reads "Received <date>" and the transactions table gains an Income (inflow) row of ₡15,000.00 on that date, marked "Derived from a refund — read-only"
 And the Income card shows "Other income this month" ₡15,000.00 with a "show the 1 transaction(s)" link that filters the table to inflows, and the dashboard's Income gains an "Other income (inflows)" sub-row of the same amount
 And that row has no Edit/Delete buttons
 When I click Back to pending
-Then the inflow row disappears and the badge is Pending again
+Then the inflow row disappears and the pill is Pending again
 When I pick a date in the NEXT month and click Mark received
-Then the badge reads "Received <date>" with a "booked in another month — view" link, this month's table has NO inflow row, and the linked month (created if needed) holds it
+Then the pill reads "Received <date>" with a "booked in another month — view" link, this month's table has NO inflow row, and the linked month (created if needed) holds it
 When I click Back to pending → the inflow is gone, and that month with it if it was otherwise empty
 ```
 **Walkthrough:** on the month page, the pending row shows **Received on** (today) next to **Mark
 received**; the date input's minimum is the purchase date. **Mark received** → **Expected:** "Refund
-updated.", the badge **Received <today>**, the button now **Back to pending**, and a new **Income
+updated.", the pill **Received <today>**, the button now **Back to pending**, and a new **Income
 (inflow)** row dated today with the refund's amounts whose actions column says "Derived from a refund —
 read-only". Via Postman
 (**16 · Transactions → Delete transaction**) with that inflow's id → **Expected:** 400
-`derived_transaction`. **Back to pending** → **Expected:** the inflow row is gone, the badge
+`derived_transaction`. **Back to pending** → **Expected:** the inflow row is gone, the pill
 **Pending**. Via Postman (**17 · Refunds → Update refund status**) send `received` twice →
 **Expected:** 200 both times, one inflow in **List month transactions**. With an id copied from a
 *different* household → **Expected:** 404. (The concurrent-flip 409 is proven by `Api.Tests`.)
 **Cross-month (ADR-V017):** **Back to pending**, pick a **Received on** date in the *next* month →
-**Mark received** → **Expected:** the badge "Received <date>" plus **booked in another month — view**;
+**Mark received** → **Expected:** the pill "Received <date>" plus **booked in another month — view**;
 this month's transactions table has no inflow; the link opens the next month (auto-created if it did
 not exist) with the inflow row dated as picked. Postman **Update refund status** with `received_date`
 before the purchase → **Expected:** 400 `invalid_request`. **Back to pending** → **Expected:** the
@@ -1682,7 +1705,7 @@ And PUT /api/refunds/{id}/details with a 61-character case number is 400; an unk
 **Walkthrough:** create an **Unplanned** transaction with **refund expected** `50` → month page → **Expected
 refunds** → **Expected:** a row with **Case No.** reading "—". **Edit** → `CASE-2026-4471` and `lent to Diego`
 → **Save** → **Expected:** the case number in its column and a note icon beside the payee whose hover text is
-the note. **Edit the transaction** → double the amount → **Save** → month page → **Expected:** the refund's
+the note (on a phone the Case No. and % columns hide and the payee's sub-line reads "50% · CASE-2026-4471"). **Edit the transaction** → double the amount → **Save** → month page → **Expected:** the refund's
 amounts doubled, the case number and note untouched. **Edit the refund** → clear both → **Save** →
 **Expected:** "—" again and no icon. **Edit the transaction** → untick refund expected → **Save** →
 **Expected:** the refund row is gone. Via Postman (**17 · Refunds → Set case number and note**) with a
@@ -3767,6 +3790,17 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   TTL guard; interrupted links land on Settings' banner). New **QA-AND-15** (on-device kill test;
   renumbered from the branch's QA-AND-14 — that slot went to THEME-1's restart test in the interim).
   Suite 149 → **150** cases.
+- **Updated 2026-09-12** — **Months as a card grid, the month page as one ledger (SKIN-8, UI redesign).**
+  The months list-group becomes cards (3/2/1 columns) that are single links: chip (Current = the window
+  holding today / Closed / Upcoming), window and week count, an 8px spent-vs-planned bar, "Spent ₡…" and
+  a green/red result — fed from each month's existing summary after the grid renders, so no API change
+  and a rate-less month still shows. The month page: "← All months" + Dashboard link, week CHIPS, income
+  as ONE row with **Save income**, and a six-column ledger (Date · Payee · Category · Paid with · Class ·
+  Amount) with class chips, a stacked amount that follows "Show in", and Paid with = bank + card alias.
+  Below tablet width Category, Paid with and Class hide into the payee cell (sub-line + chip) and the
+  filters fold behind a **Filters** button; no sideways scroll. Refund rows: amber/green status pills, stacked amount, buttons that name the
+  merchant. Edit/Delete stay on every row (the handout drew none; the delete flow is tested and walked).
+  QA-LED-01/02/04/05/06/08 reworded. **Case count unchanged at 191.**
 - **Updated 2026-09-12** — **Catch-up: the login split (SKIN-3) and the app shell (SKIN-4).** These two
   slices shipped their code without their QA prose, against the plan's own rule that the prose travels
   with the screen. Corrected here: QA-SMK-01 step 6 and QA-SMK-03 now describe the user menu (Household,

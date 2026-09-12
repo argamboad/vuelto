@@ -1,0 +1,379 @@
+/* SKIN-8. Bootstrap keeps the table and the input-group; the custom part is the head, the chips, the stacked cell,
+   the status pills, and the column hiding below md that replaces sideways scrolling. */
+
+/* ---------------------------------------------------------------- page head */
+.month-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 13px;
+    margin-bottom: 15px;
+}
+
+.month-crumbs {
+    margin: 0 0 3px;
+    font-size: 11px;
+    font-weight: var(--w-control);
+    color: var(--ink-3);
+}
+
+.month-crumbs a {
+    color: var(--ink-3);
+    text-decoration: none;
+}
+
+.month-crumbs a:hover { color: var(--ink); text-decoration: underline; }
+
+.month-crumb-dot { margin: 0 5px; }
+
+.month-head h1 {
+    margin: 0 0 7px;
+    font-size: 26px;
+    font-weight: var(--w-display);
+    color: var(--ink);
+}
+
+.month-weeks {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.month-week-chip {
+    padding: 2px 8px;
+    border-radius: var(--bs-border-radius-pill);
+    background: var(--rail);
+    color: var(--ink-2);
+    font-size: 10px;
+    font-weight: var(--w-control);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.month-head-buttons {
+    display: flex;
+    gap: 8px;
+}
+
+/* ---------------------------------------------------------------- the shared card shell */
+.month-card {
+    margin-bottom: var(--card-gap);
+    padding: var(--card-pad-y) var(--card-pad-x);
+    border: 1px solid var(--app-border);
+    border-radius: var(--radius-card);
+    background: var(--card-bg);
+}
+
+/* ---------------------------------------------------------------- income, one row */
+.income-row {
+    display: flex;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 9px 13px;
+}
+
+.income-field {
+    flex: 1 1 200px;
+    min-width: 0;
+}
+
+.income-field .form-label {
+    margin-bottom: 3px;
+    font-size: 11px;
+    font-weight: var(--w-control);
+    color: var(--ink-3);
+}
+
+.income-cur {
+    flex: 0 0 auto;
+    width: auto;
+    font-weight: var(--w-control);
+}
+
+.income-save { flex: 0 0 auto; }
+
+.income-other {
+    margin-top: 11px;
+    font-size: 12px;
+    font-weight: var(--w-body);
+    color: var(--ink-3);
+}
+
+.income-other-amount {
+    margin: 0 5px;
+    font-weight: var(--w-control);
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+}
+
+/* ---------------------------------------------------------------- ledger head: title, count, filters */
+.ledger { padding-bottom: 0; }
+
+.ledger-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 9px 13px;
+    padding-bottom: 13px;
+}
+
+.ledger-head h2 {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin: 0;
+    font-size: 13px;
+    font-weight: var(--w-display);
+    color: var(--ink);
+    white-space: nowrap;
+}
+
+.count-pill {
+    padding: 1px 7px;
+    border-radius: var(--bs-border-radius-pill);
+    background: var(--rail);
+    color: var(--ink-2);
+    font-size: 10px;
+    font-weight: var(--w-control);
+    font-variant-numeric: tabular-nums;
+}
+
+.ledger-filters {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 7px;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.ledger-search { flex: 1 1 150px; max-width: 220px; }
+
+.filters-more {
+    display: contents; /* at md and up the extra filters are simply more items in the same row */
+}
+
+.filters-more .form-select,
+.filters-more .form-control { width: auto; }
+
+.filters-toggle { display: none; }
+
+.ledger-count {
+    margin-left: auto;
+    font-size: 11px;
+    font-weight: var(--w-control);
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-3);
+    white-space: nowrap;
+}
+
+.ledger-empty,
+.ledger-nomatch {
+    margin: 0;
+    padding: 13px 0 var(--card-pad-y);
+    font-size: 12px;
+    font-weight: var(--w-body);
+    color: var(--ink-3);
+    text-align: center;
+}
+
+/* ---------------------------------------------------------------- the table */
+/* Bleed to the card edge so the head row's zebra runs edge to edge; the cells carry the card's padding. */
+.ledger-table {
+    width: calc(100% + 2 * var(--card-pad-x));
+    margin: 0 calc(-1 * var(--card-pad-x));
+    --bs-table-bg: transparent;
+    --bs-table-hover-bg: var(--zebra);
+    --bs-table-color: var(--ink);
+    --bs-table-border-color: var(--hair);
+    font-size: 12px;
+    font-weight: var(--w-body);
+}
+
+.ledger-table thead th {
+    padding: 8px var(--card-pad-x) 8px 0;
+    border-bottom: 1px solid var(--hair);
+    background: var(--zebra);
+    font-size: 10px;
+    font-weight: var(--w-display);
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    white-space: nowrap;
+}
+
+.ledger-table thead th:first-child,
+.ledger-table tbody td:first-child { padding-left: var(--card-pad-x); }
+
+.ledger-table tbody td {
+    padding: 9px var(--card-pad-x) 9px 0;
+    border-bottom: 1px solid var(--hair);
+    vertical-align: middle;
+}
+
+.ledger-table tbody tr:last-child td { border-bottom: 0; }
+.ledger-table tbody tr:hover td { background: var(--zebra); }
+
+.sort-button {
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    letter-spacing: inherit;
+    text-transform: inherit;
+    color: inherit;
+    cursor: pointer;
+}
+
+.sort-button:hover { color: var(--ink); }
+
+.tx-date {
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-3);
+    white-space: nowrap;
+}
+
+.tx-date-short { display: none; }
+
+.tx-payee { font-weight: var(--w-control); color: var(--ink); }
+
+.tx-note {
+    margin-left: 5px;
+    color: var(--ink-3);
+    text-decoration: none;
+    vertical-align: middle;
+}
+
+/* The phone sub-line: what the hidden columns said. Rendered always, shown only below md. */
+.tx-sub {
+    display: none;
+    font-size: 11px;
+    color: var(--ink-3);
+}
+
+.tx-sub-chip { display: none; }
+
+.tx-card {
+    display: block;
+    font-size: 11px;
+    color: var(--ink-3);
+}
+
+.tx-actions { white-space: nowrap; }
+.tx-actions .btn + .btn { margin-left: 5px; }
+
+.tx-derived {
+    font-size: 11px;
+    color: var(--ink-3);
+}
+
+/* ---------------------------------------------------------------- refunds */
+.status-pill {
+    display: inline-block;
+    padding: 2px 9px;
+    border-radius: var(--bs-border-radius-pill);
+    font-size: 10px;
+    font-weight: var(--w-control);
+    line-height: 1.6;
+    white-space: nowrap;
+}
+
+/* Pending needs attention — amber, never the over-budget red. Received is done. */
+.status-pill[data-tone="warn"] { background: var(--warn-bg); color: var(--ink); }
+.status-pill[data-tone="good"] { background: color-mix(in srgb, var(--good) 16%, transparent); color: var(--good); }
+
+.refund-inflow {
+    margin-left: 7px;
+    font-size: 11px;
+    font-weight: var(--w-control);
+}
+
+.refund-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap; /* the date picker and the two buttons wrap before they can widen the table */
+    gap: 5px;
+}
+
+.refund-actions .btn + .btn { margin-left: 0; }
+
+.refund-date-label {
+    font-size: 11px;
+    color: var(--ink-3);
+    white-space: nowrap;
+}
+
+.refund-date { width: auto; }
+
+.refund-edit {
+    display: flex;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 9px 13px;
+}
+
+.refund-edit-field { flex: 1 1 180px; }
+.refund-edit-notes { flex: 2 1 260px; }
+
+.refund-edit .form-label {
+    margin-bottom: 3px;
+    font-size: 11px;
+    font-weight: var(--w-control);
+    color: var(--ink-3);
+}
+
+.refund-edit-buttons {
+    display: flex;
+    gap: 5px;
+}
+
+/* ---------------------------------------------------------------- breakpoints */
+/* Below md: Category and Paid-with hide (their values sit in the payee sub-line), the date narrows, and the
+   extra filters fold behind the toggle. The table never scrolls sideways. */
+@media (max-width: 767.98px) {
+    .col-md { display: none; }
+    .tx-sub { display: block; }
+    .tx-date-long { display: none; }
+    .tx-date-short { display: inline; }
+
+    .filters-toggle { display: inline-block; }
+
+    .filters-more {
+        display: none;
+        flex: 1 0 100%;
+        flex-wrap: wrap;
+        gap: 7px;
+    }
+
+    .filters-more[data-open="true"] { display: flex; }
+
+    .filters-more .form-select,
+    .filters-more .form-control { flex: 1 1 45%; }
+
+    .ledger-count { flex: 1 0 100%; margin-left: 0; }
+
+    /* Four columns in 375px: Date, Payee, Amount, actions. The class chip moves under the payee (the handout's
+       phone frame has no actions column; keeping Edit/Delete reachable is what the chip gives its column up for). */
+    .col-class,
+    .col-status { display: none; }
+    .tx-sub-chip { display: block; margin-top: 4px; }
+
+    /* The refund row's actions stack: the picker above the two buttons, the picker no wider than it needs. */
+    .refund-actions { flex-direction: column; align-items: flex-end; }
+    .refund-date-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+    .refund-date { width: 124px; }
+    .ledger-table thead th,
+    .ledger-table tbody td { padding-right: 9px; }
+
+    /* Edit over Delete: two stacked, compact buttons keep the actions column as narrow as one word. */
+    .tx-actions { white-space: normal; }
+    .tx-actions .btn { display: block; width: 100%; padding: 3px 7px; font-size: 11px; }
+    .tx-actions .btn + .btn { margin: 4px 0 0; }
+    .refund-actions .btn { width: auto; }
+
+    .month-head-buttons { width: 100%; }
+    .month-head-buttons .btn { flex: 1 1 0; }
+}

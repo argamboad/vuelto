@@ -9,10 +9,13 @@
 @inject HttpClient Http
 @inject IFileDownloadLauncher DownloadLauncher
 @inject IStringLocalizer<AppStrings> Localizer
+@inject DisplayCurrencyStore Display
 
 <PageTitle>@(_month is null ? Localizer["Months_Title"] : MonthLabel(_month.Year, _month.MonthNumber))</PageTitle>
 
-@* LEDGER-1/2: one budget month — its weeks, editable income, and its transactions (ADR-V005/V007). *@
+@* LEDGER-1/2: one budget month — its weeks, editable income, and its transactions (ADR-V005/V007), presented per
+   SKIN-8: income collapses into one row, the ledger is one table with class chips and a stacked amount, and below md
+   it hides columns instead of scrolling sideways. Sort and filter stay on the rows already loaded — no request. *@
 <div class="settings-wrapper" data-testid="month-page">
     @if (_loading)
     {
@@ -21,21 +24,31 @@
     else if (_month is null)
     {
         <div class="alert alert-warning" data-testid="month-missing">@Localizer["Month_NotFound"]</div>
-        <p><a href="/months">← @Localizer["Month_BackToMonths"]</a></p>
+        <p><a href="/months">← @Localizer["Month_AllMonths"]</a></p>
     }
     else
     {
-        <div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
-            <div>
-                <h1 class="h4 fw-bold mb-1" data-testid="month-title">@MonthLabel(_month.Year, _month.MonthNumber)</h1>
-                <p class="text-muted mb-0">@Localizer["Month_Window", _month.WeekCount, _month.Weeks!.First().StartDate.ToString("d", CultureInfo.CurrentCulture), _month.Weeks!.Last().EndDate.ToString("d", CultureInfo.CurrentCulture)]</p>
+        <header class="month-head">
+            <div class="month-head-main">
+                <p class="month-crumbs">
+                    <a href="/months" data-testid="month-back">← @Localizer["Month_AllMonths"]</a>
+                    <span class="month-crumb-dot" aria-hidden="true">·</span>
+                    <a href="/dashboard/@Id" data-testid="month-dashboard-link">@Localizer["Nav_Dashboard"]</a>
+                </p>
+                <h1 data-testid="month-title">@MonthLabel(_month.Year, _month.MonthNumber)</h1>
+                <div class="month-weeks" data-testid="month-weeks">
+                    @foreach (var w in _month.Weeks!)
+                    {
+                        @* "W1 · Aug 28": the start day is the scanning cue; the full window is one hover away. *@
+                        <span class="month-week-chip" title="@($"{w.StartDate.ToString(ShortDay(), CultureInfo.CurrentCulture)} – {w.EndDate.ToString(ShortDay(), CultureInfo.CurrentCulture)}")">@Localizer["Month_WeekChip", w.WeekNumber, w.StartDate.ToString(ShortDay(), CultureInfo.CurrentCulture)]</span>
+                    }
+                </div>
             </div>
-            <div class="d-flex gap-2">
+            <div class="month-head-buttons">
                 <button class="btn btn-outline-secondary" data-testid="month-export" @onclick="ExportCsvAsync" disabled="@_exporting">@(_exporting ? Localizer["Reports_Exporting"] : Localizer["Reports_ExportCsv"])</button>
-                <a class="btn btn-outline-primary" href="/dashboard/@Id" data-testid="month-dashboard-link">@Localizer["Nav_Dashboard"]</a>
                 <a class="btn btn-primary" href="/transactions/new" data-testid="month-new-tx">@Localizer["Months_NewTransaction"]</a>
             </div>
-        </div>
+        </header>
 
         @if (_notice is not null)
         {
@@ -46,262 +59,247 @@
             <div class="alert alert-danger py-2" data-testid="month-error">@_error</div>
         }
 
-        <div class="d-flex flex-wrap gap-2 mb-3" data-testid="month-weeks">
-            @foreach (var w in _month.Weeks!)
-            {
-                <span class="badge bg-secondary-subtle text-secondary-emphasis">@Localizer["Month_Week", w.WeekNumber]: @w.StartDate.ToString("d", CultureInfo.CurrentCulture) – @w.EndDate.ToString("d", CultureInfo.CurrentCulture)</span>
-            }
-        </div>
-
-        <div class="card shadow-sm mb-3" data-testid="month-income">
-            <div class="card-body">
-                <h2 class="h6 fw-bold mb-3">@Localizer["Month_Income"]</h2>
-                <div class="row g-3 align-items-end">
-                    <div class="col-8 col-md-4">
-                        <label class="form-label small fw-medium mb-1" for="inc-primary">@Localizer["Month_PrimaryIncome"]</label>
+        @* Income is one row: two amount-plus-currency groups and the save, wrapping field by field on phone. *@
+        <section class="month-card month-income" data-testid="month-income">
+            <div class="income-row">
+                <div class="income-field">
+                    <label class="form-label" for="inc-primary">@Localizer["Month_PrimaryIncome"]</label>
+                    <div class="input-group">
                         <input class="form-control" type="number" step="0.01" min="0" id="inc-primary" data-testid="inc-primary" disabled="@_saving" @bind="_primaryAmount" />
-                    </div>
-                    <div class="col-4 col-md-2">
-                        <select class="form-select" data-testid="inc-primary-cur" disabled="@_saving" @bind="_primaryCurrency"><option>CRC</option><option>USD</option></select>
-                    </div>
-                    <div class="col-8 col-md-4">
-                        <label class="form-label small fw-medium mb-1" for="inc-secondary">@Localizer["Month_SecondaryIncome"]</label>
-                        <input class="form-control" type="number" step="0.01" min="0" id="inc-secondary" data-testid="inc-secondary" disabled="@_saving" @bind="_secondaryAmount" />
-                    </div>
-                    <div class="col-4 col-md-2">
-                        <select class="form-select" data-testid="inc-secondary-cur" disabled="@_saving" @bind="_secondaryCurrency"><option>CRC</option><option>USD</option></select>
+                        <select class="form-select income-cur" aria-label="@Localizer["Tx_Currency"]" data-testid="inc-primary-cur" disabled="@_saving" @bind="_primaryCurrency"><option>CRC</option><option>USD</option></select>
                     </div>
                 </div>
-                <button class="btn btn-outline-primary btn-sm mt-3" data-testid="inc-save" disabled="@_saving" @onclick="SaveIncome">@(_saving ? Localizer["Catalog_Saving"] : Localizer["Catalog_Save"])</button>
-                @* Money that came in as transactions (realized refunds, sales…) — counted in the dashboard's Income, listed here so the card and the dashboard agree. *@
-                @{ var inflows = _transactions.Where(t => t.TransactionType == "inflow").ToList(); }
-                @if (inflows.Count > 0)
+                <div class="income-field">
+                    <label class="form-label" for="inc-secondary">@Localizer["Month_SecondaryIncome"]</label>
+                    <div class="input-group">
+                        <input class="form-control" type="number" step="0.01" min="0" id="inc-secondary" data-testid="inc-secondary" disabled="@_saving" @bind="_secondaryAmount" />
+                        <select class="form-select income-cur" aria-label="@Localizer["Tx_Currency"]" data-testid="inc-secondary-cur" disabled="@_saving" @bind="_secondaryCurrency"><option>CRC</option><option>USD</option></select>
+                    </div>
+                </div>
+                <button class="btn btn-outline-primary income-save" data-testid="inc-save" disabled="@_saving" @onclick="SaveIncome">@(_saving ? Localizer["Catalog_Saving"] : Localizer["Month_SaveIncome"])</button>
+            </div>
+            @* Money that came in as transactions (realized refunds, sales…) — counted in the dashboard's Income, listed here so the row and the dashboard agree. *@
+            @{ var inflows = _transactions.Where(t => t.TransactionType == TransactionClasses.Inflow).ToList(); }
+            @if (inflows.Count > 0)
+            {
+                <div class="income-other" data-testid="month-income-other">
+                    <span class="income-other-label">@Localizer["Month_OtherIncome"]:</span>
+                    <span class="income-other-amount">₡@inflows.Sum(t => t.AmountCrc).ToString("N2", CultureInfo.CurrentCulture) · $@inflows.Sum(t => t.AmountUsd).ToString("N2", CultureInfo.CurrentCulture)</span>
+                    <button type="button" class="btn btn-link btn-sm p-0 align-baseline" data-testid="month-income-other-show" @onclick="() => _fClass = TransactionClasses.Inflow">@Localizer["Month_OtherIncomeShow", inflows.Count]</button>
+                </div>
+            }
+        </section>
+
+        <section class="month-card ledger" data-testid="month-tx-section">
+            <div class="ledger-head">
+                <h2>@Localizer["Month_Transactions"] <span class="count-pill" data-testid="month-tx-total">@_transactions.Count</span></h2>
+                @if (_transactions.Count > 0)
                 {
-                    <div class="small mt-3" data-testid="month-income-other">
-                        <span class="text-muted">@Localizer["Month_OtherIncome"]:</span>
-                        <span class="fw-semibold">₡@inflows.Sum(t => t.AmountCrc).ToString("N2", CultureInfo.CurrentCulture) · $@inflows.Sum(t => t.AmountUsd).ToString("N2", CultureInfo.CurrentCulture)</span>
-                        <button type="button" class="btn btn-link btn-sm p-0 ms-1 align-baseline" data-testid="month-income-other-show" @onclick='() => _fClass = "inflow"'>@Localizer["Month_OtherIncomeShow", inflows.Count]</button>
+                    @* Filters compose, client-side, over the loaded month. Inline at md and up; below md the search stays
+                       and the rest folds behind the toggle (the handout's sheet, as a disclosure rather than a modal). *@
+                    <div class="ledger-filters" data-testid="month-tx-filters">
+                        <input type="search" class="form-control form-control-sm ledger-search" placeholder="@Localizer["Month_SearchPayee"]" aria-label="@Localizer["Month_SearchPayee"]" data-testid="month-tx-filter-payee" @bind="_fPayee" @bind:event="oninput" />
+                        <button type="button" class="btn btn-outline-secondary btn-sm filters-toggle" data-testid="month-tx-filters-toggle" aria-expanded="@(_filtersOpen ? "true" : "false")" aria-controls="month-filters-more" @onclick="() => _filtersOpen = !_filtersOpen">@Localizer["Month_Filters"]@(FiltersActive ? " •" : "")</button>
+                        <div class="filters-more" id="month-filters-more" data-testid="month-tx-filters-more" data-open="@(_filtersOpen ? "true" : "false")">
+                            <select class="form-select form-select-sm" aria-label="@Localizer["Tx_Category"]" data-testid="month-tx-filter-category" @bind="_fCategory">
+                                <option value="">@Localizer["Month_FilterAllCategories"]</option>
+                                @foreach (var c in Distinct(t => t.CategoryName)) { <option value="@c">@c</option> }
+                            </select>
+                            <select class="form-select form-select-sm" aria-label="@Localizer["Tx_Bank"]" data-testid="month-tx-filter-bank" @bind="_fBank">
+                                <option value="">@Localizer["Month_FilterAllBanks"]</option>
+                                @foreach (var b in Distinct(t => t.BankName)) { <option value="@b">@b</option> }
+                            </select>
+                            <select class="form-select form-select-sm" aria-label="@Localizer["Tx_Card"]" data-testid="month-tx-filter-card" @bind="_fCard">
+                                <option value="">@Localizer["Month_FilterAllCards"]</option>
+                                @foreach (var c in Distinct(t => t.CardName)) { <option value="@c">@c</option> }
+                            </select>
+                            <select class="form-select form-select-sm" aria-label="@Localizer["Tx_Class"]" data-testid="month-tx-filter-class" @bind="_fClass">
+                                <option value="">@Localizer["Month_FilterAllClasses"]</option>
+                                @foreach (var k in _transactions.Select(t => t.TransactionType).Distinct().OrderBy(k => ClassLabel(k), StringComparer.CurrentCultureIgnoreCase)) { <option value="@k">@ClassLabel(k)</option> }
+                            </select>
+                            <input type="date" class="form-control form-control-sm" aria-label="@Localizer["Month_FilterFrom"]" data-testid="month-tx-filter-from" @bind="_fFrom" />
+                            <input type="date" class="form-control form-control-sm" aria-label="@Localizer["Month_FilterTo"]" data-testid="month-tx-filter-to" @bind="_fTo" />
+                            <button type="button" class="btn btn-outline-secondary btn-sm" data-testid="month-tx-filter-clear" disabled="@(!FiltersActive)" @onclick="ClearFilters">@Localizer["Month_FilterClear"]</button>
+                        </div>
+                        <span class="ledger-count" data-testid="month-tx-count">@Localizer["Month_FilterCount", Visible().Count, _transactions.Count]</span>
                     </div>
                 }
             </div>
-        </div>
-
-        <h2 class="h6 fw-bold mb-2">@Localizer["Month_Transactions"]</h2>
-        @if (_transactions.Count == 0)
-        {
-            <p class="text-muted" data-testid="month-no-tx">@Localizer["Month_NoTransactions"]</p>
-        }
-        else
-        {
-            @* Filter and sort happen on the rows already loaded (a month is a few dozen rows) — no request, instant. *@
-            <div class="card shadow-sm mb-2" data-testid="month-tx-filters">
-                <div class="card-body py-2 d-flex flex-wrap align-items-end gap-2">
-                    <div>
-                        <label class="form-label small mb-1">@Localizer["Month_FilterFrom"]</label>
-                        <input type="date" class="form-control form-control-sm" data-testid="month-tx-filter-from" @bind="_fFrom" />
-                    </div>
-                    <div>
-                        <label class="form-label small mb-1">@Localizer["Month_FilterTo"]</label>
-                        <input type="date" class="form-control form-control-sm" data-testid="month-tx-filter-to" @bind="_fTo" />
-                    </div>
-                    <div>
-                        <label class="form-label small mb-1">@Localizer["Month_FilterPayee"]</label>
-                        <input type="search" class="form-control form-control-sm" data-testid="month-tx-filter-payee" @bind="_fPayee" @bind:event="oninput" />
-                    </div>
-                    <div>
-                        <label class="form-label small mb-1">@Localizer["Tx_Category"]</label>
-                        <select class="form-select form-select-sm" data-testid="month-tx-filter-category" @bind="_fCategory">
-                            <option value="">@Localizer["Month_FilterAll"]</option>
-                            @foreach (var c in Distinct(t => t.CategoryName)) { <option value="@c">@c</option> }
-                        </select>
-                    </div>
-                    <div>
-                        <label class="form-label small mb-1">@Localizer["Tx_Bank"]</label>
-                        <select class="form-select form-select-sm" data-testid="month-tx-filter-bank" @bind="_fBank">
-                            <option value="">@Localizer["Month_FilterAll"]</option>
-                            @foreach (var b in Distinct(t => t.BankName)) { <option value="@b">@b</option> }
-                        </select>
-                    </div>
-                    <div>
-                        <label class="form-label small mb-1">@Localizer["Tx_Card"]</label>
-                        <select class="form-select form-select-sm" data-testid="month-tx-filter-card" @bind="_fCard">
-                            <option value="">@Localizer["Month_FilterAll"]</option>
-                            @foreach (var c in Distinct(t => t.CardName)) { <option value="@c">@c</option> }
-                        </select>
-                    </div>
-                    <div>
-                        <label class="form-label small mb-1">@Localizer["Tx_Class"]</label>
-                        <select class="form-select form-select-sm" data-testid="month-tx-filter-class" @bind="_fClass">
-                            <option value="">@Localizer["Month_FilterAll"]</option>
-                            @foreach (var k in _transactions.Select(t => t.TransactionType).Distinct().OrderBy(k => ClassLabel(k), StringComparer.CurrentCultureIgnoreCase)) { <option value="@k">@ClassLabel(k)</option> }
-                        </select>
-                    </div>
-                    <button type="button" class="btn btn-outline-secondary btn-sm" data-testid="month-tx-filter-clear" disabled="@(!FiltersActive)" @onclick="ClearFilters">@Localizer["Month_FilterClear"]</button>
-                    <span class="small text-muted ms-auto" data-testid="month-tx-count">@Localizer["Month_FilterCount", Visible().Count, _transactions.Count]</span>
-                </div>
-            </div>
-            <div class="card shadow-sm">
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0" data-testid="month-tx-table">
-                        <thead>
-                            <tr>
-                                @SortHeader("date", Localizer["Tx_Date"])
-                                @SortHeader("payee", Localizer["Tx_Payee"])
-                                @SortHeader("category", Localizer["Tx_Category"])
-                                @SortHeader("bank", Localizer["Tx_Bank"])
-                                @SortHeader("card", Localizer["Tx_Card"])
-                                @SortHeader("class", Localizer["Tx_Class"])
-                                <th scope="col" class="text-end">₡</th>
-                                <th scope="col" class="text-end">$</th>
-                                <th scope="col" class="text-end"></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @if (Visible().Count == 0)
-                            {
-                                <tr><td colspan="9" class="text-muted text-center py-3" data-testid="month-tx-nomatch">@Localizer["Month_NoMatch"]</td></tr>
-                            }
-                            @foreach (var t in Visible())
-                            {
-                                <tr data-testid="month-tx-row">
-                                    <td>@t.TransactionDate.ToString("d", CultureInfo.CurrentCulture)</td>
-                                    <td data-testid="month-tx-payee">
-                                        @t.Payee
-                                        @if (!string.IsNullOrWhiteSpace(t.Notes))
+            @if (_transactions.Count == 0)
+            {
+                <p class="ledger-empty" data-testid="month-no-tx">@Localizer["Month_NoTransactions"]</p>
+            }
+            else
+            {
+                <table class="table ledger-table" data-testid="month-tx-table">
+                    <thead>
+                        <tr>
+                            @SortHeader("date", Localizer["Tx_Date"], "")
+                            @SortHeader("payee", Localizer["Tx_Payee"], "")
+                            @SortHeader("category", Localizer["Tx_Category"], "col-md")
+                            @SortHeader("bank", Localizer["Month_PaidWith"], "col-md")
+                            @SortHeader("class", Localizer["Tx_Class"], "col-class")
+                            <th scope="col" class="text-end">@Localizer["Tx_Amount"]</th>
+                            <th scope="col" class="text-end"><span class="visually-hidden">@Localizer["Catalog_Edit"]</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Visible().Count == 0)
+                        {
+                            <tr><td colspan="7" class="ledger-nomatch" data-testid="month-tx-nomatch">@Localizer["Month_NoMatch"]</td></tr>
+                        }
+                        @foreach (var t in Visible())
+                        {
+                            <tr data-testid="month-tx-row">
+                                <td class="tx-date">
+                                    <span class="tx-date-long">@t.TransactionDate.ToString("d", CultureInfo.CurrentCulture)</span>
+                                    <span class="tx-date-short" data-testid="month-tx-date-short">@t.TransactionDate.ToString(ShortDay(), CultureInfo.CurrentCulture)</span>
+                                </td>
+                                <td class="tx-payee-cell">
+                                    <span class="tx-payee" data-testid="month-tx-payee">@t.Payee</span>
+                                    @if (!string.IsNullOrWhiteSpace(t.Notes))
+                                    {
+                                        @* The note rides on the row as an icon: hover reads it; a tap opens the transaction, which shows it in full. *@
+                                        <a class="tx-note" href="/transactions/@t.Id/edit" data-testid="month-tx-note" title="@t.Notes" aria-label="@t.Notes">
+                                            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" focusable="false"><path d="M2 1.5h8.5L14 5v9.5H2z" opacity=".3"/><path d="M4 7h8v1.2H4zm0 2.6h8v1.2H4zm0 2.6h5v1.2H4z"/></svg>
+                                        </a>
+                                    }
+                                    @* Below md the category and paid-with columns hide; this sub-line repeats them so the row loses nothing. *@
+                                    <span class="tx-sub" data-testid="month-tx-sub" aria-hidden="true">@SubLine(t)</span>
+                                    @* On a phone the class column goes too, and the chip sits under the payee instead. *@
+                                    <span class="tx-sub-chip" aria-hidden="true"><ClassChip Class="@t.TransactionType" TestId="month-tx-class-sub" /></span>
+                                </td>
+                                <td class="col-md" data-testid="month-tx-category">@t.CategoryName</td>
+                                <td class="col-md tx-paid" data-testid="month-tx-paid">
+                                    @t.BankName
+                                    @if (!string.IsNullOrEmpty(t.CardName))
+                                    {
+                                        @* CARDS-1: the card's alias, as the household named it — never the number. *@
+                                        <span class="tx-card" data-testid="month-tx-card">@t.CardName</span>
+                                    }
+                                </td>
+                                <td class="col-class"><ClassChip Class="@t.TransactionType" TestId="month-tx-class" /></td>
+                                <td class="text-end"><Money Crc="t.AmountCrc" Usd="t.AmountUsd" Display="@_display" Size="row" TestId="month-tx-amount" /></td>
+                                <td class="text-end tx-actions">
+                                    @if (t.Source != "refund_realization")
+                                    {
+                                        <a class="btn btn-outline-primary btn-sm" href="/transactions/@t.Id/edit" data-testid="month-tx-edit">@Localizer["Catalog_Edit"]</a>
+                                        @if (_confirmDelete == t.Id)
                                         {
-                                            @* The note rides on the row as an icon: hover reads it; a tap opens the transaction, which shows it in full. *@
-                                            <a class="ms-1 text-decoration-none align-middle" href="/transactions/@t.Id/edit" data-testid="month-tx-note" title="@t.Notes" aria-label="@t.Notes">
-                                                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" focusable="false"><path d="M2 1.5h8.5L14 5v9.5H2z" opacity=".3"/><path d="M4 7h8v1.2H4zm0 2.6h8v1.2H4zm0 2.6h5v1.2H4z"/></svg>
-                                            </a>
-                                        }
-                                    </td>
-                                    <td>@t.CategoryName</td>
-                                    <td>@t.BankName</td>
-                                    <td class="text-nowrap" data-testid="month-tx-card">@t.CardName</td>
-                                    <td><span class="badge bg-secondary-subtle text-secondary-emphasis">@ClassLabel(t.TransactionType)</span></td>
-                                    <td class="text-end">@t.AmountCrc.ToString("N2", CultureInfo.CurrentCulture)</td>
-                                    <td class="text-end">@t.AmountUsd.ToString("N2", CultureInfo.CurrentCulture)</td>
-                                    <td class="text-end text-nowrap">
-                                        @if (t.Source != "refund_realization")
-                                        {
-                                            <a class="btn btn-outline-primary btn-sm" href="/transactions/@t.Id/edit" data-testid="month-tx-edit">@Localizer["Catalog_Edit"]</a>
-                                            @if (_confirmDelete == t.Id)
-                                            {
-                                                <button class="btn btn-danger btn-sm ms-1" data-testid="month-tx-confirm" disabled="@_saving" @onclick="() => DeleteAsync(t.Id)">@Localizer["Month_ConfirmDelete"]</button>
-                                            }
-                                            else
-                                            {
-                                                <button class="btn btn-outline-danger btn-sm ms-1" data-testid="month-tx-delete" disabled="@_saving" @onclick="() => _confirmDelete = t.Id">@Localizer["Month_Delete"]</button>
-                                            }
+                                            <button class="btn btn-danger btn-sm" data-testid="month-tx-confirm" disabled="@_saving" @onclick="() => DeleteAsync(t.Id)">@Localizer["Month_ConfirmDelete"]</button>
                                         }
                                         else
                                         {
-                                            <span class="small text-muted">@Localizer["Tx_Derived"]</span>
+                                            <button class="btn btn-outline-danger btn-sm" data-testid="month-tx-delete" disabled="@_saving" @onclick="() => _confirmDelete = t.Id">@Localizer["Month_Delete"]</button>
                                         }
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        }
-        <h2 class="h6 fw-bold mb-2 mt-4">@Localizer["Month_Refunds"]</h2>
-        @if (_refunds.Count == 0)
-        {
-            <p class="text-muted" data-testid="month-no-refunds">@Localizer["Month_NoRefunds"]</p>
-        }
-        else
-        {
-            <div class="card shadow-sm">
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0" data-testid="month-refund-table">
-                        <thead>
-                            <tr>
-                                <th scope="col">@Localizer["Tx_Date"]</th>
-                                <th scope="col">@Localizer["Tx_Payee"]</th>
-                                <th scope="col">@Localizer["Refund_CaseNumber"]</th>
-                                <th scope="col" class="text-end">%</th>
-                                <th scope="col" class="text-end">₡</th>
-                                <th scope="col" class="text-end">$</th>
-                                <th scope="col">@Localizer["Catalog_Status"]</th>
-                                <th scope="col" class="text-end"></th>
+                                    }
+                                    else
+                                    {
+                                        <span class="tx-derived">@Localizer["Tx_Derived"]</span>
+                                    }
+                                </td>
                             </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var r in _refunds)
-                            {
-                                <tr data-testid="month-refund-row">
-                                    <td>@r.TransactionDate.ToString("d", CultureInfo.CurrentCulture)</td>
-                                    <td>
-                                        @r.Payee
-                                        @if (!string.IsNullOrWhiteSpace(r.Notes))
-                                        {
-                                            @* Same affordance as a transaction's note: an icon that reads on hover. *@
-                                            <span class="ms-1 text-muted align-middle" data-testid="refund-note" title="@r.Notes" aria-label="@r.Notes">
-                                                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" focusable="false"><path d="M2 1.5h8.5L14 5v9.5H2z" opacity=".3"/><path d="M4 7h8v1.2H4zm0 2.6h8v1.2H4zm0 2.6h5v1.2H4z"/></svg>
-                                            </span>
-                                        }
-                                    </td>
-                                    <td data-testid="refund-case">@(string.IsNullOrWhiteSpace(r.CaseNumber) ? "—" : r.CaseNumber)</td>
-                                    <td class="text-end">@r.Percentage.ToString("N0", CultureInfo.CurrentCulture)%</td>
-                                    <td class="text-end">@r.AmountCrc.ToString("N2", CultureInfo.CurrentCulture)</td>
-                                    <td class="text-end">@r.AmountUsd.ToString("N2", CultureInfo.CurrentCulture)</td>
-                                    <td>
-                                        @* Received: the day the money landed; the inflow lives in that day's month (ADR-V017). *@
-                                        <span class="badge @(r.Status == "received" ? "bg-success-subtle text-success-emphasis" : "bg-warning-subtle text-warning-emphasis")" data-testid="refund-status">
-                                            @(r.Status == "received"
-                                                ? (r.ReceivedDate is { } d ? Localizer["Refund_ReceivedOn", d.ToString("d", CultureInfo.CurrentCulture)] : Localizer["Refund_Received"])
-                                                : Localizer["Refund_Pending"])
+                        }
+                    </tbody>
+                </table>
+            }
+        </section>
+
+        <section class="month-card ledger" data-testid="month-refund-section">
+            <div class="ledger-head"><h2>@Localizer["Month_Refunds"] <span class="count-pill">@_refunds.Count</span></h2></div>
+            @if (_refunds.Count == 0)
+            {
+                <p class="ledger-empty" data-testid="month-no-refunds">@Localizer["Month_NoRefunds"]</p>
+            }
+            else
+            {
+                <table class="table ledger-table" data-testid="month-refund-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">@Localizer["Tx_Date"]</th>
+                            <th scope="col">@Localizer["Tx_Payee"]</th>
+                            <th scope="col" class="col-md">@Localizer["Refund_CaseNumber"]</th>
+                            <th scope="col" class="text-end col-md">%</th>
+                            <th scope="col" class="text-end">@Localizer["Tx_Amount"]</th>
+                            <th scope="col" class="col-status">@Localizer["Catalog_Status"]</th>
+                            <th scope="col" class="text-end"><span class="visually-hidden">@Localizer["Catalog_Edit"]</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var r in _refunds)
+                        {
+                            <tr data-testid="month-refund-row">
+                                <td class="tx-date">
+                                    <span class="tx-date-long">@r.TransactionDate.ToString("d", CultureInfo.CurrentCulture)</span>
+                                    <span class="tx-date-short">@r.TransactionDate.ToString(ShortDay(), CultureInfo.CurrentCulture)</span>
+                                </td>
+                                <td class="tx-payee-cell">
+                                    <span class="tx-payee">@r.Payee</span>
+                                    @if (!string.IsNullOrWhiteSpace(r.Notes))
+                                    {
+                                        @* Same affordance as a transaction's note: an icon that reads on hover. *@
+                                        <span class="tx-note" data-testid="refund-note" title="@r.Notes" aria-label="@r.Notes">
+                                            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" focusable="false"><path d="M2 1.5h8.5L14 5v9.5H2z" opacity=".3"/><path d="M4 7h8v1.2H4zm0 2.6h8v1.2H4zm0 2.6h5v1.2H4z"/></svg>
                                         </span>
-                                        @if (r.Status == "received" && r.InflowMonthId is { } other && other != Id)
-                                        {
-                                            <a class="small ms-2" href="/months/@other" data-testid="refund-inflow-month">@Localizer["Refund_ViewInflowMonth"]</a>
-                                        }
-                                    </td>
-                                    <td class="text-end text-nowrap">
-                                        @if (r.Status != "received")
-                                        {
-                                            <label class="small text-muted me-1" for="received-@r.Id">@Localizer["Refund_ReceivedDate"]</label>
-                                            <input type="date" id="received-@r.Id" class="form-control form-control-sm d-inline-block w-auto me-2" data-testid="refund-received-date"
-                                                   min="@r.TransactionDate.ToString("yyyy-MM-dd")" @bind:get="ReceivedDateFor(r)" @bind:set="v => _receivedDates[r.Id] = v" />
-                                        }
-                                        <button class="btn btn-outline-secondary btn-sm me-1" data-testid="refund-edit" disabled="@(_saving || _editingRefund == r.Id)" @onclick="() => OpenRefundEdit(r)">@Localizer["Catalog_Edit"]</button>
-                                        <button class="btn btn-outline-primary btn-sm" data-testid="refund-toggle" disabled="@_saving" @onclick="() => FlipRefundAsync(r)">
-                                            @(r.Status == "received" ? Localizer["Refund_MarkPending"] : Localizer["Refund_MarkReceived"])
-                                        </button>
+                                    }
+                                    <span class="tx-sub" aria-hidden="true">@r.Percentage.ToString("N0", CultureInfo.CurrentCulture)%@(string.IsNullOrWhiteSpace(r.CaseNumber) ? "" : " · " + r.CaseNumber)</span>
+                                    @* On a phone the status column goes too; the pill sits under the payee. *@
+                                    <span class="tx-sub-chip" aria-hidden="true"><span class="status-pill" data-tone="@(r.Status == "received" ? "good" : "warn")">@RefundStatusText(r)</span></span>
+                                </td>
+                                <td class="col-md" data-testid="refund-case">@(string.IsNullOrWhiteSpace(r.CaseNumber) ? "—" : r.CaseNumber)</td>
+                                <td class="text-end col-md">@r.Percentage.ToString("N0", CultureInfo.CurrentCulture)%</td>
+                                <td class="text-end"><Money Crc="r.AmountCrc" Usd="r.AmountUsd" Display="@_display" Size="row" TestId="refund-amount" /></td>
+                                <td class="col-status">
+                                    @* Pending needs attention (amber); received is done (green). The received day is the day the money
+                                       landed, and the inflow lives in that day's month (ADR-V017). *@
+                                    <span class="status-pill" data-tone="@(r.Status == "received" ? "good" : "warn")" data-testid="refund-status">@RefundStatusText(r)</span>
+                                    @if (r.Status == "received" && r.InflowMonthId is { } other && other != Id)
+                                    {
+                                        <a class="refund-inflow" href="/months/@other" data-testid="refund-inflow-month">@Localizer["Refund_ViewInflowMonth"]</a>
+                                    }
+                                </td>
+                                <td class="text-end tx-actions refund-actions">
+                                    @if (r.Status != "received")
+                                    {
+                                        <label class="refund-date-label" for="received-@r.Id">@Localizer["Refund_ReceivedDate"]</label>
+                                        <input type="date" id="received-@r.Id" class="form-control form-control-sm refund-date" data-testid="refund-received-date"
+                                               min="@r.TransactionDate.ToString("yyyy-MM-dd")" @bind:get="ReceivedDateFor(r)" @bind:set="v => _receivedDates[r.Id] = v" />
+                                    }
+                                    <button class="btn btn-outline-secondary btn-sm" data-testid="refund-edit" disabled="@(_saving || _editingRefund == r.Id)" @onclick="() => OpenRefundEdit(r)">@Localizer["Catalog_Edit"]</button>
+                                    <button class="btn btn-outline-primary btn-sm" data-testid="refund-toggle" disabled="@_saving" @onclick="() => FlipRefundAsync(r)"
+                                            aria-label="@(r.Status == "received" ? Localizer["Refund_MarkPendingFor", r.Payee] : Localizer["Refund_MarkReceivedFor", r.Payee])">
+                                        @(r.Status == "received" ? Localizer["Refund_MarkPending"] : Localizer["Refund_MarkReceived"])
+                                    </button>
+                                </td>
+                            </tr>
+                            @if (_editingRefund == r.Id)
+                            {
+                                @* LEDGER-4: the claim it is chased under, and why it is expected — the two fields
+                                   the household owns, edited where the refund already is. *@
+                                <tr data-testid="refund-edit-row">
+                                    <td colspan="7">
+                                        <div class="refund-edit">
+                                            <div class="refund-edit-field">
+                                                <label class="form-label" for="case-@r.Id">@Localizer["Refund_CaseNumber"]</label>
+                                                <input class="form-control form-control-sm" id="case-@r.Id" data-testid="refund-case-input" maxlength="60" disabled="@_saving" @bind="_editCase" @bind:event="oninput" />
+                                            </div>
+                                            <div class="refund-edit-field refund-edit-notes">
+                                                <label class="form-label" for="rnotes-@r.Id">@Localizer["Tx_Notes"]</label>
+                                                <input class="form-control form-control-sm" id="rnotes-@r.Id" data-testid="refund-notes-input" maxlength="250" placeholder="@Localizer["Refund_NotesHint"]" disabled="@_saving" @bind="_editNotes" @bind:event="oninput" />
+                                            </div>
+                                            <div class="refund-edit-buttons">
+                                                <button class="btn btn-primary btn-sm" data-testid="refund-details-save" disabled="@_saving" @onclick="() => SaveRefundDetailsAsync(r)">@Localizer["Catalog_Save"]</button>
+                                                <button class="btn btn-outline-secondary btn-sm" data-testid="refund-details-cancel" disabled="@_saving" @onclick="() => _editingRefund = null">@Localizer["Common_Cancel"]</button>
+                                            </div>
+                                        </div>
                                     </td>
                                 </tr>
-                                @if (_editingRefund == r.Id)
-                                {
-                                    @* LEDGER-4: the claim it is chased under, and why it is expected — the two fields
-                                       the household owns, edited where the refund already is. *@
-                                    <tr data-testid="refund-edit-row">
-                                        <td colspan="8">
-                                            <div class="row g-2 align-items-end">
-                                                <div class="col-12 col-md-4">
-                                                    <label class="form-label small fw-medium mb-1" for="case-@r.Id">@Localizer["Refund_CaseNumber"]</label>
-                                                    <input class="form-control form-control-sm" id="case-@r.Id" data-testid="refund-case-input" maxlength="60" disabled="@_saving" @bind="_editCase" @bind:event="oninput" />
-                                                </div>
-                                                <div class="col-12 col-md-6">
-                                                    <label class="form-label small fw-medium mb-1" for="rnotes-@r.Id">@Localizer["Tx_Notes"]</label>
-                                                    <input class="form-control form-control-sm" id="rnotes-@r.Id" data-testid="refund-notes-input" maxlength="250" placeholder="@Localizer["Refund_NotesHint"]" disabled="@_saving" @bind="_editNotes" @bind:event="oninput" />
-                                                </div>
-                                                <div class="col-12 col-md-2 d-flex gap-2">
-                                                    <button class="btn btn-primary btn-sm" data-testid="refund-details-save" disabled="@_saving" @onclick="() => SaveRefundDetailsAsync(r)">@Localizer["Catalog_Save"]</button>
-                                                    <button class="btn btn-outline-secondary btn-sm" data-testid="refund-details-cancel" disabled="@_saving" @onclick="() => _editingRefund = null">@Localizer["Common_Cancel"]</button>
-                                                </div>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                }
                             }
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        }
-        <p class="mt-3"><a href="/months">← @Localizer["Month_BackToMonths"]</a></p>
+                        }
+                    </tbody>
+                </table>
+            }
+        </section>
     }
 </div>
 
@@ -347,9 +345,13 @@
 
     private Guid? _loadedId;
 
+    private string _display = MoneyDisplay.Both;
+    private bool _filtersOpen;
+
     protected override async Task OnInitializedAsync()
     {
         if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
+        _display = await Display.LoadAsync();
         await LoadAsync();
     }
 
@@ -498,8 +500,8 @@
         {
             "payee" => _sortAsc ? rows.OrderBy(t => t.Payee, cmp) : rows.OrderByDescending(t => t.Payee, cmp),
             "category" => _sortAsc ? rows.OrderBy(t => t.CategoryName ?? "", cmp) : rows.OrderByDescending(t => t.CategoryName ?? "", cmp),
+            // "Paid with" orders by bank; rows on the same bank keep date order (the card beneath is a detail, not a key).
             "bank" => _sortAsc ? rows.OrderBy(t => t.BankName ?? "", cmp) : rows.OrderByDescending(t => t.BankName ?? "", cmp),
-            "card" => _sortAsc ? rows.OrderBy(t => t.CardName ?? "", cmp) : rows.OrderByDescending(t => t.CardName ?? "", cmp),
             "class" => _sortAsc ? rows.OrderBy(t => ClassLabel(t.TransactionType), cmp) : rows.OrderByDescending(t => ClassLabel(t.TransactionType), cmp),
             _ => _sortAsc ? rows.OrderBy(t => t.TransactionDate) : rows.OrderByDescending(t => t.TransactionDate),
         };
@@ -507,25 +509,29 @@
     }
 
     /// <summary>A clickable header: click sorts by it, click again flips the direction; the arrow shows which and how.</summary>
-    private RenderFragment SortHeader(string key, string label) => __builder =>
+    private RenderFragment SortHeader(string key, string label, string cssClass) => __builder =>
     {
         var active = _sortKey == key;
-        <th scope="col" aria-sort="@(active ? (_sortAsc ? "ascending" : "descending") : "none")">
-            <button type="button" class="btn btn-link p-0 fw-semibold text-decoration-none text-reset" data-testid="@($"month-tx-sort-{key}")" @onclick="() => Sort(key)">
+        <th scope="col" class="@cssClass" aria-sort="@(active ? (_sortAsc ? "ascending" : "descending") : "none")">
+            <button type="button" class="sort-button" data-testid="@($"month-tx-sort-{key}")" @onclick="() => Sort(key)">
                 @label@(active ? (_sortAsc ? " ▲" : " ▼") : "")
             </button>
         </th>
     };
 
-    private string ClassLabel(string type) => type switch
-    {
-        "budgeted" => Localizer["Tx_Budgeted"],
-        "extraordinary" => Localizer["Tx_Extraordinary"],
-        "unplanned_essential" => Localizer["Tx_Unplanned"],
-        "inflow" => Localizer["Tx_Inflow"],
-        "envelope_contribution" => Localizer["Tx_EnvelopeContribution"],
-        _ => type,
-    };
+    private string ClassLabel(string type) => TransactionClasses.LabelKey(type) is { } key ? Localizer[key] : type;
+
+    private string RefundStatusText(RefundDto r) => r.Status == "received"
+        ? (r.ReceivedDate is { } d ? Localizer["Refund_ReceivedOn", d.ToString("d", CultureInfo.CurrentCulture)] : Localizer["Refund_Received"])
+        : Localizer["Refund_Pending"];
+
+    /// <summary>"Groceries · Casa VISA" — what the hidden columns said, for the payee cell below md.</summary>
+    private static string SubLine(TxDto t) =>
+        string.Join(" · ", new[] { t.CategoryName, t.BankName, t.CardName }.Where(v => !string.IsNullOrEmpty(v)));
+
+    /// <summary>"Sep 9" in English, "9 sept" in Spanish — the culture's month-day pattern with the month abbreviated.</summary>
+    private static string ShortDay() =>
+        CultureInfo.CurrentCulture.DateTimeFormat.MonthDayPattern.Replace("MMMM", "MMM").Replace("dd", "d").Replace(" 'de' ", " ");
 
     private static string MonthLabel(int year, int month) =>
         $"{CultureInfo.CurrentCulture.TextInfo.ToTitleCase(CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(month))} {year}";

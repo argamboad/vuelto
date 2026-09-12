@@ -21,7 +21,7 @@
             <div class="pace-marker" data-testid="@Id("marker")" style="left: @Percent(Math.Clamp(m, 0m, 1m))"></div>
         }
     </div>
-    @if (Segments.Count > 0)
+    @if (ShowLegend && Segments.Count > 0)
     {
         <ul class="pace-legend" data-testid="@Id("legend")">
             @foreach (var s in Segments.Where(s => s.Value > 0))
@@ -42,6 +42,9 @@
 
     /// <summary>Where "today" sits, 0..1 of the total. Null hides the marker.</summary>
     [Parameter] public decimal? Marker { get; set; }
+
+    /// <summary>Off when the same figures already sit beside the bar as text (a month card) — the legend would say it twice.</summary>
+    [Parameter] public bool ShowLegend { get; set; } = true;
 
     [Parameter] public string TestId { get; set; } = "pace";
 
