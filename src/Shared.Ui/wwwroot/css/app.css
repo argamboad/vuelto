@@ -183,15 +183,26 @@ a, .btn-link {
    every button still carried Bootstrap's proportions and read as foreign beside the redesigned fields.
    Applies to the whole app at once, which is the point of a shared treatment. */
 .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 38px; /* a button beside an input is the input's height, never shorter */
     font-size: 13px;
     font-weight: var(--w-control);
     padding: 7px 15px;
 }
 
-.btn-sm {
+.btn-sm,
+.btn-group-sm > .btn {
+    min-height: 31px; /* the small input's height */
     font-size: 12px;
     padding: 5px 11px;
 }
+
+.btn-lg { min-height: 48px; }
+
+/* A link styled as a button is text; it keeps the line, not a control's height. */
+.btn-link { min-height: 0; display: inline; }
 
 .btn-primary {
     color: #fff;
@@ -350,4 +361,144 @@ code {
 
 .form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
     text-align: start;
+}
+
+/* ================================================================ SKIN-11 · the fourteen screens the handout never
+   drew inherit the composition here — the card shell, the table treatment, the label, the pill, the invalid
+   state — so a platform-seeded page reads as the same product as the redesigned ones. The redesigned pages
+   carry scoped CSS of their own and are untouched by these. */
+
+/* Card shell: one hairline on the app's surface, no shadow, the shared rhythm inside. */
+.card {
+    border: 1px solid var(--app-border);
+    background: var(--card-bg);
+}
+
+.card.shadow-sm { box-shadow: none !important; }
+
+.card-body { padding: var(--card-pad-y) var(--card-pad-x); }
+
+/* A card's section heading is the eyebrow every redesigned card uses ("THIS MONTH", "PACE"). */
+.card-body h2.h6,
+.card-body h3.h6 {
+    font-size: 11px;
+    font-weight: var(--w-display);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+}
+
+.form-label {
+    margin-bottom: 3px;
+    font-size: 11px;
+    font-weight: var(--w-control);
+    color: var(--ink-3);
+}
+
+/* Tables: the ledger's treatment — zebra head, hairline rules, hover, tabular figures. */
+.table {
+    --bs-table-bg: transparent;
+    --bs-table-color: var(--ink);
+    --bs-table-border-color: var(--hair);
+    --bs-table-hover-bg: var(--zebra);
+    --bs-table-hover-color: var(--ink);
+    font-size: 12px;
+    font-weight: var(--w-body);
+}
+
+.table thead th {
+    background: var(--zebra);
+    border-bottom: 1px solid var(--hair);
+    font-size: 10px;
+    font-weight: var(--w-display);
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    white-space: nowrap;
+}
+
+.table tbody td,
+.table tbody th {
+    border-bottom: 1px solid var(--hair);
+    vertical-align: middle;
+    font-variant-numeric: tabular-nums;
+}
+
+/* List rows inside a card sit on the card, not on a lighter band; the rule between them is the hairline. */
+.card .list-group-item {
+    background: transparent;
+    color: inherit;
+    border-color: var(--hair);
+}
+
+.card .list-group-item-action:hover,
+.card .list-group-item-action:focus { background: var(--zebra); }
+
+.card .list-group-item.active {
+    background: var(--bs-primary-bg-subtle);
+    color: var(--bs-primary-text-emphasis);
+    border-color: var(--hair);
+}
+
+/* Checks and switches: sized to sit with 12–13px text and 31px controls rather than Bootstrap's 16px default. */
+.form-check-input {
+    width: 18px;
+    height: 18px;
+    margin-top: 0;
+    vertical-align: middle;
+    border-color: var(--app-border);
+    border-radius: 4px;
+    background-color: var(--card-bg);
+}
+
+.form-switch .form-check-input {
+    width: 34px;
+    border-radius: 18px;
+}
+
+.form-check-input:checked {
+    background-color: var(--bs-primary);
+    border-color: var(--bs-primary);
+}
+
+/* A raw Bootstrap badge that still exists anywhere takes the pill's proportions. */
+.badge {
+    padding: 2px 9px;
+    border-radius: var(--bs-border-radius-pill);
+    font-size: 10px;
+    font-weight: var(--w-control);
+    line-height: 1.6;
+}
+
+/* The invalid state is a red border plus a message — not Bootstrap's icon. */
+.form-control.is-invalid,
+.form-select.is-invalid {
+    border-color: var(--bad);
+    background-image: none;
+    padding-right: .75rem;
+}
+
+.form-control.is-invalid:focus,
+.form-select.is-invalid:focus {
+    border-color: var(--bad);
+    box-shadow: 0 0 0 .2rem color-mix(in srgb, var(--bad) 25%, transparent);
+}
+
+.invalid-feedback {
+    font-size: 11px;
+    font-weight: var(--w-body);
+    color: var(--bad);
+}
+
+/* Below md a table folds its secondary columns (.fold-md) into a sub-line under the name (.sub-line). */
+.sub-line {
+    display: none;
+    font-size: 11px;
+    font-weight: var(--w-body);
+    color: var(--ink-3);
+}
+
+@media (max-width: 767.98px) {
+    .fold-md { display: none; }
+    .sub-line { display: block; }
 }

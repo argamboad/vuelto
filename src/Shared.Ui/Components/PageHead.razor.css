@@ -1,0 +1,30 @@
+.page-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 13px;
+    margin-bottom: 15px;
+}
+
+.page-head h1 {
+    margin: 0;
+    font-size: 26px;
+    font-weight: var(--w-display);
+    color: var(--ink);
+}
+
+.page-subtitle {
+    margin: 2px 0 0;
+    max-width: 60em;
+    font-size: 12px;
+    font-weight: var(--w-body);
+    color: var(--ink-3);
+}
+
+.page-head-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}

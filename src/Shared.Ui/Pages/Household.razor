@@ -11,11 +11,9 @@
 <PageTitle>@Localizer["Nav_Household"]</PageTitle>
 
 <div class="household-wrapper">
-    <div class="d-flex align-items-center justify-content-between mb-1">
-        <h1 class="h4 fw-bold mb-0">@Localizer["Nav_Household"]</h1>
+    <PageHead Title="@Localizer["Nav_Household"]" Subtitle="@Localizer["Household_Subtitle"]">
         <a class="btn btn-outline-secondary btn-sm" href="/join">@Localizer["Household_HaveInvite"]</a>
-    </div>
-    <p class="text-muted mb-4">@Localizer["Household_Subtitle"]</p>
+    </PageHead>
 
     @if (!string.IsNullOrEmpty(_status))
     {
@@ -68,15 +66,15 @@
                             <div class="d-flex align-items-center gap-2">
                                 @if (m.Role == "owner")
                                 {
-                                    <span class="badge bg-primary-subtle text-primary-emphasis" data-testid="member-role" data-role="owner">@Localizer["Household_RoleOwner"]</span>
+                                    <StatusChip Tone="plan" TestId="member-role" data-role="owner">@Localizer["Household_RoleOwner"]</StatusChip>
                                 }
                                 else if (m.Role == "admin")
                                 {
-                                    <span class="badge bg-info-subtle text-info-emphasis" data-testid="member-role" data-role="admin">@Localizer["Household_RoleAdmin"]</span>
+                                    <StatusChip Tone="info" TestId="member-role" data-role="admin">@Localizer["Household_RoleAdmin"]</StatusChip>
                                 }
                                 else
                                 {
-                                    <span class="badge bg-secondary-subtle text-secondary-emphasis" data-testid="member-role" data-role="member">@Localizer["Household_RoleMember"]</span>
+                                    <StatusChip TestId="member-role" data-role="member">@Localizer["Household_RoleMember"]</StatusChip>
                                 }
                                 @* Actions target everyone but the owner, and never self. Roles are owner-only
                                    (ManageRoles); remove is owner+admin (ManageMembers). *@
@@ -190,33 +188,50 @@
         @* ── Membership lifecycle ── *@
         <div class="card shadow-sm">
             <div class="card-body">
+                @* SKIN-11, decision 5: each of the three lifecycle actions states what it will do ABOVE the control
+                   that does it. The browser confirm behind each stays as the last gate. *@
                 @if (IsOwner && OtherMembers.Count > 0)
                 {
                     <h2 class="h6 fw-bold mb-3">@Localizer["Household_TransferOwnership"]</h2>
-                    <div class="d-flex gap-2 flex-wrap">
-                        <select class="form-select" style="max-width:320px" data-testid="transfer-select" @bind="_transferTargetId">
-                            <option value="">@Localizer["Household_ChooseMember"]</option>
-                            @foreach (var m in OtherMembers)
-                            {
-                                <option value="@m.UserId">@(string.IsNullOrWhiteSpace(m.DisplayName) ? m.Email : m.DisplayName)</option>
-                            }
-                        </select>
-                        <button class="btn btn-outline-primary" disabled="@(_busy || string.IsNullOrEmpty(_transferTargetId))"
-                                data-testid="transfer-submit" @onclick="TransferOwnership">@Localizer["Household_Transfer"]</button>
-                    </div>
-                    <p class="small text-muted mt-2 mb-0">@Localizer["Household_MustTransfer"]</p>
+                    <ConsequencePanel TestId="consequence-transfer" Eyebrow="@Localizer["Consequence_Eyebrow"]">
+                        <ChildContent>
+                            <p class="mb-1">@Localizer["Household_TransferConsequence"]</p>
+                            <p class="mb-0">@Localizer["Household_MustTransfer"]</p>
+                        </ChildContent>
+                        <Actions>
+                            <div class="d-flex gap-2 flex-wrap">
+                                <select class="form-select" style="max-width:320px" data-testid="transfer-select" @bind="_transferTargetId">
+                                    <option value="">@Localizer["Household_ChooseMember"]</option>
+                                    @foreach (var m in OtherMembers)
+                                    {
+                                        <option value="@m.UserId">@(string.IsNullOrWhiteSpace(m.DisplayName) ? m.Email : m.DisplayName)</option>
+                                    }
+                                </select>
+                                <button class="btn btn-outline-primary" disabled="@(_busy || string.IsNullOrEmpty(_transferTargetId))"
+                                        data-testid="transfer-submit" @onclick="TransferOwnership">@Localizer["Household_Transfer"]</button>
+                            </div>
+                        </Actions>
+                    </ConsequencePanel>
                 }
                 else if (IsOwner)
                 {
-                    <h2 class="h6 fw-bold mb-2 text-danger">@Localizer["Household_LeaveDissolve"]</h2>
-                    <p class="small text-muted">@Localizer["Household_DissolveWarning"]</p>
-                    <button class="btn btn-danger" disabled="@_busy" data-testid="leave-dissolve" @onclick="DissolveAndLeave">@Localizer["Household_LeaveAndDelete"]</button>
+                    <h2 class="h6 fw-bold mb-3 text-danger">@Localizer["Household_LeaveDissolve"]</h2>
+                    <ConsequencePanel TestId="consequence-dissolve" Eyebrow="@Localizer["Consequence_Eyebrow"]">
+                        <ChildContent>@Localizer["Household_DissolveWarning"]</ChildContent>
+                        <Actions>
+                            <div><button class="btn btn-danger" disabled="@_busy" data-testid="leave-dissolve" @onclick="DissolveAndLeave">@Localizer["Household_LeaveAndDelete"]</button></div>
+                        </Actions>
+                    </ConsequencePanel>
                 }
                 else
                 {
-                    <h2 class="h6 fw-bold mb-2">@Localizer["Household_LeaveTitle"]</h2>
-                    <p class="small text-muted">@Localizer["Household_LeaveAsMemberNote"]</p>
-                    <button class="btn btn-outline-danger" disabled="@_busy" data-testid="leave-household" @onclick="LeaveAsMember">@Localizer["Household_Leave"]</button>
+                    <h2 class="h6 fw-bold mb-3">@Localizer["Household_LeaveTitle"]</h2>
+                    <ConsequencePanel TestId="consequence-leave" Eyebrow="@Localizer["Consequence_Eyebrow"]">
+                        <ChildContent>@Localizer["Household_LeaveAsMemberNote"]</ChildContent>
+                        <Actions>
+                            <div><button class="btn btn-outline-danger" disabled="@_busy" data-testid="leave-household" @onclick="LeaveAsMember">@Localizer["Household_Leave"]</button></div>
+                        </Actions>
+                    </ConsequencePanel>
                 }
             </div>
         </div>

@@ -812,4 +812,11 @@
   <data name="Reports_ByCategory" xml:space="preserve"><value>Por categoría</value></data>
   <data name="Reports_ColSpentVsBudget" xml:space="preserve"><value>Gastado vs presupuesto</value></data>
   <data name="Reports_Detail" xml:space="preserve"><value>Detalle</value></data>
+  <data name="Consequence_Eyebrow" xml:space="preserve"><value>Esto hará</value></data>
+  <data name="Household_TransferConsequence" xml:space="preserve"><value>Transferir la convierte en propietaria. Usted queda como administrador: puede seguir invitando y quitando miembros, pero solo la persona propietaria puede renombrar, transferir de nuevo, o salir y disolver.</value></data>
+  <data name="Admin_CompConsequence" xml:space="preserve"><value>Otorgar Pro pone a este hogar en Pro sin cobro: derechos de Pro de inmediato, sin pago, sin fecha de fin. Queda auditado en el hogar.</value></data>
+  <data name="Admin_RevertConsequence" xml:space="preserve"><value>Revertir baja este hogar a Free de inmediato: los derechos vuelven a Free y no se reembolsa nada porque nada se pagó. Queda auditado en el hogar.</value></data>
+  <data name="Envelopes_Target" xml:space="preserve"><value>Meta anual</value></data>
+  <data name="Cards_Identity_Col" xml:space="preserve"><value>Tarjeta</value></data>
+  <data name="Admin_SelectMember" xml:space="preserve"><value>Dirigir a {0}</value></data>
 </root>

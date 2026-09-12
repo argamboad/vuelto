@@ -8,13 +8,9 @@
 @* One soft-delete name catalog (categories or banks — CATALOG-1/2, ADR-V008): list, create, edit,
    deactivate/reactivate, and the inactive-name-clash reactivation offer. *@
 <div class="catalog-page" data-testid="catalog-page">
-    <div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
-        <div>
-            <h1 class="h4 fw-bold mb-1">@Localizer[TitleKey]</h1>
-            <p class="text-muted mb-0">@Localizer[SubtitleKey]</p>
-        </div>
+    <PageHead Title="@Localizer[TitleKey]" Subtitle="@Localizer[SubtitleKey]">
         <button class="btn btn-primary" data-testid="catalog-new" disabled="@(_form is not null)" @onclick="OpenNew">@Localizer[NewKey]</button>
-    </div>
+    </PageHead>
 
     @if (_notice is not null)
     {
@@ -93,11 +89,7 @@
                         {
                             <tr data-testid="catalog-row" class="@(item.IsActive ? null : "text-muted")">
                                 <td data-testid="catalog-row-name">@item.Name</td>
-                                <td>
-                                    <span class="badge @(item.IsActive ? "bg-success-subtle text-success-emphasis" : "bg-secondary-subtle text-secondary-emphasis")">
-                                        @(item.IsActive ? Localizer["Catalog_Active"] : Localizer["Catalog_Inactive"])
-                                    </span>
-                                </td>
+                                <td><StatusChip Tone="@(item.IsActive ? "good" : "neutral")" TestId="catalog-row-status">@(item.IsActive ? Localizer["Catalog_Active"] : Localizer["Catalog_Inactive"])</StatusChip></td>
                                 <td class="text-end">
                                     <button class="btn btn-outline-primary btn-sm" data-testid="catalog-edit" disabled="@(_form is not null)" @onclick="() => OpenEdit(item)">@Localizer["Catalog_Edit"]</button>
                                 </td>

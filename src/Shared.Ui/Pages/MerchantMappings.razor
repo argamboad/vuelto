@@ -13,8 +13,7 @@
 @* EMAIL-5: the household's merchant → category rules. A rule only ever SUGGESTS on a staged voucher (the review
    queue prefills it); matching is case-insensitive "contains" and the longest matching rule wins. *@
 <div class="mapping-wrapper" data-testid="mapping-page">
-    <h1 class="h4 fw-bold mb-1">@Localizer["Mapping_Title"]</h1>
-    <p class="text-muted mb-3">@Localizer["Mapping_Subtitle"]</p>
+    <PageHead Title="@Localizer["Mapping_Title"]" Subtitle="@Localizer["Mapping_Subtitle"]" />
 
     @if (_notice is not null)
     {
@@ -67,16 +66,19 @@
     }
     else
     {
-        <div class="table-responsive">
-            <table class="table table-sm align-middle">
-                <thead><tr><th>@Localizer["Mapping_Pattern"]</th><th>@Localizer["Tx_Category"]</th><th>@Localizer["Mapping_Class"]</th><th></th></tr></thead>
+        <div class="card">
+            <table class="table align-middle mb-0">
+                <thead><tr><th>@Localizer["Mapping_Pattern"]</th><th class="fold-md">@Localizer["Tx_Category"]</th><th class="fold-md">@Localizer["Mapping_Class"]</th><th></th></tr></thead>
                 <tbody>
                     @foreach (var r in _rules)
                     {
                         <tr data-testid="mapping-row">
-                            <td class="fw-semibold">@r.MerchantPattern</td>
-                            <td>@(r.CategoryName ?? "—")</td>
-                            <td>@ClassLabel(r.SuggestedClass)</td>
+                            <td>
+                                <span class="fw-semibold">@r.MerchantPattern</span>
+                                <span class="sub-line" data-testid="mapping-row-sub">@(r.CategoryName ?? "—") · @ClassLabel(r.SuggestedClass)</span>
+                            </td>
+                            <td class="fold-md">@(r.CategoryName ?? "—")</td>
+                            <td class="fold-md" data-testid="mapping-row-class"><ClassChip Class="@r.SuggestedClass" TestId="mapping-row-chip" /></td>
                             <td class="text-end text-nowrap">
                                 <button class="btn btn-sm btn-outline-primary" data-testid="mapping-edit" @onclick="() => Edit(r)">@Localizer["Mapping_Edit"]</button>
                                 @if (_confirmDelete == r.Id)

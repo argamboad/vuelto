@@ -499,11 +499,15 @@ leave/dissolve button. The single-owner invariant is enforced in the UI.
 **Gherkin**
 ```gherkin
 Given I am the only member and owner of my household
+Then the bottom card states, above the button and before any dialog, that leaving permanently deletes this household and its data
 When I click "Leave and delete" and confirm
 Then the household is dissolved and I am re-homed to a fresh solo household
 ```
 **Walkthrough**
-1. As sole owner (no other members), bottom card ("Leave & dissolve") → **Leave and delete**.
+1. As sole owner (no other members), bottom card ("Leave & dissolve") → **Expected (SKIN-11):** a
+   "This will" panel with the consequence in words sits above **Leave and delete** — the same card shows
+   "This will" above **Transfer** for an owner with members, and above **Leave** for a plain member.
+   Click **Leave and delete**.
 2. **Expected:** a confirm dialog warning the household will be deleted; on confirm, the app reloads
    and you land signed in with a **new empty household you own** (you're never left tenant-less).
 
@@ -786,11 +790,13 @@ owner's household (so no dissolve).
 **Gherkin**
 ```gherkin
 Given I am signed in on /settings
+Then the Danger zone states, above the button and before any dialog, that deleting permanently removes my account and personal data
 When I use the Danger zone "Delete my account" and confirm
 Then my account and personal data are deleted and I'm signed out
 ```
 **Walkthrough**
-1. **Settings** → **Danger zone** → **Delete my account** → confirm the dialog.
+1. **Settings** → **Danger zone** → **Expected (SKIN-11):** a "This will" panel stating the consequence
+   above **Delete my account**. Click it → confirm the dialog.
 2. **Expected (member):** account deleted; you're signed out and land on `/login`. Signing in again
    creates a brand-new account.
 3. **Owner with other members:** an error tells you to **transfer ownership first** (nothing deleted).
@@ -1106,13 +1112,15 @@ And every user of every tenant receives it once the outbox delivers
 **Gherkin**
 ```gherkin
 Given I am staff on a tenant's detail in /admin
+Then the Subscription section states, above the button and before any dialog, what comping (or reverting) will do
 When I use "Upgrade to Pro (comp)" (and later "Revert to Free")
 Then the tenant's entitlements match the plan immediately, with no payment involved
 And a provider-managed (Stripe-backed) subscription refuses the override
 ```
 **Walkthrough**
-1. As staff, open a **Free** tenant's detail. The header shows a **plan badge** (`free`) next to the
-   status badge; the **Subscription** section shows **Upgrade to Pro (comp)**.
+1. As staff, open a **Free** tenant's detail. The header shows a **plan chip** (`free`) next to the
+   status chip; the **Subscription** section shows a "This will" panel stating what comping does, with
+   **Upgrade to Pro (comp)** beneath it (on Pro, the panel says what reverting does instead — SKIN-11).
 2. Comp it → confirm. **Expected:** "Subscription updated."; badge flips to `pro` / `active`; the
    button is replaced by **Revert to Free**. The comp **never lapses** (no period end) and is audited
    in-tenant (`admin.subscription.comped`).
@@ -3849,6 +3857,17 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   TTL guard; interrupted links land on Settings' banner). New **QA-AND-15** (on-device kill test;
   renumbered from the branch's QA-AND-14 — that slot went to THEME-1's restart test in the interim).
   Suite 149 → **150** cases.
+- **Updated 2026-09-12** — **The fourteen screens the handout never drew, conformed (SKIN-11, UI
+  redesign).** Household, Settings, Billing, Admin console, Email settings, Cards, Envelopes, Merchant
+  mappings, Banks and Categories (through the shared catalog component), Join, Home and the two auth
+  pages take the redesigned screens' composition: one page head, the hairline card shell with the
+  eyebrow section heading, the ledger's table treatment, status chips instead of Bootstrap badges, the
+  red-border invalid state, and tables that fold their secondary columns under the name on phone
+  (Cards, Envelopes, Merchant mappings, the admin roster). Envelopes' two target columns stack as one.
+  Decision 5 lands on the destructive actions: "This will" consequence panels above transfer, leave and
+  dissolve on Household, delete account on Settings, and comp/revert on Admin — the browser confirm
+  behind each stays as the last gate (the CI journeys accept it). QA-HH-07, QA-SET-07 and QA-ADMIN-06
+  gain a *Then* for the stated consequence. **Case count unchanged at 191.**
 - **Updated 2026-09-12** — **Reports: four tiles, the pace chart promoted, one category table (SKIN-10,
   UI redesign).** The page opens on Total spend / Budgeted / Discretionary / Unplanned tiles (share of
   income or of spend; the month's refundable amount on Unplanned) and the pace chart full width, then a

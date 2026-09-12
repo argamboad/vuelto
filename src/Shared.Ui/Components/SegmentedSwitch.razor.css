@@ -40,7 +40,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-height: 30px;
+    min-height: 27px; /* 27 in a 2px track = 31, the small control height */
     padding: 0 11px;
     border-radius: calc(var(--bs-border-radius) - 2px);
     font-size: 12px;

@@ -13,7 +13,7 @@
     }
     else if (_rate is null)
     {
-        <span class="badge text-bg-danger" data-testid="fx-unavailable">@Localizer["Fx_Unavailable"]</span>
+        <StatusChip Tone="bad" TestId="fx-unavailable">@Localizer["Fx_Unavailable"]</StatusChip>
     }
     else
     {
@@ -21,13 +21,13 @@
         @switch (_rate.Source)
         {
             case "live":
-                <span class="badge text-bg-success" data-testid="fx-live">@Localizer["Fx_Live"]</span>
+                <StatusChip Tone="good" TestId="fx-live">@Localizer["Fx_Live"]</StatusChip>
                 break;
             case "cache":
-                <span class="badge text-bg-warning text-dark" data-testid="fx-stale">@Localizer["Fx_AsOf", When(_rate.AsOf)]</span>
+                <StatusChip Tone="warn" TestId="fx-stale">@Localizer["Fx_AsOf", When(_rate.AsOf)]</StatusChip>
                 break;
             default:
-                <span class="badge text-bg-warning text-dark" data-testid="fx-transaction">@Localizer["Fx_FromTransaction", When(_rate.AsOf)]</span>
+                <StatusChip Tone="warn" TestId="fx-transaction">@Localizer["Fx_FromTransaction", When(_rate.AsOf)]</StatusChip>
                 break;
         }
     }

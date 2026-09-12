@@ -12,13 +12,9 @@
 
 @* CARDS-1 (ADR-V021): the household's payment cards — the alias is yours, brand + last four are what the bank prints. *@
 <div class="settings-wrapper" data-testid="cards-page">
-    <div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
-        <div>
-            <h1 class="h4 fw-bold mb-1">@Localizer["Cards_Title"]</h1>
-            <p class="text-muted mb-0">@Localizer["Cards_Subtitle"]</p>
-        </div>
+    <PageHead Title="@Localizer["Cards_Title"]" Subtitle="@Localizer["Cards_Subtitle"]">
         <button class="btn btn-primary" data-testid="cards-new" disabled="@(_form is not null)" @onclick="OpenNew">@Localizer["Cards_New"]</button>
-    </div>
+    </PageHead>
 
     @if (_notice is not null) { <div class="alert alert-success py-2" data-testid="cards-notice">@_notice</div> }
     @if (_error is not null) { <div class="alert alert-danger py-2" data-testid="cards-error">@_error</div> }
@@ -148,9 +144,9 @@
                     <thead>
                         <tr>
                             <th scope="col">@Localizer["Cards_Alias"]</th>
-                            <th scope="col">@Localizer["Tx_Card"]</th>
-                            <th scope="col">@Localizer["Cards_Kind"]</th>
-                            <th scope="col">@Localizer["Tx_Bank"]</th>
+                            <th scope="col" class="fold-md">@Localizer["Tx_Card"]</th>
+                            <th scope="col" class="fold-md">@Localizer["Cards_Kind"]</th>
+                            <th scope="col" class="fold-md">@Localizer["Tx_Bank"]</th>
                             <th scope="col">@Localizer["Catalog_Status"]</th>
                             <th scope="col" class="text-end"></th>
                         </tr>
@@ -160,17 +156,14 @@
                         {
                             <tr data-testid="cards-row" class="@(item.IsActive ? null : "text-muted")">
                                 <td data-testid="cards-row-name">
-                                    @item.Name
-                                    @if (item.AutoNamed) { <span class="badge bg-warning-subtle text-warning-emphasis ms-2" data-testid="cards-auto" title="@Localizer["Cards_AutoNamedHint"]">@Localizer["Cards_AutoNamed"]</span> }
+                                    <span class="fw-semibold">@item.Name</span>
+                                    @if (item.AutoNamed) { <StatusChip Tone="warn" TestId="cards-auto" class="ms-2" title="@Localizer["Cards_AutoNamedHint"]">@Localizer["Cards_AutoNamed"]</StatusChip> }
+                                    <span class="sub-line" data-testid="cards-row-sub">@IdentityText(item) · @KindLabel(item.Kind) · @BankName(item)</span>
                                 </td>
-                                <td class="text-nowrap" data-testid="cards-row-identity">@IdentityText(item)</td>
-                                <td data-testid="cards-row-kind">@KindLabel(item.Kind)</td>
-                                <td>@(item.BankId is { } bankId ? _banks.FirstOrDefault(b => b.Id == bankId)?.Name : "—")</td>
-                                <td>
-                                    <span class="badge @(item.IsActive ? "bg-success-subtle text-success-emphasis" : "bg-secondary-subtle text-secondary-emphasis")">
-                                        @(item.IsActive ? Localizer["Catalog_Active"] : Localizer["Catalog_Inactive"])
-                                    </span>
-                                </td>
+                                <td class="text-nowrap fold-md" data-testid="cards-row-identity">@IdentityText(item)</td>
+                                <td class="fold-md" data-testid="cards-row-kind">@KindLabel(item.Kind)</td>
+                                <td class="fold-md">@BankName(item)</td>
+                                <td><StatusChip Tone="@(item.IsActive ? "good" : "neutral")" TestId="cards-row-status">@(item.IsActive ? Localizer["Catalog_Active"] : Localizer["Catalog_Inactive"])</StatusChip></td>
                                 <td class="text-end text-nowrap">
                                     @if (_items.Count > 1)
                                     {
@@ -216,6 +209,8 @@
     }
 
     private static string CardText(string brand, string last4) => $"{brand} ····{last4}";
+
+    private string BankName(CardDto item) => item.BankId is { } bankId ? _banks.FirstOrDefault(b => b.Id == bankId)?.Name ?? "—" : "—";
 
     private string KindLabel(string? kind) => kind == "debit" ? Localizer["Cards_KindDebit"] : Localizer["Cards_KindCredit"];
 

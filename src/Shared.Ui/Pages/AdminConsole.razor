@@ -11,8 +11,7 @@
 <PageTitle>@Localizer["Admin_Title"]</PageTitle>
 
 <div class="admin-wrapper">
-    <h1 class="h4 fw-bold mb-1">@Localizer["Admin_Title"]</h1>
-    <p class="text-muted mb-4">@Localizer["Admin_Subtitle"]</p>
+    <PageHead Title="@Localizer["Admin_Title"]" Subtitle="@Localizer["Admin_Subtitle"]" />
 
     @if (_state == State.Loading)
     {
@@ -54,7 +53,7 @@
                                   placeholder="@Localizer["Admin_AnnounceBodyPlaceholder"]" @bind="_broadcastBody"></textarea>
                     </div>
                     <div class="col-12 col-md-2 d-grid">
-                        <button class="btn btn-outline-danger btn-sm" data-testid="admin-broadcast-send"
+                        <button class="btn btn-outline-danger" data-testid="admin-broadcast-send"
                                 disabled="@(_busy || string.IsNullOrWhiteSpace(_broadcastTitle) || string.IsNullOrWhiteSpace(_broadcastBody))"
                                 @onclick="SendBroadcast">@Localizer["Admin_BroadcastSend"]</button>
                     </div>
@@ -75,7 +74,7 @@
                             <button class="list-group-item list-group-item-action d-flex justify-content-between align-items-center @(t.Id == _selectedId ? "active" : "")"
                                     data-testid="admin-tenant-row" @onclick="() => SelectTenant(t.Id)">
                                 <span class="text-truncate">@t.Name</span>
-                                <span class="badge bg-secondary-subtle text-secondary-emphasis ms-2">@t.MemberCount</span>
+                                <StatusChip class="ms-2">@t.MemberCount</StatusChip>
                             </button>
                         }
                         @if (_tenants.Count == 0)
@@ -103,9 +102,9 @@
                                     <h2 class="h6 fw-bold mb-1">@_detail.Name</h2>
                                     <div class="text-muted small">@_detail.Id</div>
                                 </div>
-                                <span>
-                                    <span class="badge bg-primary-subtle text-primary-emphasis" data-testid="admin-plan">@_detail.PlanKey</span>
-                                    <span class="badge bg-info-subtle text-info-emphasis">@_detail.SubscriptionStatus</span>
+                                <span class="d-flex gap-1">
+                                    <StatusChip Tone="plan" TestId="admin-plan">@_detail.PlanKey</StatusChip>
+                                    <StatusChip Tone="info">@_detail.SubscriptionStatus</StatusChip>
                                 </span>
                             </div>
 
@@ -128,17 +127,28 @@
                             }
                             else
                             {
-                                <div class="d-flex gap-2 mb-3">
-                                    @if (_detail.PlanKey != "pro")
-                                    {
-                                        <button class="btn btn-outline-primary btn-sm" data-testid="admin-comp-pro"
-                                                disabled="@_busy" @onclick="CompPro">@Localizer["Admin_CompPro"]</button>
-                                    }
-                                    @if (_detail.PlanKey != "free")
-                                    {
-                                        <button class="btn btn-outline-danger btn-sm" data-testid="admin-revert-free"
-                                                disabled="@_busy" @onclick="RevertFree">@Localizer["Admin_RevertFree"]</button>
-                                    }
+                                @* SKIN-11, decision 5: a plan change says what it does before the button. *@
+                                <div class="mb-3">
+                                    <ConsequencePanel TestId="consequence-plan" Eyebrow="@Localizer["Consequence_Eyebrow"]">
+                                        <ChildContent>
+                                            @if (_detail.PlanKey != "pro") { <p class="mb-1">@Localizer["Admin_CompConsequence"]</p> }
+                                            @if (_detail.PlanKey != "free") { <p class="mb-0">@Localizer["Admin_RevertConsequence"]</p> }
+                                        </ChildContent>
+                                        <Actions>
+                                            <div class="d-flex gap-2">
+                                                @if (_detail.PlanKey != "pro")
+                                                {
+                                                    <button class="btn btn-outline-primary btn-sm" data-testid="admin-comp-pro"
+                                                            disabled="@_busy" @onclick="CompPro">@Localizer["Admin_CompPro"]</button>
+                                                }
+                                                @if (_detail.PlanKey != "free")
+                                                {
+                                                    <button class="btn btn-outline-danger btn-sm" data-testid="admin-revert-free"
+                                                            disabled="@_busy" @onclick="RevertFree">@Localizer["Admin_RevertFree"]</button>
+                                                }
+                                            </div>
+                                        </Actions>
+                                    </ConsequencePanel>
                                 </div>
                             }
 
@@ -153,7 +163,7 @@
                                         <tr class="small text-muted">
                                             <th style="width:1.75rem"></th>
                                             <th>@Localizer["Admin_ColMember"]</th>
-                                            <th>@Localizer["Admin_ColRole"]</th>
+                                            <th class="fold-md">@Localizer["Admin_ColRole"]</th>
                                             <th class="text-end"></th>
                                         </tr>
                                     </thead>
@@ -164,6 +174,7 @@
                                                 <td>
                                                     @* Target this member in the announcement below (none checked = all members). *@
                                                     <input type="checkbox" class="form-check-input" data-testid="admin-member-check"
+                                                           aria-label="@Localizer["Admin_SelectMember", string.IsNullOrEmpty(m.DisplayName) ? m.Email : m.DisplayName]"
                                                            checked="@_selectedMembers.Contains(m.UserId)"
                                                            @onchange="e => ToggleMember(m.UserId, (bool)e.Value!)" />
                                                 </td>
@@ -173,8 +184,9 @@
                                                     {
                                                         <div class="text-muted" style="font-size:.75rem">@m.Email</div>
                                                     }
+                                                    <span class="sub-line" data-testid="admin-member-sub">@m.Role</span>
                                                 </td>
-                                                <td><span class="badge bg-light text-dark border">@m.Role</span></td>
+                                                <td class="fold-md"><StatusChip>@m.Role</StatusChip></td>
                                                 <td class="text-end text-nowrap">
                                                     <button class="btn btn-outline-warning btn-sm" disabled="@_busy"
                                                             @onclick="() => Impersonate(m)">
@@ -207,7 +219,7 @@
                                 <textarea class="form-control" rows="3" maxlength="2000" data-testid="admin-announce-body"
                                           placeholder="@Localizer["Admin_AnnounceBodyPlaceholder"]" @bind="_announceBody"></textarea>
                             </div>
-                            <button class="btn btn-outline-primary btn-sm" data-testid="admin-announce-send"
+                            <button class="btn btn-outline-primary" data-testid="admin-announce-send"
                                     disabled="@(_busy || string.IsNullOrWhiteSpace(_announceTitle) || string.IsNullOrWhiteSpace(_announceBody))"
                                     @onclick="SendAnnouncement">
                                 @(_selectedMembers.Count > 0
