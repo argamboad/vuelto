@@ -171,6 +171,16 @@ a, .btn-link {
     border-color: var(--brand-dark);
 }
 
+/* The same family as the checkbox/switch overrides below: bootstrap.min.css compiles the DISABLED button
+   with a literal #0d6efd, and `.btn-primary:disabled` (0,2,0) outranks the `.btn-primary` rule above
+   (0,1,0) — so every disabled primary button in the app was Bootstrap blue, not the brand indigo. In dark
+   theme that reads BRIGHTER than the enabled button beside it, which inverts the whole point of the state.
+   Opacity .65 is Bootstrap's own and is left alone: that is what says "disabled", not the hue. */
+.btn-primary:disabled, .btn-primary.disabled {
+    background-color: var(--bs-primary);
+    border-color: var(--brand-dark);
+}
+
 /* Not a specificity problem: bootstrap.min.css compiles these with a literal #0d6efd rather than
    var(--bs-primary), so no token override can reach them and every ticked box and switch in the app
    stays Bootstrap blue. Easy to miss here of all places — this brand's indigo is close enough to
