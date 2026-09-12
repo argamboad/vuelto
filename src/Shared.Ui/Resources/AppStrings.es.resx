@@ -517,6 +517,20 @@
   <data name="Budget_LoadError" xml:space="preserve"><value>No se pudieron cargar las líneas de presupuesto. Recarga para intentar de nuevo.</value></data>
   <data name="Budget_ReorderError" xml:space="preserve"><value>No se pudieron reordenar las líneas. La lista se recargó.</value></data>
   <data name="Nav_Dashboard" xml:space="preserve"><value>Tablero</value></data>
+  <data name="Dash_Verdict_OnTrack" xml:space="preserve"><value>Al día</value></data>
+  <data name="Dash_Verdict_AtRisk" xml:space="preserve"><value>Ojo</value></data>
+  <data name="Dash_Verdict_Over" xml:space="preserve"><value>Pasado</value></data>
+  <data name="Dash_ForecastLeftLabel" xml:space="preserve"><value>Proyección al cierre del mes</value></data>
+  <data name="Dash_ForecastExplainer" xml:space="preserve"><value>Eso es lo que queda después de todo lo ya gastado y de todo lo que falta por pagar este mes.</value></data>
+  <data name="Dash_PaceCommitted" xml:space="preserve"><value>{0}% comprometido</value></data>
+  <data name="Dash_MonthElapsed" xml:space="preserve"><value>{0}% del mes transcurrido</value></data>
+  <data name="Dash_DayOfMonth" xml:space="preserve"><value>día {0} de {1}</value></data>
+  <data name="Dash_WhereItWent" xml:space="preserve"><value>En qué se fue</value></data>
+  <data name="Dash_LinesOverPlan" xml:space="preserve"><value>{0} de más</value></data>
+  <data name="Dash_LinesUnderPlan" xml:space="preserve"><value>{0} de menos</value></data>
+  <data name="Dash_ByWeek" xml:space="preserve"><value>Por semana</value></data>
+  <data name="Dash_ByBank" xml:space="preserve"><value>Por banco</value></data>
+  <data name="Dash_Unbudgeted" xml:space="preserve"><value>Sin presupuesto</value></data>
   <data name="Dash_Title" xml:space="preserve"><value>Tablero</value></data>
   <data name="Dash_EmptyTitle" xml:space="preserve"><value>Aún no hay nada que mostrar</value></data>
   <data name="Dash_EmptySubtitle" xml:space="preserve"><value>Los meses aparecen con su primera transacción. Registra una y el tablero se llena.</value></data>
@@ -534,10 +548,10 @@
   <data name="Dash_WfBudgeted" xml:space="preserve"><value>− Presupuestado gastado</value></data>
   <data name="Dash_WfDiscretionary" xml:space="preserve"><value>− Discrecional gastado</value></data>
   <data name="Dash_WfUnplanned" xml:space="preserve"><value>− Imprevisto gastado</value></data>
-  <data name="Dash_WfSpent" xml:space="preserve"><value>= Gastado hasta hoy</value></data>
+  <data name="Dash_WfSpent" xml:space="preserve"><value>Gastado hasta hoy</value></data>
   <data name="Dash_WfLeft" xml:space="preserve"><value>= Queda ahora</value></data>
-  <data name="Dash_WfPlanned" xml:space="preserve"><value>− Aún planificado</value></data>
-  <data name="Dash_WfForecast" xml:space="preserve"><value>= Pronóstico a fin de mes</value></data>
+  <data name="Dash_WfPlanned" xml:space="preserve"><value>Aún planificado</value></data>
+  <data name="Dash_WfForecast" xml:space="preserve"><value>Pronóstico a fin de mes</value></data>
   <data name="Dash_WfPace" xml:space="preserve"><value>{0}% del mes transcurrido</value></data>
   <data name="Dash_WfOverPlan" xml:space="preserve"><value>El plan no cabe en el ingreso: recorte líneas o espere terminar bajo cero.</value></data>
   <data name="Dash_Line" xml:space="preserve"><value>Línea</value></data>

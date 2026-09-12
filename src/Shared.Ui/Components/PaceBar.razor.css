@@ -18,6 +18,10 @@
 .pace-segment[data-tone="good"] { background: var(--good); }
 .pace-segment[data-tone="bad"] { background: var(--bad); }
 .pace-segment[data-tone="rail"] { background: var(--brand-accent-light); }
+/* Discretionary sits beside budgeted, so it is the lighter brand tint rather than a semantic colour;
+   "still planned" is money that has NOT moved yet, so it is a neutral grey and always hatched. */
+.pace-segment[data-tone="accent"] { background: var(--brand-accent-light); }
+.pace-segment[data-tone="muted"] { background: color-mix(in srgb, var(--ink-3) 45%, transparent); }
 
 /* Hatching means one thing wherever it appears: planned, not yet spent. Drawn over whatever tone the segment
    already has, so "planned" reads as a lighter version of the thing it is planned against. */
@@ -69,6 +73,8 @@
 .pace-legend li[data-tone="good"] .pace-key { background: var(--good); }
 .pace-legend li[data-tone="bad"] .pace-key { background: var(--bad); }
 .pace-legend li[data-tone="rail"] .pace-key { background: var(--brand-accent-light); }
+.pace-legend li[data-tone="accent"] .pace-key { background: var(--brand-accent-light); }
+.pace-legend li[data-tone="muted"] .pace-key { background: color-mix(in srgb, var(--ink-3) 45%, transparent); }
 
 .pace-legend li[data-hatched="true"] .pace-key {
     background-image: repeating-linear-gradient(
@@ -76,4 +82,10 @@
         color-mix(in srgb, var(--card-bg) 55%, transparent) 0 2px,
         transparent 2px 4px
     );
+}
+
+/* The share sits after the amount and recedes — the money is the point, the percentage is context. */
+.pace-share {
+    color: var(--ink-3);
+    opacity: .8;
 }

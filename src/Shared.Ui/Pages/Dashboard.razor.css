@@ -1,0 +1,214 @@
+/* SKIN-5. Custom CSS only for what Bootstrap has no shape for; the grid, cards and alerts stay Bootstrap. */
+
+/* The review banner is amber because it NEEDS ATTENTION — never because anything is over budget. */
+.dash-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 11px;
+    margin-bottom: 15px;
+    padding: 9px 15px;
+    border-radius: var(--radius-bar);
+    background: var(--warn-bg);
+    font-size: 13px;
+    font-weight: var(--w-body);
+    color: var(--ink);
+}
+
+.dash-banner a {
+    font-weight: var(--w-control);
+    color: var(--ink);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------- page head */
+.dash-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 13px;
+    margin-bottom: 15px;
+}
+
+.dash-head h1 {
+    margin: 0;
+    font-size: 26px;
+    font-weight: var(--w-display);
+    color: var(--ink);
+}
+
+.dash-subtitle {
+    margin: 2px 0 9px;
+    font-size: 12px;
+    font-weight: var(--w-body);
+    color: var(--ink-3);
+}
+
+.dash-dot {
+    margin: 0 5px;
+}
+
+.dash-head-actions {
+    display: flex;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 11px;
+}
+
+.dash-head-buttons {
+    display: flex;
+    gap: 8px;
+}
+
+/* ---------------------------------------------------------------- pace card */
+.dash-pace {
+    height: 100%;
+    padding: 19px 22px;
+    border: 1px solid var(--app-border);
+    border-radius: var(--radius-card);
+    background: var(--card-bg);
+}
+
+.dash-pace header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 9px;
+    margin-bottom: 13px;
+}
+
+.dash-pace h2 {
+    margin: 0;
+    font-size: 11px;
+    font-weight: var(--w-display);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+}
+
+.dash-pace-summary {
+    font-size: 11px;
+    font-weight: var(--w-control);
+    color: var(--ink-3);
+    font-variant-numeric: tabular-nums;
+}
+
+/* The projection disclaimer stays verbatim and stays visible — the dashboard projects at today's rate. */
+.dash-rate-note {
+    margin: 11px 0 0;
+    font-size: 11px;
+    font-weight: var(--w-body);
+    color: var(--ink-3);
+}
+
+.dash-overplan {
+    margin: 7px 0 0;
+    font-size: 12px;
+    font-weight: var(--w-control);
+    color: var(--bad);
+}
+
+/* ---------------------------------------------------------------- envelopes (conditional strip) */
+.dash-envelopes {
+    padding: 13px 17px;
+    border: 1px solid var(--app-border);
+    border-radius: var(--radius-card);
+    background: var(--card-bg);
+}
+
+.dash-envelopes h2 {
+    margin: 0 0 7px;
+    font-size: 11px;
+    font-weight: var(--w-display);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+}
+
+.dash-envelopes ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.dash-envelopes li {
+    display: grid;
+    grid-template-columns: minmax(0, 10em) 1fr auto auto;
+    align-items: center;
+    gap: 13px;
+    padding: 7px 0;
+    font-size: 12px;
+    font-weight: var(--w-control);
+}
+
+.dash-envelopes li + li {
+    border-top: 1px solid var(--hair);
+}
+
+.dash-env-name {
+    color: var(--ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dash-env-bar {
+    display: block;
+    height: 4px;
+    border-radius: var(--radius-bar);
+    background: var(--rail);
+    overflow: hidden;
+}
+
+.dash-env-bar > span {
+    display: block;
+    height: 100%;
+    background: var(--brand-accent);
+}
+
+.dash-env-money {
+    color: var(--ink-3);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------- breakdown tables */
+.dash-meta {
+    display: block;
+    font-size: 11px;
+    font-weight: var(--w-body);
+    color: var(--ink-3);
+}
+
+.dash-meta-block {
+    margin: 0 0 9px;
+    font-size: 11px;
+    color: var(--ink-3);
+}
+
+.dash-empty-view {
+    margin: 0;
+    font-size: 12px;
+    color: var(--ink-3);
+}
+
+@media (max-width: 767.98px) {
+    .dash-head h1 { font-size: 20px; }
+
+    .dash-head-actions {
+        width: 100%;
+        align-items: flex-start;
+    }
+
+    .dash-envelopes li {
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 5px 11px;
+    }
+
+    .dash-env-bar { display: none; }
+}

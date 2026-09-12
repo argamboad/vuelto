@@ -1,0 +1,46 @@
+@inject IStringLocalizer<AppStrings> Localizer
+
+@* SKIN-5 · a budget/actual/total triplet table becomes a list of progress rows with a SIGNED DELTA: the
+   question a household actually asks is "how far off plan is this line", and a delta answers it where three
+   columns of money made you subtract. The heading carries the same answer for the whole list. *@
+<section class="lines" data-testid="@TestId">
+    <header class="lines-head">
+        <h2>@Title</h2>
+        @if (!string.IsNullOrWhiteSpace(Summary))
+        {
+            <span class="lines-summary" data-tone="@(SummaryOver ? "bad" : "good")" data-testid="@($"{TestId}-summary")">@Summary</span>
+        }
+    </header>
+
+    @if (Rows.Count == 0)
+    {
+        <p class="lines-empty">@Localizer["Dash_NoLines"]</p>
+    }
+    else
+    {
+        <ul class="lines-list">
+            @foreach (var r in Rows)
+            {
+                <li class="lines-row" data-testid="dash-line-row" data-over="@(r.Over ? "true" : null)" data-inactive="@(r.Inactive ? "true" : null)">
+                    <span class="lines-name">@r.Name</span>
+                    <span class="lines-bar" aria-hidden="true"><span style="width: @Pct(r.Fill)"></span></span>
+                    <span class="lines-budget">@r.Budget</span>
+                    <span class="lines-delta" data-testid="dash-line-actual">@r.Delta</span>
+                </li>
+            }
+        </ul>
+    }
+</section>
+
+@code {
+    [Parameter] public string? Title { get; set; }
+    [Parameter] public IReadOnlyList<BudgetLineRow> Rows { get; set; } = [];
+
+    /// <summary>The whole list in one phrase — "₡8,780 over". Blank hides it.</summary>
+    [Parameter] public string? Summary { get; set; }
+    [Parameter] public bool SummaryOver { get; set; }
+    [Parameter] public string TestId { get; set; } = "lines";
+
+    private static string Pct(decimal fill) =>
+        (Math.Clamp(fill, 0m, 1m) * 100m).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) + "%";
+}

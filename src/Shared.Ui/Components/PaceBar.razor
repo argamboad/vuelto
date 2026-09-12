@@ -27,7 +27,7 @@
             @foreach (var s in Segments.Where(s => s.Value > 0))
             {
                 <li data-tone="@s.Tone" data-hatched="@(s.Hatched ? "true" : null)">
-                    <span class="pace-key" aria-hidden="true"></span>@s.Label @Pct(s.Value)
+                    <span class="pace-key" aria-hidden="true"></span>@s.Label <span class="pace-share">@Whole(s.Value)</span>
                 </li>
             }
         </ul>
@@ -49,6 +49,10 @@
 
     // A zero or negative total would divide by nothing; the floor keeps an empty month rendering its track.
     private string Pct(decimal value) => Percent(value / Math.Max(Total, 0.01m));
+
+    /// <summary>The legend's share, to the whole percent — a segment's width needs precision, a label does not.</summary>
+    private string Whole(decimal value) =>
+        Math.Round(Math.Clamp(value / Math.Max(Total, 0.01m), 0m, 1m) * 100m).ToString("0", CultureInfo.InvariantCulture) + "%";
 
     private static string Percent(decimal fraction) =>
         (Math.Clamp(fraction, 0m, 1m) * 100m).ToString("0.##", CultureInfo.InvariantCulture) + "%";

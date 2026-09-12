@@ -1733,20 +1733,23 @@ click → **Expected:** "Updated.", **Water** (stored spelling) Active with ₡2
 > The month at a glance (ADR-V004/V006/V007): every figure a ₡/$ pair. Actuals sum each transaction's
 > frozen amounts; projections (income conversion, budget display, pending budgeted, remainder for debts)
 > use the rate resolved through the chain. No rate → projections are blocked, never guessed.
+>
+> **Presented per SKIN-5 (2026-09-11):** one verdict, the pace, four steps, the line lists, one breakdown
+> panel. The ARITHMETIC is unchanged — the same figures in the same order as the eleven-row waterfall this
+> replaced — so what moved is where each number is read, not what it is.
 
-### QA-DASH-01 — The dashboard reflects income, lines vs actuals, other spending and the balance 🟠 (Web / API)
+### QA-DASH-01 — The dashboard reflects income, lines vs actuals, and the unbudgeted spend 🟠 (Web / API)
 **Gherkin**
 ```gherkin
 Given a household with fixed line Mortgage ₡350,000 (Housing, BAC, Bank account) and no other lines
 And June transactions: Mortgage ₡300,000 bank account on Jun 5, and a ₡10,000 Unplanned lunch on Jun 12 in category Dining
 When I open Dashboard (nav)
 Then the newest month loads with "4 weeks · 28/5/2026 – 24/6/2026" and the rate line
-And Fixed expenses shows Mortgage — Budgeted ₡350,000.00 · $700.00 — Actual ₡300,000.00 in green
-And Other spending lists Dining ₡10,000.00; Unplanned essentials shows ₡10,000.00
-And Week by week shows the mortgage in week 2
+And Fixed lines shows Mortgage as a progress row — planned ₡350,000.00 · $700.00 with a signed delta of −₡50,000.00 in green — and the heading reads "₡50,000.00 under"
+And Where it went opens on By week with the mortgage in week 2; its Unbudgeted tab lists Dining ₡10,000.00
 When I Edit Mortgage's budget down to ₡250,000 and reload the dashboard
-Then Mortgage's actual turns red (over budget) and Still planned drops to ₡0.00
-And the Fixed, Variable, Other spending and Week by week tables each end with a Total row (the sum of the rows shown; the lines total keeps the over/under colour)
+Then Mortgage's row is marked over (red bar and a +₡50,000.00 delta) and Still planned drops to ₡0.00
+And each Where-it-went table ends with a Total row (the sum of the rows shown), and each line list's heading carries its own over/under figure
 And a line budgeted in dollars is judged in dollars: a $2.99 line paid at $2.99 is green even when its colón projection sits a few colones under the frozen colón actual (the totals turn red only when over on both sides)
 When I set "Show in" (top right) to $
 Then every pair on the page reads in dollars only — except each budget line's Budgeted cell, which stays in the currency the line is set in
@@ -1754,11 +1757,11 @@ Then every pair on the page reads in dollars only — except each budget line's 
 **Walkthrough:** **Budget** → add fixed `Mortgage` `350000` CRC, Housing, BAC, Bank account. **New
 transaction** → `Bank`, `300000` CRC, Housing, BAC, Bank account, `2026-06-05`, Budgeted → **Save**.
 **New transaction** → `Soda`, `10000` CRC, Dining, BAC, Credit card, `2026-06-12`, Unplanned → **Save**.
-Nav **Dashboard** → **Expected:** June 2026 with the weeks line and "₡… per $1 …"; the Fixed table with
-Mortgage's actual in **green**; **Other spending** with Dining; **Unplanned essentials & refunds**
-₡10,000.00; **Week by week** 4 rows, week 2 = ₡300,000.00 budgeted. **Budget** → **Edit** Mortgage →
-`250000` → **Save** → **Dashboard** → **Expected:** actual ₡300,000.00 now **red**; **Still planned**
-₡0.00. Via Postman (**19 · Dashboard → Month summary**) → 200 with `exchange_rate`, `rate_source`,
+Nav **Dashboard** → **Expected:** June 2026, the head reading "4 weeks · 28/5/2026 – 24/6/2026 · day N of
+28" with the rate badge beside it; **Fixed lines** with Mortgage's delta in **green** and "₡50,000.00
+under" on the heading; **Where it went** on **By week**, 4 rows, week 2 = ₡300,000.00 budgeted; its
+**Unbudgeted** tab listing Dining. **Budget** → **Edit** Mortgage → `250000` → **Save** → **Dashboard**
+→ **Expected:** Mortgage's delta now **red** at +₡50,000.00; **Still planned** ₡0.00. Via Postman (**19 · Dashboard → Month summary**) → 200 with `exchange_rate`, `rate_source`,
 `summary.fixed_expenses[0].actual.crc = 300000`.
 
 ### QA-DASH-02 — Month selector, entry points, empty state, and the blocked projections when no rate resolves 🟠 (Web / API)
@@ -1780,7 +1783,7 @@ figures show. **Month details** → **Expected:** `/months/{id}` (June). **Dashb
 empty, stop the API, restart it (empty cache), and in a household whose only transaction was just
 deleted there is nothing to resolve — via Postman (**13 · Exchange rate → Current rate**) → 503; the
 dashboard page for a remaining month shows the red "No exchange rate could be resolved…" block and no
-figures, while the month title and buttons stay. Postman (**19 · Dashboard → Month summary**) with an
+figures — no verdict, no pace bar, no four-step row — while the month title and buttons stay. Postman (**19 · Dashboard → Month summary**) with an
 unknown id → 404.
 
 ---
@@ -1808,42 +1811,55 @@ app in a private window (same account, sign in) → **Expected:** the dashboard 
 display settings — invalid (400)** → **Expected:** 400 `invalid_request`; **Reset display settings to
 both** → 200. (The impersonation refusal and the account-erasure wipe are covered by `Api.Tests`.)
 
-### QA-DASH-04 — "This month": the stacked bar and the waterfall down to the forecast 🟠 (Web)
+### QA-DASH-04 — One verdict, the pace, and the four-step month 🟠 (Web)
 **Gherkin**
 ```gherkin
 Given the month above (income configured, ₡310,000 spent against a ₡350,000 plan)
 When I open Dashboard
-Then a stacked bar heads the card: the full width is the income, filled by Budgeted, Discretionary, Unplanned and Still planned, the green rest is the Forecast, with a dashed Today marker at the month's elapsed share
-And below it the waterfall reads Income (Primary / Secondary underneath, Secondary hidden when zero) → − Budgeted spent → − Discretionary spent → − Unplanned spent → = Spent so far → = Left now → − Still planned ("N% of the month elapsed") → = Forecast at month end
-And Other income (inflows) appears as its own sub-row under Income when an inflow exists
+Then the page opens on ONE verdict: a state in words with a coloured dot, the caption "Forecast left at month end", the forecast at display size, and one sentence explaining it
+And the state is derived, never stored: forecast above zero and spend at or under the elapsed share reads On track; forecast above zero but spend ahead of it reads Watch; a forecast at or below zero reads Over
+And beside it the pace bar draws Budgeted, Discretionary, Unplanned, a hatched Still planned and the green Forecast, with a Today marker at the elapsed share, over a summary reading "N% committed · N% of the month gone"
+And every legend entry carries its AMOUNT beside its whole-percent share, in the currency "Show in" is set to
+And below them four steps read Income → − Spent so far → − Still planned → = Forecast at month end, the operator belonging to the row rather than the label
+And Other income (inflows) is named on the Income step when an inflow exists; expected refunds are named on the Forecast step, because they are NOT counted in it
 When the plan does not fit the income
-Then the forecast is red with a warning line, and the bar grows a red tail past the income
+Then the verdict reads Over in red, the Forecast step is red, and the warning line appears beneath the steps
 When I set "Show in" to $
-Then the bar draws in $ too — the card has no switch of its own — and in "Both" its legend lists each segment in ₡ and $
+Then the forecast, the steps and the pace legend all read in dollars; in "Both" the dollars sit UNDER the colones rather than after a middot, and the legend keeps its amounts inline
 ```
-**Walkthrough:** **Dashboard** → **Expected:** the **This month** card opens with the bar, then the
-waterfall in that order; Spent so far = the three class rows added up; Left now = income − spent. Add a
-budget line big enough to exceed the income → reload → **Expected:** **Forecast at month end** in **red**
-with the warning line beneath it, and the bar's red tail. Enter an **Income (inflow)** transaction →
-**Expected:** an **Other income** sub-row under Income, and the income total grows by it.
+**Walkthrough:** **Dashboard** → **Expected:** the verdict card first (**ON TRACK** with a green dot for a
+month spending under its elapsed share), then **THIS MONTH** with the bar and "N% committed · N% of the
+month gone", then the four steps on one row. Read the bar's legend → **Expected:** each class named with
+its **money** and a whole-percent share — not a percentage alone. Add a budget line big enough to exceed
+the income → reload → **Expected:** the verdict flips to **Over** in red, the **Forecast at month end**
+step red, and the warning line under the steps. Enter an **Income (inflow)** transaction → **Expected:**
+**Other income** named under the Income step and the income total grown by it. Switch **Show in** to
+**₡**, then **$**, then **Both** → **Expected:** every figure follows, and in **Both** no money cell is
+doubled on one line.
 
-### QA-DASH-05 — Where the money left from: bank × method beside the card table 🟠 (Web)
+### QA-DASH-05 — Where it went: one panel, four cuts, and the envelope strip 🟠 (Web)
 **Gherkin**
 ```gherkin
-Given the month above, with at least one transaction naming a card
+Given the month above, with at least one transaction naming a card and one category with no budget line
 When I open Dashboard
-Then "By bank and payment method" and "By card" sit side by side on one row
-And the bank table groups by payment method (card first), each group closed by a "… — total" row, with a grand Total
-And By card lists each card's alias with its kind and transaction count beneath, its spend, and its share of the month — "No card" last, and a Total row
-When no transaction names a card
-Then the By card table is absent entirely (a lone "No card" row says nothing)
+Then ONE "Where it went" panel replaces the separate week, bank and card cards, with a segmented switch reading By week | By bank | By card | Unbudgeted
+And the switch is a real radio group: it is reachable by keyboard and announces its position
+And By week opens first; each cut ends in a Total row, and switching between them refetches nothing
+And Unbudgeted lists the categories with spend and no budget line — the old "Other spending" card
+And By card lists each card's alias with its kind and transaction count beneath, its spend, and its share of the month — "No card" last
+Given an envelope is due this month by its cadence
+Then a thin envelope strip sits between the four steps and the line lists, one row per due bucket
+When no envelope is due
+Then that strip is absent entirely, and the page is one section shorter
 ```
-**Walkthrough:** **Dashboard** → scroll to the pair → **Expected:** two cards on one row, neither table
-scrolling sideways and no money pair broken across two lines (check in **Both** currency mode, the widest).
-The bank table: **Unassigned · Credit card** first, then **BAC · Bank account**, each group closed by a
-**… — total** row, then a grand **Total**. **By card:** the card's alias with "Credit · N transaction(s)"
-under it, its spend, and a share that adds to 100%. Remove the card from every transaction → reload →
-**Expected:** the By card card is gone and the bank table sits alone.
+**Walkthrough:** **Dashboard** → scroll to **Where it went** → **Expected:** one panel, the switch on
+**By week**. Tab to the switch and use the arrow keys → **Expected:** it moves between the four options
+like a radio group. Click through **By bank**, **By card**, **Unbudgeted** → **Expected:** each renders
+its own table with a **Total**, nothing scrolls sideways, and no money pair breaks across two lines (check
+in **Both**, the widest). **By card:** the card's alias with "Credit · N transaction(s)" under it and a
+share adding to 100%. **Unbudgeted:** the categories with no budget line. Envelopes: with a bucket due
+this month → **Expected:** the strip above the line lists naming it, with contributed and remaining.
+Deactivate it (or pick a month where its cadence does not apply) → reload → **Expected:** no strip at all.
 
 ### QA-REP-01 — Category analysis by month shows budgets; a date range doesn't 🟠 (Web / API)
 **Gherkin**
@@ -3709,6 +3725,15 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   TTL guard; interrupted links land on Settings' banner). New **QA-AND-15** (on-device kill test;
   renumbered from the branch's QA-AND-14 — that slot went to THEME-1's restart test in the interim).
   Suite 149 → **150** cases.
+- **Updated 2026-09-11** — **The dashboard as one verdict (SKIN-5, UI redesign).** The eleven-row
+  waterfall becomes a verdict card, a pace bar and four steps; the separate week / bank / card cards
+  become ONE "Where it went" panel behind a By week | By bank | By card | Unbudgeted switch (the old
+  Other-spending card is that fourth option); envelopes become a strip rendered only when a bucket is due
+  by its cadence. The pace legend carries each class's AMOUNT beside its share, in the selected display
+  currency. QA-DASH-01/02/04/05 rewritten — 04 and 05 substantially, because their Gherkin described rows
+  and cards that no longer exist. **Case count unchanged at 191.** Untouched, and still asserted: the
+  waterfall arithmetic and its order, the frozen per-transaction rates, and the exclusion of expected
+  refunds from the forecast.
 - **Updated 2026-09-04** — **Email settings: Connect greys out once a provider is connected.** The
   page always rendered both Connect buttons, so a second Outlook/Gmail attempt only surfaced as the
   `already_connected` bounce. With the one-inbox-per-provider rule (EMAIL-2) now reflected in the UI, the
