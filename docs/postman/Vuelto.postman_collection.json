@@ -3355,7 +3355,7 @@
                 }
               ]
             },
-            "description": "Which budget month a date belongs to — by anchor window, not calendar month (2026-05-30 → June under the default anchor). An uncovered date answers the month that WOULD be created with is_new=true and month_id=null; nothing is written. Missing date → 400."
+            "description": "Which budget month a date belongs to — by anchor window, not calendar month (2026-05-30 → June under the default anchor). An uncovered date answers the month that WOULD be created with is_new=true and month_id=null; nothing is written. week_number is the week of the month's window the date falls in (stored weeks, or the boundaries that would create them). Missing date → 400."
           },
           "event": [
             {

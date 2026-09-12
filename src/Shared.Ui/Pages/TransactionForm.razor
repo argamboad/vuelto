@@ -160,11 +160,12 @@
                 <ChildContent>
                     @if (_resolved is not null)
                     {
-                        <p class="tx-rail-lands" data-testid="tx-resolve">
-                            @(_resolved.IsNew
-                                ? Localizer["Tx_GoesToNew", MonthLabel(_resolved.Year, _resolved.MonthNumber)]
-                                : Localizer["Tx_GoesTo", MonthLabel(_resolved.Year, _resolved.MonthNumber)])
-                        </p>
+                        <p class="tx-rail-lands" data-testid="tx-resolve">@LandsLine()</p>
+                    }
+                    @if (LineImpact() is { } impact)
+                    {
+                        @* The budget line this purchase lands in — its spend so far, its plan, and the total after this. *@
+                        <p class="tx-rail-lands" data-testid="tx-line-impact">@impact</p>
                     }
                     @if (_amount > 0 && _rate is > 0)
                     {
@@ -278,6 +279,63 @@
     {
         try { _resolved = await Http.GetFromJsonAsync<ResolveDto>($"/api/months/resolve?date={_date:yyyy-MM-dd}"); }
         catch { _resolved = null; }
+        await LoadLinesAsync();
+    }
+
+    /// <summary>"Goes to September 2026 · week 3" — the month AND the week, from the resolve, before anything is saved.</summary>
+    private string LandsLine()
+    {
+        var month = MonthLabel(_resolved!.Year, _resolved.MonthNumber);
+        return (_resolved.IsNew, _resolved.WeekNumber) switch
+        {
+            (true, { } w) => Localizer["Tx_GoesToNewWeek", month, w],
+            (true, null) => Localizer["Tx_GoesToNew", month],
+            (false, { } w) => Localizer["Tx_GoesToWeek", month, w],
+            _ => Localizer["Tx_GoesTo", month],
+        };
+    }
+
+    // ---------------------------------------------------------------- the budget line this lands in
+
+    /// <summary>The resolved month's budget lines (fixed + variable), keyed by category — fetched once per resolved month, best-effort.</summary>
+    private Dictionary<Guid, LineDto> _lines = new();
+    private Guid? _linesFor;
+
+    private async Task LoadLinesAsync()
+    {
+        var id = _resolved?.MonthId;
+        if (id == _linesFor) return;
+        _linesFor = id; _lines = new();
+        if (id is not { } monthId) return; // a month that does not exist yet has no actuals to add to
+        try
+        {
+            var res = await Http.GetAsync($"/api/months/{monthId}/summary");
+            if (!res.IsSuccessStatusCode) return;
+            var summary = (await res.Content.ReadFromJsonAsync<SummaryEnvelopeDto>())?.Summary;
+            if (summary is null) return;
+            foreach (var l in summary.FixedExpenses.Concat(summary.VariableExpenses)) _lines[l.CategoryId] = l;
+        }
+        catch { /* the line clause is a courtesy, never a blocker */ }
+    }
+
+    /// <summary>
+    /// "Groceries: ₡8,000.00 spent of ₡60,000.00 planned — after this, ₡58,000.00". Only for budgeted spending with
+    /// a line behind its category; a purchase in the other currency is converted at today's rate first, the way
+    /// the dashboard's actuals will read it.
+    /// </summary>
+    private string? LineImpact()
+    {
+        if (_type != "budgeted" || _amount <= 0 || !Guid.TryParse(_categoryId, out var cat) || !_lines.TryGetValue(cat, out var line)) return null;
+        var crcLine = line.BudgetCurrency != "USD";
+        decimal add;
+        if (crcLine) add = _currency == "CRC" ? _amount : (_rate is > 0 ? _amount * _rate.Value : 0m);
+        else add = _currency == "USD" ? _amount : (_rate is > 0 ? _amount / _rate.Value : 0m);
+        if (add <= 0) return null;
+        var spent = crcLine ? line.Actual.Crc : line.Actual.Usd;
+        var planned = crcLine ? line.Budget.Crc : line.Budget.Usd;
+        var symbol = crcLine ? "₡" : "$";
+        string F(decimal v) => symbol + v.ToString("N2", CultureInfo.CurrentCulture);
+        return Localizer["Tx_LineImpact", line.Name, F(spent), F(planned), F(spent + add)];
     }
 
     private async Task SaveAsync()
@@ -393,7 +451,12 @@
         [property: JsonPropertyName("month_id")] Guid? MonthId,
         [property: JsonPropertyName("year")] int Year,
         [property: JsonPropertyName("month_number")] int MonthNumber,
-        [property: JsonPropertyName("is_new")] bool IsNew);
+        [property: JsonPropertyName("is_new")] bool IsNew,
+        [property: JsonPropertyName("week_number")] int? WeekNumber = null);
+    private sealed record MoneyDto([property: JsonPropertyName("crc")] decimal Crc, [property: JsonPropertyName("usd")] decimal Usd);
+    private sealed record LineDto([property: JsonPropertyName("name")] string Name, [property: JsonPropertyName("budget")] MoneyDto Budget, [property: JsonPropertyName("actual")] MoneyDto Actual, [property: JsonPropertyName("budget_currency")] string BudgetCurrency = "CRC", [property: JsonPropertyName("category_id")] Guid CategoryId = default);
+    private sealed record SummaryDto([property: JsonPropertyName("fixed_expenses")] List<LineDto> FixedExpenses, [property: JsonPropertyName("variable_expenses")] List<LineDto> VariableExpenses);
+    private sealed record SummaryEnvelopeDto([property: JsonPropertyName("summary")] SummaryDto? Summary);
     private sealed record CardOptionDto([property: JsonPropertyName("id")] Guid Id, [property: JsonPropertyName("name")] string Name, [property: JsonPropertyName("kind")] string? Kind = null);
     private sealed record TxDto(
         [property: JsonPropertyName("id")] Guid Id,

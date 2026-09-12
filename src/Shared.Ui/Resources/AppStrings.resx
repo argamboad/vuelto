@@ -819,4 +819,8 @@
   <data name="Envelopes_Target" xml:space="preserve"><value>Annual target</value></data>
   <data name="Cards_Identity_Col" xml:space="preserve"><value>Card</value></data>
   <data name="Admin_SelectMember" xml:space="preserve"><value>Target {0}</value></data>
+  <data name="Tx_GoesToWeek" xml:space="preserve"><value>Goes to {0} · week {1}</value></data>
+  <data name="Tx_GoesToNewWeek" xml:space="preserve"><value>Goes to {0} · week {1} — a new month will be created</value></data>
+  <data name="Tx_LineImpact" xml:space="preserve"><value>{0}: {1} spent of {2} planned — after this, {3}</value></data>
+  <data name="Review_MonthWeek" xml:space="preserve"><value>{0} · week {1}</value></data>
 </root>

@@ -42,6 +42,25 @@ public class ReviewConsequenceTests : ComponentTestBase
         cut.FindAll("[data-testid='review-voucher']")[i];
 
     [Fact]
+    public async Task ACompleteDraftNamesTheWeek_AndWhatConfirmingDoesToTheBudgetLine()
+    {
+        const string Month = "aaaaaaaa-0000-0000-0000-000000000009";
+        await SignInAsync();
+        Http.On(HttpMethod.Get, "/api/categories", Categories);
+        Http.On(HttpMethod.Get, "/api/banks", Banks);
+        Http.On(HttpMethod.Get, "/api/pending-vouchers", Queue);
+        Http.On(HttpMethod.Get, "/api/months/resolve", $$"""{"month_id":"{{Month}}","year":2026,"month_number":9,"is_new":false,"week_number":3}""");
+        Http.On(HttpMethod.Get, $"/api/months/{Month}/summary", $$"""{"month":{"id":"{{Month}}","year":2026,"month_number":9,"week_count":5,"week1_start_date":"2026-08-27","last_day":"2026-09-30"},"exchange_rate":500,"rate_unavailable":false,"summary":{"fixed_expenses":[],"variable_expenses":[{"name":"Groceries","budget":{"crc":60000,"usd":120},"actual":{"crc":8000,"usd":16},"budget_currency":"CRC","category_id":"{{Cat1}}"}]} }""");
+
+        var cut = Render<Review>();
+        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("[data-testid='review-voucher']").Count));
+
+        var body = cut.WaitForElement($"[data-testid='consequence-{Complete}-body']");
+        cut.WaitForAssertion(() => Assert.Contains("Review_MonthWeek[September 2026, 3]", Draft(cut, 0).QuerySelector($"[data-testid='consequence-{Complete}-body']")!.TextContent));
+        cut.WaitForAssertion(() => Assert.Contains("Tx_LineImpact[Groceries, ₡8,000.00, ₡60,000.00, ₡56,320.00]", Draft(cut, 0).QuerySelector($"[data-testid='consequence-{Complete}-body']")!.TextContent));
+    }
+
+    [Fact]
     public async Task ACompleteDraftStatesWhatConfirmingWillBook()
     {
         var cut = await QueueAsync();

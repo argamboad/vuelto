@@ -105,6 +105,38 @@ public class TransactionFormShapeTests : ComponentTestBase
     }
 
     [Fact]
+    public async Task TheRailNamesTheWeek_AndWhatThePurchaseDoesToItsBudgetLine()
+    {
+        const string Month = "aaaaaaaa-0000-0000-0000-000000000001";
+        await SignInAsync();
+        Http.On(HttpMethod.Get, "/api/categories", $$"""[{"id":"{{Cat}}","name":"Groceries","is_active":true}]""");
+        Http.On(HttpMethod.Get, "/api/banks", $$"""[{"id":"{{Bank}}","name":"BAC","is_active":true}]""");
+        Http.On(HttpMethod.Get, "/api/cards", "[]");
+        Http.On(HttpMethod.Get, "/api/envelopes", "[]");
+        Http.On(HttpMethod.Get, "/api/exchange-rate", """{"rate":500,"source":"live","as_of":"2026-09-12T12:00:00+00:00","buy":500,"sell":500}""");
+        // An existing month, with the week the date falls in; its summary carries the line's category, so the purchase can be matched to it.
+        Http.On(HttpMethod.Get, "/api/months/resolve", $$"""{"month_id":"{{Month}}","year":2026,"month_number":9,"is_new":false,"week_number":2}""");
+        Http.On(HttpMethod.Get, $"/api/months/{Month}/summary", $$"""{"month":{"id":"{{Month}}","year":2026,"month_number":9,"week_count":5,"week1_start_date":"2026-08-27","last_day":"2026-09-30"},"exchange_rate":500,"rate_unavailable":false,"summary":{"fixed_expenses":[{"name":"Groceries","budget":{"crc":60000,"usd":120},"actual":{"crc":8000,"usd":16},"budget_currency":"CRC","category_id":"{{Cat}}"}],"variable_expenses":[]} }""");
+
+        var cut = Render<TransactionForm>();
+        cut.WaitForAssertion(() => Assert.Contains("Tx_GoesToWeek[September 2026, 2]", cut.Find("[data-testid='tx-resolve']").TextContent));
+        Assert.Empty(cut.FindAll("[data-testid='tx-line-impact']")); // no category yet, nothing to say
+
+        cut.Find("[data-testid='tx-category']").Change(Cat);
+        cut.Find("[data-testid='tx-amount-field-input']").Change("50000");
+        cut.WaitForAssertion(() => Assert.Contains("Tx_LineImpact[Groceries, ₡8,000.00, ₡60,000.00, ₡58,000.00]", cut.Find("[data-testid='tx-line-impact']").TextContent));
+
+        // A dollar purchase against a colón line is converted at today's rate before it is added.
+        cut.Find("[data-testid='tx-amount-field-currency-USD']").Change(true);
+        cut.Find("[data-testid='tx-amount-field-input']").Change("10");
+        cut.WaitForAssertion(() => Assert.Contains("₡13,000.00]", cut.Find("[data-testid='tx-line-impact']").TextContent));
+
+        // A class that is not budgeted spending has no line to land in.
+        cut.Find("[data-testid='tx-type-extraordinary']").Change(true);
+        Assert.Empty(cut.FindAll("[data-testid='tx-line-impact']"));
+    }
+
+    [Fact]
     public async Task TheRailPrecedesTheSaveButtonItActsOn()
     {
         var cut = await FormAsync();

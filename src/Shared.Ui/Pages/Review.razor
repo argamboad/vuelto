@@ -325,9 +325,31 @@
         var className = ClassOptions().First(o => o.Value == v.Form.TransactionClass).Label;
         var date = v.Missing("Date") ? v.Form.Date : v.Date;
 
-        return date is { } d && _months.TryGetValue(d, out var month)
-            ? Localizer["Review_ConfirmingWillBook", amount, category, className, month]
-            : Localizer["Review_ConfirmingWillBookNoMonth", amount, category, className];
+        var sentence = date is { } d && _months.TryGetValue(d, out var month)
+            ? Localizer["Review_ConfirmingWillBook", amount, category, className, month].Value
+            : Localizer["Review_ConfirmingWillBookNoMonth", amount, category, className].Value;
+        return LineImpact(v, date) is { } impact ? sentence + " " + impact : sentence;
+    }
+
+    /// <summary>
+    /// "Groceries: ₡8,000.00 spent of ₡60,000.00 planned — after this, ₡56,320.00" — for budgeted spending whose
+    /// category has a line in the month the date lands in. Only when the voucher's currency is the line's: the
+    /// queue holds no rate to convert with, and a guessed figure is worse than none.
+    /// </summary>
+    private string? LineImpact(VoucherDto v, DateOnly? date)
+    {
+        if (v.Form.TransactionClass != TransactionClasses.Budgeted || date is not { } d) return null;
+        if (!_monthIds.TryGetValue(d, out var monthId) || !_lines.TryGetValue(monthId, out var lines)) return null;
+        if (!Guid.TryParse(v.Form.CategoryId, out var cat) || !lines.TryGetValue(cat, out var line)) return null;
+        var editable = v.Missing("Amount") || v.Missing("Currency");
+        var amount = editable ? v.Form.Amount : v.Amount;
+        var currency = (editable ? v.Form.Currency : v.Currency) ?? "CRC";
+        if (amount is not > 0 || currency != (line.BudgetCurrency == "USD" ? "USD" : "CRC")) return null;
+        var crc = currency == "CRC";
+        var spent = crc ? line.Actual.Crc : line.Actual.Usd;
+        var planned = crc ? line.Budget.Crc : line.Budget.Usd;
+        string F(decimal x) => (crc ? "₡" : "$") + x.ToString("N2", CultureInfo.CurrentCulture);
+        return Localizer["Tx_LineImpact", line.Name, F(spent), F(planned), F(spent + amount.Value)];
     }
 
     /// <summary>The amount the confirm will actually send — the voucher's own, or the typed one where it was blank.</summary>
@@ -345,6 +367,10 @@
     /// simply drops the month clause rather than blocking the queue.
     /// </summary>
     private readonly Dictionary<DateOnly, string> _months = new();
+    /// <summary>date → the existing month's id, for the line lookup; a month that does not exist yet has no lines to add to.</summary>
+    private readonly Dictionary<DateOnly, Guid> _monthIds = new();
+    /// <summary>month id → its budget lines by category (fixed + variable), fetched once per month.</summary>
+    private readonly Dictionary<Guid, Dictionary<Guid, LineDto>> _lines = new();
 
     private async Task ResolveMonthsAsync()
     {
@@ -357,16 +383,40 @@
                 if (!res.IsSuccessStatusCode) continue;
                 if (await res.Content.ReadFromJsonAsync<MonthResolveDto>() is { } m)
                 {
-                    _months[date] = $"{CultureInfo.CurrentCulture.TextInfo.ToTitleCase(CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(m.MonthNumber))} {m.Year}";
+                    var label = $"{CultureInfo.CurrentCulture.TextInfo.ToTitleCase(CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(m.MonthNumber))} {m.Year}";
+                    _months[date] = m.WeekNumber is { } w ? Localizer["Review_MonthWeek", label, w] : label;
+                    if (m.MonthId is { } id) { _monthIds[date] = id; await LoadLinesAsync(id); }
                 }
             }
             catch { /* the month clause is a courtesy, never a blocker */ }
         }
     }
 
+    private async Task LoadLinesAsync(Guid monthId)
+    {
+        if (_lines.ContainsKey(monthId)) return;
+        var lines = new Dictionary<Guid, LineDto>();
+        _lines[monthId] = lines;
+        try
+        {
+            var res = await Http.GetAsync($"/api/months/{monthId}/summary");
+            if (!res.IsSuccessStatusCode) return;
+            var summary = (await res.Content.ReadFromJsonAsync<SummaryEnvelopeDto>())?.Summary;
+            if (summary is null) return;
+            foreach (var l in summary.FixedExpenses.Concat(summary.VariableExpenses)) lines[l.CategoryId] = l;
+        }
+        catch { /* the line clause is a courtesy, never a blocker */ }
+    }
+
     private sealed record MonthResolveDto(
+        [property: JsonPropertyName("month_id")] Guid? MonthId,
         [property: JsonPropertyName("year")] int Year,
-        [property: JsonPropertyName("month_number")] int MonthNumber);
+        [property: JsonPropertyName("month_number")] int MonthNumber,
+        [property: JsonPropertyName("week_number")] int? WeekNumber = null);
+    private sealed record MoneyDto([property: JsonPropertyName("crc")] decimal Crc, [property: JsonPropertyName("usd")] decimal Usd);
+    private sealed record LineDto([property: JsonPropertyName("name")] string Name, [property: JsonPropertyName("budget")] MoneyDto Budget, [property: JsonPropertyName("actual")] MoneyDto Actual, [property: JsonPropertyName("budget_currency")] string BudgetCurrency = "CRC", [property: JsonPropertyName("category_id")] Guid CategoryId = default);
+    private sealed record SummaryDto([property: JsonPropertyName("fixed_expenses")] List<LineDto> FixedExpenses, [property: JsonPropertyName("variable_expenses")] List<LineDto> VariableExpenses);
+    private sealed record SummaryEnvelopeDto([property: JsonPropertyName("summary")] SummaryDto? Summary);
 
     private static string Money(VoucherDto v) => v.Amount is { } a
         ? (v.Currency == "USD" ? "$" : "₡") + a.ToString("N2", CultureInfo.CurrentCulture)

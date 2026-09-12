@@ -15,7 +15,8 @@ public record IncomeSummary(MoneyPair Primary, MoneyPair Secondary, MoneyPair To
 public record ExpenseSummary(MoneyPair Card, MoneyPair Account, MoneyPair GrandTotal, MoneyPair Remainder, MoneyPair Budgeted, MoneyPair Extraordinary, MoneyPair UnplannedEssential);
 
 /// <summary><paramref name="BudgetCurrency"/> is the currency the line is SET in (EXPENSES-1: one side); its other side is a projection at today's rate — over/under must be judged in the native one.</summary>
-public record ExpenseLineSummary(string Name, MoneyPair Budget, MoneyPair Actual, string BudgetCurrency = Currencies.Crc);
+/// <summary><paramref name="CategoryId"/> is the category the line's actuals are matched on — carried so a client can find the line a purchase will land in.</summary>
+public record ExpenseLineSummary(string Name, MoneyPair Budget, MoneyPair Actual, string BudgetCurrency = Currencies.Crc, Guid CategoryId = default);
 
 public record WeeklyTotal(int WeekNumber, DateOnly StartDate, DateOnly EndDate, MoneyPair Total);
 

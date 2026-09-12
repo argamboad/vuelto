@@ -1519,7 +1519,7 @@ Given a fresh household with no months, Budget settings saved with 5-week income
 When I open New transaction
 Then the AMOUNT is the first field, at display size, with the currency toggle inside its own input group and the conversion under it ("= $… at ₡… per $1 · frozen when you save")
 And the rest reads as two named groups — What it was (payee, category, class chips, notes) and How it was paid (bank, card, method, rate)
-And a Before you save rail states which month the date lands in and lists ₡, $ and the rate used
+And a Before you save rail states which month AND week the date lands in ("Goes to July 2026 · week 3 — a new month will be created"), lists ₡, $ and the rate used, and — for budgeted spending whose category backs a line in an existing month — states that line's spend so far, its plan, and the total after this purchase
 When I type "AutoMercado", 50000 CRC, date 2026-07-10, bank Cash, class Budgeted
 And I click "+ New" beside Category, type "Viajes" and Create
 Then "Viajes" is selected without leaving the form (it also appears under Settings → Categories); typing "viajes" again just selects it
@@ -1533,8 +1533,10 @@ And the filters above it narrow the rows by payee search, category, bank, card, 
 New transaction** (or nav **Months → New transaction**): fill the fields; beside **Category** click
 **+ New**, type `Viajes`, **Create** → **Expected:** the inline form closes and **Viajes** is selected
 (Enter also creates, Esc cancels; a blank name → "A name is required."; a name matching an inactive
-category offers **Reactivate “…”**). Pick the date `2026-07-10` → **Expected:** the "Goes to July 2026 — a new month will be created" hint under the
-date; the **Exchange rate** field pre-filled (or, without a key, the red hint asking for one — type
+category offers **Reactivate “…”**). Pick the date `2026-07-10` → **Expected:** the rail reads "Goes to July 2026 · week 3 — a new month will be
+created" (week 3: Jun 25 – Jul 1, Jul 2 – 8, Jul 9 – 15); with the date back in an existing month and a
+budgeted category that has a line, a second line reads "Groceries: ₡8,000.00 spent of ₡60,000.00 planned —
+after this, ₡58,000.00" (a dollar purchase against a colón line is converted at today's rate first); the **Exchange rate** field pre-filled (or, without a key, the red hint asking for one — type
 `500`). **Save** → **Expected:** the **July 2026** page with five week chips (hover one → its full window), the
 income row showing 3750 USD / 312500 CRC, and the row: a **Budgeted** chip and the amount stacked
 (₡ on top, $ muted beneath — or one side only if **Show in** is set to a single currency on the
@@ -2208,7 +2210,7 @@ on, and **Months** shows no new transaction yet.
 **Gherkin**
 ```gherkin
 Given a pending draft in the Review queue (header badge shows 1, dashboard banner says 1 waiting)
-Then each draft is a TWO-PANE row: the draft on the left, and on the right a "Confirming will" panel stating in words what the click books — the amount, the category, the class, and which PAY-CYCLE month the date lands in (not always the calendar one)
+Then each draft is a TWO-PANE row: the draft on the left, and on the right a "Confirming will" panel stating in words what the click books — the amount, the category, the class, and which PAY-CYCLE month AND week the date lands in (not always the calendar one); for budgeted spending whose category backs a line in that month, the sentence goes on with the line's spend so far, its plan and the total after this booking
 And the class is three chips, not a dropdown — Budgeted, Discretionary, Unplanned — reachable by keyboard as a radio group
 When I pick a category (or create one right there with "+ New" — every card on the queue then lists it) and class, tick "Remember this merchant" and Confirm
 And when the class is Unplanned, a "Refund expected" switch appears with a percentage and an "Expected back: …" preview; confirming with it books the transaction AND its pending refund in that month
@@ -2231,8 +2233,10 @@ Then the panel switches to the booking sentence and Confirm enables, without lea
 amber banner "1 voucher(s) … waiting for review → Review now" (even with no months yet) and the header
 **Review** link with a **1** badge. **Review** → **Expected:** each draft is a **two-pane row** — merchant, ₡ amount, date,
 type, bank and card on the left; a **CONFIRMING WILL** panel on the right. Read that panel → **Expected:**
-a sentence naming the amount, the category, the class and the month, e.g. "Book ₡7,200.00 into Carne as
-Budgeted, in September 2026." Category is prefilled only when a rule matches, and then carries a **from
+a sentence naming the amount, the category, the class, the month and the week, e.g. "Book ₡7,200.00 into
+Carne as Budgeted, in September 2026 · week 3." followed, when Carne backs a budget line in that month, by
+"Carne: ₡… spent of ₡… planned — after this, ₡…" (the line clause appears only for a voucher in the line's
+own currency — the queue holds no rate to convert with). Category is prefilled only when a rule matches, and then carries a **from
 your rule** chip. The class is **three chips** — tab to them and use the arrow keys → **Expected:** they
 move like a radio group, and picking **Unplanned** reveals the refund switch. Parsed fields stay read-only;
 a draft the parser could not read shows the **amber** notice naming **Payee / Amount / Date**, red borders
@@ -3857,6 +3861,15 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   TTL guard; interrupted links land on Settings' banner). New **QA-AND-15** (on-device kill test;
   renumbered from the branch's QA-AND-14 — that slot went to THEME-1's restart test in the interim).
   Suite 149 → **150** cases.
+- **Updated 2026-09-12** — **The two API additions the redesign needed (app-owned backend, additive).**
+  `GET /api/months/resolve` now carries `week_number` — the week of the month's window the date falls in,
+  from the stored weeks for an existing month and from the boundaries that would create them for a new
+  one — and the summary's line rows (`fixed_expenses`, `variable_expenses`) carry `category_id`. With
+  them the transaction form's rail reads "Goes to September 2026 · week 3" and, for budgeted spending
+  with a line, "Groceries: ₡8,000.00 spent of ₡60,000.00 planned — after this, ₡58,000.00"; the review
+  queue's "Confirming will" sentence names the week and the same line impact (only when the voucher's
+  currency is the line's — the queue holds no rate). This lifts the two limits recorded under SKIN-6 and
+  SKIN-7 below. QA-LED-01 and QA-EMAIL-06 extended. **Case count unchanged at 191.**
 - **Updated 2026-09-12** — **The fourteen screens the handout never drew, conformed (SKIN-11, UI
   redesign).** Household, Settings, Billing, Admin console, Email settings, Cards, Envelopes, Merchant
   mappings, Banks and Categories (through the shared catalog component), Join, Home and the two auth
@@ -3910,9 +3923,8 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   inflow → income). CARDS-3's silent method change now says so. QA-LED-01/02 and QA-CAT-07 extended.
   **Case count unchanged at 191.** Save deliberately stays ENABLED and surfaces validation on submit — the
   opposite rule from the review queue, where the blocker is a parsed blank the user cannot argue with.
-  Limit recorded: the handout's rail also shows the budget line's new total, which is unreachable because the
-  summary's line rows carry a name with no category id — a category cannot be matched to its line without an
-  API change.
+  Limit recorded at the time: the handout's rail also shows the budget line's new total, unreachable while the
+  summary's line rows carried no category id — **lifted the same day by the API additions entry above.**
 - **Updated 2026-09-12** — **The review queue says what confirming will do (SKIN-6, UI redesign).** Each
   staged email becomes a two-pane row: the draft, and a "Confirming will" panel stating the amount, the
   category, the class and the pay-cycle month the date lands in. Confirm is disabled while anything required
@@ -3920,9 +3932,9 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   are named in the user's words (Payee / Amount / Date) with red borders and aria wiring. The class picker
   becomes three chips in a radio group; ALL THREE classes stay, because picking Unplanned is what opens the
   expected-refund path. QA-EMAIL-06 extended. **Case count unchanged at 191.** Two limits recorded rather
-  than papered over: the handout's sentence also names the WEEK and the budget line's new total, and neither
-  is reachable — `/api/months/resolve` returns a month with no week, and the summary's line rows carry a
-  name with no category id, so a category cannot be matched to its line without an API change.
+  than papered over at the time: the handout's sentence also names the WEEK and the budget line's new total,
+  and neither was reachable — `/api/months/resolve` returned no week and the summary's line rows no category
+  id — **both lifted the same day by the API additions entry above.**
 - **Updated 2026-09-11** — **The dashboard as one verdict (SKIN-5, UI redesign).** The eleven-row
   waterfall becomes a verdict card, a pace bar and four steps; the separate week / bank / card cards
   become ONE "Where it went" panel behind a By week | By bank | By card | Unbudgeted switch (the old
