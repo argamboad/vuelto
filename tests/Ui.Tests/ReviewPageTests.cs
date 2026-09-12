@@ -72,7 +72,7 @@ public class ReviewPageTests : ComponentTestBase
 
         // Suggested as extraordinary: no refund controls. Switch to Unplanned: the toggle appears, then the percentage + preview.
         Assert.Null(Card(cut, 0).QuerySelector("[data-testid='review-refund-expected']"));
-        Card(cut, 0).QuerySelector("[data-testid='review-class']")!.Change("unplanned_essential");
+        Card(cut, 0).QuerySelector("[data-testid='review-class-unplanned_essential']")!.Change(true);
         Assert.Null(Card(cut, 0).QuerySelector("[data-testid='review-refund-pct']"));
         Card(cut, 0).QuerySelector("[data-testid='review-refund-expected']")!.Change(true);
         Card(cut, 0).QuerySelector("[data-testid='review-refund-pct']")!.Change("30");
@@ -95,10 +95,10 @@ public class ReviewPageTests : ComponentTestBase
 
         var cut = Render<Review>();
         cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("[data-testid='review-voucher']").Count));
-        Card(cut, 0).QuerySelector("[data-testid='review-class']")!.Change("unplanned_essential");
+        Card(cut, 0).QuerySelector("[data-testid='review-class-unplanned_essential']")!.Change(true);
         Card(cut, 0).QuerySelector("[data-testid='review-refund-expected']")!.Change(true);
         Card(cut, 0).QuerySelector("[data-testid='review-refund-pct']")!.Change("30");
-        Card(cut, 0).QuerySelector("[data-testid='review-class']")!.Change("budgeted"); // changed their mind: the controls hide
+        Card(cut, 0).QuerySelector("[data-testid='review-class-budgeted']")!.Change(true); // changed their mind: the controls hide
         Assert.Null(Card(cut, 0).QuerySelector("[data-testid='review-refund-expected']"));
 
         Card(cut, 0).QuerySelector("[data-testid='review-confirm']")!.Click();
@@ -164,15 +164,15 @@ public class ReviewPageTests : ComponentTestBase
         Assert.Contains("BAC Credomatic", cards[0].TextContent);
         Assert.NotNull(cards[0].QuerySelector("[data-testid='review-suggested']"));
         Assert.Equal(Cat1, cards[0].QuerySelector("[data-testid='review-category']")!.GetAttribute("value"));
-        Assert.Equal("extraordinary", cards[0].QuerySelector("[data-testid='review-class']")!.GetAttribute("value"));
+        Assert.True(cards[0].QuerySelector("[data-testid='review-class-extraordinary']")!.HasAttribute("checked"));
         Assert.Null(cards[0].QuerySelector("[data-testid='review-amount-input']")); // parsed → read-only
         Assert.Null(cards[0].QuerySelector("[data-testid='review-missing']"));
 
         Assert.Contains("Review_UnknownMerchant", cards[1].QuerySelector("[data-testid='review-merchant']")!.TextContent);
-        Assert.Contains("Merchant, Amount, Currency", cards[1].QuerySelector("[data-testid='review-missing']")!.TextContent);
+        Assert.Contains("Tx_Payee, Tx_Amount", cards[1].QuerySelector("[data-testid='review-missing']")!.TextContent);
         Assert.Null(cards[1].QuerySelector("[data-testid='review-suggested']"));
         Assert.True(string.IsNullOrEmpty(cards[1].QuerySelector("[data-testid='review-category']")!.GetAttribute("value")));
-        Assert.Equal("budgeted", cards[1].QuerySelector("[data-testid='review-class']")!.GetAttribute("value"));
+        Assert.True(cards[1].QuerySelector("[data-testid='review-class-budgeted']")!.HasAttribute("checked"));
         Assert.NotNull(cards[1].QuerySelector("[data-testid='review-payee']"));
         Assert.NotNull(cards[1].QuerySelector("[data-testid='review-amount-input']"));
         Assert.Null(cards[1].QuerySelector("[data-testid='review-date']")); // the date parsed
@@ -221,7 +221,7 @@ public class ReviewPageTests : ComponentTestBase
         Services.GetRequiredService<ReviewQueueNotifier>().Changed += () => notified = true;
         var cut = Render<Review>();
         cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("[data-testid='review-confirm']").Count));
-        Card(cut, 0).QuerySelector("[data-testid='review-class']")!.Change("budgeted");
+        Card(cut, 0).QuerySelector("[data-testid='review-class-budgeted']")!.Change(true);
         Card(cut, 0).QuerySelector("[data-testid='review-remember']")!.Change(true);
         Card(cut, 0).QuerySelector("[data-testid='review-notes']")!.Change(" Team lunch, split later ");
         Card(cut, 0).QuerySelector("[data-testid='review-confirm']")!.Click();

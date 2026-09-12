@@ -702,6 +702,12 @@
   <data name="Email_SyncError" xml:space="preserve"><value>No se pudo sincronizar esta bandeja. Intenta de nuevo.</value></data>
   <data name="Email_ReconnectToSync" xml:space="preserve"><value>Reconecta esta bandeja para sincronizarla.</value></data>
   <data name="Nav_Review" xml:space="preserve"><value>Revisar</value></data>
+  <data name="Review_ConfirmingWill" xml:space="preserve"><value>Al confirmar</value></data>
+  <data name="Review_ConfirmingWillBook" xml:space="preserve"><value>Se registran {0} en {1} como {2}, en {3}.</value></data>
+  <data name="Review_ConfirmingWillBookNoMonth" xml:space="preserve"><value>Se registran {0} en {1} como {2}.</value></data>
+  <data name="Review_ConfirmingBlocked" xml:space="preserve"><value>Todavía no — falta {0}.</value></data>
+  <data name="Review_MissingFields" xml:space="preserve"><value>El correo del banco no trae {0} — complételo abajo.</value></data>
+  <data name="Review_FromYourRule" xml:space="preserve"><value>de tu regla</value></data>
   <data name="Review_Title" xml:space="preserve"><value>Cola de revisión</value></data>
   <data name="Review_Subtitle" xml:space="preserve"><value>Los vouchers del banco que llegan a tus bandejas esperan aquí hasta que los confirmes. Nada toca el presupuesto hasta entonces.</value></data>
   <data name="Review_Empty" xml:space="preserve"><value>Nada por revisar: todos los borradores de tus bandejas están procesados.</value></data>

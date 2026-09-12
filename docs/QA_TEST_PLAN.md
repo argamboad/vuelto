@@ -2064,6 +2064,12 @@ unrecognized }`; with no inboxes → all zeros.
 
 ## 10n. Web — Email ingestion: suggestions & review queue (app slice EMAIL-5/6) 🟠
 
+> **The queue is presented per SKIN-6 (2026-09-12):** each staged email is a two-pane row — the draft, and
+> beside it a plain-language statement of what confirming will do, with the actions under it. Confirm blocks
+> VISIBLY while a required field is empty, naming which, instead of failing on submit. Amber on this screen
+> means one thing only: the bank email arrived incomplete. Nothing books until confirmed, discard is still a
+> soft delete of the DRAFT and never the source email, and remembering a merchant is still opt-in per draft.
+
 > The staged drafts (QA-EMAIL-04) become transactions only here. Merchant rules prefill the queue; the user
 > always confirms. Can be run without a live inbox by staging a draft row directly (see the note in
 > QA-EMAIL-06) — the confirm path is identical.
@@ -2090,6 +2096,8 @@ on, and **Months** shows no new transaction yet.
 **Gherkin**
 ```gherkin
 Given a pending draft in the Review queue (header badge shows 1, dashboard banner says 1 waiting)
+Then each draft is a TWO-PANE row: the draft on the left, and on the right a "Confirming will" panel stating in words what the click books — the amount, the category, the class, and which PAY-CYCLE month the date lands in (not always the calendar one)
+And the class is three chips, not a dropdown — Budgeted, Discretionary, Unplanned — reachable by keyboard as a radio group
 When I pick a category (or create one right there with "+ New" — every card on the queue then lists it) and class, tick "Remember this merchant" and Confirm
 And when the class is Unplanned, a "Refund expected" switch appears with a percentage and an "Expected back: …" preview; confirming with it books the transaction AND its pending refund in that month
 Then "Confirmed and remembered", the draft leaves the queue, the badge disappears, and the month lists a transaction with source email and the voucher's amount, bank, date and card (the queue card shows "VISA ····1234"; the card is created as VISA-1234 on first sight — QA-CAT-05)
@@ -2098,15 +2106,26 @@ When I confirm the same draft again through the API
 Then 409 not_pending, and no second transaction exists
 When I discard another pending draft
 Then it leaves the queue; discarding it again → 409; the same email never re-stages on the next Sync now
+Given a draft the parser could not fully read
+Then an amber notice names the missing fields IN THE USER'S WORDS (Payee, Amount, Date — not the parser's field names), each blank input carries a red border and points at that notice
+And the consequence panel reads "Nothing yet — … still missing" and Confirm is DISABLED — blocked visibly, never failing on submit
+When I fill those blanks in
+Then the panel switches to the booking sentence and Confirm enables, without leaving the row
 ```
 **Walkthrough:** need a pending draft — either QA-EMAIL-04 with a real email, or stage one directly
 (dev only): `INSERT INTO "PendingVouchers" (…)` with your household's `TenantId`, a `BankId` from
 `"Banks"`, `Status = 'pending'`, `Merchant`, `Amount`, `Currency = 'CRC'`, `Date`, `Fingerprint`,
 `ProviderMessageId`, `ParsedBank = 'Bac'`, `MissingFields = '{}'`. Open **Dashboard** → **Expected:** the
 amber banner "1 voucher(s) … waiting for review → Review now" (even with no months yet) and the header
-**Review** link with a **1** badge. **Review** → **Expected:** the card shows merchant, ₡ amount, date,
-type, bank; category prefilled only when a rule matches; parsed fields read-only (a draft with blanks shows
-"Could not read: …" and opens exactly those fields). Pick a category — or **+ New** beside the picker, type
+**Review** link with a **1** badge. **Review** → **Expected:** each draft is a **two-pane row** — merchant, ₡ amount, date,
+type, bank and card on the left; a **CONFIRMING WILL** panel on the right. Read that panel → **Expected:**
+a sentence naming the amount, the category, the class and the month, e.g. "Book ₡7,200.00 into Carne as
+Budgeted, in September 2026." Category is prefilled only when a rule matches, and then carries a **from
+your rule** chip. The class is **three chips** — tab to them and use the arrow keys → **Expected:** they
+move like a radio group, and picking **Unplanned** reveals the refund switch. Parsed fields stay read-only;
+a draft the parser could not read shows the **amber** notice naming **Payee / Amount / Date**, red borders
+on exactly those inputs, **"Nothing yet — … still missing"** in the panel and **Confirm disabled**; filling
+them in flips the panel to the booking sentence and enables Confirm without the row moving. Pick a category — or **+ New** beside the picker, type
 a name, **Create** → **Expected:** selected on this card and offered on every other card — tick **Remember this merchant**,
 **Confirm** → **Expected:** the green notice, the card gone, the badge gone; **Months → that month** lists
 the transaction (source `email`); **Settings → Manage suggestions** has the new rule. On another draft pick
@@ -3725,6 +3744,16 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   TTL guard; interrupted links land on Settings' banner). New **QA-AND-15** (on-device kill test;
   renumbered from the branch's QA-AND-14 — that slot went to THEME-1's restart test in the interim).
   Suite 149 → **150** cases.
+- **Updated 2026-09-12** — **The review queue says what confirming will do (SKIN-6, UI redesign).** Each
+  staged email becomes a two-pane row: the draft, and a "Confirming will" panel stating the amount, the
+  category, the class and the pay-cycle month the date lands in. Confirm is disabled while anything required
+  is empty and the panel names it — blocked visibly rather than failing on submit — and the parser's blanks
+  are named in the user's words (Payee / Amount / Date) with red borders and aria wiring. The class picker
+  becomes three chips in a radio group; ALL THREE classes stay, because picking Unplanned is what opens the
+  expected-refund path. QA-EMAIL-06 extended. **Case count unchanged at 191.** Two limits recorded rather
+  than papered over: the handout's sentence also names the WEEK and the budget line's new total, and neither
+  is reachable — `/api/months/resolve` returns a month with no week, and the summary's line rows carry a
+  name with no category id, so a category cannot be matched to its line without an API change.
 - **Updated 2026-09-11** — **The dashboard as one verdict (SKIN-5, UI redesign).** The eleven-row
   waterfall becomes a verdict card, a pace bar and four steps; the separate week / bank / card cards
   become ONE "Where it went" panel behind a By week | By bank | By card | Unbudgeted switch (the old

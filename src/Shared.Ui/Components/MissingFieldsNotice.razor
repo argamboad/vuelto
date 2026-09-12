@@ -1,0 +1,19 @@
+@inject IStringLocalizer<AppStrings> Localizer
+
+@* SKIN-6 · "the bank email arrived incomplete". AMBER, and only ever for that — never for over-budget, which
+   is red. The notice is referenced by every input it names (aria-describedby), so a screen reader reaching a
+   blank field is told why it is blank. *@
+@if (Fields.Count > 0)
+{
+    <p class="missing" id="@Id" data-testid="@TestId" role="status">@Localizer["Review_MissingFields", string.Join(", ", Fields)]</p>
+}
+
+@code {
+    /// <summary>The human names of what the parser could not read, already localized by the caller.</summary>
+    [Parameter] public IReadOnlyList<string> Fields { get; set; } = [];
+
+    /// <summary>DOM id, so the inputs it explains can point at it with aria-describedby.</summary>
+    [Parameter] public string? Id { get; set; }
+
+    [Parameter] public string TestId { get; set; } = "missing";
+}

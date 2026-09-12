@@ -702,6 +702,12 @@
   <data name="Email_SyncError" xml:space="preserve"><value>Couldn't sync this inbox. Try again.</value></data>
   <data name="Email_ReconnectToSync" xml:space="preserve"><value>Reconnect this inbox to sync it.</value></data>
   <data name="Nav_Review" xml:space="preserve"><value>Review</value></data>
+  <data name="Review_ConfirmingWill" xml:space="preserve"><value>Confirming will</value></data>
+  <data name="Review_ConfirmingWillBook" xml:space="preserve"><value>Book {0} into {1} as {2}, in {3}.</value></data>
+  <data name="Review_ConfirmingWillBookNoMonth" xml:space="preserve"><value>Book {0} into {1} as {2}.</value></data>
+  <data name="Review_ConfirmingBlocked" xml:space="preserve"><value>Nothing yet — {0} still missing.</value></data>
+  <data name="Review_MissingFields" xml:space="preserve"><value>The bank email didn't include {0} — fill that in below.</value></data>
+  <data name="Review_FromYourRule" xml:space="preserve"><value>from your rule</value></data>
   <data name="Review_Title" xml:space="preserve"><value>Review queue</value></data>
   <data name="Review_Subtitle" xml:space="preserve"><value>Bank vouchers from your inboxes wait here until you confirm them. Nothing touches the budget until you do.</value></data>
   <data name="Review_Empty" xml:space="preserve"><value>Nothing to review — every draft from your inboxes is handled.</value></data>

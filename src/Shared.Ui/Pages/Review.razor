@@ -57,48 +57,51 @@
     {
         @foreach (var v in _vouchers)
         {
-            <div class="card shadow-sm mb-3" data-testid="review-voucher">
-                <div class="card-body">
-                    <div class="d-flex align-items-start justify-content-between flex-wrap gap-2">
+            var blockers = Blockers(v);
+            var describedBy = $"consequence-{v.Id}-body";
+            <article class="draft" data-testid="review-voucher" aria-label="@DraftLabel(v)">
+
+                @* ---------------------------------------------------------------- the draft *@
+                <div class="draft-main">
+                    <header class="draft-head">
                         <div>
-                            <div class="fw-semibold" data-testid="review-merchant">@(v.Merchant ?? Localizer["Review_UnknownMerchant"].Value)</div>
-                            <div class="small text-muted">
+                            <div class="draft-merchant" data-testid="review-merchant">@(v.Merchant ?? Localizer["Review_UnknownMerchant"].Value)</div>
+                            <div class="draft-meta">
                                 @(v.Date?.ToString("d", CultureInfo.CurrentCulture) ?? "—") · @(v.TransactionType ?? "—") · @BankName(v.BankId)
                                 @if (CardText(v) is { } card) { <span data-testid="review-card"> · @card</span> }
                                 @if (v.ReceivedAt is { } at) { <span> · @Localizer["Review_Received", at.ToLocalTime().ToString("g", CultureInfo.CurrentCulture)]</span> }
                             </div>
                         </div>
-                        <div class="text-end fw-semibold fs-5" data-testid="review-amount">@Money(v)</div>
-                    </div>
+                        <div class="draft-amount" data-testid="review-amount">@Money(v)</div>
+                    </header>
 
-                    @if (v.MissingFields.Length > 0)
-                    {
-                        <div class="alert alert-warning py-1 px-2 small mt-2 mb-2" data-testid="review-missing">@Localizer["Review_Missing"] @string.Join(", ", v.MissingFields)</div>
-                    }
+                    @* The parser's blanks, named once at the top and pointed at by every input it explains. *@
+                    <MissingFieldsNotice TestId="review-missing" Id="@($"missing-{v.Id}")" Fields="ParserBlanks(v)" />
 
-                    <div class="row g-2 mt-1">
-                        <div class="col-12 col-md-4">
-                            <label class="form-label small mb-1">
+                    <div class="draft-fields">
+                        <div class="draft-field">
+                            <label class="form-label">
                                 @Localizer["Tx_Category"]
-                                @if (v.SuggestedCategoryId is not null) { <span class="badge text-bg-info ms-1" data-testid="review-suggested">@Localizer["Review_Suggested"]</span> }
+                                @if (v.SuggestedCategoryId is not null) { <span class="draft-rule" data-testid="review-suggested">@Localizer["Review_FromYourRule"]</span> }
                             </label>
                             <CategoryPicker TestId="review-category" Size="sm" Placeholder="@Localizer["Review_SelectCategory"].Value" Categories="_categories" @bind-Value="v.Form.CategoryId" OnCreated="AddCategory" />
                         </div>
-                        <div class="col-12 col-md-4">
-                            <label class="form-label small mb-1">@Localizer["Tx_Class"]</label>
-                            <select class="form-select form-select-sm" data-testid="review-class" @bind="v.Form.TransactionClass">
-                                <option value="budgeted">@Localizer["Tx_Budgeted"]</option>
-                                <option value="extraordinary">@Localizer["Tx_Extraordinary"]</option>
-                                <option value="unplanned_essential">@Localizer["Tx_Unplanned"]</option>
-                            </select>
+
+                        @* Chips rather than a dropdown (the handout's control), and ALL THREE classes: picking
+                           Unplanned is what reveals the expected-refund switch, so dropping it would quietly
+                           remove the refund path from email-sourced transactions. *@
+                        <div class="draft-field">
+                            <SegmentedSwitch TestId="review-class" Label="@Localizer["Tx_Class"].Value" Options="ClassOptions()"
+                                             Value="@v.Form.TransactionClass" ValueChanged="@(c => v.Form.TransactionClass = c)" />
                         </div>
+
                         @if (v.Form.TransactionClass == "unplanned_essential")
                         {
                             @* Same as the manual form: an unplanned essential can carry an expected refund (LEDGER-3). *@
-                            <div class="col-12 col-md-4">
-                                <div class="form-check form-switch mt-md-4">
+                            <div class="draft-field">
+                                <div class="form-check form-switch">
                                     <input class="form-check-input" type="checkbox" id="review-refund-@v.Id" data-testid="review-refund-expected" @bind="v.Form.RefundExpected" />
-                                    <label class="form-check-label small" for="review-refund-@v.Id">@Localizer["Tx_RefundExpected"]</label>
+                                    <label class="form-check-label" for="review-refund-@v.Id">@Localizer["Tx_RefundExpected"]</label>
                                 </div>
                                 @if (v.Form.RefundExpected)
                                 {
@@ -106,58 +109,71 @@
                                            placeholder="@Localizer["Tx_RefundPercent"]" aria-label="@Localizer["Tx_RefundPercent"]" @bind="v.Form.RefundPercentage" />
                                     @if (RefundPreview(v) is { } preview)
                                     {
-                                        <div class="form-text" data-testid="review-refund-preview">@Localizer["Tx_RefundPreview", preview]</div>
+                                        <div class="draft-hint" data-testid="review-refund-preview">@Localizer["Tx_RefundPreview", preview]</div>
                                     }
                                 }
                             </div>
                         }
+
+                        @* Open ONLY where the parser left a blank — everything else is the voucher's own data. *@
                         @if (v.Missing("Merchant"))
                         {
-                            <div class="col-12 col-md-4">
-                                <label class="form-label small mb-1">@Localizer["Tx_Payee"]</label>
-                                <input class="form-control form-control-sm" data-testid="review-payee" @bind="v.Form.Payee" />
+                            <div class="draft-field">
+                                <label class="form-label" for="payee-@v.Id">@Localizer["Tx_Payee"]</label>
+                                <input class="form-control form-control-sm" id="payee-@v.Id" data-testid="review-payee" @bind="v.Form.Payee"
+                                       aria-describedby="@($"missing-{v.Id}")" aria-invalid="@(string.IsNullOrWhiteSpace(v.Form.Payee) ? "true" : null)"
+                                       data-blank="@(string.IsNullOrWhiteSpace(v.Form.Payee) ? "true" : null)" />
                             </div>
                         }
                         @if (v.Missing("Amount") || v.Missing("Currency"))
                         {
-                            <div class="col-8 col-md-3">
-                                <label class="form-label small mb-1">@Localizer["Tx_Amount"]</label>
-                                <input type="number" step="0.01" min="0" class="form-control form-control-sm" data-testid="review-amount-input" @bind="v.Form.Amount" />
-                            </div>
-                            <div class="col-4 col-md-1">
-                                <label class="form-label small mb-1">&nbsp;</label>
-                                <select class="form-select form-select-sm" data-testid="review-currency" @bind="v.Form.Currency">
-                                    <option value="CRC">₡</option>
-                                    <option value="USD">$</option>
-                                </select>
+                            <div class="draft-field draft-field-amount">
+                                <label class="form-label" for="amount-@v.Id">@Localizer["Tx_Amount"]</label>
+                                <div class="input-group input-group-sm">
+                                    <input type="number" step="0.01" min="0" class="form-control" id="amount-@v.Id" data-testid="review-amount-input" @bind="v.Form.Amount"
+                                           aria-describedby="@($"missing-{v.Id}")" aria-invalid="@(v.Form.Amount is not > 0 ? "true" : null)"
+                                           data-blank="@(v.Form.Amount is not > 0 ? "true" : null)" />
+                                    <select class="form-select" data-testid="review-currency" aria-label="@Localizer["Tx_Currency"]" @bind="v.Form.Currency">
+                                        <option value="CRC">₡</option>
+                                        <option value="USD">$</option>
+                                    </select>
+                                </div>
                             </div>
                         }
                         @if (v.Missing("Date"))
                         {
-                            <div class="col-12 col-md-4">
-                                <label class="form-label small mb-1">@Localizer["Tx_Date"]</label>
-                                <input type="date" class="form-control form-control-sm" data-testid="review-date" @bind="v.Form.Date" />
+                            <div class="draft-field">
+                                <label class="form-label" for="date-@v.Id">@Localizer["Tx_Date"]</label>
+                                <input type="date" class="form-control form-control-sm" id="date-@v.Id" data-testid="review-date" @bind="v.Form.Date"
+                                       aria-describedby="@($"missing-{v.Id}")" aria-invalid="@(v.Form.Date is null ? "true" : null)"
+                                       data-blank="@(v.Form.Date is null ? "true" : null)" />
                             </div>
                         }
+
+                        <div class="draft-field draft-field-wide">
+                            <label class="form-label" for="notes-@v.Id">@Localizer["Tx_Notes"]</label>
+                            <textarea class="form-control form-control-sm" id="notes-@v.Id" rows="2" maxlength="250" data-testid="review-notes" placeholder="@Localizer["Tx_NotesHint"]" @bind="v.Form.Notes"></textarea>
+                        </div>
                     </div>
 
-                    <div class="mt-3">
-                        <label class="form-label small mb-1" for="notes-@v.Id">@Localizer["Tx_Notes"]</label>
-                        <textarea class="form-control form-control-sm" id="notes-@v.Id" rows="2" maxlength="250" data-testid="review-notes" placeholder="@Localizer["Tx_NotesHint"]" @bind="v.Form.Notes"></textarea>
-                    </div>
-
-                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mt-3">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="remember-@v.Id" data-testid="review-remember" @bind="v.Form.RememberMerchant" disabled="@(v.Merchant is null)" />
-                            <label class="form-check-label small" for="remember-@v.Id">@Localizer["Review_RememberMerchant"]</label>
-                        </div>
-                        <div class="d-flex gap-2">
-                            <button class="btn btn-sm btn-outline-danger" data-testid="review-discard" @onclick="() => DiscardAsync(v)" disabled="@_busy">@Localizer["Review_Discard"]</button>
-                            <button class="btn btn-sm btn-primary" data-testid="review-confirm" @onclick="() => ConfirmAsync(v)" disabled="@_busy">@Localizer["Review_Confirm"]</button>
-                        </div>
+                    <div class="form-check draft-remember">
+                        <input class="form-check-input" type="checkbox" id="remember-@v.Id" data-testid="review-remember" @bind="v.Form.RememberMerchant" disabled="@(v.Merchant is null)" />
+                        <label class="form-check-label" for="remember-@v.Id">@Localizer["Review_RememberMerchant"]</label>
                     </div>
                 </div>
-            </div>
+
+                @* ---------------------------------------------------------------- what confirming will do *@
+                <ConsequencePanel TestId="@($"consequence-{v.Id}")" Eyebrow="@Localizer["Review_ConfirmingWill"]">
+                    <ChildContent>@Consequence(v, blockers)</ChildContent>
+                    <Actions>
+                        @* Disabled only while something required is EMPTY, and the panel above says which —
+                           the handout's rule: block visibly instead of failing on submit. *@
+                        <button class="btn btn-primary btn-sm" data-testid="review-confirm" aria-describedby="@describedBy"
+                                disabled="@(_busy || blockers.Count > 0)" @onclick="() => ConfirmAsync(v)">@Localizer["Review_Confirm"]</button>
+                        <button class="btn btn-outline-danger btn-sm" data-testid="review-discard" disabled="@_busy" @onclick="() => DiscardAsync(v)">@Localizer["Review_Discard"]</button>
+                    </Actions>
+                </ConsequencePanel>
+            </article>
         }
     }
 </div>
@@ -193,6 +209,7 @@
             try { _unnamedCards = (await Http.GetFromJsonAsync<List<CardNudgeDto>>("/api/cards"))?.Count(c => c.AutoNamed) ?? 0; }
             catch { _unnamedCards = 0; }
             foreach (var v in _vouchers) v.InitForm();
+            await ResolveMonthsAsync();
         }
         catch { Fail(Localizer["Review_LoadError"]); }
         finally { _loading = false; }
@@ -253,6 +270,103 @@
     }
 
     private string BankName(Guid? id) => _banks.FirstOrDefault(b => b.Id == id)?.Name ?? "—";
+
+    /// <summary>The three classes a staged voucher can be booked as, as chips rather than a dropdown.</summary>
+    private List<SegmentedOption> ClassOptions() =>
+    [
+        new("budgeted", Localizer["Tx_Budgeted"]),
+        new("extraordinary", Localizer["Tx_Extraordinary"]),
+        new("unplanned_essential", Localizer["Tx_Unplanned"]),
+    ];
+
+    /// <summary>Names the draft for a screen reader reaching the section — merchant and amount, not "article".</summary>
+    private string DraftLabel(VoucherDto v) => $"{v.Merchant ?? Localizer["Review_UnknownMerchant"].Value} {Money(v)}";
+
+    /// <summary>What the PARSER could not read — the amber notice. Distinct from <see cref="Blockers"/>, which is
+    /// what is still empty NOW: a blank the user has since filled leaves the notice but clears the block.</summary>
+    private List<string> ParserBlanks(VoucherDto v) => v.MissingFields
+        .Select(f => f.ToLowerInvariant() switch
+        {
+            "merchant" => Localizer["Tx_Payee"].Value,
+            "amount" or "currency" => Localizer["Tx_Amount"].Value,
+            "date" => Localizer["Tx_Date"].Value,
+            _ => f,
+        })
+        .Distinct()
+        .ToList();
+
+    /// <summary>Everything required that is still empty. Confirm is disabled exactly while this is non-empty.</summary>
+    private List<string> Blockers(VoucherDto v)
+    {
+        var missing = new List<string>();
+        if (string.IsNullOrEmpty(v.Form.CategoryId)) missing.Add(Localizer["Tx_Category"].Value);
+        if (v.Missing("Merchant") && string.IsNullOrWhiteSpace(v.Form.Payee)) missing.Add(Localizer["Tx_Payee"].Value);
+        if ((v.Missing("Amount") || v.Missing("Currency")) && v.Form.Amount is not > 0) missing.Add(Localizer["Tx_Amount"].Value);
+        if (v.Missing("Date") && v.Form.Date is null) missing.Add(Localizer["Tx_Date"].Value);
+        return missing;
+    }
+
+    /// <summary>
+    /// The redesign's fifth decision, in the one place it earns the most: say what the click will DO before it
+    /// happens. Blocked, it names what is still needed; otherwise it states the amount, the category, the class
+    /// and — the part that is not obvious from the row — which PAY-CYCLE MONTH the date lands in, which is
+    /// not always the calendar one.
+    ///
+    /// The handout's sentence also carries the week and the budget line's new total. Neither is reachable
+    /// without an API change this slice may not make: /api/months/resolve returns a month but no week, and the
+    /// summary's line rows carry a name with no category id, so a category cannot be matched to its line.
+    /// </summary>
+    private string Consequence(VoucherDto v, List<string> blockers)
+    {
+        if (blockers.Count > 0) return Localizer["Review_ConfirmingBlocked", string.Join(", ", blockers)];
+
+        var amount = MoneyForConfirm(v);
+        var category = _categories.FirstOrDefault(c => c.Id.ToString() == v.Form.CategoryId)?.Name ?? "—";
+        var className = ClassOptions().First(o => o.Value == v.Form.TransactionClass).Label;
+        var date = v.Missing("Date") ? v.Form.Date : v.Date;
+
+        return date is { } d && _months.TryGetValue(d, out var month)
+            ? Localizer["Review_ConfirmingWillBook", amount, category, className, month]
+            : Localizer["Review_ConfirmingWillBookNoMonth", amount, category, className];
+    }
+
+    /// <summary>The amount the confirm will actually send — the voucher's own, or the typed one where it was blank.</summary>
+    private static string MoneyForConfirm(VoucherDto v)
+    {
+        var editable = v.Missing("Amount") || v.Missing("Currency");
+        var amount = editable ? v.Form.Amount : v.Amount;
+        var currency = (editable ? v.Form.Currency : v.Currency) ?? "CRC";
+        return amount is { } a ? (currency == "USD" ? "$" : "₡") + a.ToString("N2", CultureInfo.CurrentCulture) : "—";
+    }
+
+    /// <summary>
+    /// date → pay-cycle month label. A month is resolved ONCE per distinct date and cached: a queue of eleven
+    /// vouchers from the same fortnight is one or two calls, not eleven. Best-effort — an unreachable resolve
+    /// simply drops the month clause rather than blocking the queue.
+    /// </summary>
+    private readonly Dictionary<DateOnly, string> _months = new();
+
+    private async Task ResolveMonthsAsync()
+    {
+        foreach (var date in _vouchers.Select(v => v.Date).Where(d => d is not null).Select(d => d!.Value).Distinct())
+        {
+            if (_months.ContainsKey(date)) continue;
+            try
+            {
+                var res = await Http.GetAsync($"/api/months/resolve?date={date:yyyy-MM-dd}");
+                if (!res.IsSuccessStatusCode) continue;
+                if (await res.Content.ReadFromJsonAsync<MonthResolveDto>() is { } m)
+                {
+                    _months[date] = $"{CultureInfo.CurrentCulture.TextInfo.ToTitleCase(CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(m.MonthNumber))} {m.Year}";
+                }
+            }
+            catch { /* the month clause is a courtesy, never a blocker */ }
+        }
+    }
+
+    private sealed record MonthResolveDto(
+        [property: JsonPropertyName("year")] int Year,
+        [property: JsonPropertyName("month_number")] int MonthNumber);
 
     private static string Money(VoucherDto v) => v.Amount is { } a
         ? (v.Currency == "USD" ? "$" : "₡") + a.ToString("N2", CultureInfo.CurrentCulture)
