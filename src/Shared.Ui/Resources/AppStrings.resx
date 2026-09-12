@@ -440,6 +440,17 @@
   <data name="Month_ConfirmDelete" xml:space="preserve"><value>Confirm delete</value></data>
   <data name="Month_Deleted" xml:space="preserve"><value>Transaction deleted.</value></data>
   <data name="Month_DeleteError" xml:space="preserve"><value>Couldn't delete it. Try again.</value></data>
+  <data name="Tx_GroupWhat" xml:space="preserve"><value>What it was</value></data>
+  <data name="Tx_GroupHow" xml:space="preserve"><value>How it was paid</value></data>
+  <data name="Tx_BeforeYouSave" xml:space="preserve"><value>Before you save</value></data>
+  <data name="Tx_ConvertedAt" xml:space="preserve"><value>= {0} at ₡{1} per $1 · frozen when you save</value></data>
+  <data name="Tx_ConvertedAtFrozen" xml:space="preserve"><value>= {0} at ₡{1} per $1 · frozen when this was saved</value></data>
+  <data name="Tx_MethodFromCard" xml:space="preserve"><value>Set from the card — you can change it.</value></data>
+  <data name="Tx_ClassHint_Budgeted" xml:space="preserve"><value>Counts against a budget line in this month.</value></data>
+  <data name="Tx_ClassHint_Extraordinary" xml:space="preserve"><value>Unplanned but discretionary — counted in expenses, outside the plan.</value></data>
+  <data name="Tx_ClassHint_Unplanned" xml:space="preserve"><value>Unplanned and unavoidable — counted in expenses, and it can expect a refund.</value></data>
+  <data name="Tx_ClassHint_Inflow" xml:space="preserve"><value>Money in — folded into this month's income, not into expenses.</value></data>
+  <data name="Tx_ClassHint_Envelope" xml:space="preserve"><value>A savings contribution — carved out of expenses entirely, and it needs a bank account.</value></data>
   <data name="Tx_NewTitle" xml:space="preserve"><value>New transaction</value></data>
   <data name="Tx_EditTitle" xml:space="preserve"><value>Edit transaction</value></data>
   <data name="Tx_NotFound" xml:space="preserve"><value>That transaction no longer exists.</value></data>

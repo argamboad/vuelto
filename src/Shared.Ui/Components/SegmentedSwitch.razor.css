@@ -25,6 +25,10 @@
 
 .segmented-track {
     display: inline-flex;
+    /* Wraps rather than overflowing: the transaction form's class picker has FIVE chips, and at phone
+       width with 44px touch targets they cannot sit on one line. Wrapping is inert for the shorter
+       switches, which never reach the edge. */
+    flex-wrap: wrap;
     gap: 2px;
     padding: 2px;
     border-radius: var(--bs-border-radius);

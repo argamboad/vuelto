@@ -1,0 +1,126 @@
+/* SKIN-7 · amount-first, three named groups, and a rail that says where it lands before you save.
+   At lg the rail is a 320px side column; below it the rail moves ABOVE the save button in flow, keeping
+   its order — the consequence still precedes the control that acts on it. */
+.tx-layout {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 15px;
+    align-items: start;
+}
+
+.tx-form {
+    display: flex;
+    flex-direction: column;
+    gap: 13px;
+    min-width: 0;
+}
+
+/* ---------------------------------------------------------------- the money block */
+.tx-money {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 11px;
+    padding: 15px 17px;
+    border: 1px solid var(--app-border);
+    border-radius: var(--radius-card);
+    background: var(--card-bg);
+}
+
+.tx-money-date {
+    min-width: 0;
+}
+
+/* ---------------------------------------------------------------- the two groups */
+.tx-group {
+    padding: 15px 17px;
+    border: 1px solid var(--app-border);
+    border-radius: var(--radius-card);
+    background: var(--card-bg);
+}
+
+.tx-group h2 {
+    margin: 0 0 11px;
+    font-size: 11px
+    ;
+    font-weight: var(--w-display);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+}
+
+.tx-fields {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 11px;
+}
+
+.tx-field {
+    min-width: 0;
+}
+
+.tx-field .form-label {
+    display: block;
+    margin-bottom: 3px;
+    font-size: 11px;
+    font-weight: var(--w-body);
+    color: var(--ink-3);
+}
+
+.tx-field .form-check-label {
+    font-size: 12px;
+    color: var(--ink-2);
+}
+
+/* One line under a control, saying what it does. */
+.tx-hint {
+    margin: 5px 0 0;
+    font-size: 11px;
+    font-weight: var(--w-body);
+    color: var(--ink-3);
+}
+
+.tx-hint-end {
+    text-align: right;
+}
+
+/* ---------------------------------------------------------------- the rail */
+.tx-rail-lands {
+    margin: 0 0 9px;
+    font-size: 12px;
+    font-weight: var(--w-control);
+    color: var(--ink);
+}
+
+/* label | figure, so the two currencies and the rate line up against each other. */
+.tx-rail-money {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 3px 11px;
+    margin: 0;
+    font-size: 12px;
+}
+
+.tx-rail-money dt {
+    font-weight: var(--w-body);
+    color: var(--ink-3);
+}
+
+.tx-rail-money dd {
+    margin: 0;
+    text-align: right;
+    font-weight: var(--w-control);
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+}
+
+@media (min-width: 768px) {
+    .tx-money { grid-template-columns: 1fr 190px; align-items: end; }
+    .tx-fields { grid-template-columns: 1fr 1fr; }
+    .tx-field-wide { grid-column: 1 / -1; }
+}
+
+@media (min-width: 992px) {
+    .tx-layout { grid-template-columns: 1fr 320px; }
+    .tx-money, .tx-group { padding: 19px 22px; }
+    .tx-fields { grid-template-columns: 1fr 1fr 1fr; }
+}

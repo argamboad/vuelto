@@ -440,6 +440,17 @@
   <data name="Month_ConfirmDelete" xml:space="preserve"><value>Confirmar eliminación</value></data>
   <data name="Month_Deleted" xml:space="preserve"><value>Transacción eliminada.</value></data>
   <data name="Month_DeleteError" xml:space="preserve"><value>No se pudo eliminar. Intenta de nuevo.</value></data>
+  <data name="Tx_GroupWhat" xml:space="preserve"><value>Qué fue</value></data>
+  <data name="Tx_GroupHow" xml:space="preserve"><value>Cómo se pagó</value></data>
+  <data name="Tx_BeforeYouSave" xml:space="preserve"><value>Antes de guardar</value></data>
+  <data name="Tx_ConvertedAt" xml:space="preserve"><value>= {0} a ₡{1} por $1 · se congela al guardar</value></data>
+  <data name="Tx_ConvertedAtFrozen" xml:space="preserve"><value>= {0} a ₡{1} por $1 · congelado al guardarse</value></data>
+  <data name="Tx_MethodFromCard" xml:space="preserve"><value>Se tomó de la tarjeta — podés cambiarlo.</value></data>
+  <data name="Tx_ClassHint_Budgeted" xml:space="preserve"><value>Cuenta contra una línea del presupuesto de este mes.</value></data>
+  <data name="Tx_ClassHint_Extraordinary" xml:space="preserve"><value>No planificado pero prescindible — cuenta en gastos, fuera del plan.</value></data>
+  <data name="Tx_ClassHint_Unplanned" xml:space="preserve"><value>No planificado e inevitable — cuenta en gastos y puede esperar un reembolso.</value></data>
+  <data name="Tx_ClassHint_Inflow" xml:space="preserve"><value>Dinero que entra — se suma al ingreso del mes, no a los gastos.</value></data>
+  <data name="Tx_ClassHint_Envelope" xml:space="preserve"><value>Un aporte al ahorro — queda fuera de los gastos y requiere cuenta bancaria.</value></data>
   <data name="Tx_NewTitle" xml:space="preserve"><value>Nueva transacción</value></data>
   <data name="Tx_EditTitle" xml:space="preserve"><value>Editar transacción</value></data>
   <data name="Tx_NotFound" xml:space="preserve"><value>Esa transacción ya no existe.</value></data>

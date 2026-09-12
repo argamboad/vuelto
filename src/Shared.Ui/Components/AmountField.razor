@@ -1,0 +1,47 @@
+@using System.Globalization
+@inject IStringLocalizer<AppStrings> Localizer
+
+@* SKIN-7 · amount and currency are ONE input group, never two fields side by side, with the live conversion
+   directly under them. The amount is the first thing on the form and it is set at display size, because it
+   is the one figure the person came to type. *@
+<div class="amount-field" data-testid="@TestId">
+    <label class="amount-label" for="@($"{TestId}-input")">@Label</label>
+    <div class="input-group amount-group">
+        <span class="input-group-text amount-symbol" aria-hidden="true">@(Currency == "USD" ? "$" : "₡")</span>
+        <input class="form-control amount-input" type="number" step="0.01" min="0" id="@($"{TestId}-input")"
+               data-testid="@($"{TestId}-input")" disabled="@Disabled" value="@Value" @onchange="OnAmount"
+               aria-describedby="@($"{TestId}-conversion")" />
+        @* The toggle sits INSIDE the group: currency is part of the amount, not a separate decision. *@
+        <select class="form-select amount-currency" data-testid="@($"{TestId}-currency")" aria-label="@CurrencyLabel"
+                disabled="@Disabled" value="@Currency" @onchange="OnCurrency">
+            <option value="CRC">₡</option>
+            <option value="USD">$</option>
+        </select>
+    </div>
+    @if (Conversion is not null)
+    {
+        <p class="amount-conversion" id="@($"{TestId}-conversion")" data-testid="@($"{TestId}-conversion")">@Conversion</p>
+    }
+</div>
+
+@code {
+    [Parameter] public decimal Value { get; set; }
+    [Parameter] public EventCallback<decimal> ValueChanged { get; set; }
+
+    [Parameter] public string Currency { get; set; } = "CRC";
+    [Parameter] public EventCallback<string> CurrencyChanged { get; set; }
+
+    [Parameter] public string? Label { get; set; }
+    [Parameter] public string? CurrencyLabel { get; set; }
+
+    /// <summary>The other side at today's rate, plus the note that it freezes on save. Null hides the line.</summary>
+    [Parameter] public string? Conversion { get; set; }
+
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public string TestId { get; set; } = "amount";
+
+    private Task OnAmount(ChangeEventArgs e) =>
+        ValueChanged.InvokeAsync(decimal.TryParse(e.Value?.ToString(), NumberStyles.Any, CultureInfo.InvariantCulture, out var v) ? v : 0m);
+
+    private Task OnCurrency(ChangeEventArgs e) => CurrencyChanged.InvokeAsync(e.Value?.ToString() ?? "CRC");
+}

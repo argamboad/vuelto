@@ -1353,6 +1353,7 @@ Then the card reads Debit and not one past transaction moved
 When I edit it again ticking "Also correct past transactions on this card"
 Then the notice names how many moved, and those rows read Bank account on the month page
 When I open New transaction and pick that card
+Then the method switches to Bank account AND the form SAYS it did ("Set from the card — you can change it"), instead of changing silently
 Then Payment method becomes Bank account by itself, and I can still change it
 And confirming a voucher on that card books the transaction against the bank account, still naming the card
 ```
@@ -1465,6 +1466,15 @@ And a PUT to an envelope id from another household returns 404
 
 ## 10h. Web — Months & transactions (app slice LEDGER-1/2) 🟠
 
+> **The transaction form is presented per SKIN-7 (2026-09-12):** amount FIRST and at display size, with the
+> currency toggle inside the same input group and the live conversion under it; then two named groups,
+> **What it was** and **How it was paid**; then a **Before you save** rail stating which pay-cycle month the
+> date lands in and both sides of the money. The class picker is five CHIPS in a radio group, not a dropdown
+> — all five, because each one opens a different path (unplanned → expected refund, envelope → bucket
+> picker, inflow → income). Save stays ENABLED and surfaces validation on submit; it never goes quietly
+> dead. Unchanged: which month a date falls into is the pay-cycle logic's business, and the rate freezes on
+> save, never on edit.
+
 > The core loop (ADR-V005/V006/V007): a transaction's date decides its pay-cycle month; months
 > appear with their first transaction (weeks materialized, income snapshotted) and leave with their
 > last; the exchange rate is frozen at creation. Fixture with the default settings (Thursday /
@@ -1475,7 +1485,11 @@ And a PUT to an envelope id from another household returns 404
 **Gherkin**
 ```gherkin
 Given a fresh household with no months, Budget settings saved with 5-week incomes 3750 USD / 312500 CRC
-When I open New transaction, type "AutoMercado", 50000 CRC, date 2026-07-10, bank Cash, class Budgeted
+When I open New transaction
+Then the AMOUNT is the first field, at display size, with the currency toggle inside its own input group and the conversion under it ("= $… at ₡… per $1 · frozen when you save")
+And the rest reads as two named groups — What it was (payee, category, class chips, notes) and How it was paid (bank, card, method, rate)
+And a Before you save rail states which month the date lands in and lists ₡, $ and the rate used
+When I type "AutoMercado", 50000 CRC, date 2026-07-10, bank Cash, class Budgeted
 And I click "+ New" beside Category, type "Viajes" and Create
 Then "Viajes" is selected without leaving the form (it also appears under Settings → Categories); typing "viajes" again just selects it
 Then the date says "Goes to July 2026 — a new month will be created" and the rate is pre-filled
@@ -1509,7 +1523,8 @@ Then the $ amount doubles and the rate field was disabled (frozen) throughout
 When I Edit again and change the date to 2026-06-05
 Then I land on June 2026 (new, 4 weeks) and July 2026 no longer appears in Months
 ```
-**Walkthrough:** on the month page → **Edit** → **Expected:** the rate input disabled with the
+**Walkthrough:** on the month page → **Edit** → **Expected:** the amount field's conversion line now reads
+"frozen when this was saved" rather than "frozen when you save", and the rate input disabled with the
 "Frozen when the transaction was created" hint. Amount `100000` → **Save** → **Expected:** the row's
 $ column doubles (same rate). **Edit** → date `2026-06-05` → **Expected:** "Goes to June 2026 — a
 new month will be created" → **Save** → **Expected:** the **June 2026** page (4 weeks); nav
@@ -3744,6 +3759,17 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   TTL guard; interrupted links land on Settings' banner). New **QA-AND-15** (on-device kill test;
   renumbered from the branch's QA-AND-14 — that slot went to THEME-1's restart test in the interim).
   Suite 149 → **150** cases.
+- **Updated 2026-09-12** — **The transaction form, amount-first (SKIN-7, UI redesign).** Twelve stacked
+  fields become the amount at display size (currency toggle inside the input group, live conversion beneath),
+  two named groups — What it was / How it was paid — and a **Before you save** rail naming the pay-cycle
+  month and both sides of the money. The class picker becomes five chips in a radio group; ALL FIVE stay,
+  because each opens a path the others do not (unplanned → expected refund, envelope → bucket picker,
+  inflow → income). CARDS-3's silent method change now says so. QA-LED-01/02 and QA-CAT-07 extended.
+  **Case count unchanged at 191.** Save deliberately stays ENABLED and surfaces validation on submit — the
+  opposite rule from the review queue, where the blocker is a parsed blank the user cannot argue with.
+  Limit recorded: the handout's rail also shows the budget line's new total, which is unreachable because the
+  summary's line rows carry a name with no category id — a category cannot be matched to its line without an
+  API change.
 - **Updated 2026-09-12** — **The review queue says what confirming will do (SKIN-6, UI redesign).** Each
   staged email becomes a two-pane row: the draft, and a "Confirming will" panel stating the amount, the
   category, the class and the pay-cycle month the date lands in. Confirm is disabled while anything required

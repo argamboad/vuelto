@@ -1,0 +1,44 @@
+.amount-label {
+    display: block;
+    margin-bottom: 3px;
+    font-size: 11px;
+    font-weight: var(--w-body);
+    color: var(--ink-3);
+}
+
+/* Display size, tabular, and the symbol/toggle read as part of the same object. */
+.amount-input {
+    font-size: 30px;
+    font-weight: var(--w-display);
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+    padding-top: 4px;
+    padding-bottom: 4px;
+}
+
+.amount-symbol {
+    font-size: 23px;
+    font-weight: var(--w-display);
+    color: var(--brand-gold);          /* the colón glyph is the brand mark's own, and only here */
+    background: var(--input-bg, var(--card-bg));
+    border-right: 0;
+}
+
+.amount-currency {
+    flex: 0 0 auto;
+    width: auto;
+    font-size: 13px;
+    font-weight: var(--w-control);
+}
+
+.amount-conversion {
+    margin: 5px 0 0;
+    font-size: 11px;
+    font-weight: var(--w-body);
+    color: var(--ink-3);
+}
+
+@media (min-width: 768px) {
+    .amount-input { font-size: 38px; }
+    .amount-symbol { font-size: 26px; }
+}
