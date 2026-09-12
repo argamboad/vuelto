@@ -14,73 +14,43 @@
 
 <PageTitle>@Localizer["Reports_Title"]</PageTitle>
 
-@* REPORTS-1/2: spend by category per class for a month or a date range, plus the CSV export of the same
-   period through the platform's download launcher (browser download / native share sheet). *@
+@* REPORTS-1..4: spend by category per class for a month or a date range, the CSV export of the same period, and
+   the charts — presented per SKIN-10. The order is the redesign's first decision: ONE verdict first (four KPI
+   tiles and the pace against the plan, always visible), then the detail behind a Table/Chart toggle — the
+   category table with a class switcher, or the eight charts that answer "where exactly?". The pace chart is
+   the one chart promoted out of the chart view (plan §7.1); nothing was deleted. *@
 <div class="reports-wrapper" data-testid="reports-page">
-    <div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
-        <div>
-            <h1 class="h4 fw-bold mb-1">@Localizer["Reports_Title"]</h1>
-            <p class="text-muted mb-0 small">@Localizer["Reports_Subtitle"]</p>
+    <header class="rep-head">
+        <div class="rep-head-main">
+            <h1>@Localizer["Reports_Title"]</h1>
+            <p class="rep-subtitle">@Localizer["Reports_Subtitle"]</p>
         </div>
-        <button class="btn btn-outline-primary" data-testid="rep-export" @onclick="ExportAsync" disabled="@(_exporting || _period is null)">
-            @(_exporting ? Localizer["Reports_Exporting"] : Localizer["Reports_ExportCsv"])
-        </button>
-    </div>
-
-    <div class="card shadow-sm mb-3">
-        <div class="card-body d-flex flex-wrap align-items-end gap-3">
-            <div>
-                <label class="form-label small mb-1">@Localizer["Reports_PeriodMode"]</label>
-                <select class="form-select form-select-sm" data-testid="rep-mode" value="@_mode" @onchange="OnModeChanged">
-                    <option value="month">@Localizer["Reports_ByMonth"]</option>
-                    <option value="range">@Localizer["Reports_DateRange"]</option>
-                </select>
-            </div>
+        <div class="rep-head-controls">
+            @* Month select and custom range are mutually exclusive: the mode picks which control is shown. *@
+            <select class="form-select form-select-sm" aria-label="@Localizer["Reports_PeriodMode"]" data-testid="rep-mode" value="@_mode" @onchange="OnModeChanged">
+                <option value="month">@Localizer["Reports_ByMonth"]</option>
+                <option value="range">@Localizer["Reports_DateRange"]</option>
+            </select>
             @if (_mode == "month")
             {
-                <div>
-                    <label class="form-label small mb-1">@Localizer["Reports_Month"]</label>
-                    <select class="form-select form-select-sm" data-testid="rep-month" value="@_monthId" @onchange="OnMonthChanged" disabled="@(_months.Count == 0)">
-                        @foreach (var m in _months)
-                        {
-                            <option value="@m.Id">@MonthLabel(m.Year, m.MonthNumber)</option>
-                        }
-                    </select>
-                </div>
+                <select class="form-select form-select-sm" aria-label="@Localizer["Reports_Month"]" data-testid="rep-month" value="@_monthId" @onchange="OnMonthChanged" disabled="@(_months.Count == 0)">
+                    @foreach (var m in _months)
+                    {
+                        <option value="@m.Id">@MonthLabel(m.Year, m.MonthNumber)</option>
+                    }
+                </select>
             }
             else
             {
-                <div>
-                    <label class="form-label small mb-1">@Localizer["Reports_From"]</label>
-                    <input type="date" class="form-control form-control-sm" data-testid="rep-from" @bind="_from" />
-                </div>
-                <div>
-                    <label class="form-label small mb-1">@Localizer["Reports_To"]</label>
-                    <input type="date" class="form-control form-control-sm" data-testid="rep-to" @bind="_to" />
-                </div>
+                <input type="date" class="form-control form-control-sm" aria-label="@Localizer["Reports_From"]" data-testid="rep-from" @bind="_from" />
+                <input type="date" class="form-control form-control-sm" aria-label="@Localizer["Reports_To"]" data-testid="rep-to" @bind="_to" />
                 <button class="btn btn-primary btn-sm" data-testid="rep-load" @onclick="LoadRangeAsync" disabled="@_loading">@Localizer["Reports_Load"]</button>
             }
-            <div class="ms-auto d-flex align-items-end gap-2">
-                @* Numbers or pictures — the tables stay exactly as they are; the charts draw the same rows (REPORTS-3). *@
-                <div>
-                    <label class="form-label small mb-1">@Localizer["Reports_View"]</label>
-                    <div class="btn-group btn-group-sm" role="group" aria-label="@Localizer["Reports_View"]">
-                        <button type="button" class="btn @(_view == "table" ? "btn-primary" : "btn-outline-primary")" data-testid="rep-view-table" @onclick='() => SetViewAsync("table")'>@Localizer["Reports_ViewTable"]</button>
-                        <button type="button" class="btn @(_view == "chart" ? "btn-primary" : "btn-outline-primary")" data-testid="rep-view-chart" @onclick='() => SetViewAsync("chart")'>@Localizer["Reports_ViewChart"]</button>
-                    </div>
-                </div>
-                @* Tables: ₡ · $ · both (a budget line still shows on its own side). Charts draw one currency, so their switch has no "both". *@
-                @if (_view == "chart")
-                {
-                    <CurrencySwitch Value="@_chartCurrency" ValueChanged="SetCurrencyAsync" AllowBoth="false" TestId="rep-cur" Label="@Localizer["Reports_ChartCurrency"].Value" />
-                }
-                else
-                {
-                    <CurrencySwitch Value="@_display" ValueChanged="SetDisplayAsync" TestId="rep-cur" Label="@Localizer["Reports_ShowIn"].Value" />
-                }
-            </div>
+            <button class="btn btn-outline-primary btn-sm" data-testid="rep-export" @onclick="ExportAsync" disabled="@(_exporting || _period is null)">
+                @(_exporting ? Localizer["Reports_Exporting"] : Localizer["Reports_ExportCsv"])
+            </button>
         </div>
-    </div>
+    </header>
 
     @if (_notice is not null)
     {
@@ -97,165 +67,188 @@
     }
     else if (_report is not null)
     {
-        <p class="small text-muted" data-testid="rep-period">
+        <p class="rep-period" data-testid="rep-period">
             @Localizer["Reports_Period", _report.Period.From.ToString("d", CultureInfo.CurrentCulture), _report.Period.To.ToString("d", CultureInfo.CurrentCulture)]
             · @(_report.SingleMonth ? Localizer["Reports_SingleMonthNote"] : Localizer["Reports_MultiMonthNote"])
         </p>
+
+        @* ---- the verdict: four tiles ---- *@
+        var spend = Sum(_report.Budgeted, _report.Extraordinary, _report.UnplannedEssential);
+        var budgeted = Sum(_report.Budgeted);
+        var discretionary = Sum(_report.Extraordinary);
+        var unplanned = Sum(_report.UnplannedEssential);
+        <div class="row g-3 rep-kpis" data-testid="rep-kpis">
+            <div class="col-6 col-md-6 col-lg-3">
+                <KpiTile TestId="rep-kpi-total" Label="@Localizer["Reports_Kpi_TotalSpend"]" Value="@Tile(spend, "rep-kpi-total-money")"
+                         Sub="@(_report.Income is { } inc ? Localizer["Reports_OfIncome", Pct(Side(spend), Side(inc))].Value : null)" />
+            </div>
+            <div class="col-6 col-md-6 col-lg-3">
+                <KpiTile TestId="rep-kpi-budgeted" Label="@Localizer["Reports_Kpi_Budgeted"]" Value="@Tile(budgeted, "rep-kpi-budgeted-money")" Sub="@Localizer["Reports_OfSpend", Pct(Side(budgeted), Side(spend))].Value" />
+            </div>
+            <div class="col-6 col-md-6 col-lg-3">
+                <KpiTile TestId="rep-kpi-discretionary" Label="@Localizer["Reports_Kpi_Discretionary"]" Value="@Tile(discretionary, "rep-kpi-discretionary-money")" Sub="@Localizer["Reports_OfSpend", Pct(Side(discretionary), Side(spend))].Value" />
+            </div>
+            <div class="col-6 col-md-6 col-lg-3">
+                @* Unplanned essentials are reported gross; what is expected back is the month's refunds total, noted beside it. *@
+                <KpiTile TestId="rep-kpi-unplanned" Label="@Localizer["Reports_Kpi_Unplanned"]" Value="@Tile(unplanned, "rep-kpi-unplanned-money")"
+                         Sub="@(_refunds is { } r && Side(r) > 0 ? Localizer["Reports_Refundable", MoneyDisplay.Format(r.Crc, r.Usd, _display == MoneyDisplay.Both ? MoneyDisplay.Crc : _display)].Value : Localizer["Reports_OfSpend", Pct(Side(unplanned), Side(spend))].Value)" />
+            </div>
+        </div>
+
+        @* ---- the verdict, continued: pace against the plan (a month picture — a range has no plan) ---- *@
+        @if (_report.SingleMonth)
+        {
+            var plan = _report.BudgetTotal is null ? 0m : PaceSide(_report.BudgetTotal.Crc, _report.BudgetTotal.Usd);
+            var points = PacePoints();
+            <section class="rep-card rep-pace" data-testid="rep-pace-card">
+                <header class="rep-card-head">
+                    <h2>@Localizer["Reports_Pace"]</h2>
+                    @if (_report.BudgetTotal is not null)
+                    {
+                        <span class="rep-pace-summary" data-testid="rep-pace-caption">@Localizer["Reports_PaceCaption", ElapsedPercent(_report.Period.From, _report.Period.To), plan > 0 ? Math.Round(PaceSpend() / plan * 100m) : 0m]</span>
+                    }
+                </header>
+                <LineChart TestId="rep-pace-chart" Height="170" Currency="@PaceCurrency" Title="@Localizer["Reports_Pace"].Value" Points="points" Plan="plan"
+                           From="_report.Period.From" To="_report.Period.To" Today="Today" />
+                @if (_report.BudgetTotal is null)
+                {
+                    <p class="rep-card-note" data-testid="rep-pace-norate">@Localizer["Reports_PaceNoRate"]</p>
+                }
+            </section>
+        }
+
+        @* ---- the detail: numbers or pictures ---- *@
+        <div class="rep-toggle">
+            <SegmentedSwitch TestId="rep-view" Label="@Localizer["Reports_View"].Value" Options="ViewOptions()" Value="@_view" ValueChanged="SetViewAsync" />
+            @* Tables: ₡ · $ · both (a budget line still shows on its own side). Charts draw one currency, so their switch has no "both". *@
+            @if (_view == "chart")
+            {
+                <CurrencySwitch Value="@_chartCurrency" ValueChanged="SetCurrencyAsync" AllowBoth="false" TestId="rep-cur" Label="@Localizer["Reports_ChartCurrency"].Value" />
+            }
+            else
+            {
+                <CurrencySwitch Value="@_display" ValueChanged="SetDisplayAsync" TestId="rep-cur" Label="@Localizer["Reports_ShowIn"].Value" />
+            }
+        </div>
 
         @if (_report.Budgeted.Count == 0 && _report.Extraordinary.Count == 0 && _report.UnplannedEssential.Count == 0)
         {
             <div class="alert alert-info" data-testid="rep-empty">@Localizer["Reports_Empty"]</div>
         }
+        else if (_view == "table")
+        {
+            <CategoryTable Budgeted="_report.Budgeted" Extraordinary="_report.Extraordinary" Unplanned="_report.UnplannedEssential"
+                           SingleMonth="_report.SingleMonth" Display="@_display" ExchangeRate="_report.ExchangeRate" ExchangeRateBuy="_report.ExchangeRateBuy" />
+        }
         else
         {
             <div class="row g-3">
-                @if (_view == "chart")
+                <div class="@(_report.SingleMonth ? "col-12 col-lg-4" : "col-12")">
+                    <div class="rep-card h-100">
+                        <h2 class="rep-card-title">@Localizer["Reports_ClassSplit"]</h2>
+                        <DonutChart TestId="rep-donut" Currency="@_chartCurrency" Title="@Localizer["Reports_ClassSplit"].Value" Slices="ClassSlices()" />
+                    </div>
+                </div>
+                @if (_report.SingleMonth)
                 {
-                    <div class="@(_report.SingleMonth ? "col-12 col-lg-4" : "col-12")">
-                        <div class="card shadow-sm h-100">
-                            <div class="card-body">
-                                <h2 class="h6 fw-bold mb-2">@Localizer["Reports_ClassSplit"]</h2>
-                                <DonutChart TestId="rep-donut" Currency="@_chartCurrency" Title="@Localizer["Reports_ClassSplit"].Value" Slices="ClassSlices()" />
-                            </div>
+                    @* Income vs spend: the same three class slices measured against the month's income, the rest as "Remaining".
+                       Income vs budget: what the active lines commit of that income, the rest "Uncommitted".
+                       Both are per month, so the cards exist only in month mode; no rate today → no figures → say so. *@
+                    <div class="col-12 col-lg-4">
+                        <div class="rep-card h-100" data-testid="rep-income-card">
+                            <h2 class="rep-card-title">@Localizer["Reports_IncomeSplit"]</h2>
+                            @if (_report.Income is null)
+                            {
+                                <p class="rep-card-note" data-testid="rep-income-norate">@Localizer["Reports_IncomeNoRate"]</p>
+                            }
+                            else
+                            {
+                                var income = ChartSide(_report.Income.Crc, _report.Income.Usd);
+                                var over = Spend() - income;
+                                <DonutChart TestId="rep-income-donut" Currency="@_chartCurrency" Title="@Localizer["Reports_IncomeSplit"].Value" Slices="IncomeSlices(income)" CenterText="@Amount0(income)" />
+                                @if (over > 0)
+                                {
+                                    <div class="rep-over" data-testid="rep-income-over">@Localizer["Reports_OverBy", Amount(over)]</div>
+                                }
+                            }
                         </div>
                     </div>
-                    @if (_report.SingleMonth)
+                    <div class="col-12 col-lg-4" data-testid="rep-budget-col">
+                        <div class="rep-card h-100" data-testid="rep-budget-card">
+                            <h2 class="rep-card-title">@Localizer["Reports_BudgetSplit"]</h2>
+                            @if (_report.Income is null || _report.BudgetTotal is null)
+                            {
+                                <p class="rep-card-note" data-testid="rep-budget-norate">@Localizer["Reports_IncomeNoRate"]</p>
+                            }
+                            else
+                            {
+                                var income = ChartSide(_report.Income.Crc, _report.Income.Usd);
+                                var planned = ChartSide(_report.BudgetTotal.Crc, _report.BudgetTotal.Usd);
+                                <DonutChart TestId="rep-budget-donut" Currency="@_chartCurrency" Title="@Localizer["Reports_BudgetSplit"].Value" Slices="BudgetSlices(income, planned)" CenterText="@Amount0(income)" />
+                                @if (planned > income)
+                                {
+                                    <div class="rep-over" data-testid="rep-budget-over">@Localizer["Reports_BudgetOverBy", Amount(planned - income)]</div>
+                                }
+                            }
+                        </div>
+                    </div>
+                    @* Month by month (REPORTS-4): spend on an income track per month, red when a month overspent. *@
+                    @if (_trend is { Months.Count: > 0 })
                     {
-                        @* Income vs spend: the same three class slices measured against the month's income, the rest as "Remaining".
-                           Income vs budget: what the active lines commit of that income, the rest "Uncommitted".
-                           Both are per month, so the cards exist only in month mode; no rate today → no figures → say so. *@
-                        <div class="col-12 col-lg-4">
-                            <div class="card shadow-sm h-100" data-testid="rep-income-card">
-                                <div class="card-body">
-                                    <h2 class="h6 fw-bold mb-2">@Localizer["Reports_IncomeSplit"]</h2>
-                                    @if (_report.Income is null)
-                                    {
-                                        <p class="text-muted small mb-0" data-testid="rep-income-norate">@Localizer["Reports_IncomeNoRate"]</p>
-                                    }
-                                    else
-                                    {
-                                        var income = Side(_report.Income.Crc, _report.Income.Usd);
-                                        var over = Spend() - income;
-                                        <DonutChart TestId="rep-income-donut" Currency="@_chartCurrency" Title="@Localizer["Reports_IncomeSplit"].Value" Slices="IncomeSlices(income)" CenterText="@Amount0(income)" />
-                                        @if (over > 0)
-                                        {
-                                            <div class="small text-danger fw-semibold mt-2" data-testid="rep-income-over">@Localizer["Reports_OverBy", Amount(over)]</div>
-                                        }
-                                    }
-                                </div>
+                        <div class="col-12">
+                            <div class="rep-card" data-testid="rep-trend-card">
+                                <h2 class="rep-card-title">@Localizer["Reports_Trend"]</h2>
+                                <BarChart TestId="rep-trend-chart" Currency="@_chartCurrency" Title="@Localizer["Reports_Trend"].Value" Items="TrendBars()"
+                                          ActualLabel="@Localizer["Reports_TrendSpend"].Value" BudgetLabel="@Localizer["Reports_TrendIncome"].Value" OverLabel="@Localizer["Reports_TrendOver"].Value" />
+                                @if (!_trend.RateAvailable)
+                                {
+                                    <p class="rep-card-note" data-testid="rep-trend-norate">@Localizer["Reports_TrendNoRate"]</p>
+                                }
                             </div>
                         </div>
-                        <div class="col-12 col-lg-4" data-testid="rep-budget-col">
-                            <div class="card shadow-sm h-100" data-testid="rep-budget-card">
-                                <div class="card-body">
-                                    <h2 class="h6 fw-bold mb-2">@Localizer["Reports_BudgetSplit"]</h2>
-                                    @if (_report.Income is null || _report.BudgetTotal is null)
-                                    {
-                                        <p class="text-muted small mb-0" data-testid="rep-budget-norate">@Localizer["Reports_IncomeNoRate"]</p>
-                                    }
-                                    else
-                                    {
-                                        var income = Side(_report.Income.Crc, _report.Income.Usd);
-                                        var planned = Side(_report.BudgetTotal.Crc, _report.BudgetTotal.Usd);
-                                        <DonutChart TestId="rep-budget-donut" Currency="@_chartCurrency" Title="@Localizer["Reports_BudgetSplit"].Value" Slices="BudgetSlices(income, planned)" CenterText="@Amount0(income)" />
-                                        @if (planned > income)
-                                        {
-                                            <div class="small text-danger fw-semibold mt-2" data-testid="rep-budget-over">@Localizer["Reports_BudgetOverBy", Amount(planned - income)]</div>
-                                        }
-                                    }
-                                </div>
-                            </div>
-                        </div>
-                        @* Pace (REPORTS-4): cumulative spend day by day against the straight line to the plan, today marked. *@
-                        <div class="col-12 col-lg-6">
-                            <div class="card shadow-sm h-100" data-testid="rep-pace-card">
-                                <div class="card-body">
-                                    <h2 class="h6 fw-bold mb-2">@Localizer["Reports_Pace"]</h2>
-                                    @{
-                                        var plan = _report.BudgetTotal is null ? 0m : Side(_report.BudgetTotal.Crc, _report.BudgetTotal.Usd);
-                                        var points = PacePoints();
-                                    }
-                                    <LineChart TestId="rep-pace-chart" Currency="@_chartCurrency" Title="@Localizer["Reports_Pace"].Value" Points="points" Plan="plan"
-                                               From="_report.Period.From" To="_report.Period.To" Today="Today" />
-                                    @if (_report.BudgetTotal is null)
-                                    {
-                                        <p class="text-muted small mb-0 mt-2" data-testid="rep-pace-norate">@Localizer["Reports_PaceNoRate"]</p>
-                                    }
-                                    else
-                                    {
-                                        <div class="small text-muted mt-2" data-testid="rep-pace-caption">@Localizer["Reports_PaceCaption", ElapsedPercent(_report.Period.From, _report.Period.To), plan > 0 ? Math.Round(Spend() / plan * 100m) : 0m]</div>
-                                    }
-                                </div>
-                            </div>
-                        </div>
-                        @* Month by month (REPORTS-4): spend on an income track per month, red when a month overspent. *@
-                        @if (_trend is { Months.Count: > 0 })
-                        {
-                            <div class="col-12 col-lg-6">
-                                <div class="card shadow-sm h-100" data-testid="rep-trend-card">
-                                    <div class="card-body">
-                                        <h2 class="h6 fw-bold mb-2">@Localizer["Reports_Trend"]</h2>
-                                        <BarChart TestId="rep-trend-chart" Currency="@_chartCurrency" Title="@Localizer["Reports_Trend"].Value" Items="TrendBars()"
-                                                  ActualLabel="@Localizer["Reports_TrendSpend"].Value" BudgetLabel="@Localizer["Reports_TrendIncome"].Value" OverLabel="@Localizer["Reports_TrendOver"].Value" />
-                                        @if (!_trend.RateAvailable)
-                                        {
-                                            <p class="text-muted small mb-0 mt-2" data-testid="rep-trend-norate">@Localizer["Reports_TrendNoRate"]</p>
-                                        }
-                                    </div>
-                                </div>
-                            </div>
-                        }
                     }
-                    @* Where the money leaves from (REPORTS-4): by bank, and card vs account — stored amounts, so any period. *@
+                }
+                @* Where the money leaves from (REPORTS-4): by bank, and card vs account — stored amounts, so any period. *@
+                <div class="col-12 col-lg-6">
+                    <div class="rep-card h-100" data-testid="rep-bank-card">
+                        <h2 class="rep-card-title">@Localizer["Reports_ByBank"]</h2>
+                        <DonutChart TestId="rep-bank-donut" Currency="@_chartCurrency" Title="@Localizer["Reports_ByBank"].Value" Slices="BankSlices()" />
+                    </div>
+                </div>
+                @if (_report.ByCard is { } byCard && byCard.Any(c => c.Key != "none"))
+                {
                     <div class="col-12 col-lg-6">
-                        <div class="card shadow-sm h-100" data-testid="rep-bank-card">
-                            <div class="card-body">
-                                <h2 class="h6 fw-bold mb-2">@Localizer["Reports_ByBank"]</h2>
-                                <DonutChart TestId="rep-bank-donut" Currency="@_chartCurrency" Title="@Localizer["Reports_ByBank"].Value" Slices="BankSlices()" />
-                            </div>
-                        </div>
-                    </div>
-                    @* CARDS-2: spend by card over the period — a donut, like its neighbour: both answer "which source". *@
-                    @if (_report.ByCard is { } byCard && byCard.Any(c => c.Key != "none"))
-                    {
-                        <div class="col-12 col-lg-6">
-                            <div class="card shadow-sm h-100" data-testid="rep-card-card">
-                                <div class="card-body">
-                                    <h2 class="h6 fw-bold mb-2">@Localizer["Reports_ByCard"]</h2>
-                                    <DonutChart TestId="rep-card-donut" Currency="@_chartCurrency" Title="@Localizer["Reports_ByCard"].Value" Slices="CardSlices()" />
-                                </div>
-                            </div>
-                        </div>
-                    }
-                    @* Card vs account is the tall one — the donut and the plan-vs-spend bars side by side across the full width. *@
-                    <div class="col-12">
-                        <div class="card shadow-sm" data-testid="rep-method-card">
-                            <div class="card-body">
-                                <h2 class="h6 fw-bold mb-2">@Localizer["Reports_ByMethod"]</h2>
-                                <div class="row g-3">
-                                    <div class="col-12 col-lg-5">
-                                        <DonutChart TestId="rep-method-donut" Currency="@_chartCurrency" Title="@Localizer["Reports_ByMethod"].Value" Slices="MethodSlices()" />
-                                    </div>
-                                    @if (_report.BudgetByMethod is { Count: > 0 })
-                                    {
-                                        <div class="col-12 col-lg-7">
-                                            <h3 class="small fw-semibold text-muted mb-1">@Localizer["Reports_MethodBudget"]</h3>
-                                            <BarChart TestId="rep-method-bars" Currency="@_chartCurrency" Title="@Localizer["Reports_MethodBudget"].Value" Items="MethodBars()"
-                                                      ActualLabel="@Localizer["Reports_TrendSpend"].Value" BudgetLabel="@Localizer["Chart_Budget"].Value" />
-                                            @* The bar prints the spend; the question is the plan — say both, per method. *@
-                                            <ul class="list-unstyled small text-muted mb-0 mt-1">
-                                                @foreach (var m in MethodBars())
-                                                {
-                                                    <li data-testid="rep-method-caption">@m.Label: @Localizer["Reports_MethodCaption", Amount(m.Budget ?? 0), Amount(m.Value)]</li>
-                                                }
-                                            </ul>
-                                        </div>
-                                    }
-                                </div>
-                            </div>
+                        <div class="rep-card h-100" data-testid="rep-card-card">
+                            <h2 class="rep-card-title">@Localizer["Reports_ByCard"]</h2>
+                            <DonutChart TestId="rep-card-donut" Currency="@_chartCurrency" Title="@Localizer["Reports_ByCard"].Value" Slices="CardSlices()" />
                         </div>
                     </div>
                 }
+                <div class="col-12">
+                    <div class="rep-card" data-testid="rep-method-card">
+                        <h2 class="rep-card-title">@Localizer["Reports_ByMethod"]</h2>
+                        <div class="row g-3">
+                            <div class="col-12 col-lg-5">
+                                <DonutChart TestId="rep-method-donut" Currency="@_chartCurrency" Title="@Localizer["Reports_ByMethod"].Value" Slices="MethodSlices()" />
+                            </div>
+                            @if (_report.BudgetByMethod is { Count: > 0 })
+                            {
+                                <div class="col-12 col-lg-7">
+                                    <h3 class="rep-card-subtitle">@Localizer["Reports_MethodBudget"]</h3>
+                                    <BarChart TestId="rep-method-bars" Currency="@_chartCurrency" Title="@Localizer["Reports_MethodBudget"].Value" Items="MethodBars()"
+                                              ActualLabel="@Localizer["Reports_TrendSpend"].Value" BudgetLabel="@Localizer["Chart_Budget"].Value" />
+                                    <ul class="rep-captions">
+                                        @foreach (var m in MethodBars())
+                                        {
+                                            <li data-testid="rep-method-caption">@m.Label: @Localizer["Reports_MethodCaption", Amount(m.Budget ?? 0), Amount(m.Value)]</li>
+                                        }
+                                    </ul>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+                @* The class bars: the same rows as the table, as pictures. *@
                 <div class="col-12">@Section(Localizer["Tx_Budgeted"], _report.Budgeted, "rep-budgeted", _report.SingleMonth)</div>
                 <div class="col-12 col-lg-6">@Section(Localizer["Tx_Extraordinary"], _report.Extraordinary, "rep-extraordinary", false)</div>
                 <div class="col-12 col-lg-6">@Section(Localizer["Tx_Unplanned"], _report.UnplannedEssential, "rep-unplanned", false)</div>
@@ -271,6 +264,7 @@
     private DateOnly? _from;
     private DateOnly? _to;
     private ReportDto? _report;
+    private MoneyDto? _refunds;
     private bool _loading = true;
     private bool _exporting;
     private string? _notice;
@@ -282,8 +276,10 @@
     /// <summary>"table" | "chart", and the one currency a chart can draw — both remembered per device (never account data).</summary>
     private string _view = "table";
     private string _chartCurrency = "CRC";
-    /// <summary>The tables' "show in" (MoneyDisplay): ₡, $, or both sides. Picking one currency also points the charts at it.</summary>
+    /// <summary>The tables' and tiles' "show in" (MoneyDisplay): ₡, $, or both sides. Picking one currency also points the charts at it.</summary>
     private string _display = MoneyDisplay.Both;
+
+    private List<SegmentedOption> ViewOptions() => [new("table", Localizer["Reports_ViewTable"]), new("chart", Localizer["Reports_ViewChart"])];
 
     private async Task SetViewAsync(string view)
     {
@@ -318,22 +314,39 @@
         _display = await Display.LoadAsync();
     }
 
-    private decimal Side(decimal crc, decimal usd) => _chartCurrency == "USD" ? usd : crc;
+    // ---- the tiles ----
+
+    private static MoneyDto Sum(params IReadOnlyList<ReportCategoryEntry>[] lists) =>
+        new(lists.Sum(l => l.Sum(e => e.TotalCrc)), lists.Sum(l => l.Sum(e => e.TotalUsd)));
+
+    /// <summary>The "show in" side; "both" measures in colones — a percentage needs one side.</summary>
+    private decimal Side(MoneyDto m) => _display == MoneyDisplay.Usd ? m.Usd : m.Crc;
+
+    private static int Pct(decimal part, decimal whole) => whole <= 0 ? 0 : (int)Math.Round(100m * part / whole);
+
+    private RenderFragment Tile(MoneyDto m, string testId) => __builder =>
+    {
+        <Money Crc="m.Crc" Usd="m.Usd" Display="@_display" Size="step" TestId="@testId" />
+    };
+
+    // ---- the charts ----
+
+    private decimal ChartSide(decimal crc, decimal usd) => _chartCurrency == "USD" ? usd : crc;
 
     private string Amount(decimal value) => (_chartCurrency == "USD" ? "$" : "₡") + value.ToString("N2", CultureInfo.CurrentCulture);
 
     /// <summary>Bars in the chart currency; the budget overlay only when the line is budgeted in THAT currency (a $ line has no ₡ budget to compare with).</summary>
-    private List<BarItem> Bars(List<EntryDto> entries, bool showBudget) => entries
-        .Select(e => new BarItem(e.CategoryName, Side(e.TotalCrc, e.TotalUsd),
+    private List<BarItem> Bars(IReadOnlyList<ReportCategoryEntry> entries, bool showBudget) => entries
+        .Select(e => new BarItem(e.CategoryName, ChartSide(e.TotalCrc, e.TotalUsd),
             showBudget ? (_chartCurrency == "USD" ? (e.BudgetedUsd is > 0 ? e.BudgetedUsd : null) : (e.BudgetedCrc is > 0 ? e.BudgetedCrc : null)) : null))
         .OrderByDescending(b => Math.Max(b.Value, b.Budget ?? 0))
         .ToList();
 
     private List<DonutSlice> ClassSlices() => _report is null ? [] :
     [
-        new(Localizer["Tx_Budgeted"].Value, _report.Budgeted.Sum(e => Side(e.TotalCrc, e.TotalUsd)), "var(--bs-primary)"),
-        new(Localizer["Tx_Extraordinary"].Value, _report.Extraordinary.Sum(e => Side(e.TotalCrc, e.TotalUsd)), "var(--brand-accent-light)"),
-        new(Localizer["Tx_Unplanned"].Value, _report.UnplannedEssential.Sum(e => Side(e.TotalCrc, e.TotalUsd)), "var(--bs-warning)"),
+        new(Localizer["Tx_Budgeted"].Value, _report.Budgeted.Sum(e => ChartSide(e.TotalCrc, e.TotalUsd)), "var(--bs-primary)"),
+        new(Localizer["Tx_Extraordinary"].Value, _report.Extraordinary.Sum(e => ChartSide(e.TotalCrc, e.TotalUsd)), "var(--brand-accent-light)"),
+        new(Localizer["Tx_Unplanned"].Value, _report.UnplannedEssential.Sum(e => ChartSide(e.TotalCrc, e.TotalUsd)), "var(--bs-warning)"),
     ];
 
     /// <summary>All spend in the chart currency — the three expense classes, exactly what the class donut adds up.</summary>
@@ -363,14 +376,21 @@
     /// <summary>The device's date — the pace marker. Overridable for tests.</summary>
     [Parameter] public DateOnly Today { get; set; } = DateOnly.FromDateTime(DateTime.Today);
 
-    /// <summary>Running total per spend day, in the chart currency.</summary>
+    /// <summary>The pace sits beside the tiles, so it draws in the "show in" currency when one is chosen; "both" falls back to the chart currency.</summary>
+    private string PaceCurrency => _display == MoneyDisplay.Both ? _chartCurrency : _display;
+
+    private decimal PaceSide(decimal crc, decimal usd) => PaceCurrency == MoneyDisplay.Usd ? usd : crc;
+
+    private decimal PaceSpend() => _report is null ? 0m : PaceSide(Sum(_report.Budgeted, _report.Extraordinary, _report.UnplannedEssential).Crc, Sum(_report.Budgeted, _report.Extraordinary, _report.UnplannedEssential).Usd);
+
+    /// <summary>Running total per spend day, in the pace currency.</summary>
     private List<LinePoint> PacePoints()
     {
         var points = new List<LinePoint>();
         decimal running = 0;
         foreach (var d in _report?.SpendByDay ?? [])
         {
-            running += Side(d.TotalCrc, d.TotalUsd);
+            running += PaceSide(d.TotalCrc, d.TotalUsd);
             points.Add(new(d.Date, running));
         }
         return points;
@@ -386,7 +406,7 @@
 
     /// <summary>One bar per month, oldest first: spend on top of the income track (no track without a rate).</summary>
     private List<BarItem> TrendBars() => (_trend?.Months ?? [])
-        .Select(m => new BarItem(MonthLabel(m.Year, m.MonthNumber), Side(m.Spend.Crc, m.Spend.Usd), m.Income is null ? null : Side(m.Income.Crc, m.Income.Usd)))
+        .Select(m => new BarItem(MonthLabel(m.Year, m.MonthNumber), ChartSide(m.Spend.Crc, m.Spend.Usd), m.Income is null ? null : ChartSide(m.Income.Crc, m.Income.Usd)))
         .ToList();
 
     private async Task EnsureTrendAsync()
@@ -403,26 +423,26 @@
     ];
 
     private List<DonutSlice> BankSlices() => (_report?.ByBank ?? [])
-        .Select((b, i) => new DonutSlice(string.IsNullOrEmpty(b.Label) ? Localizer["Reports_UnknownBank"].Value : b.Label, Side(b.TotalCrc, b.TotalUsd), Palette[i % Palette.Length]))
+        .Select((b, i) => new DonutSlice(string.IsNullOrEmpty(b.Label) ? Localizer["Reports_UnknownBank"].Value : b.Label, ChartSide(b.TotalCrc, b.TotalUsd), Palette[i % Palette.Length]))
         .ToList();
 
     /// <summary>Per payment method: the spend (frozen amounts) against the plan cut the same way (today's rate) — card first.</summary>
     private List<BarItem> MethodBars()
     {
-        var spend = (_report?.ByMethod ?? []).ToDictionary(m => m.Key, m => Side(m.TotalCrc, m.TotalUsd));
+        var spend = (_report?.ByMethod ?? []).ToDictionary(m => m.Key, m => ChartSide(m.TotalCrc, m.TotalUsd));
         return (_report?.BudgetByMethod ?? [])
             .Select(b => new BarItem(b.Key == "bank_account" ? Localizer["Tx_BankAccount"].Value : Localizer["Tx_CreditCard"].Value,
-                spend.GetValueOrDefault(b.Key), Side(b.TotalCrc, b.TotalUsd)))
+                spend.GetValueOrDefault(b.Key), ChartSide(b.TotalCrc, b.TotalUsd)))
             .ToList();
     }
 
     /// <summary>One slice per card, largest first, the "no card" bucket last with its own label (CARDS-2).</summary>
     private List<DonutSlice> CardSlices() => (_report?.ByCard ?? [])
-        .Select((c, i) => new DonutSlice(c.Key == "none" ? Localizer["Tx_NoCard"].Value : c.Label, Side(c.TotalCrc, c.TotalUsd), Palette[i % Palette.Length]))
+        .Select((c, i) => new DonutSlice(c.Key == "none" ? Localizer["Tx_NoCard"].Value : c.Label, ChartSide(c.TotalCrc, c.TotalUsd), Palette[i % Palette.Length]))
         .ToList();
 
     private List<DonutSlice> MethodSlices() => (_report?.ByMethod ?? [])
-        .Select(m => new DonutSlice(m.Key == "bank_account" ? Localizer["Tx_BankAccount"].Value : Localizer["Tx_CreditCard"].Value, Side(m.TotalCrc, m.TotalUsd),
+        .Select(m => new DonutSlice(m.Key == "bank_account" ? Localizer["Tx_BankAccount"].Value : Localizer["Tx_CreditCard"].Value, ChartSide(m.TotalCrc, m.TotalUsd),
             m.Key == "bank_account" ? "var(--brand-accent-light)" : "var(--bs-primary)"))
         .ToList();
 
@@ -447,7 +467,7 @@
     private async Task OnModeChanged(ChangeEventArgs e)
     {
         _mode = e.Value?.ToString() ?? "month";
-        _report = null; _period = null; _notice = null;
+        _report = null; _period = null; _notice = null; _refunds = null;
         if (_mode == "month" && _monthId != Guid.Empty) await LoadAsync($"month_id={_monthId}");
     }
 
@@ -468,7 +488,7 @@
 
     private async Task LoadAsync(string period)
     {
-        _loading = true; _notice = null;
+        _loading = true; _notice = null; _refunds = null;
         try
         {
             var res = await Http.GetAsync($"/api/reports/category-analysis?{period}");
@@ -485,6 +505,17 @@
         }
         catch { Fail(Localizer["Reports_LoadError"]); _report = null; _period = null; }
         finally { _loading = false; }
+
+        // The refundable figure is the month's (the summary's refunds total); best-effort, and only for a month.
+        if (_report is { SingleMonth: true } && period.StartsWith("month_id=", StringComparison.Ordinal))
+        {
+            try
+            {
+                var res = await Http.GetAsync($"/api/months/{_monthId}/summary");
+                if (res.IsSuccessStatusCode) _refunds = (await res.Content.ReadFromJsonAsync<SummaryEnvelopeDto>())?.Summary?.RefundsTotal;
+            }
+            catch { /* the tile falls back to its share */ }
+        }
     }
 
     private async Task ExportAsync()
@@ -506,106 +537,34 @@
 
     private void Fail(string message) { _notice = message; _noticeOk = false; }
 
-    private RenderFragment Section(string title, List<EntryDto> entries, string testId, bool showBudget) => __builder =>
+    /// <summary>Chart view: one class as horizontal bars, largest first, the budget as a track where there is one.</summary>
+    private RenderFragment Section(string title, IReadOnlyList<ReportCategoryEntry> entries, string testId, bool showBudget) => __builder =>
     {
-        <div class="card shadow-sm h-100" data-testid="@testId">
-            <div class="card-body">
-                <h2 class="h6 fw-bold mb-2">@title</h2>
-                @if (entries.Count == 0)
-                {
-                    <p class="text-muted small mb-0">@Localizer["Reports_NoneInClass"]</p>
-                }
-                else if (_view == "chart")
-                {
-                    <BarChart TestId="@($"{testId}-chart")" Currency="@_chartCurrency" Title="@title" Items="Bars(entries, showBudget)" />
-                    <div class="small text-muted mt-2" data-testid="@($"{testId}-chart-total")">@Localizer["Reports_Total"]: @Amount(entries.Sum(x => Side(x.TotalCrc, x.TotalUsd)))</div>
-                }
-                else
-                {
-                    <div class="table-responsive">
-                        <table class="table table-sm mb-0">
-                            <thead>
-                                <tr>
-                                    <th>@Localizer["Tx_Category"]</th>
-                                    <th class="text-end" title="@Localizer["Reports_CountColTitle"]">@Localizer["Reports_CountCol"]</th>
-                                    @if (showBudget) { <th class="text-end">@Localizer["Reports_BudgetedCol"]</th> }
-                                    <th class="text-end">@Localizer[showBudget ? "Reports_ActualCol" : "Reports_SpentCol"]</th> @* "Actual" only means something beside "Budgeted" *@
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var e in entries)
-                                {
-                                    <tr data-testid="rep-row">
-                                        <td>@e.CategoryName</td>
-                                        <td class="text-end text-muted" data-testid="rep-count">@e.TransactionCount</td>
-                                        @if (showBudget) { <td class="text-end" data-testid="rep-budget">@(e.BudgetedCrc is null ? "—" : Budget(e.BudgetedCrc.Value, e.BudgetedUsd ?? 0))</td> }
-                                        <td class="text-end @(showBudget ? Tone(e) : null)" data-testid="rep-actual">@Show(e.TotalCrc, e.TotalUsd)</td>
-                                    </tr>
-                                }
-                                <tr class="fw-bold" data-testid="rep-total">
-                                    <td>@Localizer["Reports_Total"]</td>
-                                    <td class="text-end text-muted" data-testid="rep-count-total">@entries.Sum(x => x.TransactionCount)</td>
-                                    @if (showBudget) { <td class="text-end" data-testid="rep-budget-total" title="@Localizer["Reports_BudgetTotalHint"]">@BudgetTotal(entries)</td> }
-                                    <td class="text-end">@Show(entries.Sum(x => x.TotalCrc), entries.Sum(x => x.TotalUsd))</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                }
-            </div>
+        <div class="rep-card h-100" data-testid="@testId">
+            <h2 class="rep-card-title">@title</h2>
+            @if (entries.Count == 0)
+            {
+                <p class="rep-card-note">@Localizer["Reports_NoneInClass"]</p>
+            }
+            else
+            {
+                <BarChart TestId="@($"{testId}-chart")" Currency="@_chartCurrency" Title="@title" Items="Bars(entries, showBudget)" />
+                <div class="rep-card-note" data-testid="@($"{testId}-chart-total")">@Localizer["Reports_Total"]: @Amount(entries.Sum(x => ChartSide(x.TotalCrc, x.TotalUsd)))</div>
+            }
         </div>
     };
-
-    /// <summary>Over/under in the line's OWN currency: a budget is single-currency (the other side is 0), so a $18.99 line
-    /// must be judged on dollars — comparing its colón actual against ₡0 painted every dollar line red.</summary>
-    private static string Tone(EntryDto e) => e switch
-    {
-        { BudgetedCrc: > 0 } => e.TotalCrc > e.BudgetedCrc.Value ? "text-danger" : "text-success",
-        { BudgetedUsd: > 0 } => e.TotalUsd > e.BudgetedUsd.Value ? "text-danger" : "text-success",
-        _ => "",
-    };
-
-    private static string Money(decimal crc, decimal usd) => $"₡{crc.ToString("N2", CultureInfo.CurrentCulture)} · ${usd.ToString("N2", CultureInfo.CurrentCulture)}";
-
-    /// <summary>A converted pair or total, on the side(s) the member chose.</summary>
-    private string Show(decimal crc, decimal usd) => MoneyDisplay.Format(crc, usd, _display);
-
-    /// <summary>The rows' single-currency budgets as ONE figure: dollar lines at today's sell rate, colón lines at buy
-    /// (ADR-V019 — a budget is spending), on the chosen side(s). Without a rate on the report, each side's own sum.</summary>
-    private string BudgetTotal(List<EntryDto> entries)
-    {
-        var crc = entries.Sum(x => x.BudgetedCrc ?? 0);
-        var usd = entries.Sum(x => x.BudgetedUsd ?? 0);
-        return _report?.ExchangeRate is { } sell && _report.ExchangeRateBuy is { } buy && buy > 0
-            ? Show(crc + usd * sell, crc / buy + usd)
-            : Budget(crc, usd);
-    }
-
-    /// <summary>Budgets are single-currency per line (EXPENSES-1) and the report carries no rate, so a one-sided sum shows only its native side.</summary>
-    private static string Budget(decimal crc, decimal usd) =>
-        usd == 0 && crc != 0 ? $"₡{crc.ToString("N2", CultureInfo.CurrentCulture)}"
-        : crc == 0 && usd != 0 ? $"${usd.ToString("N2", CultureInfo.CurrentCulture)}"
-        : Money(crc, usd);
 
     private static string MonthLabel(int year, int month) =>
         $"{CultureInfo.CurrentCulture.TextInfo.ToTitleCase(CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(month))} {year}";
 
     private sealed record MonthDto([property: JsonPropertyName("id")] Guid Id, [property: JsonPropertyName("year")] int Year, [property: JsonPropertyName("month_number")] int MonthNumber);
     private sealed record PeriodDto([property: JsonPropertyName("from")] DateOnly From, [property: JsonPropertyName("to")] DateOnly To);
-    private sealed record EntryDto(
-        [property: JsonPropertyName("category_id")] Guid CategoryId,
-        [property: JsonPropertyName("category_name")] string CategoryName,
-        [property: JsonPropertyName("total_crc")] decimal TotalCrc,
-        [property: JsonPropertyName("total_usd")] decimal TotalUsd,
-        [property: JsonPropertyName("budgeted_crc")] decimal? BudgetedCrc,
-        [property: JsonPropertyName("budgeted_usd")] decimal? BudgetedUsd,
-        [property: JsonPropertyName("transaction_count")] int TransactionCount = 0);
     private sealed record ReportDto(
         [property: JsonPropertyName("period")] PeriodDto Period,
         [property: JsonPropertyName("single_month")] bool SingleMonth,
-        [property: JsonPropertyName("budgeted")] List<EntryDto> Budgeted,
-        [property: JsonPropertyName("extraordinary")] List<EntryDto> Extraordinary,
-        [property: JsonPropertyName("unplanned_essential")] List<EntryDto> UnplannedEssential,
+        [property: JsonPropertyName("budgeted")] List<ReportCategoryEntry> Budgeted,
+        [property: JsonPropertyName("extraordinary")] List<ReportCategoryEntry> Extraordinary,
+        [property: JsonPropertyName("unplanned_essential")] List<ReportCategoryEntry> UnplannedEssential,
         [property: JsonPropertyName("income")] MoneyDto? Income,
         [property: JsonPropertyName("budget_total")] MoneyDto? BudgetTotal,
         [property: JsonPropertyName("exchange_rate")] decimal? ExchangeRate,
@@ -620,6 +579,8 @@
     private sealed record DayDto([property: JsonPropertyName("date")] DateOnly Date, [property: JsonPropertyName("total_crc")] decimal TotalCrc, [property: JsonPropertyName("total_usd")] decimal TotalUsd);
     private sealed record TrendMonthDto([property: JsonPropertyName("month_id")] Guid MonthId, [property: JsonPropertyName("year")] int Year, [property: JsonPropertyName("month_number")] int MonthNumber, [property: JsonPropertyName("income")] MoneyDto? Income, [property: JsonPropertyName("spend")] MoneyDto Spend);
     private sealed record TrendDto([property: JsonPropertyName("months")] List<TrendMonthDto> Months, [property: JsonPropertyName("rate_available")] bool RateAvailable);
+    private sealed record SummaryDto([property: JsonPropertyName("refunds_total")] MoneyDto? RefundsTotal);
+    private sealed record SummaryEnvelopeDto([property: JsonPropertyName("summary")] SummaryDto? Summary);
     private sealed record ExportDto([property: JsonPropertyName("download_url")] string DownloadUrl, [property: JsonPropertyName("file_name")] string FileName, [property: JsonPropertyName("row_count")] int RowCount);
     private sealed record ErrorDto([property: JsonPropertyName("error")] string Error, [property: JsonPropertyName("message")] string Message);
 }

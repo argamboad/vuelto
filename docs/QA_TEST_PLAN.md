@@ -1875,6 +1875,19 @@ unknown id → 404.
 > a month (its anchor window, ending on the last week's end date) or a `from`–`to` range. The CSV is
 > delivered through the platform's signed-link download (ADR-010), so it works on web and native alike.
 
+> **Presented per SKIN-10 (2026-09-12).** The page opens on its verdict: **four KPI tiles** — Total spend
+> ("N% of income" when the month has an income), Budgeted and Discretionary ("N% of spend"), Unplanned
+> ("₡… refundable" from the month's expected refunds, or its share for a range) — and, for a month, the
+> **Pace against the plan** chart full width with "N% of the month elapsed · M% of the plan spent" as text
+> beside its title. Below them a **Table | Chart** switch governs only the detail. **Table** is ONE "By
+> category" card behind a **Budgeted | Discretionary | Unplanned** switcher (rows already loaded, no
+> request): Category, an inline **Spent vs budget** bar (only where there is a budget: the budgeted class
+> of a month; red past the plan; hidden on a phone), the # count, Budget and Spent (red when over, judged
+> in the line's own currency), with a Total row. **Chart** holds the eight charts as before — class bars,
+> the class / income / budget donuts, month by month, by bank, by card, card vs account — restyled; the
+> pace chart is no longer among them because it is always above. The period picker and Export CSV sit in
+> the page head; month and date range stay mutually exclusive.
+
 ### QA-DASH-03 — "Show in" follows the account, and a first choice on a device follows you 🟠 (Web / API)
 **Gherkin**
 ```gherkin
@@ -1948,8 +1961,11 @@ Deactivate it (or pick a month where its cadence does not apply) → reload → 
 Given June 2026 has Groceries budgeted ₡60,000 (a fixed line) and transactions: Groceries budgeted ₡8,000 total, Dining Discretionary ₡2,000, an Income (inflow) ₡9,000
 When I open Reports (nav)
 Then the newest month loads with "one budget month — budgets shown next to actuals"
-And Budgeted lists Groceries — # 2 — Budgeted (month) ₡60,000.00 — Actual ₡8,000.00 in green, with a Total row (the # column counts the transactions behind each row and its total adds them up)
-And Discretionary lists Dining ₡2,000.00 under a "Spent" column (no budget beside it, so no "Actual"); Unplanned shows "Nothing in this class for the period."; the inflow appears nowhere
+And four tiles read Total spend ₡10,000.00 with "N% of income", Budgeted ₡8,000.00 "80% of spend", Discretionary ₡2,000.00 "20% of spend", Unplanned ₡0.00
+And the Pace against the plan chart sits full width under them, with "N% of the month elapsed · M% of the plan spent" beside its title
+And By category opens on Budgeted: Groceries — a Spent vs budget bar a fifth full — # 2 — Budgeted (month) ₡60,000.00 — Actual ₡8,000.00 in green, with a Total row (the # column counts the transactions behind each row and its total adds them up)
+When I switch the class to Discretionary
+Then Dining ₡2,000.00 shows under a "Spent" column with no bar and no budget beside it (so no "Actual"), without a request; Unplanned shows "Nothing in this class for the period."; the inflow appears nowhere
 When I switch Period to "Date range", set 2026-01-01 – 2026-06-30 and Load
 Then the note says "custom range — monthly budgets don't apply" and the Budgeted (month) column is gone
 When I set From 2026-06-30 and To 2026-06-01 and Load
@@ -1961,10 +1977,13 @@ And "Both" brings the ₡ · $ pairs back; the choice is remembered on this devi
 ```
 **Walkthrough:** **Budget** → fixed `Supermarket` `60000` CRC on Groceries. **New transaction** ×3 →
 Groceries Budgeted `5000` (`2026-06-05`) and `3000` (`2026-06-12`), Dining Discretionary `2000`
-(`2026-06-10`), plus an **Income (inflow)** `9000`. Nav **Reports** → **Expected:** the month selector on
-the newest month; the Budgeted card with the budget column and the green actual; Dining under
-Discretionary; the inflow absent from every card. **Period** → **Date range** → From `2026-01-01`, To
-`2026-06-30` → **Load** → **Expected:** the multi-month note, no budget column, same totals. Reverse the
+(`2026-06-10`), plus an **Income (inflow)** `9000`. Nav **Reports** → **Expected:** the month selector (top right) on
+the newest month; the four tiles; the pace chart with its summary line; **By category** on **Budgeted**
+with the bar, the budget column and the green actual. Switch the class to **Discretionary** →
+**Expected:** Dining, no bar, no budget column; **Unplanned** → "Nothing in this class…"; the inflow
+absent everywhere. **Period** → **Date range** → From `2026-01-01`, To `2026-06-30` → **Load** →
+**Expected:** the multi-month note, the tiles still adding the period up (Total spend without a share),
+no pace chart, no budget column and no bars, same totals. Reverse the
 dates → **Load** → **Expected:** the red order message. Via Postman (**20 · Reports → Category analysis
 (month)**) → 200 with `single_month: true`, `budgeted[0].budgeted_crc = 60000`, an `income` `{crc, usd}`
 pair, `budget_total.crc = 60000`; (**date range**) → `income: null`, `budget_total: null`,
@@ -1999,8 +2018,8 @@ on local storage), `file_name`, `row_count`; open the URL **without** a token �
 **Gherkin**
 ```gherkin
 Given the June data above, in month mode
-When I switch View to Chart
-Then each class shows the same rows as horizontal bars (largest first) with the budget as a muted track and the actual on top — red past it — plus a "Spend by class" donut with shares
+When I switch the View to Chart (the Table | Chart switch under the pace chart)
+Then the tiles and the pace chart stay where they are, the By category card is replaced by the charts, and each class shows the same rows as horizontal bars (largest first) with the budget as a muted track and the actual on top — red past it — plus a "Spend by class" donut with shares
 And an "Income vs spend" donut: the same class slices plus a muted Remaining slice, the month's income in the hole (income = configured incomes at today's rate + inflows, as on the dashboard); overspent → no Remaining and a red "Over income by ₡…"
 And an "Income vs budget" donut: Budget lines (every active line, a $ line converted at today's rate) and Uncommitted, the income in the hole; a plan above the income → no Uncommitted and a red "Budget exceeds income by ₡…"
 When I switch the chart currency to $
@@ -2008,27 +2027,31 @@ Then every chart redraws in the other currency, and the choice is remembered on 
 When I switch Period to Date range
 Then the income and budget donuts are gone (both are per month) while the class bars stay
 ```
-**Walkthrough:** **Reports** → **View → Chart** → **Expected:** "Income vs spend" beside "Spend by class",
+**Walkthrough:** **Reports** → **View → Chart** → **Expected:** tiles and pace unchanged above; below, "Income vs spend" beside "Spend by class",
 Remaining = the month's income − ₡10,000 spent, the income in the hole (the inflow counts as income here,
 never as spend); "Income vs budget" with Budget lines ₡60,000 and Uncommitted = income − ₡60,000. Flip the
 ₡/$ switch → **Expected:** every figure redraws; reload the page → the choice stuck. **Date range** →
 **Expected:** both income cards gone, the class bars unchanged.
 
-### QA-REP-04 — Chart view: pace, month by month, and where the money left from 🟠 (Web)
+### QA-REP-04 — Pace against the plan, month by month, and where the money left from 🟠 (Web)
 **Gherkin**
 ```gherkin
 Given the June data above, in month mode, with at least one transaction naming a card
-When I look at the Pace card
-Then a line steps through the days that had spend, against a straight plan line to the budget total, with a dashed Today marker and "N% of the month elapsed · M% of the plan spent"
-And "Month by month" shows one bar per month, oldest first, spend on an income track, red for a month that spent more than its income
+When I look at the Pace against the plan card (always visible under the tiles, in Table or Chart view)
+Then a line steps through the days that had spend, against a dashed plan line to the budget total, with a dashed Today marker, and "N% of the month elapsed · M% of the plan spent" as text beside the title
+And on a phone the chart keeps its width, loses height and the Today marker — the summary line still says the elapsed share
+When I switch the View to Chart
+Then "Month by month" shows one bar per month, oldest first, spend on an income track, red for a month that spent more than its income
 And "Spend by bank" and "Spend by card" sit side by side as two donuts — same shape, same question — with "No card" last in the card one
 And "Card vs account" sits below them across the full width: its donut on the left, and on the right "Budgeted vs spent, by payment method" with one bar pair per method and a caption naming both figures
 When I switch Period to Date range
 Then pace and month-by-month are gone, the two donuts stay, and the budget-by-method bars go (budgets are per month)
 ```
-**Walkthrough:** **Reports → Chart** (month mode) → **Expected:** the **Pace** card with three points
-(Jun 5, 10, 12), the plan line to ₡60,000 and Today at the right edge — caption "100% … · 17% of the plan
-spent"; **Month by month** with one bar (June) on its income track. Scroll on → **Expected:** **Spend by
+**Walkthrough:** **Reports** (month mode) → **Expected:** the **Pace against the plan** card under the
+tiles with three points (Jun 5, 10, 12), the plan line to ₡60,000 and Today at the right edge — "100% …
+· 17% of the plan spent" beside the title; narrow the window below tablet width → the chart is shorter
+and the Today marker gone. **View → Chart** → **Expected:** **Month by month** with one bar (June) on
+its income track. Scroll on → **Expected:** **Spend by
 bank** and **Spend by card** on one row, both donuts; below them **Card vs account** full width with the
 bars using the space, captioned "budgeted ₡… · spent ₡…" per method. Switch to **Date range** →
 **Expected:** pace and trend gone, the two donuts still there, the method bars gone. Via Postman
@@ -3826,6 +3849,14 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   TTL guard; interrupted links land on Settings' banner). New **QA-AND-15** (on-device kill test;
   renumbered from the branch's QA-AND-14 — that slot went to THEME-1's restart test in the interim).
   Suite 149 → **150** cases.
+- **Updated 2026-09-12** — **Reports: four tiles, the pace chart promoted, one category table (SKIN-10,
+  UI redesign).** The page opens on Total spend / Budgeted / Discretionary / Unplanned tiles (share of
+  income or of spend; the month's refundable amount on Unplanned) and the pace chart full width, then a
+  Table | Chart switch over the detail. Table is one "By category" card with a class switcher, a
+  spent-vs-budget bar where a budget exists, the # count, Budget and Spent. Chart keeps the eight charts
+  (plan §7.1: promote one, demote the rest, delete none) minus the pace, which is always above. The old
+  StackedBar component is gone (nothing drew it since SKIN-5). QA-REP-01/03/04 reworded. **Case count
+  unchanged at 191.**
 - **Updated 2026-09-12** — **Budget: a commitment header, reorderable grid rows, one dialog (SKIN-9, UI
   redesign).** The page opens on "Planned every month ₡…" with "N% of a typical income" (the four-week
   defaults, at today's rate — no share without defaults, no conversion without a rate) and a Fixed/Variable

@@ -802,4 +802,14 @@
   <data name="Budget_MethodAccount" xml:space="preserve"><value>account</value></data>
   <data name="Budget_Kind" xml:space="preserve"><value>List</value></data>
   <data name="Budget_Position" xml:space="preserve"><value>Position {0}</value></data>
+  <data name="Reports_Kpi_TotalSpend" xml:space="preserve"><value>Total spend</value></data>
+  <data name="Reports_Kpi_Budgeted" xml:space="preserve"><value>Budgeted</value></data>
+  <data name="Reports_Kpi_Discretionary" xml:space="preserve"><value>Discretionary</value></data>
+  <data name="Reports_Kpi_Unplanned" xml:space="preserve"><value>Unplanned</value></data>
+  <data name="Reports_OfIncome" xml:space="preserve"><value>{0}% of income</value></data>
+  <data name="Reports_OfSpend" xml:space="preserve"><value>{0}% of spend</value></data>
+  <data name="Reports_Refundable" xml:space="preserve"><value>{0} refundable</value></data>
+  <data name="Reports_ByCategory" xml:space="preserve"><value>By category</value></data>
+  <data name="Reports_ColSpentVsBudget" xml:space="preserve"><value>Spent vs budget</value></data>
+  <data name="Reports_Detail" xml:space="preserve"><value>Detail</value></data>
 </root>

@@ -1,0 +1,134 @@
+/* SKIN-10. Bootstrap's row/col carry the tiles and the chart grid; the custom part is the head, the card shell
+   the charts sit in (one shell for every card on the page), the promoted pace card and the toggle row. */
+
+/* ---------------------------------------------------------------- page head */
+.rep-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 13px;
+    margin-bottom: 15px;
+}
+
+.rep-head h1 {
+    margin: 0;
+    font-size: 26px;
+    font-weight: var(--w-display);
+    color: var(--ink);
+}
+
+.rep-subtitle {
+    margin: 2px 0 0;
+    font-size: 12px;
+    font-weight: var(--w-body);
+    color: var(--ink-3);
+}
+
+.rep-head-controls {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 7px;
+}
+
+.rep-head-controls .form-select,
+.rep-head-controls .form-control { width: auto; }
+
+.rep-period {
+    margin: 0 0 11px;
+    font-size: 11px;
+    font-weight: var(--w-body);
+    color: var(--ink-3);
+}
+
+.rep-kpis { margin-bottom: var(--card-gap); }
+
+/* ---------------------------------------------------------------- the card shell */
+.rep-card {
+    padding: var(--card-pad-y) var(--card-pad-x);
+    border: 1px solid var(--app-border);
+    border-radius: var(--radius-card);
+    background: var(--card-bg);
+}
+
+.rep-card-title,
+.rep-card-head h2 {
+    margin: 0 0 9px;
+    font-size: 11px;
+    font-weight: var(--w-display);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+}
+
+.rep-card-subtitle {
+    margin: 0 0 5px;
+    font-size: 11px;
+    font-weight: var(--w-control);
+    color: var(--ink-3);
+}
+
+.rep-card-note {
+    margin: 7px 0 0;
+    font-size: 11px;
+    font-weight: var(--w-body);
+    color: var(--ink-3);
+}
+
+.rep-over {
+    margin-top: 7px;
+    font-size: 12px;
+    font-weight: var(--w-control);
+    color: var(--bad);
+}
+
+.rep-captions {
+    margin: 5px 0 0;
+    padding: 0;
+    list-style: none;
+    font-size: 11px;
+    color: var(--ink-3);
+}
+
+/* ---------------------------------------------------------------- pace against the plan (promoted, full width) */
+.rep-pace { margin-bottom: var(--card-gap); }
+
+.rep-card-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 9px;
+}
+
+.rep-pace-summary {
+    font-size: 11px;
+    font-weight: var(--w-control);
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-3);
+}
+
+/* The chart keeps its width and loses height with the viewport; on phone the today marker goes (the summary line says it). */
+.rep-pace ::deep svg { max-height: 170px; }
+
+/* ---------------------------------------------------------------- the toggle row */
+.rep-toggle {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 9px;
+    margin-bottom: var(--card-gap);
+}
+
+@media (max-width: 991.98px) {
+    .rep-pace ::deep svg { max-height: 130px; }
+}
+
+@media (max-width: 767.98px) {
+    .rep-pace ::deep svg { max-height: 90px; }
+    .rep-pace ::deep [data-testid="chart-today"],
+    .rep-pace ::deep svg text { display: none; }
+    .rep-head-controls { width: 100%; }
+}

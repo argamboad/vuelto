@@ -1,11 +1,8 @@
 @using System.Globalization
 
-@* SKIN-2 · the segmented bar that supersedes Charts/StackedBar.razor's inline SVG. Divs rather than SVG, so it
-   inherits the theme tokens directly and needs no viewBox arithmetic; the hatched fill always means "planned,
-   not yet spent"; the marker is where the month is today.
-
-   StackedBar is NOT deleted here — the dashboard and Reports both still draw it, and it dies at the end of
-   SKIN-10 when Reports stops importing it.
+@* SKIN-2 · the segmented bar that superseded the old Charts/StackedBar inline SVG (deleted in SKIN-10, once
+   nothing drew it). Divs rather than SVG, so it inherits the theme tokens directly and needs no viewBox
+   arithmetic; the hatched fill always means "planned, not yet spent"; the marker is where the month is today.
 
    The track is aria-hidden on purpose. Colour and hatching say nothing to a screen reader, so the legend
    below carries the same facts as text; the bar is the picture, the legend is the copy. *@
