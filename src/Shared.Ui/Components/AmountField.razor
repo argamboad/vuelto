@@ -11,12 +11,20 @@
         <input class="form-control amount-input" type="number" step="0.01" min="0" id="@($"{TestId}-input")"
                data-testid="@($"{TestId}-input")" disabled="@Disabled" value="@Value" @onchange="OnAmount"
                aria-describedby="@($"{TestId}-conversion")" />
-        @* The toggle sits INSIDE the group: currency is part of the amount, not a separate decision. *@
-        <select class="form-select amount-currency" data-testid="@($"{TestId}-currency")" aria-label="@CurrencyLabel"
-                disabled="@Disabled" value="@Currency" @onchange="OnCurrency">
-            <option value="CRC">₡</option>
-            <option value="USD">$</option>
-        </select>
+        @* A two-state TOGGLE, not a dropdown. A dropdown showing "₡" repeats the prefix glyph and says
+           nothing about there being another choice; two visible states say it without being read. Radios
+           rather than buttons so the pair is one keyboard group, as everywhere else in this redesign. *@
+        <fieldset class="amount-toggle" data-testid="@($"{TestId}-currency")" disabled="@Disabled">
+            <legend class="visually-hidden">@CurrencyLabel</legend>
+            @foreach (var c in new[] { "CRC", "USD" })
+            {
+                <label data-selected="@(Currency == c ? "true" : null)">
+                    <input type="radio" name="@_name" value="@c" checked="@(Currency == c)"
+                           data-testid="@($"{TestId}-currency-{c}")" @onchange="@(() => CurrencyChanged.InvokeAsync(c))" />
+                    <span>@(c == "USD" ? "$" : "₡")</span>
+                </label>
+            }
+        </fieldset>
     </div>
     @if (Conversion is not null)
     {
@@ -43,5 +51,6 @@
     private Task OnAmount(ChangeEventArgs e) =>
         ValueChanged.InvokeAsync(decimal.TryParse(e.Value?.ToString(), NumberStyles.Any, CultureInfo.InvariantCulture, out var v) ? v : 0m);
 
-    private Task OnCurrency(ChangeEventArgs e) => CurrencyChanged.InvokeAsync(e.Value?.ToString() ?? "CRC");
+    // One radio group per instance, so two amount fields on a page cannot deselect each other.
+    private readonly string _name = $"cur-{Guid.NewGuid():N}";
 }

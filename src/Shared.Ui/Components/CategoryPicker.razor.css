@@ -1,0 +1,25 @@
+/* SKIN-7 · the inline-create row. It is shared by the transaction form and the review queue, so it had to
+   stop looking like a different era: the name field takes the slack instead of sitting at an arbitrary
+   width, the controls share the form's own gap, and the error gets its own line rather than wrapping
+   between buttons. */
+.category-create {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+/* The name takes a whole row and the two controls share the next one. It lives in a narrow grid cell on
+   both screens that use it, so letting it flow left Cancel stranded alone on a third line. */
+.category-create-name {
+    flex: 1 0 100%;
+    min-width: 0;
+}
+
+.category-create-error {
+    flex: 1 0 100%;
+    margin: 0;
+    font-size: 11px;
+    color: var(--bad);
+}

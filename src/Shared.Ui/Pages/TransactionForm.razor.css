@@ -58,6 +58,9 @@
     min-width: 0;
 }
 
+/* The date sits in the money block, OUTSIDE .tx-field, so it was falling back to Bootstrap's own
+   .form-label size and reading larger than every other label on the form. */
+.tx-money-date .form-label,
 .tx-field .form-label {
     display: block;
     margin-bottom: 3px;
@@ -114,7 +117,10 @@
 }
 
 @media (min-width: 768px) {
-    .tx-money { grid-template-columns: 1fr 190px; align-items: end; }
+    /* START, not end: the amount block is taller than the date because of its conversion line, so
+       bottom-aligning them left the Date LABEL floating halfway down the amount field. Aligned at the
+       top, both labels sit on one line and both controls start together. */
+    .tx-money { grid-template-columns: 1fr 190px; align-items: start; }
     .tx-fields { grid-template-columns: 1fr 1fr; }
     .tx-field-wide { grid-column: 1 / -1; }
 }

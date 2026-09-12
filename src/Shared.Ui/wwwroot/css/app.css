@@ -155,6 +155,21 @@ a, .btn-link {
     color: var(--bs-primary);
 }
 
+/* SKIN-2's Buttons item is "map to the existing .btn-* classes; only radius and padding change". The
+   radius arrived with the tokens; this is the padding and weight half, which had been left undone — so
+   every button still carried Bootstrap's proportions and read as foreign beside the redesigned fields.
+   Applies to the whole app at once, which is the point of a shared treatment. */
+.btn {
+    font-size: 13px;
+    font-weight: var(--w-control);
+    padding: 7px 15px;
+}
+
+.btn-sm {
+    font-size: 12px;
+    padding: 5px 11px;
+}
+
 .btn-primary {
     color: #fff;
     background-color: var(--bs-primary);

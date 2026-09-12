@@ -87,13 +87,13 @@ public class LedgerPagesTests : ComponentTestBase
         var cut = Render<TransactionForm>();
 
         cut.WaitForAssertion(() => Assert.Equal("448.27", cut.Find("[data-testid='tx-rate']").GetAttribute("value")));
-        cut.Find("[data-testid='tx-amount-field-currency']").Change("USD");
+        cut.Find("[data-testid='tx-amount-field-currency-USD']").Change(true);
         Assert.Equal("453.69", cut.Find("[data-testid='tx-rate']").GetAttribute("value"));
-        cut.Find("[data-testid='tx-amount-field-currency']").Change("CRC");
+        cut.Find("[data-testid='tx-amount-field-currency-CRC']").Change(true);
         Assert.Equal("448.27", cut.Find("[data-testid='tx-rate']").GetAttribute("value"));
 
         cut.Find("[data-testid='tx-rate']").Change("460");
-        cut.Find("[data-testid='tx-amount-field-currency']").Change("USD");
+        cut.Find("[data-testid='tx-amount-field-currency-USD']").Change(true);
         Assert.Equal("460", cut.Find("[data-testid='tx-rate']").GetAttribute("value"));
     }
 

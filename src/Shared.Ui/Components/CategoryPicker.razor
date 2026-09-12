@@ -23,8 +23,8 @@
 </div>
 @if (_creating)
 {
-    <div class="mt-1 d-flex flex-wrap gap-1 align-items-center" data-testid="@(TestId)-new-form">
-        <input class="form-control form-control-sm w-auto" data-testid="@(TestId)-new-name" placeholder="@Localizer["Category_NewPlaceholder"]"
+    <div class="category-create" data-testid="@(TestId)-new-form">
+        <input class="form-control form-control-sm category-create-name" data-testid="@(TestId)-new-name" placeholder="@Localizer["Category_NewPlaceholder"]"
                @bind="_name" @bind:event="oninput" @onkeydown="OnKeyDown" disabled="@_saving" />
         <button type="button" class="btn btn-primary btn-sm" data-testid="@(TestId)-new-save" @onclick="CreateAsync" disabled="@_saving">@Localizer["Catalog_Create"]</button>
         <button type="button" class="btn btn-outline-secondary btn-sm" data-testid="@(TestId)-new-cancel" @onclick="Close" disabled="@_saving">@Localizer["Common_Cancel"]</button>
@@ -34,7 +34,7 @@
                 @Localizer["Category_ReactivateExisting", conflict.ExistingName ?? _name]
             </button>
         }
-        @if (_error is not null) { <div class="small text-danger w-100" data-testid="@(TestId)-new-error">@_error</div> }
+        @if (_error is not null) { <p class="category-create-error" data-testid="@(TestId)-new-error">@_error</p> }
     </div>
 }
 

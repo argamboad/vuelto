@@ -6,6 +6,28 @@
     color: var(--ink-3);
 }
 
+/* ONE field, not three controls in a row. The border and the fill sit on the GROUP and every child is
+   transparent and borderless, so the glyph, the number and the toggle read as one object — which is the
+   whole point of putting currency inside the amount. Focus is drawn on the group for the same reason. */
+.amount-group {
+    align-items: center;
+    border: 1px solid var(--bs-border-color);
+    border-radius: var(--bs-border-radius);
+    background: var(--bs-body-bg);
+}
+
+.amount-group:focus-within {
+    border-color: var(--bs-primary);
+    box-shadow: 0 0 0 .25rem rgba(var(--bs-primary-rgb), .25);
+}
+
+.amount-group > .amount-symbol,
+.amount-group > .amount-input {
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
 /* Display size, tabular, and the symbol/toggle read as part of the same object. */
 .amount-input {
     font-size: 30px;
@@ -16,19 +38,72 @@
     padding-bottom: 4px;
 }
 
+/* Part of the field, not a box beside it: no fill and no inner edge, so the glyph reads as the amount's
+   own symbol. It follows the toggle — $ when dollars are selected. */
 .amount-symbol {
     font-size: 23px;
     font-weight: var(--w-display);
     color: var(--brand-gold);          /* the colón glyph is the brand mark's own, and only here */
-    background: var(--input-bg, var(--card-bg));
+    background: transparent;
     border-right: 0;
+    padding-right: 0;
 }
 
-.amount-currency {
-    flex: 0 0 auto;
-    width: auto;
+.amount-input {
+    padding-left: 7px;
+}
+
+/* The toggle: two visible states inside the group, so switching is legible without being read. */
+.amount-toggle {
+    display: flex;
+    gap: 2px;
+    align-items: center;
+    margin: 4px 4px 4px 0;
+    padding: 2px;
+    border: 0;
+    min-width: 0;
+    border-radius: var(--bs-border-radius);
+    background: var(--rail);
+}
+
+.amount-toggle legend {
+    display: none;
+}
+
+.amount-toggle label {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 30px;
+    min-height: 28px;
+    border-radius: calc(var(--bs-border-radius) - 2px);
     font-size: 13px;
     font-weight: var(--w-control);
+    color: var(--ink-3);
+    cursor: pointer;
+}
+
+.amount-toggle label[data-selected="true"] {
+    background: var(--card-bg);
+    color: var(--ink);
+}
+
+.amount-toggle input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    margin: 0;
+    pointer-events: none;
+}
+
+.amount-toggle label:has(input:focus-visible) {
+    outline: 2px solid var(--bs-primary);
+    outline-offset: 1px;
+}
+
+@media (max-width: 767.98px) {
+    .amount-toggle label { min-width: 44px; min-height: 38px; }
 }
 
 .amount-conversion {

@@ -41,7 +41,8 @@ public class TransactionFormShapeTests : ComponentTestBase
 
         var group = cut.Find("[data-testid='tx-amount-field'] .input-group");
         Assert.NotNull(group.QuerySelector("[data-testid='tx-amount-field-input']"));
-        Assert.NotNull(group.QuerySelector("[data-testid='tx-amount-field-currency']"));
+        Assert.NotNull(group.QuerySelector("[data-testid='tx-amount-field-currency-CRC']"));
+        Assert.NotNull(group.QuerySelector("[data-testid='tx-amount-field-currency-USD']"));
 
         cut.Find("[data-testid='tx-amount-field-input']").Change("48320");
         cut.WaitForAssertion(() =>
