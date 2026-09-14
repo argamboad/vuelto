@@ -1,0 +1,60 @@
+/* The number on the left, the bar taking what is left; below md the number stacks above the bar. */
+.budget-summary {
+    display: flex;
+    align-items: center;
+    gap: 13px 26px;
+    margin-bottom: var(--card-gap);
+    padding: var(--card-pad-y) var(--card-pad-x);
+    border: 1px solid var(--app-border);
+    border-radius: var(--radius-card);
+    background: var(--card-bg);
+}
+
+.budget-summary-main { flex: 0 0 auto; }
+
+.budget-summary-label {
+    margin: 0 0 2px;
+    font-size: 11px;
+    font-weight: var(--w-control);
+    color: var(--ink-3);
+}
+
+.budget-summary-value {
+    margin: 0;
+    font-size: 23px;
+    font-weight: var(--w-display);
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+    white-space: nowrap;
+}
+
+.budget-summary-bar {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.budget-summary-line {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 9px;
+    margin-bottom: 5px;
+    font-size: 11px;
+    font-weight: var(--w-control);
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-3);
+}
+
+.budget-summary-income { color: var(--ink-2); }
+
+.budget-summary-note {
+    margin: 5px 0 0;
+    font-size: 10px;
+    font-weight: var(--w-body);
+    color: var(--ink-3);
+}
+
+@media (max-width: 767.98px) {
+    .budget-summary { flex-direction: column; align-items: stretch; gap: 9px; }
+    .budget-summary-value { font-size: 21px; }
+}

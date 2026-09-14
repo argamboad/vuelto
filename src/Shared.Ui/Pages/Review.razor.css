@@ -1,0 +1,131 @@
+/* SKIN-6 · each staged email is a two-pane row: the draft, and beside it what confirming will do. Below lg the
+   pane moves UNDER the draft and keeps its own surface, so the boundary between "what you filled in" and
+   "what it will do" stays legible when they stop being side by side. */
+.draft {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0;
+    margin-bottom: 15px;
+    border: 1px solid var(--app-border);
+    border-radius: var(--radius-card);
+    background: var(--card-bg);
+    overflow: hidden;
+}
+
+.draft-main {
+    padding: var(--card-pad-y) var(--card-pad-x);
+    min-width: 0;
+}
+
+.draft-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 11px;
+    margin-bottom: 11px;
+}
+
+.draft-merchant {
+    font-size: 15px;
+    font-weight: var(--w-display);
+    color: var(--ink);
+}
+
+.draft-meta {
+    margin-top: 2px;
+    font-size: 11px;
+    font-weight: var(--w-body);
+    color: var(--ink-3);
+}
+
+.draft-amount {
+    font-size: 23px;
+    font-weight: var(--w-display);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    color: var(--ink);
+}
+
+.draft-fields {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 11px;
+}
+
+.draft-field {
+    min-width: 0;
+}
+
+.draft-field .form-label {
+    display: block;
+    margin-bottom: 3px;
+    font-size: 11px;
+    font-weight: var(--w-body);
+    color: var(--ink-3);
+}
+
+.draft-field .form-check-label {
+    font-size: 12px;
+    color: var(--ink-2);
+}
+
+/* The suggestion came from a rule the household wrote — say so, quietly, where the suggestion is. */
+.draft-rule {
+    margin-left: 5px;
+    padding: 1px 7px;
+    border-radius: var(--bs-border-radius-pill);
+    background: var(--bs-primary-bg-subtle);
+    color: var(--bs-primary-text-emphasis);
+    font-size: 10px;
+    font-weight: var(--w-control);
+}
+
+/* The refund's two controls, as on the transaction form: a narrow percentage column, the notes take the rest. */
+.draft-refund {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 9px;
+    margin-top: 7px;
+}
+
+@media (min-width: 768px) {
+    .draft-refund { grid-template-columns: 170px minmax(0, 1fr); align-items: start; }
+}
+
+.draft-hint {
+    margin-top: 3px;
+    font-size: 11px;
+    color: var(--ink-3);
+}
+
+/* A field the parser left blank and nobody has filled: a red border and a message, replacing the old
+   .invalid outline. Red here means "required", which is the same promise it makes on a budget line. */
+.draft-fields [data-blank="true"] {
+    border-color: var(--bad);
+}
+
+.draft-remember {
+    margin-top: 13px;
+}
+
+/* ---------------------------------------------------------------- the consequence pane */
+.draft > .consequence {
+    border-left: 0;
+    border-top: 1px solid var(--app-border);
+    border-radius: 0;
+}
+
+@media (min-width: 768px) {
+    .draft { grid-template-columns: 1fr 230px; }
+    .draft-fields { grid-template-columns: 1fr 1fr; }
+    .draft-field-wide { grid-column: 1 / -1; }
+
+    .draft > .consequence {
+        border-top: 0;
+        border-left: 1px solid var(--app-border);
+    }
+}
+
+@media (min-width: 992px) {
+    .draft { grid-template-columns: 1fr 290px; }
+}

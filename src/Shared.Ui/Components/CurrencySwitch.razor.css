@@ -1,0 +1,48 @@
+/* The label sits inline before the track, as it does in a page head; the track is SegmentedSwitch's. */
+.cur {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+}
+
+.cur-label {
+    font-size: 11px;
+    font-weight: var(--w-control);
+    color: var(--ink-3);
+    white-space: nowrap;
+}
+
+.cur-track {
+    display: inline-flex;
+    gap: 2px;
+    padding: 2px;
+    border-radius: var(--bs-border-radius);
+    background: var(--rail);
+}
+
+/* 27px options in a 2px track = 31px, the small control height the head buttons beside it use. */
+.cur-option {
+    min-height: 27px;
+    padding: 0 11px;
+    border: 0;
+    border-radius: calc(var(--bs-border-radius) - 2px);
+    background: none;
+    font-size: 12px;
+    font-weight: var(--w-control);
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-3);
+}
+
+.cur-option[aria-pressed="true"] {
+    background: var(--card-bg);
+    color: var(--ink);
+}
+
+.cur-option:focus-visible {
+    outline: 2px solid var(--bs-primary);
+    outline-offset: 1px;
+}
+
+@media (max-width: 767.98px) {
+    .cur-option { min-height: 44px; padding: 0 14px; }
+}

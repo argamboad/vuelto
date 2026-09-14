@@ -47,11 +47,20 @@ public sealed class MonthHandler(
     {
         if (tenant.TenantId is null) return null;
         if (await FindContainingAsync(date, cancellationToken) is { } existing)
-            return new MonthResolveResponse(existing.Id, existing.Year, existing.MonthNumber, IsNew: false);
+        {
+            var week = await weeks.Query()
+                .Where(w => w.MonthId == existing.Id && w.StartDate <= date && date <= w.EndDate)
+                .Select(w => (int?)w.WeekNumber)
+                .FirstOrDefaultAsync(cancellationToken);
+            return new MonthResolveResponse(existing.Id, existing.Year, existing.MonthNumber, IsNew: false, WeekNumber: week);
+        }
 
         var s = await SettingsAsync(cancellationToken);
         var (year, monthNumber) = boundaries.GetBudgetMonthForDate(date, s.WeekStartWeekday, s.MonthAnchor);
-        return new MonthResolveResponse(null, year, monthNumber, IsNew: true);
+        // The week a new month would put the date in, from the same boundaries GetOrCreateForDateAsync uses to build it.
+        var prospective = boundaries.GenerateWeeks(year, monthNumber, s.WeekStartWeekday, s.MonthAnchor)
+            .FirstOrDefault(w => w.StartDate <= date && date <= w.EndDate)?.WeekNumber;
+        return new MonthResolveResponse(null, year, monthNumber, IsNew: true, WeekNumber: prospective);
     }
 
     public async Task<(MonthResponse? Month, ErrorResponse? Error)> UpdateIncomeAsync(Guid id, UpdateMonthIncomeRequest request, CancellationToken cancellationToken)

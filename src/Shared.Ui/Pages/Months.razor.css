@@ -1,0 +1,23 @@
+/* SKIN-8. The page head matches the dashboard's; the grid is Bootstrap's row/col and the card is MonthCard. */
+.months-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 13px;
+    margin-bottom: 15px;
+}
+
+.months-head h1 {
+    margin: 0;
+    font-size: 26px;
+    font-weight: var(--w-display);
+    color: var(--ink);
+}
+
+.months-subtitle {
+    margin: 2px 0 0;
+    font-size: 12px;
+    font-weight: var(--w-body);
+    color: var(--ink-3);
+}

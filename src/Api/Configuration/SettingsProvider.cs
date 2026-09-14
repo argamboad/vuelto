@@ -44,7 +44,7 @@ public class ApplicationSettings : IApplicationSettings
 
     public ApplicationSettings(IConfiguration config)
     {
-        ClientUrl = config["Auth:AppBaseUrl"]?.TrimEnd('/') ?? "https://localhost:7008";
+        ClientUrl = config["Auth:AppBaseUrl"]?.TrimEnd('/') ?? "https://localhost:7108";
         NativeCallbackScheme = config["Auth:Native:CallbackScheme"] ?? string.Empty;
     }
 }

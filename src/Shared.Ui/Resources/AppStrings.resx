@@ -68,6 +68,9 @@
   <data name="Theme_Dark" xml:space="preserve"><value>Dark</value></data>
   <data name="Login_Title" xml:space="preserve"><value>Sign in</value></data>
   <data name="Login_Subtitle" xml:space="preserve"><value>Choose how you'd like to continue</value></data>
+  <data name="Login_PromiseHeadline" xml:space="preserve"><value>Two currencies, one household budget.</value></data>
+  <data name="Login_PromiseBody" xml:space="preserve"><value>Every expense captured in colones and dollars at that day's rate, on your pay cycle — not the calendar's.</value></data>
+  <data name="Login_Region" xml:space="preserve"><value>Costa Rica · ₡ + $</value></data>
   <data name="Login_ContinueWith" xml:space="preserve"><value>Continue with {0}</value></data>
   <data name="Login_OrWithEmail" xml:space="preserve"><value>or sign in with email</value></data>
   <data name="Login_EmailLabel" xml:space="preserve"><value>Email address</value></data>
@@ -437,6 +440,19 @@
   <data name="Month_ConfirmDelete" xml:space="preserve"><value>Confirm delete</value></data>
   <data name="Month_Deleted" xml:space="preserve"><value>Transaction deleted.</value></data>
   <data name="Month_DeleteError" xml:space="preserve"><value>Couldn't delete it. Try again.</value></data>
+  <data name="Tx_GroupWhat" xml:space="preserve"><value>What it was</value></data>
+  <data name="Tx_GroupHow" xml:space="preserve"><value>How it was paid</value></data>
+  <data name="Tx_BeforeYouSave" xml:space="preserve"><value>Before you save</value></data>
+  <data name="Tx_ConvertedAt" xml:space="preserve"><value>= {0} at ₡{1} per $1 · frozen when you save</value></data>
+  <data name="Tx_ConvertedAtFrozen" xml:space="preserve"><value>= {0} at ₡{1} per $1 · frozen when this was saved</value></data>
+  <data name="Tx_FromCard" xml:space="preserve"><value>From the card — change the card to change these.</value></data>
+  <data name="Tx_CardNoBank" xml:space="preserve"><value>This card has no bank on record yet — set it under</value></data>
+  <data name="Tx_RefundNotes" xml:space="preserve"><value>Refund notes</value></data>
+  <data name="Tx_ClassHint_Budgeted" xml:space="preserve"><value>Counts against a budget line in this month.</value></data>
+  <data name="Tx_ClassHint_Extraordinary" xml:space="preserve"><value>Unplanned but discretionary — counted in expenses, outside the plan.</value></data>
+  <data name="Tx_ClassHint_Unplanned" xml:space="preserve"><value>Unplanned and unavoidable — counted in expenses, and it can expect a refund.</value></data>
+  <data name="Tx_ClassHint_Inflow" xml:space="preserve"><value>Money in — folded into this month's income, not into expenses.</value></data>
+  <data name="Tx_ClassHint_Envelope" xml:space="preserve"><value>A savings contribution — carved out of expenses entirely, and it needs a bank account.</value></data>
   <data name="Tx_NewTitle" xml:space="preserve"><value>New transaction</value></data>
   <data name="Tx_EditTitle" xml:space="preserve"><value>Edit transaction</value></data>
   <data name="Tx_NotFound" xml:space="preserve"><value>That transaction no longer exists.</value></data>
@@ -484,7 +500,7 @@
   <data name="Month_Refunds" xml:space="preserve"><value>Expected refunds</value></data>
   <data name="Month_NoRefunds" xml:space="preserve"><value>No refunds expected this month.</value></data>
   <data name="Refund_CaseNumber" xml:space="preserve"><value>Case No.</value></data>
-  <data name="Refund_NotesHint" xml:space="preserve"><value>Why you expect it back — e.g. "lent to Diego"</value></data>
+  <data name="Refund_NotesHint" xml:space="preserve"><value>Optional — case number, who owes it, when you expect it back</value></data>
   <data name="Refund_Pending" xml:space="preserve"><value>Pending</value></data>
   <data name="Refund_Received" xml:space="preserve"><value>Received</value></data>
   <data name="Refund_MarkReceived" xml:space="preserve"><value>Mark received</value></data>
@@ -514,6 +530,20 @@
   <data name="Budget_LoadError" xml:space="preserve"><value>Couldn't load the budget lines. Refresh to try again.</value></data>
   <data name="Budget_ReorderError" xml:space="preserve"><value>Couldn't reorder the lines. The list was reloaded.</value></data>
   <data name="Nav_Dashboard" xml:space="preserve"><value>Dashboard</value></data>
+  <data name="Dash_Verdict_OnTrack" xml:space="preserve"><value>On track</value></data>
+  <data name="Dash_Verdict_AtRisk" xml:space="preserve"><value>Watch</value></data>
+  <data name="Dash_Verdict_Over" xml:space="preserve"><value>Over</value></data>
+  <data name="Dash_ForecastLeftLabel" xml:space="preserve"><value>Forecast left at month end</value></data>
+  <data name="Dash_ForecastExplainer" xml:space="preserve"><value>That is what is left after everything already spent and everything still planned for the rest of the month.</value></data>
+  <data name="Dash_PaceCommitted" xml:space="preserve"><value>{0}% committed</value></data>
+  <data name="Dash_MonthElapsed" xml:space="preserve"><value>{0}% of the month gone</value></data>
+  <data name="Dash_DayOfMonth" xml:space="preserve"><value>day {0} of {1}</value></data>
+  <data name="Dash_WhereItWent" xml:space="preserve"><value>Where it went</value></data>
+  <data name="Dash_LinesOverPlan" xml:space="preserve"><value>{0} over</value></data>
+  <data name="Dash_LinesUnderPlan" xml:space="preserve"><value>{0} under</value></data>
+  <data name="Dash_ByWeek" xml:space="preserve"><value>By week</value></data>
+  <data name="Dash_ByBank" xml:space="preserve"><value>By bank</value></data>
+  <data name="Dash_Unbudgeted" xml:space="preserve"><value>Unbudgeted</value></data>
   <data name="Dash_Title" xml:space="preserve"><value>Dashboard</value></data>
   <data name="Dash_EmptyTitle" xml:space="preserve"><value>Nothing to show yet</value></data>
   <data name="Dash_EmptySubtitle" xml:space="preserve"><value>Months appear with their first transaction. Enter one and the dashboard fills in.</value></data>
@@ -531,10 +561,10 @@
   <data name="Dash_WfBudgeted" xml:space="preserve"><value>− Budgeted spent</value></data>
   <data name="Dash_WfDiscretionary" xml:space="preserve"><value>− Discretionary spent</value></data>
   <data name="Dash_WfUnplanned" xml:space="preserve"><value>− Unplanned spent</value></data>
-  <data name="Dash_WfSpent" xml:space="preserve"><value>= Spent so far</value></data>
+  <data name="Dash_WfSpent" xml:space="preserve"><value>Spent so far</value></data>
   <data name="Dash_WfLeft" xml:space="preserve"><value>= Left now</value></data>
-  <data name="Dash_WfPlanned" xml:space="preserve"><value>− Still planned</value></data>
-  <data name="Dash_WfForecast" xml:space="preserve"><value>= Forecast at month end</value></data>
+  <data name="Dash_WfPlanned" xml:space="preserve"><value>Still planned</value></data>
+  <data name="Dash_WfForecast" xml:space="preserve"><value>Forecast at month end</value></data>
   <data name="Dash_WfPace" xml:space="preserve"><value>{0}% of the month elapsed</value></data>
   <data name="Dash_WfOverPlan" xml:space="preserve"><value>The plan does not fit the income: cut lines or expect to end below zero.</value></data>
   <data name="Dash_Line" xml:space="preserve"><value>Line</value></data>
@@ -547,7 +577,6 @@
   <data name="Dash_Week" xml:space="preserve"><value>Week</value></data>
   <data name="Dash_UnplannedAndRefunds" xml:space="preserve"><value>Unplanned essentials &amp; refunds</value></data>
   <data name="Dash_RefundsExpected" xml:space="preserve"><value>Refunds still expected</value></data>
-  <data name="Dash_RefundsHint" xml:space="preserve"><value>Unplanned essentials are counted in expenses; expected refunds are informational until they land as income.</value></data>
   <data name="Dash_Envelopes" xml:space="preserve"><value>Envelope reminders</value></data>
   <data name="Dash_NoEnvelopes" xml:space="preserve"><value>No envelope reminders this month.</value></data>
   <data name="Dash_Target" xml:space="preserve"><value>Annual target</value></data>
@@ -685,6 +714,12 @@
   <data name="Email_SyncError" xml:space="preserve"><value>Couldn't sync this inbox. Try again.</value></data>
   <data name="Email_ReconnectToSync" xml:space="preserve"><value>Reconnect this inbox to sync it.</value></data>
   <data name="Nav_Review" xml:space="preserve"><value>Review</value></data>
+  <data name="Review_ConfirmingWill" xml:space="preserve"><value>Confirming will</value></data>
+  <data name="Review_ConfirmingWillBook" xml:space="preserve"><value>Book {0} into {1} as {2}, in {3}.</value></data>
+  <data name="Review_ConfirmingWillBookNoMonth" xml:space="preserve"><value>Book {0} into {1} as {2}.</value></data>
+  <data name="Review_ConfirmingBlocked" xml:space="preserve"><value>Nothing yet — {0} still missing.</value></data>
+  <data name="Review_MissingFields" xml:space="preserve"><value>The bank email didn't include {0} — fill that in below.</value></data>
+  <data name="Review_FromYourRule" xml:space="preserve"><value>from your rule</value></data>
   <data name="Review_Title" xml:space="preserve"><value>Review queue</value></data>
   <data name="Review_Subtitle" xml:space="preserve"><value>Bank vouchers from your inboxes wait here until you confirm them. Nothing touches the budget until you do.</value></data>
   <data name="Review_Empty" xml:space="preserve"><value>Nothing to review — every draft from your inboxes is handled.</value></data>
@@ -733,4 +768,63 @@
   <data name="Mapping_Deleted" xml:space="preserve"><value>Rule deleted.</value></data>
   <data name="Mapping_Error" xml:space="preserve"><value>Couldn't save the rule. Try again.</value></data>
   <data name="Mapping_LoadError" xml:space="preserve"><value>Couldn't load the rules.</value></data>
+  <data name="Months_ChipCurrent" xml:space="preserve"><value>Current</value></data>
+  <data name="Months_ChipClosed" xml:space="preserve"><value>Closed</value></data>
+  <data name="Months_ChipUpcoming" xml:space="preserve"><value>Upcoming</value></data>
+  <data name="Months_Spent" xml:space="preserve"><value>Spent {0}</value></data>
+  <data name="Months_ResultLeft" xml:space="preserve"><value>{0} left</value></data>
+  <data name="Months_ResultOver" xml:space="preserve"><value>{0} over</value></data>
+  <data name="Months_NoFigures" xml:space="preserve"><value>Figures unavailable</value></data>
+  <data name="Month_AllMonths" xml:space="preserve"><value>All months</value></data>
+  <data name="Month_WeekChip" xml:space="preserve"><value>W{0} · {1}</value></data>
+  <data name="Month_SaveIncome" xml:space="preserve"><value>Save income</value></data>
+  <data name="Month_SearchPayee" xml:space="preserve"><value>Search payee</value></data>
+  <data name="Month_Filters" xml:space="preserve"><value>Filters</value></data>
+  <data name="Month_FilterAllCategories" xml:space="preserve"><value>All categories</value></data>
+  <data name="Month_FilterAllBanks" xml:space="preserve"><value>All banks</value></data>
+  <data name="Month_FilterAllCards" xml:space="preserve"><value>All cards</value></data>
+  <data name="Month_FilterAllClasses" xml:space="preserve"><value>All classes</value></data>
+  <data name="Month_PaidWith" xml:space="preserve"><value>Paid with</value></data>
+  <data name="Refund_MarkReceivedFor" xml:space="preserve"><value>Mark {0} received</value></data>
+  <data name="Refund_MarkPendingFor" xml:space="preserve"><value>Put {0} back to pending</value></data>
+  <data name="Budget_AddLine" xml:space="preserve"><value>Add a line</value></data>
+  <data name="Budget_PlannedMonthly" xml:space="preserve"><value>Planned every month</value></data>
+  <data name="Budget_ShareOfIncome" xml:space="preserve"><value>{0}% of a typical income</value></data>
+  <data name="Budget_AtTodaysRate" xml:space="preserve"><value>at today's rate</value></data>
+  <data name="Budget_TypicalIncome" xml:space="preserve"><value>Typical income</value></data>
+  <data name="Budget_FixedHint" xml:space="preserve"><value>same amount every month · drag to reorder</value></data>
+  <data name="Budget_VariableHint" xml:space="preserve"><value>changes month to month · drag to reorder</value></data>
+  <data name="Budget_DragToReorder" xml:space="preserve"><value>Reorder {0}</value></data>
+  <data name="Budget_MoveUp" xml:space="preserve"><value>Move up</value></data>
+  <data name="Budget_MoveDown" xml:space="preserve"><value>Move down</value></data>
+  <data name="Budget_MoveTo" xml:space="preserve"><value>Move to position</value></data>
+  <data name="Budget_StatusInactive" xml:space="preserve"><value>Inactive</value></data>
+  <data name="Budget_MethodCard" xml:space="preserve"><value>card</value></data>
+  <data name="Budget_MethodAccount" xml:space="preserve"><value>account</value></data>
+  <data name="Budget_Kind" xml:space="preserve"><value>List</value></data>
+  <data name="Budget_Position" xml:space="preserve"><value>Position {0}</value></data>
+  <data name="Reports_Kpi_TotalSpend" xml:space="preserve"><value>Total spend</value></data>
+  <data name="Reports_Kpi_Budgeted" xml:space="preserve"><value>Budgeted</value></data>
+  <data name="Reports_Kpi_Discretionary" xml:space="preserve"><value>Discretionary</value></data>
+  <data name="Reports_Kpi_Unplanned" xml:space="preserve"><value>Unplanned</value></data>
+  <data name="Reports_OfIncome" xml:space="preserve"><value>{0}% of income</value></data>
+  <data name="Reports_OfSpend" xml:space="preserve"><value>{0}% of spend</value></data>
+  <data name="Reports_Refundable" xml:space="preserve"><value>{0} refundable</value></data>
+  <data name="Reports_ByCategory" xml:space="preserve"><value>By category</value></data>
+  <data name="Reports_ColSpentVsBudget" xml:space="preserve"><value>Spent vs budget</value></data>
+  <data name="Reports_Detail" xml:space="preserve"><value>Detail</value></data>
+  <data name="Consequence_Eyebrow" xml:space="preserve"><value>This will</value></data>
+  <data name="Household_TransferConsequence" xml:space="preserve"><value>Transferring makes them the owner. You stay as an admin: you can still invite and remove members, but only the owner can rename, transfer again, or leave and dissolve.</value></data>
+  <data name="Admin_CompConsequence" xml:space="preserve"><value>Comping puts this household on Pro at no charge: Pro entitlements at once, no payment, no period end. It is audited in the household.</value></data>
+  <data name="Admin_RevertConsequence" xml:space="preserve"><value>Reverting drops this household to Free at once: entitlements fall back to Free, nothing is refunded because nothing was paid. It is audited in the household.</value></data>
+  <data name="Envelopes_Target" xml:space="preserve"><value>Annual target</value></data>
+  <data name="Cards_Identity_Col" xml:space="preserve"><value>Card</value></data>
+  <data name="Admin_SelectMember" xml:space="preserve"><value>Target {0}</value></data>
+  <data name="Tx_GoesToWeek" xml:space="preserve"><value>Goes to {0} · week {1}</value></data>
+  <data name="Tx_GoesToNewWeek" xml:space="preserve"><value>Goes to {0} · week {1} — a new month will be created</value></data>
+  <data name="Tx_LineImpact" xml:space="preserve"><value>{0}: {1} spent of {2} planned — after this, {3}</value></data>
+  <data name="Review_MonthWeek" xml:space="preserve"><value>{0} · week {1}</value></data>
+  <data name="Dash_WfRefundsExpected" xml:space="preserve"><value>Expected refunds</value></data>
+  <data name="Dash_RefundsNote" xml:space="preserve"><value>not counted until they land as income</value></data>
+  <data name="Dash_BudgetedNoLine" xml:space="preserve"><value>Marked budgeted, no line</value></data>
 </root>

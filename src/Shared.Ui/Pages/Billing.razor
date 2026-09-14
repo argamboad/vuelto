@@ -13,8 +13,7 @@
 <PageTitle>@Localizer["Billing_Title"]</PageTitle>
 
 <div class="billing-wrapper">
-    <h1 class="h4 fw-bold mb-1">@Localizer["Billing_Title"]</h1>
-    <p class="text-muted mb-4">@Localizer["Billing_Subtitle"]</p>
+    <PageHead Title="@Localizer["Billing_Title"]" Subtitle="@Localizer["Billing_Subtitle"]" />
 
     @if (!string.IsNullOrEmpty(_error))
     {
@@ -51,7 +50,7 @@
                         <h2 class="h6 fw-bold mb-1">@Localizer["Billing_CurrentPlan"]</h2>
                         <div class="h5 mb-0 text-capitalize" data-testid="billing-plan">@Label($"Plan_{_summary.PlanKey}", _summary.PlanKey)</div>
                     </div>
-                    <span class="badge bg-info-subtle text-info-emphasis" data-testid="billing-status">@Label($"BillingStatus_{_summary.Status}", _summary.Status)</span>
+                    <StatusChip Tone="info" TestId="billing-status">@Label($"BillingStatus_{_summary.Status}", _summary.Status)</StatusChip>
                 </div>
                 @* A cancelled subscription's period end is the day it ENDED — never "renews" next to a free plan. *@
                 @if (_summary.CurrentPeriodEnd is { } end)

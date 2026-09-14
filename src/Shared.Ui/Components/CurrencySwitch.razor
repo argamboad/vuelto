@@ -1,17 +1,20 @@
 @inject IStringLocalizer<AppStrings> Localizer
 
-@* ₡ · $ · both — the "show amounts in" control (MoneyDisplay). Charts can draw one currency only, so they hide "both". *@
-<div>
+@* ₡ · $ · both — the "show amounts in" control (MoneyDisplay). Charts can draw one currency only, so they hide "both".
+   The same rail track as SegmentedSwitch (SKIN-11), so the two segmented controls read as one pattern; buttons
+   rather than radios because the choice persists to the account and is not a form value, and aria-pressed
+   says which one is on. *@
+<div class="cur">
     @if (Label is not null)
     {
-        <label class="form-label small mb-1">@Label</label>
+        <span class="cur-label" id="@(TestId + "-label")">@Label</span>
     }
-    <div class="btn-group btn-group-sm" role="group" aria-label="@Label">
-        <button type="button" class="btn @Css(MoneyDisplay.Crc)" data-testid="@(TestId + "-crc")" @onclick='() => PickAsync(MoneyDisplay.Crc)'>₡</button>
-        <button type="button" class="btn @Css(MoneyDisplay.Usd)" data-testid="@(TestId + "-usd")" @onclick='() => PickAsync(MoneyDisplay.Usd)'>$</button>
+    <div class="cur-track" role="group" aria-labelledby="@(Label is null ? null : TestId + "-label")" aria-label="@(Label is null ? Localizer["Reports_ShowIn"].Value : null)">
+        <button type="button" class="cur-option" aria-pressed="@Pressed(MoneyDisplay.Crc)" data-testid="@(TestId + "-crc")" @onclick='() => PickAsync(MoneyDisplay.Crc)'>₡</button>
+        <button type="button" class="cur-option" aria-pressed="@Pressed(MoneyDisplay.Usd)" data-testid="@(TestId + "-usd")" @onclick='() => PickAsync(MoneyDisplay.Usd)'>$</button>
         @if (AllowBoth)
         {
-            <button type="button" class="btn @Css(MoneyDisplay.Both)" data-testid="@(TestId + "-both")" @onclick='() => PickAsync(MoneyDisplay.Both)'>@Localizer["Cur_Both"]</button>
+            <button type="button" class="cur-option" aria-pressed="@Pressed(MoneyDisplay.Both)" data-testid="@(TestId + "-both")" @onclick='() => PickAsync(MoneyDisplay.Both)'>@Localizer["Cur_Both"]</button>
         }
     </div>
 </div>
@@ -23,6 +26,6 @@
     [Parameter] public string TestId { get; set; } = "cur";
     [Parameter] public string? Label { get; set; }
 
-    private string Css(string value) => Value == value ? "btn-secondary" : "btn-outline-secondary";
+    private string Pressed(string value) => Value == value ? "true" : "false";
     private Task PickAsync(string value) => ValueChanged.InvokeAsync(value);
 }

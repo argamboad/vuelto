@@ -182,7 +182,11 @@ never errors on a missing key, it degrades to "unavailable".
 Flow:
 1. A transaction is created with a date. `GET /api/months/resolve?date=` (and the create path)
    finds the **anchor window** containing that date — which may be a *neighboring* calendar month
-   (28 May → June under the default anchor).
+   (28 May → June under the default anchor). The resolve also answers `week_number` — the week of
+   that window the date falls in, from the stored weeks or, for a month not yet created, from the
+   boundaries that would create it — so the transaction form and the review queue can say
+   "September 2026 · week 3" before anything is saved. The month summary's line rows carry
+   `category_id`, so the same two screens can name the budget line a purchase lands in.
 2. If no month covers the window, one is **auto-created**: `year`, `month_number`, `week_count`
    (4 or 5, whatever fits before the next anchor), `week1_start_date`, the **weeks** materialized
    (7 days each, the last clamped), and the two incomes **snapshotted** from the 4w/5w defaults.

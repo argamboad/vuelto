@@ -1,0 +1,48 @@
+.breakdown {
+    padding: var(--card-pad-y) var(--card-pad-x);
+    border: 1px solid var(--app-border);
+    border-radius: var(--radius-card);
+    background: var(--card-bg);
+}
+
+.breakdown-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 11px;
+    margin-bottom: 11px;
+}
+
+.breakdown-head h2 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: var(--w-display);
+    color: var(--ink);
+}
+
+/* The switch and the panel are one object, so the table inside loses its own frame. */
+.breakdown-body ::deep table {
+    margin-bottom: 0;
+}
+
+.breakdown-body ::deep thead th {
+    background: var(--zebra);
+    border-bottom: 1px solid var(--app-border);
+    font-size: 11px;
+    font-weight: var(--w-display);
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+}
+
+.breakdown-body ::deep tbody td {
+    border-top: 1px solid var(--hair);
+    font-size: 13px;
+    font-weight: var(--w-control);
+    color: var(--ink);
+}
+
+.breakdown-body ::deep tbody tr:hover td {
+    background: var(--zebra);
+}

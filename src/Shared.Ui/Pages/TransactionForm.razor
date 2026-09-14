@@ -34,129 +34,189 @@
     }
     else
     {
-        <div class="card shadow-sm" data-testid="tx-form">
-            <div class="card-body">
-                <div class="row g-3">
-                    <div class="col-12">
-                        <label class="form-label small fw-medium mb-1" for="tx-payee">@Localizer["Tx_Payee"]</label>
-                        <input class="form-control" id="tx-payee" data-testid="tx-payee" maxlength="200" disabled="@_saving" @bind="_payee" @bind:event="oninput" />
+        <div class="tx-layout">
+            <div class="tx-form" data-testid="tx-form">
+
+                @* ---------------------------------------------------------------- the money, first *@
+                <section class="tx-money">
+                    <div class="tx-money-amount">
+                        <AmountField TestId="tx-amount-field" Label="@Localizer["Tx_Amount"]" CurrencyLabel="@Localizer["Tx_Currency"].Value"
+                                     Value="_amount" ValueChanged="OnAmountChanged"
+                                     Currency="@_currency" CurrencyChanged="OnCurrencyChanged"
+                                     Conversion="@ConversionLine()" Disabled="@_saving" />
                     </div>
-                    <div class="col-12">
-                        <label class="form-label small fw-medium mb-1" for="tx-notes">@Localizer["Tx_Notes"]</label>
-                        <textarea class="form-control" id="tx-notes" data-testid="tx-notes" rows="2" maxlength="250" placeholder="@Localizer["Tx_NotesHint"]" disabled="@_saving" @bind="_notes" @bind:event="oninput"></textarea>
-                        <div class="form-text text-end" data-testid="tx-notes-count">@_notes.Length/250</div>
-                    </div>
-                    <div class="col-8 col-md-5">
-                        <label class="form-label small fw-medium mb-1" for="tx-amount">@Localizer["Tx_Amount"]</label>
-                        <input class="form-control" type="number" step="0.01" min="0" id="tx-amount" data-testid="tx-amount" disabled="@_saving" @bind="_amount" />
-                    </div>
-                    <div class="col-4 col-md-2">
-                        <label class="form-label small fw-medium mb-1" for="tx-currency">@Localizer["Tx_Currency"]</label>
-                        <select class="form-select" id="tx-currency" data-testid="tx-currency" disabled="@_saving" @bind="_currency" @bind:after="PrefillRate"><option>CRC</option><option>USD</option></select>
-                    </div>
-                    <div class="col-12 col-md-5">
-                        <label class="form-label small fw-medium mb-1" for="tx-date">@Localizer["Tx_Date"]</label>
+                    <div class="tx-money-date">
+                        <label class="form-label" for="tx-date">@Localizer["Tx_Date"]</label>
                         <input class="form-control" type="date" id="tx-date" data-testid="tx-date" disabled="@_saving" value="@_date.ToString("yyyy-MM-dd")" @onchange="OnDateChanged" />
-                        @if (_resolved is not null)
+                    </div>
+                </section>
+
+                @* ---------------------------------------------------------------- what it was *@
+                <section class="tx-group">
+                    <h2>@Localizer["Tx_GroupWhat"]</h2>
+                    <div class="tx-fields">
+                        <div class="tx-field">
+                            <label class="form-label" for="tx-payee">@Localizer["Tx_Payee"]</label>
+                            <input class="form-control" id="tx-payee" data-testid="tx-payee" maxlength="200" disabled="@_saving" @bind="_payee" @bind:event="oninput" />
+                        </div>
+                        <div class="tx-field">
+                            <label class="form-label" for="tx-category">@Localizer["Tx_Category"]</label>
+                            <CategoryPicker Id="tx-category" TestId="tx-category" Categories="_categories" Disabled="@_saving" @bind-Value="_categoryId" OnCreated="AddCategory" />
+                        </div>
+
+                        @* Chips rather than a dropdown, and all FIVE classes — dropping any would remove a path:
+                           unplanned opens the refund fields, envelope opens the bucket picker, inflow is income. *@
+                        <div class="tx-field tx-field-wide">
+                            <SegmentedSwitch TestId="tx-type" Label="@Localizer["Tx_Class"].Value" Options="ClassOptions()"
+                                             Value="@_type" ValueChanged="OnTypeChanged" />
+                            <p class="tx-hint" data-testid="tx-class-hint">@ClassHint()</p>
+                        </div>
+
+                        @if (_type == "unplanned_essential")
                         {
-                            <div class="form-text" data-testid="tx-resolve">
-                                @(_resolved.IsNew
-                                    ? Localizer["Tx_GoesToNew", MonthLabel(_resolved.Year, _resolved.MonthNumber)]
-                                    : Localizer["Tx_GoesTo", MonthLabel(_resolved.Year, _resolved.MonthNumber)])
+                            @* The refund block spans the row like Notes does: the switch, then the percentage beside the notes —
+                               the notes (case number and all, asked while the receipt is in your hand, 2026-09-14) get the width
+                               the transaction's own notes get. Case No. as a column stays the month page's (LEDGER-4). *@
+                            <div class="tx-field tx-field-wide">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="tx-refund-expected" data-testid="tx-refund-expected" disabled="@_saving" @bind="_refundExpected" />
+                                    <label class="form-check-label" for="tx-refund-expected">@Localizer["Tx_RefundExpected"]</label>
+                                </div>
+                                @if (_refundExpected)
+                                {
+                                    <div class="tx-refund">
+                                        <div>
+                                            <label class="form-label" for="tx-refund-pct">@Localizer["Tx_RefundPercent"]</label>
+                                            <input class="form-control" type="number" step="0.01" min="0" max="100" id="tx-refund-pct" data-testid="tx-refund-pct" disabled="@_saving" @bind="_refundPercentage" />
+                                            @if (_amount > 0 && _refundPercentage is > 0)
+                                            {
+                                                <p class="tx-hint" data-testid="tx-refund-preview">@Localizer["Tx_RefundPreview", $"{(_amount * _refundPercentage.Value / 100m).ToString("N2", CultureInfo.CurrentCulture)} {_currency}"]</p>
+                                            }
+                                        </div>
+                                        <div>
+                                            <label class="form-label" for="tx-refund-notes">@Localizer["Tx_RefundNotes"]</label>
+                                            <textarea class="form-control" id="tx-refund-notes" data-testid="tx-refund-notes" rows="1" maxlength="250" placeholder="@Localizer["Refund_NotesHint"]" disabled="@_saving" @bind="_refundNotes" @bind:event="oninput"></textarea>
+                                            <p class="tx-hint tx-hint-end" data-testid="tx-refund-notes-count">@_refundNotes.Length/250</p>
+                                        </div>
+                                    </div>
+                                }
                             </div>
                         }
-                    </div>
-                    <div class="col-12 col-md-6">
-                        <label class="form-label small fw-medium mb-1" for="tx-category">@Localizer["Tx_Category"]</label>
-                        <CategoryPicker Id="tx-category" TestId="tx-category" Categories="_categories" Disabled="@_saving" @bind-Value="_categoryId" OnCreated="AddCategory" />
-                    </div>
-                    <div class="col-12 col-md-6">
-                        <label class="form-label small fw-medium mb-1" for="tx-bank">@Localizer["Tx_Bank"]</label>
-                        <select class="form-select" id="tx-bank" data-testid="tx-bank" disabled="@_saving" @bind="_bankId">
-                            <option value="">—</option>
-                            @foreach (var b in _banks) { <option value="@b.Id">@b.Name</option> }
-                        </select>
-                    </div>
-                    <div class="col-12 col-md-6">
-                        <label class="form-label small fw-medium mb-1" for="tx-card">@Localizer["Tx_Card"]</label>
-                        <select class="form-select" id="tx-card" data-testid="tx-card" disabled="@_saving" value="@_cardId" @onchange="CardChanged">
-                            <option value="">@Localizer["Tx_NoCard"]</option>
-                            @foreach (var c in _cards) { <option value="@c.Id">@c.Name</option> }
-                        </select>
-                    </div>
-                    <div class="col-12 col-md-6">
-                        <label class="form-label small fw-medium mb-1" for="tx-method">@Localizer["Tx_PaymentMethod"]</label>
-                        <select class="form-select" id="tx-method" data-testid="tx-method" disabled="@_saving" @bind="_method">
-                            <option value="credit_card">@Localizer["Tx_CreditCard"]</option>
-                            <option value="bank_account">@Localizer["Tx_BankAccount"]</option>
-                        </select>
-                    </div>
-                    <div class="col-12 col-md-6">
-                        <label class="form-label small fw-medium mb-1" for="tx-type">@Localizer["Tx_Class"]</label>
-                        <select class="form-select" id="tx-type" data-testid="tx-type" disabled="@_saving" @bind="_type">
-                            <option value="budgeted">@Localizer["Tx_Budgeted"]</option>
-                            <option value="extraordinary">@Localizer["Tx_Extraordinary"]</option>
-                            <option value="unplanned_essential">@Localizer["Tx_Unplanned"]</option>
-                            <option value="inflow">@Localizer["Tx_Inflow"]</option>
-                            <option value="envelope_contribution">@Localizer["Tx_EnvelopeContribution"]</option>
-                        </select>
-                    </div>
-                    @if (_type == "unplanned_essential")
-                    {
-                        <div class="col-12 col-md-6">
-                            <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" id="tx-refund-expected" data-testid="tx-refund-expected" disabled="@_saving" @bind="_refundExpected" />
-                                <label class="form-check-label" for="tx-refund-expected">@Localizer["Tx_RefundExpected"]</label>
+                        @if (_type == "envelope_contribution")
+                        {
+                            <div class="tx-field">
+                                <label class="form-label" for="tx-envelope">@Localizer["Tx_Envelope"]</label>
+                                <select class="form-select" id="tx-envelope" data-testid="tx-envelope" disabled="@_saving" @bind="_envelopeId">
+                                    <option value="">—</option>
+                                    @foreach (var e in _envelopes) { <option value="@e.Id">@e.Name</option> }
+                                </select>
+                                <p class="tx-hint">@Localizer["Tx_EnvelopeHint"]</p>
                             </div>
-                            @if (_refundExpected)
+                        }
+
+                        <div class="tx-field tx-field-wide">
+                            <label class="form-label" for="tx-notes">@Localizer["Tx_Notes"]</label>
+                            <textarea class="form-control" id="tx-notes" data-testid="tx-notes" rows="2" maxlength="250" placeholder="@Localizer["Tx_NotesHint"]" disabled="@_saving" @bind="_notes" @bind:event="oninput"></textarea>
+                            <p class="tx-hint tx-hint-end" data-testid="tx-notes-count">@_notes.Length/250</p>
+                        </div>
+                    </div>
+                </section>
+
+                @* ---------------------------------------------------------------- how it was paid *@
+                <section class="tx-group">
+                    <h2>@Localizer["Tx_GroupHow"]</h2>
+                    @* Card first (owner, 2026-09-14): a card already knows its bank and how the money leaves, so picking
+                       one decides the other two — shown as text, not as pickers you could contradict. "No card" opens them
+                       again (cash, transfers); a card with no bank on record keeps the bank open and points at Cards. *@
+                    <div class="tx-fields">
+                        <div class="tx-field">
+                            <label class="form-label" for="tx-card">@Localizer["Tx_Card"]</label>
+                            <select class="form-select" id="tx-card" data-testid="tx-card" disabled="@_saving" value="@_cardId" @onchange="CardChanged">
+                                <option value="">@Localizer["Tx_NoCard"]</option>
+                                @foreach (var c in _cards) { <option value="@c.Id">@c.Name</option> }
+                            </select>
+                            @if (_fromCard)
                             {
-                                <label class="form-label small fw-medium mb-1 mt-2" for="tx-refund-pct">@Localizer["Tx_RefundPercent"]</label>
-                                <input class="form-control" type="number" step="0.01" min="0" max="100" id="tx-refund-pct" data-testid="tx-refund-pct" disabled="@_saving" @bind="_refundPercentage" />
-                                @if (_amount > 0 && _refundPercentage is > 0)
-                                {
-                                    <div class="form-text" data-testid="tx-refund-preview">@Localizer["Tx_RefundPreview", $"{(_amount * _refundPercentage.Value / 100m).ToString("N2", CultureInfo.CurrentCulture)} {_currency}"]</div>
-                                }
+                                <p class="tx-hint" data-testid="tx-from-card">@Localizer["Tx_FromCard"]</p>
+                            }
+                            else if (SelectedCard() is { BankId: null })
+                            {
+                                <p class="tx-hint" data-testid="tx-card-no-bank">@Localizer["Tx_CardNoBank"] <a href="/cards">@Localizer["Cards_Title"]</a></p>
                             }
                         </div>
-                    }
-                    @if (_type == "envelope_contribution")
-                    {
-                        <div class="col-12 col-md-6">
-                            <label class="form-label small fw-medium mb-1" for="tx-envelope">@Localizer["Tx_Envelope"]</label>
-                            <select class="form-select" id="tx-envelope" data-testid="tx-envelope" disabled="@_saving" @bind="_envelopeId">
-                                <option value="">—</option>
-                                @foreach (var e in _envelopes) { <option value="@e.Id">@e.Name</option> }
-                            </select>
-                            <div class="form-text">@Localizer["Tx_EnvelopeHint"]</div>
+                        <div class="tx-field">
+                            <label class="form-label" for="tx-bank">@Localizer["Tx_Bank"]</label>
+                            @if (_fromCard)
+                            {
+                                <p class="form-control-plaintext tx-locked" id="tx-bank" data-testid="tx-bank-locked">@BankName(_bankId)</p>
+                            }
+                            else
+                            {
+                                <select class="form-select" id="tx-bank" data-testid="tx-bank" disabled="@_saving" @bind="_bankId">
+                                    <option value="">—</option>
+                                    @foreach (var b in _banks) { <option value="@b.Id">@b.Name</option> }
+                                </select>
+                            }
                         </div>
-                    }
-                    <div class="col-12 col-md-6">
-                        <label class="form-label small fw-medium mb-1" for="tx-rate">@Localizer["Tx_Rate"]</label>
-                        <input class="form-control" type="number" step="0.0001" min="0" id="tx-rate" data-testid="tx-rate" disabled="@(_saving || Id is not null)" @bind="_rate" />
-                        <div class="form-text" data-testid="tx-rate-hint">
-                            @(Id is not null ? Localizer["Tx_RateFrozen"] : _rateUnavailable ? Localizer["Tx_RateUnavailable"] : Localizer["Tx_RateLive"])
+                        <div class="tx-field">
+                            <label class="form-label" for="tx-method">@Localizer["Tx_PaymentMethod"]</label>
+                            @if (_fromCard)
+                            {
+                                <p class="form-control-plaintext tx-locked" id="tx-method" data-testid="tx-method-locked">@Localizer[_method == "bank_account" ? "Tx_BankAccount" : "Tx_CreditCard"]</p>
+                            }
+                            else
+                            {
+                                <select class="form-select" id="tx-method" data-testid="tx-method" disabled="@_saving" @bind="_method">
+                                    <option value="credit_card">@Localizer["Tx_CreditCard"]</option>
+                                    <option value="bank_account">@Localizer["Tx_BankAccount"]</option>
+                                </select>
+                            }
+                        </div>
+                        <div class="tx-field">
+                            <label class="form-label" for="tx-rate">@Localizer["Tx_Rate"]</label>
+                            <input class="form-control" type="number" step="0.0001" min="0" id="tx-rate" data-testid="tx-rate" disabled="@(_saving || Id is not null)" @bind="_rate" />
+                            <p class="tx-hint" data-testid="tx-rate-hint">
+                                @(Id is not null ? Localizer["Tx_RateFrozen"] : _rateUnavailable ? Localizer["Tx_RateUnavailable"] : Localizer["Tx_RateLive"])
+                            </p>
                         </div>
                     </div>
-                    @if (_amount > 0 && _rate is > 0)
-                    {
-                        <div class="col-12 small text-muted" data-testid="tx-preview">
-                            @(_currency == "CRC"
-                                ? $"= ${(_amount / _rate.Value).ToString("N2", CultureInfo.CurrentCulture)}"
-                                : $"= ₡{(_amount * _rate.Value).ToString("N2", CultureInfo.CurrentCulture)}")
-                        </div>
-                    }
-                </div>
+                </section>
 
                 @if (_error is not null)
                 {
-                    <div class="alert alert-danger py-2 mt-3" data-testid="tx-error">@_error</div>
+                    <div class="alert alert-danger py-2" data-testid="tx-error">@_error</div>
                 }
+            </div>
 
-                <div class="d-flex gap-2 mt-3">
+            @* ---------------------------------------------------------------- what saving will do *@
+            <ConsequencePanel TestId="tx-rail" Eyebrow="@Localizer["Tx_BeforeYouSave"]">
+                <ChildContent>
+                    @if (_resolved is not null)
+                    {
+                        <p class="tx-rail-lands" data-testid="tx-resolve">@LandsLine()</p>
+                    }
+                    @if (LineImpact() is { } impact)
+                    {
+                        @* The budget line this purchase lands in — its spend so far, its plan, and the total after this. *@
+                        <p class="tx-rail-lands" data-testid="tx-line-impact">@impact</p>
+                    }
+                    @if (_amount > 0 && _rate is > 0)
+                    {
+                        <dl class="tx-rail-money" data-testid="tx-preview">
+                            <dt>₡</dt><dd>@Colones()</dd>
+                            <dt>$</dt><dd>@Dollars()</dd>
+                            <dt>@Localizer["Tx_Rate"]</dt><dd>@_rate.Value.ToString("N2", CultureInfo.CurrentCulture)</dd>
+                        </dl>
+                    }
+                </ChildContent>
+                <Actions>
+                    @* Save stays ENABLED and surfaces validation on submit rather than going quietly dead
+                       (build notes) — the opposite rule from the review queue, where the blocker is a parsed
+                       blank the user cannot argue with. *@
                     <button class="btn btn-primary" data-testid="tx-save" disabled="@_saving" @onclick="SaveAsync">@(_saving ? Localizer["Catalog_Saving"] : Localizer["Catalog_Save"])</button>
                     <a class="btn btn-outline-secondary" href="@(_monthId is { } m ? $"/months/{m}" : "/months")" data-testid="tx-cancel">@Localizer["Catalog_Cancel"]</a>
-                </div>
-            </div>
+                </Actions>
+            </ConsequencePanel>
         </div>
     }
 </div>
@@ -180,13 +240,26 @@
     private string _cardId = ""; // CARDS-1: optional — "" is "no card"
     private string _notes = ""; // optional; blank is sent as null
 
-    /// <summary>CARDS-3: the card knows how the money leaves — debit spends the account. Still overridable right below.</summary>
+    private CardOptionDto? SelectedCard() => _cards.FirstOrDefault(c => c.Id.ToString() == _cardId);
+    private static string MethodFor(CardOptionDto card) => card.Kind == "debit" ? "bank_account" : "credit_card";
+    private string BankName(string id) => _banks.FirstOrDefault(b => b.Id.ToString() == id)?.Name ?? "—";
+
+    /// <summary>The card decides bank and method (owner, 2026-09-14). CARDS-3 set only the method, and left it editable.</summary>
     private void CardChanged(ChangeEventArgs e)
     {
         _cardId = e.Value?.ToString() ?? "";
-        if (_cards.FirstOrDefault(c => c.Id.ToString() == _cardId) is { } card)
-            _method = card.Kind == "debit" ? "bank_account" : "credit_card";
+        if (SelectedCard() is { } card)
+        {
+            _method = MethodFor(card);
+            if (card.BankId is { } bank) { _bankId = bank.ToString(); _fromCard = true; }
+            else _fromCard = false; // no bank on record: the bank stays yours to pick, the hint points at Cards
+        }
+        else _fromCard = false;
     }
+
+    /// <summary>True while a card with a bank on record is chosen: bank and method are shown as the card's, not picked.</summary>
+    private bool _fromCard;
+    private string _refundNotes = "";
     private string _method = "credit_card";
     private string _type = "budgeted";
     private string _envelopeId = "";
@@ -220,8 +293,10 @@
                 _monthId = tx.MonthId; _payee = tx.Payee; _amount = tx.OriginalAmount; _currency = tx.Currency; _date = tx.TransactionDate;
                 _categoryId = tx.CategoryId.ToString(); _bankId = tx.BankId.ToString(); _method = tx.PaymentMethod; _type = tx.TransactionType;
                 _envelopeId = tx.EnvelopeId?.ToString() ?? ""; _cardId = tx.CardId?.ToString() ?? ""; _notes = tx.Notes ?? ""; _rate = tx.ExchangeRateUsed;
-                _refundExpected = tx.RefundExpected; _refundPercentage = tx.RefundPercentage;
+                _refundExpected = tx.RefundExpected; _refundPercentage = tx.RefundPercentage; _refundNotes = tx.RefundNotes ?? "";
                 _derived = tx.Source == "refund_realization"; // only refund-derived inflows are read-only; email-booked rows are the user's own
+                // Locked only when the stored bank and method are the card's own; a row saved before the card decided them stays open.
+                _fromCard = SelectedCard() is { BankId: { } cardBank } card && cardBank.ToString() == _bankId && MethodFor(card) == _method;
             }
             else
             {
@@ -244,6 +319,63 @@
     {
         try { _resolved = await Http.GetFromJsonAsync<ResolveDto>($"/api/months/resolve?date={_date:yyyy-MM-dd}"); }
         catch { _resolved = null; }
+        await LoadLinesAsync();
+    }
+
+    /// <summary>"Goes to September 2026 · week 3" — the month AND the week, from the resolve, before anything is saved.</summary>
+    private string LandsLine()
+    {
+        var month = MonthLabel(_resolved!.Year, _resolved.MonthNumber);
+        return (_resolved.IsNew, _resolved.WeekNumber) switch
+        {
+            (true, { } w) => Localizer["Tx_GoesToNewWeek", month, w],
+            (true, null) => Localizer["Tx_GoesToNew", month],
+            (false, { } w) => Localizer["Tx_GoesToWeek", month, w],
+            _ => Localizer["Tx_GoesTo", month],
+        };
+    }
+
+    // ---------------------------------------------------------------- the budget line this lands in
+
+    /// <summary>The resolved month's budget lines (fixed + variable), keyed by category — fetched once per resolved month, best-effort.</summary>
+    private Dictionary<Guid, LineDto> _lines = new();
+    private Guid? _linesFor;
+
+    private async Task LoadLinesAsync()
+    {
+        var id = _resolved?.MonthId;
+        if (id == _linesFor) return;
+        _linesFor = id; _lines = new();
+        if (id is not { } monthId) return; // a month that does not exist yet has no actuals to add to
+        try
+        {
+            var res = await Http.GetAsync($"/api/months/{monthId}/summary");
+            if (!res.IsSuccessStatusCode) return;
+            var summary = (await res.Content.ReadFromJsonAsync<SummaryEnvelopeDto>())?.Summary;
+            if (summary is null) return;
+            foreach (var l in summary.FixedExpenses.Concat(summary.VariableExpenses)) _lines[l.CategoryId] = l;
+        }
+        catch { /* the line clause is a courtesy, never a blocker */ }
+    }
+
+    /// <summary>
+    /// "Groceries: ₡8,000.00 spent of ₡60,000.00 planned — after this, ₡58,000.00". Only for budgeted spending with
+    /// a line behind its category; a purchase in the other currency is converted at today's rate first, the way
+    /// the dashboard's actuals will read it.
+    /// </summary>
+    private string? LineImpact()
+    {
+        if (_type != "budgeted" || _amount <= 0 || !Guid.TryParse(_categoryId, out var cat) || !_lines.TryGetValue(cat, out var line)) return null;
+        var crcLine = line.BudgetCurrency != "USD";
+        decimal add;
+        if (crcLine) add = _currency == "CRC" ? _amount : (_rate is > 0 ? _amount * _rate.Value : 0m);
+        else add = _currency == "USD" ? _amount : (_rate is > 0 ? _amount / _rate.Value : 0m);
+        if (add <= 0) return null;
+        var spent = crcLine ? line.Actual.Crc : line.Actual.Usd;
+        var planned = crcLine ? line.Budget.Crc : line.Budget.Usd;
+        var symbol = crcLine ? "₡" : "$";
+        string F(decimal v) => symbol + v.ToString("N2", CultureInfo.CurrentCulture);
+        return Localizer["Tx_LineImpact", line.Name, F(spent), F(planned), F(spent + add)];
     }
 
     private async Task SaveAsync()
@@ -267,6 +399,8 @@
                 ["currency"] = _currency, ["transaction_date"] = _date.ToString("yyyy-MM-dd"), ["category_id"] = _categoryId,
                 ["transaction_type"] = _type, ["envelope_id"] = _type == "envelope_contribution" ? _envelopeId : null,
                 ["refund_expected"] = refund, ["refund_percentage"] = refund ? _refundPercentage : null,
+                // Sent whenever a refund is on — blank included, since blank is how you clear it (null would mean "leave alone").
+                ["refund_notes"] = refund ? _refundNotes.Trim() : null,
                 ["card_id"] = _cardId == "" ? null : _cardId,
                 ["notes"] = string.IsNullOrWhiteSpace(_notes) ? null : _notes.Trim(),
             };
@@ -290,6 +424,54 @@
         finally { _saving = false; }
     }
 
+    /// <summary>All five classes as chips. Each one opens a different path, so none can be dropped.</summary>
+    private List<SegmentedOption> ClassOptions() =>
+    [
+        new("budgeted", Localizer["Tx_Budgeted"]),
+        new("extraordinary", Localizer["Tx_Extraordinary"]),
+        new("unplanned_essential", Localizer["Tx_Unplanned"]),
+        new("inflow", Localizer["Tx_Inflow"]),
+        new("envelope_contribution", Localizer["Tx_EnvelopeContribution"]),
+    ];
+
+    private void OnTypeChanged(string type) => _type = type;
+
+    /// <summary>One line saying what the chosen class DOES — the taxonomy is this app's spine and the words
+    /// "extraordinary" or "envelope contribution" do not explain themselves.</summary>
+    private string ClassHint() => _type switch
+    {
+        "budgeted" => Localizer["Tx_ClassHint_Budgeted"],
+        "extraordinary" => Localizer["Tx_ClassHint_Extraordinary"],
+        "unplanned_essential" => Localizer["Tx_ClassHint_Unplanned"],
+        "inflow" => Localizer["Tx_ClassHint_Inflow"],
+        _ => Localizer["Tx_ClassHint_Envelope"],
+    };
+
+    private Task OnAmountChanged(decimal amount) { _amount = amount; return Task.CompletedTask; }
+
+    private void OnCurrencyChanged(string currency)
+    {
+        _currency = currency;
+        PrefillRate();   // the quote is already in hand; this only re-picks the side
+    }
+
+    /// <summary>The other side at today's rate, with the note that it freezes on save — not on edit.</summary>
+    private string? ConversionLine()
+    {
+        if (_amount <= 0 || _rate is not > 0) return null;
+        var other = _currency == "CRC"
+            ? "$" + (_amount / _rate.Value).ToString("N2", CultureInfo.CurrentCulture)
+            : "₡" + (_amount * _rate.Value).ToString("N2", CultureInfo.CurrentCulture);
+        var rate = _rate.Value.ToString("N2", CultureInfo.CurrentCulture);
+        return Id is null
+            ? Localizer["Tx_ConvertedAt", other, rate]
+            : Localizer["Tx_ConvertedAtFrozen", other, rate];
+    }
+
+    // The symbol is the row's LABEL in the rail, so these are the bare figures — printing it twice gave "₡₡48,320.00".
+    private string Colones() => (_currency == "CRC" ? _amount : _amount * _rate!.Value).ToString("N2", CultureInfo.CurrentCulture);
+    private string Dollars() => (_currency == "USD" ? _amount : _amount / _rate!.Value).ToString("N2", CultureInfo.CurrentCulture);
+
     private static string MonthLabel(int year, int month) =>
         $"{CultureInfo.CurrentCulture.TextInfo.ToTitleCase(CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(month))} {year}";
 
@@ -311,8 +493,13 @@
         [property: JsonPropertyName("month_id")] Guid? MonthId,
         [property: JsonPropertyName("year")] int Year,
         [property: JsonPropertyName("month_number")] int MonthNumber,
-        [property: JsonPropertyName("is_new")] bool IsNew);
-    private sealed record CardOptionDto([property: JsonPropertyName("id")] Guid Id, [property: JsonPropertyName("name")] string Name, [property: JsonPropertyName("kind")] string? Kind = null);
+        [property: JsonPropertyName("is_new")] bool IsNew,
+        [property: JsonPropertyName("week_number")] int? WeekNumber = null);
+    private sealed record MoneyDto([property: JsonPropertyName("crc")] decimal Crc, [property: JsonPropertyName("usd")] decimal Usd);
+    private sealed record LineDto([property: JsonPropertyName("name")] string Name, [property: JsonPropertyName("budget")] MoneyDto Budget, [property: JsonPropertyName("actual")] MoneyDto Actual, [property: JsonPropertyName("budget_currency")] string BudgetCurrency = "CRC", [property: JsonPropertyName("category_id")] Guid CategoryId = default);
+    private sealed record SummaryDto([property: JsonPropertyName("fixed_expenses")] List<LineDto> FixedExpenses, [property: JsonPropertyName("variable_expenses")] List<LineDto> VariableExpenses);
+    private sealed record SummaryEnvelopeDto([property: JsonPropertyName("summary")] SummaryDto? Summary);
+    private sealed record CardOptionDto([property: JsonPropertyName("id")] Guid Id, [property: JsonPropertyName("name")] string Name, [property: JsonPropertyName("kind")] string? Kind = null, [property: JsonPropertyName("bank_id")] Guid? BankId = null);
     private sealed record TxDto(
         [property: JsonPropertyName("id")] Guid Id,
         [property: JsonPropertyName("month_id")] Guid MonthId,
@@ -330,6 +517,7 @@
         [property: JsonPropertyName("source")] string Source,
         [property: JsonPropertyName("envelope_id")] Guid? EnvelopeId,
         [property: JsonPropertyName("refund_expected")] bool RefundExpected,
-        [property: JsonPropertyName("refund_percentage")] decimal? RefundPercentage);
+        [property: JsonPropertyName("refund_percentage")] decimal? RefundPercentage,
+        [property: JsonPropertyName("refund_notes")] string? RefundNotes = null);
     private sealed record ErrorDto([property: JsonPropertyName("error")] string Error, [property: JsonPropertyName("message")] string Message);
 }

@@ -68,6 +68,9 @@
   <data name="Theme_Dark" xml:space="preserve"><value>Oscuro</value></data>
   <data name="Login_Title" xml:space="preserve"><value>Iniciar sesión</value></data>
   <data name="Login_Subtitle" xml:space="preserve"><value>Elige cómo quieres continuar</value></data>
+  <data name="Login_PromiseHeadline" xml:space="preserve"><value>Dos monedas, un solo presupuesto del hogar.</value></data>
+  <data name="Login_PromiseBody" xml:space="preserve"><value>Cada gasto queda en colones y en dólares al tipo de cambio de ese día, en tu ciclo de pago — no en el del calendario.</value></data>
+  <data name="Login_Region" xml:space="preserve"><value>Costa Rica · ₡ + $</value></data>
   <data name="Login_ContinueWith" xml:space="preserve"><value>Continuar con {0}</value></data>
   <data name="Login_OrWithEmail" xml:space="preserve"><value>o inicia sesión con tu correo</value></data>
   <data name="Login_EmailLabel" xml:space="preserve"><value>Correo electrónico</value></data>
@@ -437,6 +440,19 @@
   <data name="Month_ConfirmDelete" xml:space="preserve"><value>Confirmar eliminación</value></data>
   <data name="Month_Deleted" xml:space="preserve"><value>Transacción eliminada.</value></data>
   <data name="Month_DeleteError" xml:space="preserve"><value>No se pudo eliminar. Intenta de nuevo.</value></data>
+  <data name="Tx_GroupWhat" xml:space="preserve"><value>Qué fue</value></data>
+  <data name="Tx_GroupHow" xml:space="preserve"><value>Cómo se pagó</value></data>
+  <data name="Tx_BeforeYouSave" xml:space="preserve"><value>Antes de guardar</value></data>
+  <data name="Tx_ConvertedAt" xml:space="preserve"><value>= {0} a ₡{1} por $1 · se congela al guardar</value></data>
+  <data name="Tx_ConvertedAtFrozen" xml:space="preserve"><value>= {0} a ₡{1} por $1 · congelado al guardarse</value></data>
+  <data name="Tx_FromCard" xml:space="preserve"><value>Se toma de la tarjeta; cambiá la tarjeta para cambiarlos.</value></data>
+  <data name="Tx_CardNoBank" xml:space="preserve"><value>Esta tarjeta aún no tiene banco; asignalo en</value></data>
+  <data name="Tx_RefundNotes" xml:space="preserve"><value>Notas del reembolso</value></data>
+  <data name="Tx_ClassHint_Budgeted" xml:space="preserve"><value>Cuenta contra una línea del presupuesto de este mes.</value></data>
+  <data name="Tx_ClassHint_Extraordinary" xml:space="preserve"><value>No planificado pero prescindible — cuenta en gastos, fuera del plan.</value></data>
+  <data name="Tx_ClassHint_Unplanned" xml:space="preserve"><value>No planificado e inevitable — cuenta en gastos y puede esperar un reembolso.</value></data>
+  <data name="Tx_ClassHint_Inflow" xml:space="preserve"><value>Dinero que entra — se suma al ingreso del mes, no a los gastos.</value></data>
+  <data name="Tx_ClassHint_Envelope" xml:space="preserve"><value>Un aporte al ahorro — queda fuera de los gastos y requiere cuenta bancaria.</value></data>
   <data name="Tx_NewTitle" xml:space="preserve"><value>Nueva transacción</value></data>
   <data name="Tx_EditTitle" xml:space="preserve"><value>Editar transacción</value></data>
   <data name="Tx_NotFound" xml:space="preserve"><value>Esa transacción ya no existe.</value></data>
@@ -484,7 +500,7 @@
   <data name="Month_Refunds" xml:space="preserve"><value>Reembolsos esperados</value></data>
   <data name="Month_NoRefunds" xml:space="preserve"><value>No se esperan reembolsos este mes.</value></data>
   <data name="Refund_CaseNumber" xml:space="preserve"><value>Número de caso</value></data>
-  <data name="Refund_NotesHint" xml:space="preserve"><value>Por qué esperás que vuelva; por ejemplo "prestado a Diego"</value></data>
+  <data name="Refund_NotesHint" xml:space="preserve"><value>Opcional: número de caso, quién lo debe, cuándo esperás que vuelva</value></data>
   <data name="Refund_Pending" xml:space="preserve"><value>Pendiente</value></data>
   <data name="Refund_Received" xml:space="preserve"><value>Recibido</value></data>
   <data name="Refund_MarkReceived" xml:space="preserve"><value>Marcar recibido</value></data>
@@ -514,6 +530,20 @@
   <data name="Budget_LoadError" xml:space="preserve"><value>No se pudieron cargar las líneas de presupuesto. Recarga para intentar de nuevo.</value></data>
   <data name="Budget_ReorderError" xml:space="preserve"><value>No se pudieron reordenar las líneas. La lista se recargó.</value></data>
   <data name="Nav_Dashboard" xml:space="preserve"><value>Tablero</value></data>
+  <data name="Dash_Verdict_OnTrack" xml:space="preserve"><value>Al día</value></data>
+  <data name="Dash_Verdict_AtRisk" xml:space="preserve"><value>Ojo</value></data>
+  <data name="Dash_Verdict_Over" xml:space="preserve"><value>Pasado</value></data>
+  <data name="Dash_ForecastLeftLabel" xml:space="preserve"><value>Proyección al cierre del mes</value></data>
+  <data name="Dash_ForecastExplainer" xml:space="preserve"><value>Eso es lo que queda después de todo lo ya gastado y de todo lo que falta por pagar este mes.</value></data>
+  <data name="Dash_PaceCommitted" xml:space="preserve"><value>{0}% comprometido</value></data>
+  <data name="Dash_MonthElapsed" xml:space="preserve"><value>{0}% del mes transcurrido</value></data>
+  <data name="Dash_DayOfMonth" xml:space="preserve"><value>día {0} de {1}</value></data>
+  <data name="Dash_WhereItWent" xml:space="preserve"><value>En qué se fue</value></data>
+  <data name="Dash_LinesOverPlan" xml:space="preserve"><value>{0} de más</value></data>
+  <data name="Dash_LinesUnderPlan" xml:space="preserve"><value>{0} de menos</value></data>
+  <data name="Dash_ByWeek" xml:space="preserve"><value>Por semana</value></data>
+  <data name="Dash_ByBank" xml:space="preserve"><value>Por banco</value></data>
+  <data name="Dash_Unbudgeted" xml:space="preserve"><value>Sin presupuesto</value></data>
   <data name="Dash_Title" xml:space="preserve"><value>Tablero</value></data>
   <data name="Dash_EmptyTitle" xml:space="preserve"><value>Aún no hay nada que mostrar</value></data>
   <data name="Dash_EmptySubtitle" xml:space="preserve"><value>Los meses aparecen con su primera transacción. Registra una y el tablero se llena.</value></data>
@@ -531,10 +561,10 @@
   <data name="Dash_WfBudgeted" xml:space="preserve"><value>− Presupuestado gastado</value></data>
   <data name="Dash_WfDiscretionary" xml:space="preserve"><value>− Discrecional gastado</value></data>
   <data name="Dash_WfUnplanned" xml:space="preserve"><value>− Imprevisto gastado</value></data>
-  <data name="Dash_WfSpent" xml:space="preserve"><value>= Gastado hasta hoy</value></data>
+  <data name="Dash_WfSpent" xml:space="preserve"><value>Gastado hasta hoy</value></data>
   <data name="Dash_WfLeft" xml:space="preserve"><value>= Queda ahora</value></data>
-  <data name="Dash_WfPlanned" xml:space="preserve"><value>− Aún planificado</value></data>
-  <data name="Dash_WfForecast" xml:space="preserve"><value>= Pronóstico a fin de mes</value></data>
+  <data name="Dash_WfPlanned" xml:space="preserve"><value>Aún planificado</value></data>
+  <data name="Dash_WfForecast" xml:space="preserve"><value>Pronóstico a fin de mes</value></data>
   <data name="Dash_WfPace" xml:space="preserve"><value>{0}% del mes transcurrido</value></data>
   <data name="Dash_WfOverPlan" xml:space="preserve"><value>El plan no cabe en el ingreso: recorte líneas o espere terminar bajo cero.</value></data>
   <data name="Dash_Line" xml:space="preserve"><value>Línea</value></data>
@@ -547,7 +577,6 @@
   <data name="Dash_Week" xml:space="preserve"><value>Semana</value></data>
   <data name="Dash_UnplannedAndRefunds" xml:space="preserve"><value>Imprevistos y reembolsos</value></data>
   <data name="Dash_RefundsExpected" xml:space="preserve"><value>Reembolsos aún esperados</value></data>
-  <data name="Dash_RefundsHint" xml:space="preserve"><value>Los imprevistos cuentan en los gastos; los reembolsos esperados son informativos hasta que llegan como ingreso.</value></data>
   <data name="Dash_Envelopes" xml:space="preserve"><value>Recordatorios de sobres</value></data>
   <data name="Dash_NoEnvelopes" xml:space="preserve"><value>No hay recordatorios de sobres este mes.</value></data>
   <data name="Dash_Target" xml:space="preserve"><value>Meta anual</value></data>
@@ -685,6 +714,12 @@
   <data name="Email_SyncError" xml:space="preserve"><value>No se pudo sincronizar esta bandeja. Intenta de nuevo.</value></data>
   <data name="Email_ReconnectToSync" xml:space="preserve"><value>Reconecta esta bandeja para sincronizarla.</value></data>
   <data name="Nav_Review" xml:space="preserve"><value>Revisar</value></data>
+  <data name="Review_ConfirmingWill" xml:space="preserve"><value>Al confirmar</value></data>
+  <data name="Review_ConfirmingWillBook" xml:space="preserve"><value>Se registran {0} en {1} como {2}, en {3}.</value></data>
+  <data name="Review_ConfirmingWillBookNoMonth" xml:space="preserve"><value>Se registran {0} en {1} como {2}.</value></data>
+  <data name="Review_ConfirmingBlocked" xml:space="preserve"><value>Todavía no — falta {0}.</value></data>
+  <data name="Review_MissingFields" xml:space="preserve"><value>El correo del banco no trae {0} — complételo abajo.</value></data>
+  <data name="Review_FromYourRule" xml:space="preserve"><value>de tu regla</value></data>
   <data name="Review_Title" xml:space="preserve"><value>Cola de revisión</value></data>
   <data name="Review_Subtitle" xml:space="preserve"><value>Los vouchers del banco que llegan a tus bandejas esperan aquí hasta que los confirmes. Nada toca el presupuesto hasta entonces.</value></data>
   <data name="Review_Empty" xml:space="preserve"><value>Nada por revisar: todos los borradores de tus bandejas están procesados.</value></data>
@@ -733,4 +768,63 @@
   <data name="Mapping_Deleted" xml:space="preserve"><value>Regla eliminada.</value></data>
   <data name="Mapping_Error" xml:space="preserve"><value>No se pudo guardar la regla. Intenta de nuevo.</value></data>
   <data name="Mapping_LoadError" xml:space="preserve"><value>No se pudieron cargar las reglas.</value></data>
+  <data name="Months_ChipCurrent" xml:space="preserve"><value>Actual</value></data>
+  <data name="Months_ChipClosed" xml:space="preserve"><value>Cerrado</value></data>
+  <data name="Months_ChipUpcoming" xml:space="preserve"><value>Próximo</value></data>
+  <data name="Months_Spent" xml:space="preserve"><value>Gastado {0}</value></data>
+  <data name="Months_ResultLeft" xml:space="preserve"><value>{0} disponibles</value></data>
+  <data name="Months_ResultOver" xml:space="preserve"><value>{0} de más</value></data>
+  <data name="Months_NoFigures" xml:space="preserve"><value>Cifras no disponibles</value></data>
+  <data name="Month_AllMonths" xml:space="preserve"><value>Todos los meses</value></data>
+  <data name="Month_WeekChip" xml:space="preserve"><value>S{0} · {1}</value></data>
+  <data name="Month_SaveIncome" xml:space="preserve"><value>Guardar ingresos</value></data>
+  <data name="Month_SearchPayee" xml:space="preserve"><value>Buscar comercio</value></data>
+  <data name="Month_Filters" xml:space="preserve"><value>Filtros</value></data>
+  <data name="Month_FilterAllCategories" xml:space="preserve"><value>Todas las categorías</value></data>
+  <data name="Month_FilterAllBanks" xml:space="preserve"><value>Todos los bancos</value></data>
+  <data name="Month_FilterAllCards" xml:space="preserve"><value>Todas las tarjetas</value></data>
+  <data name="Month_FilterAllClasses" xml:space="preserve"><value>Todas las clases</value></data>
+  <data name="Month_PaidWith" xml:space="preserve"><value>Pagado con</value></data>
+  <data name="Refund_MarkReceivedFor" xml:space="preserve"><value>Marcar {0} como recibido</value></data>
+  <data name="Refund_MarkPendingFor" xml:space="preserve"><value>Devolver {0} a pendiente</value></data>
+  <data name="Budget_AddLine" xml:space="preserve"><value>Agregar una línea</value></data>
+  <data name="Budget_PlannedMonthly" xml:space="preserve"><value>Planificado cada mes</value></data>
+  <data name="Budget_ShareOfIncome" xml:space="preserve"><value>{0}% de un ingreso típico</value></data>
+  <data name="Budget_AtTodaysRate" xml:space="preserve"><value>al tipo de cambio de hoy</value></data>
+  <data name="Budget_TypicalIncome" xml:space="preserve"><value>Ingreso típico</value></data>
+  <data name="Budget_FixedHint" xml:space="preserve"><value>el mismo monto cada mes · arrastre para reordenar</value></data>
+  <data name="Budget_VariableHint" xml:space="preserve"><value>cambia de mes a mes · arrastre para reordenar</value></data>
+  <data name="Budget_DragToReorder" xml:space="preserve"><value>Reordenar {0}</value></data>
+  <data name="Budget_MoveUp" xml:space="preserve"><value>Subir</value></data>
+  <data name="Budget_MoveDown" xml:space="preserve"><value>Bajar</value></data>
+  <data name="Budget_MoveTo" xml:space="preserve"><value>Mover a la posición</value></data>
+  <data name="Budget_StatusInactive" xml:space="preserve"><value>Inactiva</value></data>
+  <data name="Budget_MethodCard" xml:space="preserve"><value>tarjeta</value></data>
+  <data name="Budget_MethodAccount" xml:space="preserve"><value>cuenta</value></data>
+  <data name="Budget_Kind" xml:space="preserve"><value>Lista</value></data>
+  <data name="Budget_Position" xml:space="preserve"><value>Posición {0}</value></data>
+  <data name="Reports_Kpi_TotalSpend" xml:space="preserve"><value>Gasto total</value></data>
+  <data name="Reports_Kpi_Budgeted" xml:space="preserve"><value>Presupuestado</value></data>
+  <data name="Reports_Kpi_Discretionary" xml:space="preserve"><value>Discrecional</value></data>
+  <data name="Reports_Kpi_Unplanned" xml:space="preserve"><value>Imprevisto</value></data>
+  <data name="Reports_OfIncome" xml:space="preserve"><value>{0}% del ingreso</value></data>
+  <data name="Reports_OfSpend" xml:space="preserve"><value>{0}% del gasto</value></data>
+  <data name="Reports_Refundable" xml:space="preserve"><value>{0} reembolsable</value></data>
+  <data name="Reports_ByCategory" xml:space="preserve"><value>Por categoría</value></data>
+  <data name="Reports_ColSpentVsBudget" xml:space="preserve"><value>Gastado vs presupuesto</value></data>
+  <data name="Reports_Detail" xml:space="preserve"><value>Detalle</value></data>
+  <data name="Consequence_Eyebrow" xml:space="preserve"><value>Esto hará</value></data>
+  <data name="Household_TransferConsequence" xml:space="preserve"><value>Transferir la convierte en propietaria. Usted queda como administrador: puede seguir invitando y quitando miembros, pero solo la persona propietaria puede renombrar, transferir de nuevo, o salir y disolver.</value></data>
+  <data name="Admin_CompConsequence" xml:space="preserve"><value>Otorgar Pro pone a este hogar en Pro sin cobro: derechos de Pro de inmediato, sin pago, sin fecha de fin. Queda auditado en el hogar.</value></data>
+  <data name="Admin_RevertConsequence" xml:space="preserve"><value>Revertir baja este hogar a Free de inmediato: los derechos vuelven a Free y no se reembolsa nada porque nada se pagó. Queda auditado en el hogar.</value></data>
+  <data name="Envelopes_Target" xml:space="preserve"><value>Meta anual</value></data>
+  <data name="Cards_Identity_Col" xml:space="preserve"><value>Tarjeta</value></data>
+  <data name="Admin_SelectMember" xml:space="preserve"><value>Dirigir a {0}</value></data>
+  <data name="Tx_GoesToWeek" xml:space="preserve"><value>Va a {0} · semana {1}</value></data>
+  <data name="Tx_GoesToNewWeek" xml:space="preserve"><value>Va a {0} · semana {1}: se creará un mes nuevo</value></data>
+  <data name="Tx_LineImpact" xml:space="preserve"><value>{0}: {1} gastado de {2} planificado; después de esto, {3}</value></data>
+  <data name="Review_MonthWeek" xml:space="preserve"><value>{0} · semana {1}</value></data>
+  <data name="Dash_WfRefundsExpected" xml:space="preserve"><value>Reembolsos esperados</value></data>
+  <data name="Dash_RefundsNote" xml:space="preserve"><value>no cuentan hasta que entren como ingreso</value></data>
+  <data name="Dash_BudgetedNoLine" xml:space="preserve"><value>Marcado como presupuestado, sin línea</value></data>
 </root>

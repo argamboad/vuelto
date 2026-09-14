@@ -38,7 +38,7 @@ public class AuthFlowTests : E2ETestBase
         await login.SignInWithOtpAsync(email);
 
         // Signed in → the app shell (sign-out + tenant badge) is shown.
-        await Expect(Page.GetByTestId("sign-out")).ToBeVisibleAsync(Slow);
+        await Expect(Page.GetByTestId("user-menu")).ToBeVisibleAsync(Slow);
         await Expect(Page.GetByTestId("tenant-badge")).ToBeVisibleAsync();
     }
 
@@ -52,8 +52,9 @@ public class AuthFlowTests : E2ETestBase
         await login.GotoAsync();
         await Expect(login.Email).ToBeVisibleAsync(new() { Timeout = 30_000 });
         await login.SignInWithOtpAsync(email);
-        await Expect(Page.GetByTestId("sign-out")).ToBeVisibleAsync(Slow);
+        await Expect(Page.GetByTestId("user-menu")).ToBeVisibleAsync(Slow);
 
+        await Page.GetByTestId("user-menu").ClickAsync();   // SKIN-4: sign out lives in the user menu
         await Page.GetByTestId("sign-out").ClickAsync();
 
         await Expect(login.Email).ToBeVisibleAsync(Slow);   // back on /login

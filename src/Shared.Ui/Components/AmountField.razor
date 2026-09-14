@@ -1,0 +1,56 @@
+@using System.Globalization
+@inject IStringLocalizer<AppStrings> Localizer
+
+@* SKIN-7 · amount and currency are ONE input group, never two fields side by side, with the live conversion
+   directly under them. The amount is the first thing on the form and it is set at display size, because it
+   is the one figure the person came to type. *@
+<div class="amount-field" data-testid="@TestId">
+    <label class="amount-label" for="@($"{TestId}-input")">@Label</label>
+    <div class="input-group amount-group">
+        <span class="input-group-text amount-symbol" aria-hidden="true">@(Currency == "USD" ? "$" : "₡")</span>
+        <input class="form-control amount-input" type="number" step="0.01" min="0" id="@($"{TestId}-input")"
+               data-testid="@($"{TestId}-input")" disabled="@Disabled" value="@Value" @onchange="OnAmount"
+               aria-describedby="@($"{TestId}-conversion")" />
+        @* A two-state TOGGLE, not a dropdown. A dropdown showing "₡" repeats the prefix glyph and says
+           nothing about there being another choice; two visible states say it without being read. Radios
+           rather than buttons so the pair is one keyboard group, as everywhere else in this redesign. *@
+        <fieldset class="amount-toggle" data-testid="@($"{TestId}-currency")" disabled="@Disabled">
+            <legend class="visually-hidden">@CurrencyLabel</legend>
+            @foreach (var c in new[] { "CRC", "USD" })
+            {
+                <label data-selected="@(Currency == c ? "true" : null)">
+                    <input type="radio" name="@_name" value="@c" checked="@(Currency == c)"
+                           data-testid="@($"{TestId}-currency-{c}")" @onchange="@(() => CurrencyChanged.InvokeAsync(c))" />
+                    <span>@(c == "USD" ? "$" : "₡")</span>
+                </label>
+            }
+        </fieldset>
+    </div>
+    @if (Conversion is not null)
+    {
+        <p class="amount-conversion" id="@($"{TestId}-conversion")" data-testid="@($"{TestId}-conversion")">@Conversion</p>
+    }
+</div>
+
+@code {
+    [Parameter] public decimal Value { get; set; }
+    [Parameter] public EventCallback<decimal> ValueChanged { get; set; }
+
+    [Parameter] public string Currency { get; set; } = "CRC";
+    [Parameter] public EventCallback<string> CurrencyChanged { get; set; }
+
+    [Parameter] public string? Label { get; set; }
+    [Parameter] public string? CurrencyLabel { get; set; }
+
+    /// <summary>The other side at today's rate, plus the note that it freezes on save. Null hides the line.</summary>
+    [Parameter] public string? Conversion { get; set; }
+
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public string TestId { get; set; } = "amount";
+
+    private Task OnAmount(ChangeEventArgs e) =>
+        ValueChanged.InvokeAsync(decimal.TryParse(e.Value?.ToString(), NumberStyles.Any, CultureInfo.InvariantCulture, out var v) ? v : 0m);
+
+    // One radio group per instance, so two amount fields on a page cannot deselect each other.
+    private readonly string _name = $"cur-{Guid.NewGuid():N}";
+}

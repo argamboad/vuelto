@@ -109,7 +109,7 @@
 
     <!-- Dev convenience (Android): re-establish the loopback bridge to the local API on every
          Debug build/deploy/run — CLI installs (Install/_Run) AND VS F5 (Build; VS deploy skips
-         Install when the APK is up-to-date) — so http://localhost:5238 on the device reaches the
+         Install when the APK is up-to-date) — so http://localhost:5338 on the device reaches the
          host. `adb reverse` is wiped on emulator reboot/reconnect; this removes the need to re-run
          it by hand. Uses VS's selected device ($(AdbTarget)) when set so multi-device setups don't
          error. It never fails the build (ContinueOnError) and stays out of Release/CI builds. -->
@@ -119,8 +119,8 @@
             <_AdbExe Condition="'$(AndroidSdkDirectory)' != ''">$([System.IO.Path]::Combine('$(AndroidSdkDirectory)', 'platform-tools', 'adb.exe'))</_AdbExe>
             <_AdbExe Condition="'$(_AdbExe)' == '' or !Exists('$(_AdbExe)')">adb</_AdbExe>
         </PropertyGroup>
-        <Message Importance="high" Text="[dev] adb $(AdbTarget) reverse tcp:5238 tcp:5238 — bridging the device to the local API" />
-        <Exec Command="&quot;$(_AdbExe)&quot; $(AdbTarget) reverse tcp:5238 tcp:5238" ContinueOnError="true" />
+        <Message Importance="high" Text="[dev] adb $(AdbTarget) reverse tcp:5338 tcp:5338 — bridging the device to the local API" />
+        <Exec Command="&quot;$(_AdbExe)&quot; $(AdbTarget) reverse tcp:5338 tcp:5338" ContinueOnError="true" />
     </Target>
 
 
@@ -140,7 +140,7 @@
          A Debug build keeps the localhost fallback + VUELTO_API_BASE_URL override (dev + CI smoke).
          A Release build compiles in the real base from $(ApiBaseUrl) and REFUSES to build without it —
          otherwise a by-the-book Release AAB would send OTP codes + refresh tokens cleartext to whatever
-         binds device-localhost:5238. Supply it: dotnet build -c Release -p:ApiBaseUrl=https://api.example.com -->
+         binds device-localhost:5338. Supply it: dotnet build -c Release -p:ApiBaseUrl=https://api.example.com -->
     <Target Name="RequireApiBaseUrlInRelease" BeforeTargets="BeforeBuild"
             Condition="'$(Configuration)' == 'Release' And '$(ApiBaseUrl)' == ''">
         <Error Text="Release builds require -p:ApiBaseUrl=https://your-api-host — refusing to ship the dev localhost API base (v3 NAT-3). Set it in your release pipeline." />

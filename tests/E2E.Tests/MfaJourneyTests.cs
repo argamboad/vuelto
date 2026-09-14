@@ -27,7 +27,7 @@ public class MfaJourneyTests : E2ETestBase
         await login.GotoAsync();
         await Expect(login.Email).ToBeVisibleAsync(Slow);
         await login.SignInWithOtpAsync(email);
-        await Expect(Page.GetByTestId("sign-out")).ToBeVisibleAsync(Slow);
+        await Expect(Page.GetByTestId("user-menu")).ToBeVisibleAsync(Slow);
 
         // Enroll authenticator TOTP from the settings card.
         var settings = new SettingsPage(Page);
@@ -35,6 +35,7 @@ public class MfaJourneyTests : E2ETestBase
         var secret = await settings.EnrollMfaAsync();
 
         // Sign out, then sign back in — MFA is now enforced, so a step-up code is required.
+        await Page.GetByTestId("user-menu").ClickAsync();   // SKIN-4: sign out lives in the user menu
         await Page.GetByTestId("sign-out").ClickAsync();
         await Expect(login.Email).ToBeVisibleAsync(Slow);
 
@@ -42,7 +43,7 @@ public class MfaJourneyTests : E2ETestBase
         await login.SignInWithOtpAndMfaAsync(email, secret);
 
         // Second factor satisfied → back in the app shell.
-        await Expect(Page.GetByTestId("sign-out")).ToBeVisibleAsync(Slow);
+        await Expect(Page.GetByTestId("user-menu")).ToBeVisibleAsync(Slow);
         await Expect(Page.GetByTestId("tenant-badge")).ToBeVisibleAsync();
     }
 
@@ -56,12 +57,13 @@ public class MfaJourneyTests : E2ETestBase
         await login.GotoAsync();
         await Expect(login.Email).ToBeVisibleAsync(Slow);
         await login.SignInWithOtpAsync(email);
-        await Expect(Page.GetByTestId("sign-out")).ToBeVisibleAsync(Slow);
+        await Expect(Page.GetByTestId("user-menu")).ToBeVisibleAsync(Slow);
 
         var settings = new SettingsPage(Page);
         await settings.GotoAsync();
         await settings.EnrollMfaAsync();
 
+        await Page.GetByTestId("user-menu").ClickAsync();   // SKIN-4: sign out lives in the user menu
         await Page.GetByTestId("sign-out").ClickAsync();
         await Expect(login.Email).ToBeVisibleAsync(Slow);
 
@@ -73,6 +75,6 @@ public class MfaJourneyTests : E2ETestBase
         await login.VerifyMfa.ClickAsync();
 
         await Expect(login.MfaCode).ToBeVisibleAsync();                 // still on the step-up prompt…
-        await Expect(Page.GetByTestId("sign-out")).Not.ToBeVisibleAsync(); // …not in the app
+        await Expect(Page.GetByTestId("user-menu")).Not.ToBeVisibleAsync(); // …not in the app
     }
 }

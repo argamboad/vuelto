@@ -1,0 +1,120 @@
+.lines {
+    height: 100%;
+    padding: var(--card-pad-y) var(--card-pad-x);
+    border: 1px solid var(--app-border);
+    border-radius: var(--radius-card);
+    background: var(--card-bg);
+}
+
+.lines-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 11px;
+    margin-bottom: 9px;
+}
+
+.lines-head h2 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: var(--w-display);
+    color: var(--ink);
+}
+
+.lines-summary {
+    font-size: 12px;
+    font-weight: var(--w-control);
+    font-variant-numeric: tabular-nums;
+}
+
+.lines-summary[data-tone="good"] { color: var(--good); }
+.lines-summary[data-tone="bad"] { color: var(--bad); }
+
+.lines-empty {
+    margin: 0;
+    font-size: 12px;
+    color: var(--ink-3);
+}
+
+.lines-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+/* name | bar | budget | delta. The bar takes the slack so the two money columns stay right-aligned
+   against each other down the list, which is what makes them scannable. */
+.lines-row {
+    display: grid;
+    grid-template-columns: minmax(0, 9em) 1fr auto auto;
+    align-items: center;
+    gap: 11px;
+    padding: 8px 0;
+    font-size: 13px;
+    font-weight: var(--w-control);
+}
+
+.lines-row + .lines-row {
+    border-top: 1px solid var(--hair);
+}
+
+.lines-name {
+    color: var(--ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.lines-row[data-inactive="true"] .lines-name {
+    color: var(--ink-3);
+    text-decoration: line-through;
+}
+
+.lines-bar {
+    display: block;
+    height: 4px;
+    border-radius: var(--radius-bar);
+    background: var(--rail);
+    overflow: hidden;
+}
+
+.lines-bar > span {
+    display: block;
+    height: 100%;
+    background: var(--bs-primary);
+}
+
+.lines-row[data-over="true"] .lines-bar > span {
+    background: var(--bad);
+}
+
+.lines-budget,
+.lines-delta {
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.lines-budget {
+    color: var(--ink);
+}
+
+.lines-delta {
+    min-width: 5.5em;
+    color: var(--good);
+}
+
+.lines-row[data-over="true"] .lines-delta {
+    color: var(--bad);
+}
+
+/* Below md the bar drops out: at that width it is a few pixels wide and says nothing the delta does not. */
+@media (max-width: 767.98px) {
+    .lines-row {
+        grid-template-columns: minmax(0, 1fr) auto auto;
+    }
+
+    .lines-bar {
+        display: none;
+    }
+}

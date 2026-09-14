@@ -14,13 +14,9 @@
 @* ENV-1: the household's savings envelopes (ADR-V007/V008) — list, create, edit (targets + reminder
    cadence), deactivate/reactivate, and the inactive-name-clash reactivation offer. *@
 <div class="settings-wrapper" data-testid="envelopes-page">
-    <div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
-        <div>
-            <h1 class="h4 fw-bold mb-1">@Localizer["Envelopes_Title"]</h1>
-            <p class="text-muted mb-0">@Localizer["Envelopes_Subtitle"]</p>
-        </div>
+    <PageHead Title="@Localizer["Envelopes_Title"]" Subtitle="@Localizer["Envelopes_Subtitle"]">
         <button class="btn btn-primary" data-testid="env-new" disabled="@(_form is not null)" @onclick="OpenNew">@Localizer["Envelopes_New"]</button>
-    </div>
+    </PageHead>
 
     @if (_notice is not null)
     {
@@ -106,10 +102,9 @@
                     <thead>
                         <tr>
                             <th scope="col">@Localizer["Catalog_Name"]</th>
-                            <th scope="col" class="text-end">@Localizer["Envelopes_TargetCrc"]</th>
-                            <th scope="col" class="text-end">@Localizer["Envelopes_TargetUsd"]</th>
-                            <th scope="col">@Localizer["Envelopes_Cadence"]</th>
-                            <th scope="col">@Localizer["Catalog_Status"]</th>
+                            <th scope="col" class="text-end">@Localizer["Envelopes_Target"]</th>
+                            <th scope="col" class="fold-md">@Localizer["Envelopes_Cadence"]</th>
+                            <th scope="col" class="fold-md">@Localizer["Catalog_Status"]</th>
                             <th scope="col" class="text-end"></th>
                         </tr>
                     </thead>
@@ -117,15 +112,14 @@
                         @foreach (var item in _items)
                         {
                             <tr data-testid="env-row" class="@(item.IsActive ? null : "text-muted")">
-                                <td data-testid="env-row-name">@item.Name</td>
-                                <td class="text-end" data-testid="env-row-crc">₡@item.AnnualTargetCrc.ToString("N2", CultureInfo.CurrentCulture)</td>
-                                <td class="text-end" data-testid="env-row-usd">$@item.AnnualTargetUsd.ToString("N2", CultureInfo.CurrentCulture)</td>
-                                <td data-testid="env-row-cadence">@(item.ReminderCadence == "five_week_months" ? Localizer["Envelopes_CadenceFiveWeek"] : Localizer["Envelopes_CadenceMonthly"])</td>
-                                <td>
-                                    <span class="badge @(item.IsActive ? "bg-success-subtle text-success-emphasis" : "bg-secondary-subtle text-secondary-emphasis")">
-                                        @(item.IsActive ? Localizer["Catalog_Active"] : Localizer["Catalog_Inactive"])
-                                    </span>
+                                <td data-testid="env-row-name">
+                                    <span class="fw-semibold">@item.Name</span>
+                                    <span class="sub-line" data-testid="env-row-sub">@Cadence(item) · @(item.IsActive ? Localizer["Catalog_Active"] : Localizer["Catalog_Inactive"])</span>
                                 </td>
+                                @* Two targets, each in its own currency — stacked, ₡ over $, never converted (ADR-V007). *@
+                                <td class="text-end"><Money Crc="item.AnnualTargetCrc" Usd="item.AnnualTargetUsd" Size="row" TestId="env-row-target" /></td>
+                                <td class="fold-md" data-testid="env-row-cadence">@Cadence(item)</td>
+                                <td class="fold-md"><StatusChip Tone="@(item.IsActive ? "good" : "neutral")" TestId="env-row-status">@(item.IsActive ? Localizer["Catalog_Active"] : Localizer["Catalog_Inactive"])</StatusChip></td>
                                 <td class="text-end">
                                     <button class="btn btn-outline-primary btn-sm" data-testid="env-edit" disabled="@(_form is not null)" @onclick="() => OpenEdit(item)">@Localizer["Catalog_Edit"]</button>
                                 </td>
@@ -141,6 +135,8 @@
 
 @code {
     private const string Endpoint = "/api/envelopes";
+
+    private string Cadence(EnvelopeDto item) => item.ReminderCadence == "five_week_months" ? Localizer["Envelopes_CadenceFiveWeek"] : Localizer["Envelopes_CadenceMonthly"];
 
     private bool _loading = true;
     private bool _saving;

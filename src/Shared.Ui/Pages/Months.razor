@@ -7,15 +7,19 @@
 @inject NavigationManager Nav
 @inject HttpClient Http
 @inject IStringLocalizer<AppStrings> Localizer
+@inject DisplayCurrencyStore Display
 
 <PageTitle>@Localizer["Months_Title"]</PageTitle>
 
-@* LEDGER-1: the household's budget months, newest first (ADR-V005). Months exist only through transactions. *@
+@* LEDGER-1: the household's budget months, newest first (ADR-V005), presented per SKIN-8 as a card grid — three
+   columns at lg, two at md, one below. Months exist only through transactions, so the list needs nothing but the
+   months themselves; each card's money comes from that month's summary, fetched in parallel after the grid is
+   already on screen, and a card that never gets its figures is still a card. *@
 <div class="settings-wrapper" data-testid="months-page">
-    <div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
+    <div class="months-head">
         <div>
-            <h1 class="h4 fw-bold mb-1">@Localizer["Months_Title"]</h1>
-            <p class="text-muted mb-0">@Localizer["Months_Subtitle"]</p>
+            <h1>@Localizer["Months_Title"]</h1>
+            <p class="months-subtitle">@Localizer["Months_Subtitle"]</p>
         </div>
         <a class="btn btn-primary" href="/transactions/new" data-testid="months-new-tx">@Localizer["Months_NewTransaction"]</a>
     </div>
@@ -35,16 +39,15 @@
     }
     else
     {
-        <div class="list-group shadow-sm">
+        <div class="row g-3">
             @foreach (var m in _months)
             {
-                <a class="list-group-item list-group-item-action d-flex justify-content-between align-items-center gap-3" href="/months/@m.Id" data-testid="month-row">
-                    <div>
-                        <div class="fw-semibold">@MonthLabel(m.Year, m.MonthNumber)</div>
-                        <div class="small text-muted">@Localizer["Months_StartsOn", m.Week1StartDate.ToString("d", CultureInfo.CurrentCulture)]</div>
-                    </div>
-                    <span class="badge bg-primary-subtle text-primary-emphasis">@Localizer["Months_Weeks", m.WeekCount]</span>
-                </a>
+                <div class="col-12 col-md-6 col-lg-4">
+                    <MonthCard Href="@($"/months/{m.Id}")" Title="@MonthLabel(m.Year, m.MonthNumber)" State="@StateOf(m)"
+                               WindowStart="m.Week1StartDate" WindowEnd="LastDay(m)" WeekCount="m.WeekCount"
+                               Figures="@_figures.GetValueOrDefault(m.Id)" FiguresLoaded="@_figures.ContainsKey(m.Id)"
+                               Display="@_display" TestId="month-row" />
+                </div>
             }
         </div>
     }
@@ -54,13 +57,56 @@
     private bool _loading = true;
     private string? _error;
     private List<MonthDto> _months = new();
+    private string _display = MoneyDisplay.Both;
+
+    /// <summary>Present once the month's summary answered — null when no figures could be computed (no rate resolves).</summary>
+    private readonly Dictionary<Guid, MonthCardFigures?> _figures = new();
 
     protected override async Task OnInitializedAsync()
     {
         if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
-        try { _months = await Http.GetFromJsonAsync<List<MonthDto>>("/api/months") ?? new(); }
+        try
+        {
+            _display = await Display.LoadAsync();
+            _months = await Http.GetFromJsonAsync<List<MonthDto>>("/api/months") ?? new();
+        }
         catch { _error = Localizer["Months_LoadError"]; }
         finally { _loading = false; }
+
+        // The grid is on screen from here; the figures fill in as each summary lands.
+        StateHasChanged();
+        await Task.WhenAll(_months.Select(LoadFiguresAsync));
+    }
+
+    private async Task LoadFiguresAsync(MonthDto m)
+    {
+        MonthCardFigures? figures = null;
+        try
+        {
+            var res = await Http.GetAsync($"/api/months/{m.Id}/summary");
+            if (res.IsSuccessStatusCode && (await res.Content.ReadFromJsonAsync<DashDto>())?.Summary is { } s)
+            {
+                // A closed month has nothing left to plan, so its result is what was actually left; a running
+                // month's result is the forecast — income less spent less what is still planned.
+                var closed = StateOf(m) == "closed";
+                var planned = closed ? new MoneyPair(0, 0) : s.PendingBudgeted;
+                var result = closed ? new MoneyPair(s.IncomeTotal.Crc - s.ExpensesTotal.Crc, s.IncomeTotal.Usd - s.ExpensesTotal.Usd) : s.ActualRemainder;
+                figures = new MonthCardFigures(s.IncomeTotal, s.ExpensesTotal, planned, result);
+            }
+        }
+        catch { /* the card stands without its figures */ }
+        _figures[m.Id] = figures;
+        StateHasChanged();
+    }
+
+    private static DateOnly LastDay(MonthDto m) => m.Week1StartDate.AddDays(7 * m.WeekCount - 1);
+
+    /// <summary>The current month is the one whose window holds today — not simply the newest (a month can be booked ahead).</summary>
+    private static string StateOf(MonthDto m)
+    {
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        if (m.Week1StartDate > today) return "upcoming";
+        return LastDay(m) < today ? "closed" : "current";
     }
 
     private static string MonthLabel(int year, int month) =>
@@ -72,4 +118,12 @@
         [property: JsonPropertyName("month_number")] int MonthNumber,
         [property: JsonPropertyName("week_count")] int WeekCount,
         [property: JsonPropertyName("week1_start_date")] DateOnly Week1StartDate);
+
+    // Only the four figures a card draws; the rest of the summary is the dashboard's business.
+    private sealed record SummaryDto(
+        [property: JsonPropertyName("income_total")] MoneyPair IncomeTotal,
+        [property: JsonPropertyName("expenses_total")] MoneyPair ExpensesTotal,
+        [property: JsonPropertyName("pending_budgeted")] MoneyPair PendingBudgeted,
+        [property: JsonPropertyName("actual_remainder")] MoneyPair ActualRemainder);
+    private sealed record DashDto([property: JsonPropertyName("summary")] SummaryDto? Summary);
 }

@@ -11,8 +11,7 @@
 <PageTitle>@Localizer["Nav_Settings"]</PageTitle>
 
 <div class="settings-wrapper">
-    <h1 class="h4 fw-bold mb-1">@Localizer["Settings_Title"]</h1>
-    <p class="text-muted mb-4">@Localizer["Settings_Subtitle"]</p>
+    <PageHead Title="@Localizer["Settings_Title"]" Subtitle="@Localizer["Settings_Subtitle"]" />
 
     @if (_banner is not null)
     {
@@ -41,7 +40,7 @@
                             @if (linked)
                             {
                                 <span class="d-flex align-items-center gap-3">
-                                    <span class="badge bg-success-subtle text-success-emphasis">@Localizer["Settings_Connected"]</span>
+                                    <StatusChip Tone="good" TestId="settings-linked">@Localizer["Settings_Connected"]</StatusChip>
                                     <button class="btn btn-outline-danger btn-sm" disabled="@_busy"
                                             @onclick="() => Unlink(p.Key)">@Localizer["Settings_Unlink"]</button>
                                 </span>
@@ -125,13 +124,20 @@
     <MfaCard />
 
     @* ── Danger zone: delete account (GDPR / ADR-011) ── *@
-    <div class="card shadow-sm border-danger-subtle mt-4">
+    <div class="card mt-4">
         <div class="card-body">
-            <h2 class="h6 fw-bold text-danger mb-2">@Localizer["Settings_DangerZone"]</h2>
-            <p class="small text-muted mb-3">@Localizer["Settings_DeleteAccountWarning"]</p>
-            <button class="btn btn-outline-danger" disabled="@_busy" data-testid="delete-account" @onclick="DeleteAccount">
-                @Localizer["Settings_DeleteAccount"]
-            </button>
+            <h2 class="h6 fw-bold text-danger mb-3">@Localizer["Settings_DangerZone"]</h2>
+            @* SKIN-11, decision 5: what erasing does, above the button. The browser confirms stay behind it. *@
+            <ConsequencePanel TestId="consequence-delete-account" Eyebrow="@Localizer["Consequence_Eyebrow"]">
+                <ChildContent>@Localizer["Settings_DeleteAccountWarning"]</ChildContent>
+                <Actions>
+                    <div>
+                        <button class="btn btn-outline-danger" disabled="@_busy" data-testid="delete-account" @onclick="DeleteAccount">
+                            @Localizer["Settings_DeleteAccount"]
+                        </button>
+                    </div>
+                </Actions>
+            </ConsequencePanel>
         </div>
     </div>
 </div>

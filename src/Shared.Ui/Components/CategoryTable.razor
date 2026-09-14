@@ -1,0 +1,128 @@
+@using System.Globalization
+@inject IStringLocalizer<AppStrings> Localizer
+
+@* SKIN-10 · one category table behind a class switcher, replacing three stacked sections that repeated the same
+   headers. The switcher filters rows already loaded — no request. Columns: category, an inline spent-vs-budget bar
+   (only where there is a budget to compare with: the budgeted class of a single month), the transaction count,
+   the budget, and the spend — red past its budget, judged in the line's OWN currency (a $18.99 line paid at
+   $18.99 is not over because its colón side sits above ₡0). The bars are aria-hidden: the figures beside them
+   are the data. *@
+<section class="cat-card" data-testid="@TestId" data-class="@_class">
+    <header class="cat-head">
+        <h2>@Localizer["Reports_ByCategory"]</h2>
+        <SegmentedSwitch TestId="rep-class" Label="@Localizer["Tx_Class"].Value" Options="ClassOptions()" Value="@_class" ValueChanged="c => _class = c" />
+    </header>
+    @{
+        var entries = Entries();
+        var showBudget = SingleMonth && _class == TransactionClasses.Budgeted;
+    }
+    @if (entries.Count == 0)
+    {
+        <p class="cat-empty">@Localizer["Reports_NoneInClass"]</p>
+    }
+    else
+    {
+        <table class="table cat-table" data-testid="rep-table">
+            <thead>
+                <tr>
+                    <th scope="col">@Localizer["Tx_Category"]</th>
+                    @if (showBudget) { <th scope="col" class="col-md cat-bar-col">@Localizer["Reports_ColSpentVsBudget"]</th> }
+                    <th scope="col" class="text-end" title="@Localizer["Reports_CountColTitle"]">@Localizer["Reports_CountCol"]</th>
+                    @if (showBudget) { <th scope="col" class="text-end">@Localizer["Reports_BudgetedCol"]</th> }
+                    <th scope="col" class="text-end">@Localizer[showBudget ? "Reports_ActualCol" : "Reports_SpentCol"]</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var e in entries)
+                {
+                    <tr data-testid="rep-row">
+                        <td class="cat-name">@e.CategoryName</td>
+                        @if (showBudget)
+                        {
+                            <td class="col-md cat-bar-col">
+                                <div class="cat-bar" data-testid="rep-bar" data-over="@(e.Fill is { } f0 ? (f0 > 1 ? "true" : "false") : null)" aria-hidden="true">
+                                    @if (e.Fill is { } fill)
+                                    {
+                                        <div class="cat-bar-fill" data-testid="rep-bar-fill" style="width: @Percent(fill)"></div>
+                                    }
+                                </div>
+                            </td>
+                        }
+                        <td class="text-end cat-count" data-testid="rep-count">@e.TransactionCount</td>
+                        @if (showBudget) { <td class="text-end cat-budget" data-testid="rep-budget">@(e.BudgetedCrc is null ? "—" : Budget(e.BudgetedCrc.Value, e.BudgetedUsd ?? 0))</td> }
+                        <td class="text-end cat-spent @(showBudget ? Tone(e) : null)" data-testid="rep-actual">@Show(e.TotalCrc, e.TotalUsd)</td>
+                    </tr>
+                }
+                <tr class="cat-total" data-testid="rep-total">
+                    <td>@Localizer["Reports_Total"]</td>
+                    @if (showBudget) { <td class="col-md cat-bar-col"></td> }
+                    <td class="text-end cat-count" data-testid="rep-count-total">@entries.Sum(x => x.TransactionCount)</td>
+                    @if (showBudget) { <td class="text-end" data-testid="rep-budget-total" title="@Localizer["Reports_BudgetTotalHint"]">@BudgetTotal(entries)</td> }
+                    <td class="text-end">@Show(entries.Sum(x => x.TotalCrc), entries.Sum(x => x.TotalUsd))</td>
+                </tr>
+            </tbody>
+        </table>
+    }
+</section>
+
+@code {
+    [Parameter] public IReadOnlyList<ReportCategoryEntry> Budgeted { get; set; } = [];
+    [Parameter] public IReadOnlyList<ReportCategoryEntry> Extraordinary { get; set; } = [];
+    [Parameter] public IReadOnlyList<ReportCategoryEntry> Unplanned { get; set; } = [];
+
+    /// <summary>Budgets exist only for one month; a range shows spend alone.</summary>
+    [Parameter] public bool SingleMonth { get; set; }
+
+    /// <summary>The "show in" preference for converted pairs; a single-currency budget always shows on its own side.</summary>
+    [Parameter] public string Display { get; set; } = MoneyDisplay.Both;
+
+    /// <summary>The report's sell/buy pair, so single-currency budgets can be totalled as one figure (ADR-V019). Null: each side's own sum.</summary>
+    [Parameter] public decimal? ExchangeRate { get; set; }
+    [Parameter] public decimal? ExchangeRateBuy { get; set; }
+
+    [Parameter] public string TestId { get; set; } = "rep-category";
+
+    private string _class = TransactionClasses.Budgeted;
+
+    private List<SegmentedOption> ClassOptions() =>
+    [
+        new(TransactionClasses.Budgeted, Localizer["Tx_Budgeted"]),
+        new(TransactionClasses.Extraordinary, Localizer["Tx_Extraordinary"]),
+        new(TransactionClasses.UnplannedEssential, Localizer["Tx_Unplanned"]),
+    ];
+
+    private IReadOnlyList<ReportCategoryEntry> Entries() => _class switch
+    {
+        TransactionClasses.Extraordinary => Extraordinary,
+        TransactionClasses.UnplannedEssential => Unplanned,
+        _ => Budgeted,
+    };
+
+    private static string Percent(decimal fill) => (Math.Clamp(fill, 0m, 1m) * 100m).ToString("0.##", CultureInfo.InvariantCulture) + "%";
+
+    /// <summary>Over/under in the line's own currency (see the component comment).</summary>
+    private static string Tone(ReportCategoryEntry e) => e.Fill switch
+    {
+        null => "",
+        > 1 => "text-danger",
+        _ => "text-success",
+    };
+
+    private string Show(decimal crc, decimal usd) => MoneyDisplay.Format(crc, usd, Display);
+
+    /// <summary>Budgets are single-currency per line; a one-sided sum shows only its native side.</summary>
+    private static string Budget(decimal crc, decimal usd) =>
+        usd == 0 && crc != 0 ? $"₡{crc.ToString("N2", CultureInfo.CurrentCulture)}"
+        : crc == 0 && usd != 0 ? $"${usd.ToString("N2", CultureInfo.CurrentCulture)}"
+        : $"₡{crc.ToString("N2", CultureInfo.CurrentCulture)} · ${usd.ToString("N2", CultureInfo.CurrentCulture)}";
+
+    /// <summary>The rows' budgets as ONE figure: dollar lines at today's sell rate, colón lines at buy (a budget is spending). Without a rate, each side's own sum.</summary>
+    private string BudgetTotal(IReadOnlyList<ReportCategoryEntry> entries)
+    {
+        var crc = entries.Sum(x => x.BudgetedCrc ?? 0);
+        var usd = entries.Sum(x => x.BudgetedUsd ?? 0);
+        return ExchangeRate is { } sell && ExchangeRateBuy is { } buy && buy > 0
+            ? Show(crc + usd * sell, crc / buy + usd)
+            : Budget(crc, usd);
+    }
+}

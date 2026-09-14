@@ -3355,7 +3355,7 @@
                 }
               ]
             },
-            "description": "Which budget month a date belongs to — by anchor window, not calendar month (2026-05-30 → June under the default anchor). An uncovered date answers the month that WOULD be created with is_new=true and month_id=null; nothing is written. Missing date → 400."
+            "description": "Which budget month a date belongs to — by anchor window, not calendar month (2026-05-30 → June under the default anchor). An uncovered date answers the month that WOULD be created with is_new=true and month_id=null; nothing is written. week_number is the week of the month's window the date falls in (stored weeks, or the boundaries that would create them). Missing date → 400."
           },
           "event": [
             {
@@ -3515,7 +3515,7 @@
     },
     {
       "name": "16 · Transactions",
-      "description": "LEDGER-2 (app slice P5a, ADR-V006/V007): money movement in both currencies at a frozen rate. Optional card_id (CARDS-1, an active card of the household; 400 otherwise) on create and update; the response and the month list carry card_id / card_name. POST validates everything, settles the rate (manual exchange_rate override wins, else the live → cache → last-transaction chain; nothing → 400 exchange_rate_unavailable), resolves or creates the month from transaction_date, derives amount_crc/amount_usd and freezes exchange_rate_used. PUT re-derives from the frozen rate (never sends a rate) and re-resolves the month on a date change; DELETE is hard and removes an emptied month. Rows with source != manual are read-only (400 derived_transaction). Uniform 404 for another household's id. Run 12 · Catalog first so {{categoryId}} and a bank exist. LEDGER-3: an unplanned_essential may carry refund_expected + refund_percentage (0 < p ≤ 100) — a derived Refund (percentage × the frozen amounts) is created/re-derived/removed with the transaction; the flag is ignored on other classes.",
+      "description": "LEDGER-2 (app slice P5a, ADR-V006/V007): money movement in both currencies at a frozen rate. Optional card_id (CARDS-1, an active card of the household; 400 otherwise) on create and update; the response and the month list carry card_id / card_name. POST validates everything, settles the rate (manual exchange_rate override wins, else the live → cache → last-transaction chain; nothing → 400 exchange_rate_unavailable), resolves or creates the month from transaction_date, derives amount_crc/amount_usd and freezes exchange_rate_used. PUT re-derives from the frozen rate (never sends a rate) and re-resolves the month on a date change; DELETE is hard and removes an emptied month. Rows with source != manual are read-only (400 derived_transaction). Uniform 404 for another household's id. Run 12 · Catalog first so {{categoryId}} and a bank exist. LEDGER-3: an unplanned_essential may carry refund_expected + refund_percentage (0 < p ≤ 100) — a derived Refund (percentage × the frozen amounts) is created/re-derived/removed with the transaction; the flag is ignored on other classes. refund_notes (2026-09-14) rides along with the refund: on PUT, null = leave alone, blank = clear.",
       "item": [
         {
           "name": "Create transaction",
@@ -3531,7 +3531,7 @@
                 "transactions"
               ]
             },
-            "description": "201 with the row (amounts derived, rate frozen, source manual, month_id of the resolved-or-created month). Replace bank_id with an id from 12 · Catalog → List banks. Captures {{transactionId}} and {{monthId}}. Set transaction_type unplanned_essential + refund_expected true + refund_percentage (e.g. 30) to spawn an expected refund (see 17 · Refunds); the response echoes refund_expected / refund_percentage. Optional notes (≤ 250 characters, trimmed; blank = null; longer = 400 invalid_request) — the row's \"why\", shown as an icon on the month page.",
+            "description": "201 with the row (amounts derived, rate frozen, source manual, month_id of the resolved-or-created month). Replace bank_id with an id from 12 · Catalog → List banks. Captures {{transactionId}} and {{monthId}}. Set transaction_type unplanned_essential + refund_expected true + refund_percentage (e.g. 30) to spawn an expected refund (see 17 · Refunds); the response echoes refund_expected / refund_percentage. With a refund, optional refund_notes (250 characters) lands on the derived Refund (the LEDGER-4 note, taken at entry): on PUT, null leaves it alone, blank clears; the response echoes it. Optional notes (≤ 250 characters, trimmed; blank = null; longer = 400 invalid_request) — the row's \"why\", shown as an icon on the month page.",
             "header": [
               {
                 "key": "Content-Type",
@@ -3640,7 +3640,7 @@
                 "{{transactionId}}"
               ]
             },
-            "description": "200 with the row; amounts re-derived from the FROZEN exchange_rate_used (a rate in the body is ignored — there is no field). A changed transaction_date re-resolves the month (creating the target, deleting the emptied source). 400 derived_transaction for a non-manual row; 404 for another household's id. Set transaction_type unplanned_essential + refund_expected true + refund_percentage (e.g. 30) to spawn an expected refund (see 17 · Refunds); the response echoes refund_expected / refund_percentage. Optional notes (≤ 250 characters, trimmed; blank = null; longer = 400 invalid_request) — the row's \"why\", shown as an icon on the month page.",
+            "description": "200 with the row; amounts re-derived from the FROZEN exchange_rate_used (a rate in the body is ignored — there is no field). A changed transaction_date re-resolves the month (creating the target, deleting the emptied source). 400 derived_transaction for a non-manual row; 404 for another household's id. Set transaction_type unplanned_essential + refund_expected true + refund_percentage (e.g. 30) to spawn an expected refund (see 17 · Refunds); the response echoes refund_expected / refund_percentage. With a refund, optional refund_notes (250 characters) lands on the derived Refund (the LEDGER-4 note, taken at entry): on PUT, null leaves it alone, blank clears; the response echoes it. Optional notes (≤ 250 characters, trimmed; blank = null; longer = 400 invalid_request) — the row's \"why\", shown as an icon on the month page.",
             "header": [
               {
                 "key": "Content-Type",

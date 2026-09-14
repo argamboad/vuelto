@@ -15,8 +15,7 @@
 @* EMAIL-2/3: the user's connected inboxes (ADR-V002 — yours, not the household's). Connect runs the
    read-only consent round-trip on the API; edit changes folders/filters/cursor; disconnect stops ingestion. *@
 <div class="email-wrapper" data-testid="email-page">
-    <h1 class="h4 fw-bold mb-1">@Localizer["Email_Title"]</h1>
-    <p class="text-muted mb-3">@Localizer["Email_Subtitle"]</p>
+    <PageHead Title="@Localizer["Email_Title"]" Subtitle="@Localizer["Email_Subtitle"]" />
 
     @if (_notice is not null)
     {
@@ -51,9 +50,9 @@
                                 <div class="small text-muted" data-testid="email-folders-row">@Localizer["Email_FoldersRow", FolderSummary(c.Folders)]</div>
                             </div>
                             <div class="d-flex align-items-center gap-2 flex-wrap">
-                                <span class="badge @(c.Status == "active" ? "text-bg-success" : "text-bg-warning")" data-testid="email-status">
+                                <StatusChip Tone="@(c.Status == "active" ? "good" : "warn")" TestId="email-status">
                                     @(c.Status == "active" ? Localizer["Email_Active"] : Localizer["Email_NeedsReconnect"])
-                                </span>
+                                </StatusChip>
                                 @if (c.Status != "active")
                                 {
                                     <button class="btn btn-sm btn-outline-warning" data-testid="email-reconnect" @onclick="() => ConnectAsync(c.Provider)" disabled="@_busy">@Localizer["Email_Reconnect"]</button>
@@ -93,7 +92,7 @@
                                     {
                                         @foreach (var f in _selectedFolders)
                                         {
-                                            <span class="badge rounded-pill text-bg-light border fw-normal" data-testid="email-folder-chip">@FolderLabel(f)</span>
+                                            <StatusChip TestId="email-folder-chip">@FolderLabel(f)</StatusChip>
                                         }
                                     }
                                 </div>

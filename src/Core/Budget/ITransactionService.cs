@@ -34,7 +34,8 @@ public sealed record CreateTransactionCommand(
     decimal? RefundPercentage = null,
     string Source = TransactionSources.Manual,
     Guid? CardId = null,
-    string? Notes = null);
+    string? Notes = null,
+    string? RefundNotes = null);
 
 public sealed record TransactionCreated(Guid Id, Guid MonthId, decimal AmountCrc, decimal AmountUsd, decimal ExchangeRateUsed, string Source);
 

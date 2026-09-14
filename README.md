@@ -36,8 +36,8 @@ Operator tools (hidden — no page, no route), e.g. moving your household to ano
 ```bash
 cp .env.example .env            # then fill it — at minimum Jwt__Secret (any ≥32-char string)
 docker compose up -d db mail    # Postgres 17 on :5434 + Mailpit on :1026 (SMTP) / :8026 (UI)
-dotnet run --project src/Api --launch-profile https    # API on https://localhost:7160
-dotnet run --project src/Web                           # web UI on https://localhost:7008
+dotnet run --project src/Api --launch-profile https    # API on https://localhost:7260
+dotnet run --project src/Web                           # web UI on https://localhost:7108
 ```
 
 Sign in with **"Email me a 6-digit code"** and read the code from Mailpit at

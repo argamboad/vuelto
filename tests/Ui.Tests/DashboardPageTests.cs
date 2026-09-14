@@ -1,24 +1,27 @@
 using System.Net;
 using Bunit;
+using Vuelto.Shared.Ui.Components;
 using Vuelto.Shared.Ui.Pages;
 using Vuelto.Ui.Tests.Infrastructure;
 using Xunit;
 
 namespace Vuelto.Ui.Tests;
 
-/// <summary>DASH-1 UI: picks the newest month, renders the cards/tables with green/red budget tone, shows the empty state, and blocks projections when no rate resolves.</summary>
+/// <summary>
+/// DASH-1 UI as SKIN-5 presents it: one verdict, the pace, the four-step waterfall, the line lists, and one
+/// breakdown panel. The ARITHMETIC is unchanged from the eleven-row version these tests used to cover — the
+/// same figures in the same order — so what moved is where each number is read, not what it is.
+/// </summary>
 public class DashboardPageTests : ComponentTestBase
 {
     private const string M1 = "aaaaaaaa-0000-0000-0000-000000000001";
     private const string M2 = "aaaaaaaa-0000-0000-0000-000000000002";
     private const string Months = $$"""[{"id":"{{M2}}","year":2026,"month_number":7},{"id":"{{M1}}","year":2026,"month_number":6}]""";
 
-    private static string Money(decimal crc, decimal usd) => $$"""{"crc":{{crc}},"usd":{{usd}}}""";
-
-    private static string Dash(string monthId, bool rateUnavailable = false) => $$"""
+    private static string Dash(string monthId, bool rateUnavailable = false, string? summary = null) => $$"""
         {"month":{"id":"{{monthId}}","year":2026,"month_number":7,"week_count":5,"week1_start_date":"2026-06-25","last_day":"2026-07-29"},
          "exchange_rate":{{(rateUnavailable ? "null" : "500")}},"rate_source":{{(rateUnavailable ? "null" : "\"cache\"")}},"rate_as_of":"2026-09-03T12:00:00+00:00","rate_unavailable":{{(rateUnavailable ? "true" : "false")}},
-         "summary":{{(rateUnavailable ? "null" : Summary)}}}
+         "summary":{{(rateUnavailable ? "null" : summary ?? Summary)}}}
         """;
 
     private const string Summary = """
@@ -27,7 +30,7 @@ public class DashboardPageTests : ComponentTestBase
          "spent_budgeted":{"crc":300000,"usd":600},"spent_extraordinary":{"crc":0,"usd":0},"spent_unplanned":{"crc":10000,"usd":20},
          "fixed_expenses":[{"name":"Mortgage","budget":{"crc":350000,"usd":700},"actual":{"crc":300000,"usd":600}},{"name":"Water","budget":{"crc":15000,"usd":30},"actual":{"crc":18000,"usd":36}}],
          "variable_expenses":[],
-         "other_spending":[{"category_name":"Dining","actual":{"crc":10000,"usd":20}}],
+         "other_spending":[{"category_name":"Dining","actual":{"crc":10000,"usd":20},"by_class":[{"class":"unplanned_essential","actual":{"crc":10000,"usd":20}}]},{"category_name":"Trips","actual":{"crc":4000,"usd":8},"by_class":[{"class":"budgeted","actual":{"crc":1000,"usd":2}},{"class":"extraordinary","actual":{"crc":3000,"usd":6}}]}],
          "weekly_budgeted":[{"week_number":1,"start_date":"2026-06-25","end_date":"2026-07-01","total":{"crc":0,"usd":0}},{"week_number":2,"start_date":"2026-07-02","end_date":"2026-07-08","total":{"crc":300000,"usd":600}}],
          "weekly_extraordinary":[{"week_number":1,"start_date":"2026-06-25","end_date":"2026-07-01","total":{"crc":0,"usd":0}},{"week_number":2,"start_date":"2026-07-02","end_date":"2026-07-08","total":{"crc":0,"usd":0}}],
          "current_balance":{"crc":1190000,"usd":2380},"remainder_for_debts":{"crc":1150000,"usd":2300},"pending_budgeted":{"crc":50000,"usd":100},"actual_remainder":{"crc":1140000,"usd":2280},
@@ -37,212 +40,295 @@ public class DashboardPageTests : ComponentTestBase
          "by_card":[{"card_id":"eeeeeeee-0000-0000-0000-000000000005","card_name":"Allan's Visa","actual":{"crc":10000,"usd":20},"count":1},{"card_id":null,"card_name":"","actual":{"crc":300000,"usd":600},"count":1}]}
         """;
 
-    [Fact]
-    public async Task Waterfall_ForecastBelowZero_IsRed_AndSaysThePlanDoesNotFit_PaceClampsToTheMonth()
+    /// <summary>Jul 15 of a Jun 25 – Jul 29 month = day 21 of 35 = 60% elapsed. Spend is 21% of income.</summary>
+    private static readonly DateOnly MidMonth = new(2026, 7, 15);
+
+    private async Task<IRenderedComponent<Dashboard>> DashboardAsync(DateOnly today, string? summary = null)
     {
-        // Still planned ₡1,300,000 against ₡1,190,000 left → forecast −₡110,000.
-        var overPlan = Summary.Replace("\"pending_budgeted\":{\"crc\":50000,\"usd\":100},\"actual_remainder\":{\"crc\":1140000,\"usd\":2280}",
-            "\"pending_budgeted\":{\"crc\":1300000,\"usd\":2600},\"actual_remainder\":{\"crc\":-110000,\"usd\":-220}");
         await SignInAsync();
         Http.On(HttpMethod.Get, "/api/months", Months);
-        Http.On(HttpMethod.Get, $"/api/months/{M2}/summary", Dash(M2).Replace(Summary, overPlan));
+        Http.On(HttpMethod.Get, $"/api/months/{M2}/summary", Dash(M2, summary: summary));
+        var cut = Render<Dashboard>(p => p.Add(x => x.Today, today));
+        cut.WaitForElement("[data-testid='dash-verdict']");
+        return cut;
+    }
 
-        // Today = Jul 15 of a Jun 25 – Jul 29 month → day 21 of 35 → 60 %.
-        var cut = Render<Dashboard>(p => p.Add(x => x.Today, new DateOnly(2026, 7, 15)));
-        cut.WaitForElement("[data-testid='dash-wf-forecast']");
+    // ---------------------------------------------------------------- the verdict
 
-        var forecast = cut.Find("[data-testid='dash-wf-forecast']");
-        Assert.Contains("₡-110,000.00", forecast.TextContent);
-        Assert.Contains("text-danger", forecast.QuerySelector("span.text-end")!.ClassName);
-        Assert.Contains("Dash_WfOverPlan", cut.Find("[data-testid='dash-wf-overplan']").TextContent);
-        Assert.Contains("Dash_WfPace[60]", cut.Find("[data-testid='dash-wf-planned-hint']").TextContent);
-        // The bar paints the ₡110,000 shortfall red past the income and lists it; no forecast segment is drawn.
-        Assert.Single(cut.FindAll("[data-testid='dash-bar'] [data-testid='chart-overflow']"));
-        Assert.Contains("₡110,000", cut.Find("[data-testid='dash-bar'] [data-testid='chart-legend-over']").TextContent);
-        Assert.DoesNotContain(cut.FindAll("[data-testid='dash-bar'] [data-testid='chart-segment']"), e => e.GetAttribute("data-label") == "Dash_BarForecast");
+    [Fact]
+    public async Task TheVerdictIsDerived_FromForecastAndPace_NotStored()
+    {
+        // Spent 21% of income with 60% of the month gone, and a forecast still in the black.
+        var onTrack = await DashboardAsync(MidMonth);
+        Assert.Equal("Dash_Verdict_OnTrack", onTrack.Find("[data-testid='dash-verdict-state']").TextContent.Trim());
+        Assert.Equal("good", onTrack.Find("[data-testid='dash-verdict']").GetAttribute("data-tone"));
 
-        cut.Render(p => p.Add(x => x.Today, new DateOnly(2026, 9, 5)));
-        cut.WaitForAssertion(() => Assert.Contains("Dash_WfPace[100]", cut.Find("[data-testid='dash-wf-planned-hint']").TextContent));
+        // Same spend, but only the second day of the month — ahead of pace, though nothing is over yet.
+        var watch = await DashboardAsync(new DateOnly(2026, 6, 26));
+        Assert.Equal("Dash_Verdict_AtRisk", watch.Find("[data-testid='dash-verdict-state']").TextContent.Trim());
+        Assert.Equal("warn", watch.Find("[data-testid='dash-verdict']").GetAttribute("data-tone"));
     }
 
     [Fact]
-    public async Task LinesAreJudgedInTheirOwnCurrency_TotalsOnlyWhenOverOnBothSides()
+    public async Task AForecastBelowZeroIsOver_WhateverThePace_AndSaysThePlanDoesNotFit()
     {
-        // A $2.99 line paid at $2.99: its ₡ budget (today's rate) is a few colones under the frozen ₡ actual — never red.
-        var usdLines = Summary.Replace("\"variable_expenses\":[]",
-            "\"variable_expenses\":[{\"name\":\"Apple\",\"budget\":{\"crc\":1355.30,\"usd\":2.99},\"actual\":{\"crc\":1355.35,\"usd\":2.99},\"budget_currency\":\"USD\"},"
-            + "{\"name\":\"Netflix\",\"budget\":{\"crc\":1355.30,\"usd\":2.99},\"actual\":{\"crc\":1586.50,\"usd\":3.50},\"budget_currency\":\"USD\"}]");
-        await SignInAsync();
-        Http.On(HttpMethod.Get, "/api/months", Months);
-        Http.On(HttpMethod.Get, $"/api/months/{M2}/summary", Dash(M2).Replace(Summary, usdLines));
+        // Still planned ₡1,300,000 against ₡1,190,000 left → forecast −₡110,000.
+        var overPlan = Summary.Replace("""
+            "pending_budgeted":{"crc":50000,"usd":100},"actual_remainder":{"crc":1140000,"usd":2280}
+            """.Trim(), """
+            "pending_budgeted":{"crc":1300000,"usd":2600},"actual_remainder":{"crc":-110000,"usd":-220}
+            """.Trim());
 
-        var cut = Render<Dashboard>();
-        cut.WaitForElement("[data-testid='dash-variable']");
+        var cut = await DashboardAsync(MidMonth, overPlan);
 
-        var actuals = cut.FindAll("[data-testid='dash-variable'] [data-testid='dash-line-actual']");
-        Assert.Contains("text-success", actuals[0].ClassName); // Apple: $2.99 of $2.99 — the ₡ side used to paint it red
-        Assert.Contains("text-danger", actuals[1].ClassName);  // Netflix: $3.50 of $2.99
-        // The total is a converted pair: over on both sides here (₡2,941.85 > ₡2,710.60 and $6.49 > $5.98) → red.
-        Assert.Contains("text-danger", cut.Find("[data-testid='dash-variable'] [data-testid='dash-lines-total']").QuerySelectorAll("td")[2].ClassName);
+        Assert.Equal("Dash_Verdict_Over", cut.Find("[data-testid='dash-verdict-state']").TextContent.Trim());
+        Assert.Equal("bad", cut.Find("[data-testid='dash-verdict']").GetAttribute("data-tone"));
+        Assert.Contains("₡-110,000.00", cut.Find("[data-testid='dash-forecast-primary']").TextContent);
+        Assert.Contains("Dash_WfOverPlan", cut.Find("[data-testid='dash-wf-overplan']").TextContent);
+        // The step carries the tone too, so the number is not the only thing that says it.
+        Assert.Equal("bad", cut.Find("[data-testid='dash-wf-forecast']").Closest("[data-tone]")!.GetAttribute("data-tone"));
+    }
+
+    [Fact]
+    public async Task TheStateIsWordsNotJustColour_AndTheDotIsDecorative()
+    {
+        var cut = await DashboardAsync(MidMonth);
+        Assert.Equal("true", cut.Find("[data-testid='dash-verdict-dot']").GetAttribute("aria-hidden"));
+        Assert.NotEmpty(cut.Find("[data-testid='dash-verdict-state']").TextContent.Trim());
+        Assert.Contains("Dash_ForecastLeftLabel", cut.Find("[data-testid='dash-verdict-caption']").TextContent);
+    }
+
+    // ---------------------------------------------------------------- the pace
+
+    [Fact]
+    public async Task ThePaceBarDrawsFiveSegments_AndItsLegendCarriesTheMoney_NotJustAShare()
+    {
+        var cut = await DashboardAsync(MidMonth);
+
+        var segments = cut.FindAll("[data-testid='dash-bar-segment']");
+        // Discretionary is zero in this fixture, so four of the five are drawn.
+        Assert.Equal(4, segments.Count);
+        Assert.Equal("true", segments.Single(s => s.GetAttribute("data-hatched") == "true").GetAttribute("data-hatched"));
+
+        // Owner decision: the class split stays MONEY, not a percentage of a bar.
+        var legend = cut.Find("[data-testid='dash-bar-legend']").TextContent;
+        Assert.Contains("Tx_Budgeted ₡300,000.00", legend);
+        Assert.Contains("Tx_Unplanned ₡10,000.00", legend);
+        Assert.Contains("Dash_BarPlanned ₡50,000.00", legend);
+
+        // Committed = (spent + still planned) / income = 24%; elapsed = 60%.
+        var summary = cut.Find("[data-testid='dash-pace-summary']").TextContent;
+        Assert.Contains("Dash_PaceCommitted[24]", summary);
+        Assert.Contains("Dash_MonthElapsed[60]", summary);
+    }
+
+    [Fact]
+    public async Task TheMarkerClampsToTheEndOfTheMonth()
+    {
+        var cut = await DashboardAsync(new DateOnly(2026, 9, 5)); // long past the Jul 29 close
+        Assert.Contains("100%", cut.Find("[data-testid='dash-bar-marker']").GetAttribute("style"));
+        Assert.Contains("Dash_MonthElapsed[100]", cut.Find("[data-testid='dash-pace-summary']").TextContent);
+    }
+
+    // ---------------------------------------------------------------- the four steps
+
+    [Fact]
+    public async Task TheFourStepsAreTheSameArithmeticInTheSameOrder()
+    {
+        var cut = await DashboardAsync(MidMonth);
+
+        Assert.Equal(4, cut.FindAll("[data-testid='dash-wf-step']").Count);
+        Assert.Contains("₡1,500,000.00", cut.Find("[data-testid='dash-wf-income']").TextContent);
+        Assert.Contains("₡310,000.00", cut.Find("[data-testid='dash-wf-spent']").TextContent);
+        Assert.Contains("₡50,000.00", cut.Find("[data-testid='dash-wf-planned']").TextContent);
+        Assert.Contains("₡1,140,000.00", cut.Find("[data-testid='dash-wf-forecast']").TextContent);
+        Assert.Empty(cut.FindAll("[data-testid='dash-wf-overplan']"));
+
+        // Refunds are excluded from the forecast (ADR-V007) and the step has to keep saying so.
+        var forecast = cut.Find("[data-testid='dash-wf-forecast']").Closest(".wf-step")!.TextContent;
+        Assert.Contains("Dash_WfRefundsExpected", forecast); // the amount expected back, named on the step it is NOT counted in
+        Assert.Contains("₡5,000.00 · $10.00", forecast);
+        Assert.Contains("Dash_RefundsNote", forecast);
+    }
+
+    [Fact]
+    public async Task InflowsAreNamedOnTheIncomeStep_SoTheFigureDoesNotLookWrong()
+    {
+        // Primary 1,500,000 but total 1,550,000 → 50,000 arrived as inflows.
+        var withInflow = Summary.Replace("""
+            "income_total":{"crc":1500000,"usd":3000}
+            """.Trim(), """
+            "income_total":{"crc":1550000,"usd":3100}
+            """.Trim());
+
+        var cut = await DashboardAsync(MidMonth, withInflow);
+        var step = cut.Find("[data-testid='dash-wf-income']").Closest(".wf-step")!;
+        Assert.Contains("Dash_WfIncomeOther", step.TextContent);
+        Assert.Contains("₡50,000.00", step.TextContent);
+
+        // With nothing extra, the sub-line is absent rather than showing a zero.
+        var plain = await DashboardAsync(MidMonth);
+        Assert.DoesNotContain("Dash_WfIncomeOther", plain.Find("[data-testid='dash-wf-income']").Closest(".wf-step")!.TextContent);
+    }
+
+    // ---------------------------------------------------------------- the line lists
+
+    [Fact]
+    public async Task ALineIsJudgedInItsOwnCurrency_AndShowsHowFarOffPlanItIs()
+    {
+        var cut = await DashboardAsync(MidMonth);
+
+        var rows = cut.Find("[data-testid='dash-fixed']").QuerySelectorAll("[data-testid='dash-line-row']");
+        Assert.Equal(2, rows.Length);
+
+        // Mortgage: 300,000 against 350,000 planned → ₡50,000 under.
+        Assert.Null(rows[0].GetAttribute("data-over"));
+        Assert.Contains("−₡50,000.00", rows[0].QuerySelector("[data-testid='dash-line-actual']")!.TextContent);
+
+        // Water: 18,000 against 15,000 → ₡3,000 over, and the row says so without relying on colour alone.
+        Assert.Equal("true", rows[1].GetAttribute("data-over"));
+        Assert.Contains("+₡3,000.00", rows[1].QuerySelector("[data-testid='dash-line-actual']")!.TextContent);
+
+        // The heading answers the same question for the whole list: 318,000 against 365,000 planned.
+        Assert.Contains("Dash_LinesUnderPlan", cut.Find("[data-testid='dash-fixed-summary']").TextContent);
+        Assert.Equal("good", cut.Find("[data-testid='dash-fixed-summary']").GetAttribute("data-tone"));
+    }
+
+    [Fact]
+    public async Task AnEmptyListSaysSo_RatherThanRenderingAnEmptyTable()
+    {
+        var cut = await DashboardAsync(MidMonth);
+        Assert.Contains("Dash_NoLines", cut.Find("[data-testid='dash-variable']").TextContent);
+        Assert.Empty(cut.Find("[data-testid='dash-variable']").QuerySelectorAll("[data-testid='dash-line-row']"));
+    }
+
+    // ---------------------------------------------------------------- the breakdown panel
+
+    [Fact]
+    public async Task OnePanelReplacesThreeCards_AndOpensOnTheWeeks()
+    {
+        var cut = await DashboardAsync(MidMonth);
+
+        Assert.Equal(2, cut.FindAll("[data-testid='dash-week-row']").Count);
+        Assert.Empty(cut.FindAll("[data-testid='dash-bank-row']"));
+        Assert.Empty(cut.FindAll("[data-testid='dash-card-row']"));
+
+        var weekTotal = cut.Find("[data-testid='dash-week-total']").QuerySelectorAll("td");
+        Assert.Contains("₡300,000.00", weekTotal[1].TextContent);
+    }
+
+    [Fact]
+    public async Task TheSwitchChangesTheCut_WithoutRefetching()
+    {
+        var cut = await DashboardAsync(MidMonth);
+        var before = Http.Requests.Count;
+
+        cut.Find("[data-testid='dash-breakdown-switch-bank']").Change(true);
+        var bankRows = cut.FindAll("[data-testid='dash-bank-row']");
+        Assert.Equal(2, bankRows.Count);
+        Assert.Contains("BAC", bankRows[0].TextContent);
+
+        cut.Find("[data-testid='dash-breakdown-switch-card']").Change(true);
+        var cardRows = cut.FindAll("[data-testid='dash-card-row']");
+        Assert.Equal(2, cardRows.Count);
+        Assert.Equal("Dash_CardCount[1]", cardRows[0].QuerySelector("[data-testid='dash-card-meta']")!.TextContent.Trim());
+        Assert.Equal(["3%", "97%"], cardRows.Select(r => r.QuerySelector("[data-testid='dash-card-share']")!.TextContent.Trim()));
+
+        // Build notes: the switch is local UI state only.
+        Assert.Equal(before, Http.Requests.Count);
+    }
+
+    [Fact]
+    public async Task UnbudgetedIsTheFourthCut_BecauseThatIsAlsoWhereMoneyWent()
+    {
+        // Owner decision, 2026-09-11: the old Other-spending card becomes an option here.
+        var cut = await DashboardAsync(MidMonth);
+        cut.Find("[data-testid='dash-breakdown-switch-other']").Change(true);
+        // Owner decision, 2026-09-14: the rows group by class with a subtotal each, so "how much of this was
+        // unplanned" is read off a heading, not added up by eye. Discretionary first, then Unplanned, then the
+        // catalog smell — money classed Budgeted in a category no line covers — only when it occurs.
+        var groups = cut.FindAll("[data-testid='dash-other-group']");
+        Assert.Equal(["extraordinary", "unplanned_essential", "budgeted"], groups.Select(g => g.GetAttribute("data-class")).ToList());
+        Assert.Contains("Tx_Extraordinary", groups[0].TextContent);
+        Assert.Contains("₡3,000.00", groups[0].TextContent);
+        Assert.Contains("Tx_Unplanned", groups[1].TextContent);
+        Assert.Contains("₡10,000.00", groups[1].TextContent);
+        Assert.Contains("Dash_BudgetedNoLine", groups[2].TextContent);
+        Assert.Contains("₡1,000.00", groups[2].TextContent);
+
+        // A category whose money came in two classes appears once per class, with that class's amount.
+        var rows = cut.FindAll("[data-testid='dash-other-row']");
+        Assert.Equal(["Trips", "Dining", "Trips"], rows.Select(r => r.QuerySelector("td")!.TextContent.Trim()).ToList());
+        Assert.Contains("₡3,000.00", rows[0].TextContent);
+        Assert.Contains("₡1,000.00", rows[2].TextContent);
+        Assert.Empty(cut.FindAll("[data-testid='dash-other-class']")); // no chips: the heading says the class
+
+        Assert.Contains("₡14,000.00", cut.Find("[data-testid='dash-other-total']").TextContent); // Dining 10,000 + Trips 4,000
+    }
+
+    // ---------------------------------------------------------------- envelopes
+
+    [Fact]
+    public async Task EnvelopesAreAStrip_ShownOnlyWhenABucketIsDue()
+    {
+        var cut = await DashboardAsync(MidMonth);
+        Assert.Contains("Marchamo", cut.Find("[data-testid='dash-envelopes']").TextContent);
+
+        // Nothing due → the section is absent entirely, which is one fewer thing to read that month.
+        var none = Summary.Replace("""
+            "envelope_reminders":[{"name":"Marchamo","annual_target":{"crc":718000,"usd":0},"contributed_this_month":{"crc":0,"usd":0},"remaining":{"crc":718000,"usd":0},"cadence":"monthly"}]
+            """.Trim(), "\"envelope_reminders\":[]");
+        var quiet = await DashboardAsync(MidMonth, none);
+        Assert.Empty(quiet.FindAll("[data-testid='dash-envelopes']"));
+    }
+
+    // ---------------------------------------------------------------- currency
+
+    [Fact]
+    public async Task ShowIn_DrivesEveryConvertedPair_ButABudgetLineKeepsItsOwnCurrency()
+    {
+        var cut = await DashboardAsync(MidMonth);
+
+        // Default is "both": the second currency STACKS rather than doubling the line.
+        Assert.Contains("₡1,500,000.00", cut.Find("[data-testid='dash-wf-income-primary']").TextContent);
+        Assert.Contains("$3,000.00", cut.Find("[data-testid='dash-wf-income-secondary']").TextContent);
+
+        cut.Find("[data-testid='dash-cur-usd']").Click();
+        cut.WaitForAssertion(() => Assert.Contains("$3,000.00", cut.Find("[data-testid='dash-wf-income-primary']").TextContent));
+        Assert.DoesNotContain("₡", cut.Find("[data-testid='dash-wf-income-primary']").TextContent);
+        Assert.Empty(cut.FindAll("[data-testid='dash-wf-income-secondary']"));
+
+        // The legend follows the same preference (owner decision), so it reads in dollars too.
+        Assert.Contains("Tx_Budgeted $600.00", cut.Find("[data-testid='dash-bar-legend']").TextContent);
     }
 
     [Fact]
     public async Task ShowIn_FollowsTheAccount_AndSavesThere()
     {
-        // ADR-V020: the account's choice wins over the device's (this device never chose); a new choice is PUT to the account.
-        await SignInAsync();
-        Http.On(HttpMethod.Get, "/api/months", Months);
-        Http.On(HttpMethod.Get, $"/api/months/{M2}/summary", Dash(M2));
-        Http.On(HttpMethod.Get, "/api/display-settings", """{"display_currency":"USD","is_default":false}""");
-        Http.On(HttpMethod.Put, "/api/display-settings", """{"display_currency":"both","is_default":false}""");
+        Http.On(HttpMethod.Get, "/api/display-settings", """{"display_currency":"USD"}""");
+        Http.On(HttpMethod.Put, "/api/display-settings", """{"display_currency":"CRC"}""");
 
-        var cut = Render<Dashboard>();
+        var cut = await DashboardAsync(MidMonth);
+        cut.WaitForAssertion(() => Assert.DoesNotContain("₡", cut.Find("[data-testid='dash-wf-income-primary']").TextContent));
 
-        cut.WaitForAssertion(() => Assert.Contains("$3,000.00", cut.Find("[data-testid='dash-wf-income']").TextContent));
-        Assert.DoesNotContain("₡", cut.Find("[data-testid='dash-wf-income']").TextContent);
-        Assert.Contains(JSInterop.Invocations, i => i.Identifier == "appUi.setPref" && Equals(i.Arguments[0], "display.currency") && Equals(i.Arguments[1], "USD")); // the device copy is refreshed
-
-        cut.Find("[data-testid='dash-cur-both']").Click();
-
-        cut.WaitForAssertion(() => Assert.Contains("₡1,500,000.00 · $3,000.00", cut.Find("[data-testid='dash-wf-income']").TextContent));
-        var put = Assert.Single(Http.Requests, r => r.Method == HttpMethod.Put && r.RequestUri!.AbsolutePath == "/api/display-settings");
-        Assert.Contains("\"display_currency\":\"both\"", await put.Content!.ReadAsStringAsync());
+        cut.Find("[data-testid='dash-cur-crc']").Click();
+        cut.WaitForAssertion(() => Assert.Single(Http.Requests, r => r.Method == HttpMethod.Put && r.RequestUri!.AbsolutePath == "/api/display-settings"));
     }
 
+    // ---------------------------------------------------------------- states
+
     [Fact]
-    public async Task ShowIn_Dollars_ShowsOneSide_ButABudgetLineKeepsItsOwnCurrency()
+    public async Task NoRate_BlocksTheProjections_RatherThanGuessing()
     {
         await SignInAsync();
         Http.On(HttpMethod.Get, "/api/months", Months);
-        Http.On(HttpMethod.Get, $"/api/months/{M2}/summary", Dash(M2));
-        var cut = Render<Dashboard>();
-        cut.WaitForElement("[data-testid='dash-waterfall']");
+        Http.On(HttpMethod.Get, $"/api/months/{M2}/summary", Dash(M2, rateUnavailable: true));
 
-        cut.Find("[data-testid='dash-cur-usd']").Click();
+        var cut = Render<Dashboard>(p => p.Add(x => x.Today, MidMonth));
 
-        cut.WaitForAssertion(() => Assert.Contains("$3,000.00", cut.Find("[data-testid='dash-wf-income']").TextContent));
-        Assert.DoesNotContain("₡", cut.Find("[data-testid='dash-wf-income']").TextContent);
-        var mortgage = cut.FindAll("[data-testid='dash-fixed'] [data-testid='dash-line-row']")[0].QuerySelectorAll("td");
-        Assert.Equal("₡350,000.00", mortgage[1].TextContent.Trim()); // set in colones → stays in colones
-        Assert.Equal("$600.00", mortgage[2].TextContent.Trim());     // the actual follows the switch
-        Assert.Contains("$", cut.Find("[data-testid='dash-fixed'] [data-testid='dash-lines-total']").TextContent);
-        Assert.Contains(JSInterop.Invocations, i => i.Identifier == "appUi.setPref" && Equals(i.Arguments[0], "display.currency"));
-        Assert.Contains("$2,280", cut.FindAll("[data-testid='dash-bar'] [data-testid='chart-legend-item']")[4].TextContent); // the bar follows a one-currency pick
-
-        cut.Find("[data-testid='dash-cur-both']").Click();
-        cut.WaitForAssertion(() => Assert.Contains("₡1,500,000.00 · $3,000.00", cut.Find("[data-testid='dash-wf-income']").TextContent));
-        Assert.Contains("₡1,140,000 · $2,280", cut.FindAll("[data-testid='dash-bar'] [data-testid='chart-legend-item']")[4].TextContent); // the bar's legend carries both sides
-        Assert.Empty(cut.FindAll("[data-testid='dash-bar-usd']")); // the card has no switch of its own
-    }
-
-    [Fact]
-    public async Task Income_ShowsInflowsAsTheirOwnSubRow_SoTheSubRowsAddUp()
-    {
-        // The API folds inflows into income_total; the page derives "Other income" = total − primary − secondary.
-        await SignInAsync();
-        Http.On(HttpMethod.Get, "/api/months", Months);
-        Http.On(HttpMethod.Get, $"/api/months/{M2}/summary", Dash(M2).Replace("\"income_total\":{\"crc\":1500000,\"usd\":3000}", "\"income_total\":{\"crc\":1550000,\"usd\":3100}"));
-
-        var cut = Render<Dashboard>();
-
-        cut.WaitForElement("[data-testid='dash-waterfall']");
-        Assert.Contains("₡50,000.00 · $100.00", cut.Find("[data-testid='dash-wf-income-other']").TextContent);
-        Assert.Contains("Dash_WfIncomeOther", cut.Find("[data-testid='dash-wf-income-other']").TextContent);
-
-        Http.On(HttpMethod.Get, $"/api/months/{M2}/summary", Dash(M2)); // no inflows → no row
-        var plain = Render<Dashboard>();
-        plain.WaitForElement("[data-testid='dash-waterfall']");
-        Assert.Empty(plain.FindAll("[data-testid='dash-wf-income-other']"));
-    }
-
-    [Fact]
-    public async Task Loads_TheNewestMonth_AndRendersEverySection()
-    {
-        await SignInAsync();
-        Http.On(HttpMethod.Get, "/api/months", Months);
-        Http.On(HttpMethod.Get, $"/api/months/{M2}/summary", Dash(M2));
-
-        var cut = Render<Dashboard>();
-
-        cut.WaitForElement("[data-testid='dash-waterfall']");
-        Assert.Single(Http.Requests, r => r.RequestUri!.AbsolutePath == $"/api/months/{M2}/summary"); // newest first
-        Assert.Contains("₡1,500,000.00 · $3,000.00", cut.Find("[data-testid='dash-wf-income']").TextContent);
-        Assert.Contains("₡1,500,000.00", cut.Find("[data-testid='dash-wf-income-primary']").TextContent);
-        Assert.Empty(cut.FindAll("[data-testid='dash-wf-income-secondary']")); // zero secondary income stays out of the way
-        Assert.Empty(cut.FindAll("[data-testid='dash-income']")); // the Income card is folded into the waterfall
-        // The bar: income wide, filled by the three classes + still planned, the forecast as the green rest; no shortfall; today marked.
-        var segments = cut.FindAll("[data-testid='dash-bar'] [data-testid='chart-segment']").Select(e => e.GetAttribute("data-label") ?? "").ToArray();
-        Assert.Equal(["Tx_Budgeted", "Tx_Unplanned", "Dash_BarPlanned", "Dash_BarForecast"], segments); // discretionary is ₡0 → listed, not drawn
-        Assert.Equal(5, cut.FindAll("[data-testid='dash-bar'] [data-testid='chart-legend-item']").Count);
-        Assert.Empty(cut.FindAll("[data-testid='dash-bar'] [data-testid='chart-overflow']"));
-        Assert.Single(cut.FindAll("[data-testid='dash-bar'] [data-testid='chart-marker']"));
-        Assert.Contains("₡1,140,000", cut.FindAll("[data-testid='dash-bar'] [data-testid='chart-legend-item']")[4].TextContent); // forecast segment = 76 % of income
-        cut.Find("[data-testid='dash-cur-usd']").Click(); // the page's "show in" drives the bar
-        cut.WaitForAssertion(() => Assert.Contains("$2,280", cut.FindAll("[data-testid='dash-bar'] [data-testid='chart-legend-item']")[4].TextContent));
-        Assert.Contains(JSInterop.Invocations, i => i.Identifier == "appUi.setPref"); // remembered per device, shared with Reports
-        cut.Find("[data-testid='dash-cur-both']").Click(); // back to both sides for the rest of the page
-        cut.WaitForAssertion(() => Assert.Contains("₡1,140,000 · $2,280", cut.FindAll("[data-testid='dash-bar'] [data-testid='chart-legend-item']")[4].TextContent));
-        // The waterfall (ADR-V018): income − the three classes = spent; income − spent = left now; left − still planned = forecast.
-        Assert.Contains("₡1,500,000.00", cut.Find("[data-testid='dash-wf-income']").TextContent);
-        Assert.Contains("₡300,000.00", cut.Find("[data-testid='dash-wf-budgeted']").TextContent);
-        Assert.Contains("₡0.00", cut.Find("[data-testid='dash-wf-discretionary']").TextContent);
-        Assert.Contains("₡10,000.00", cut.Find("[data-testid='dash-wf-unplanned']").TextContent);
-        Assert.Contains("₡310,000.00", cut.Find("[data-testid='dash-wf-spent']").TextContent);
-        Assert.Contains("₡1,190,000.00", cut.Find("[data-testid='dash-wf-left']").TextContent);
-        Assert.Contains("₡50,000.00", cut.Find("[data-testid='dash-wf-planned']").TextContent);
-        Assert.Contains("Dash_WfPace[", cut.Find("[data-testid='dash-wf-planned-hint']").TextContent);
-        var forecast = cut.Find("[data-testid='dash-wf-forecast']");
-        Assert.Contains("₡1,140,000.00", forecast.TextContent);
-        Assert.Contains("text-success", forecast.QuerySelector("span.text-end")!.ClassName);
-        Assert.Empty(cut.FindAll("[data-testid='dash-wf-overplan']"));
-        Assert.Empty(cut.FindAll("[data-testid='dash-balance']")); // the old Expenses/Balance cards are gone
-        Assert.Empty(cut.FindAll("[data-testid='dash-rate']")); // the rate is shown once, in the Today's-rate badge
-
-        var actuals = cut.FindAll("[data-testid='dash-line-actual']");
-        Assert.Contains("text-success", actuals[0].ClassName); // Mortgage under budget
-        Assert.Contains("text-danger", actuals[1].ClassName);  // Water over budget
-
-        Assert.Contains("Dining", cut.Find("[data-testid='dash-other']").TextContent);
-        Assert.Equal(2, cut.FindAll("[data-testid='dash-week-row']").Count);
-
-        // Total rows: the sum of exactly the rows shown, each side in its own currency; the lines total keeps the over/under tone.
-        var fixedTotal = cut.Find("[data-testid='dash-fixed'] [data-testid='dash-lines-total']");
-        Assert.Contains("₡365,000.00 · $730.00", fixedTotal.TextContent); // Mortgage 350,000 + Water 15,000
-        Assert.Contains("₡318,000.00 · $636.00", fixedTotal.TextContent); // 300,000 + 18,000 actual
-        Assert.Contains("text-success", fixedTotal.QuerySelectorAll("td")[2].ClassName); // under budget overall
-        Assert.Empty(cut.FindAll("[data-testid='dash-variable'] [data-testid='dash-lines-total']")); // no lines → no table, no total
-        Assert.Contains("₡10,000.00 · $20.00", cut.Find("[data-testid='dash-other-total']").TextContent);
-        var weekTotal = cut.Find("[data-testid='dash-week-total']").QuerySelectorAll("td");
-        Assert.Contains("₡300,000.00 · $600.00", weekTotal[1].TextContent);
-        Assert.Contains("₡0.00 · $0.00", weekTotal[2].TextContent);
-        Assert.Contains("Marchamo", cut.Find("[data-testid='dash-envelopes']").TextContent);
-        // Grouped by method (card first), a subtotal per method, a grand total: "budgeted on cards vs the account" reads off the table.
-        var bankRows = cut.FindAll("[data-testid='dash-bank-row']");
-        Assert.Contains("Budget_Unassigned", bankRows[0].TextContent); // the credit-card group (Unassigned · card) now comes first
-        Assert.Contains("BAC", bankRows[1].TextContent);
-        var methodTotals = cut.FindAll("[data-testid='dash-method-total']");
-        Assert.Equal(["credit_card", "bank_account"], methodTotals.Select(r => r.GetAttribute("data-method")));
-        Assert.Contains("Dash_MethodTotal[Tx_CreditCard]", methodTotals[0].TextContent);
-        Assert.Contains("₡0.00 · $0.00", methodTotals[0].QuerySelectorAll("td")[1].TextContent);       // nothing budgeted on cards
-        Assert.Contains("₡10,000.00 · $20.00", methodTotals[0].QuerySelectorAll("td")[2].TextContent); // but the lunch was paid by card
-        Assert.Contains("₡365,000.00 · $730.00", methodTotals[1].QuerySelectorAll("td")[1].TextContent);
-        Assert.Contains("₡300,000.00 · $600.00", methodTotals[1].QuerySelectorAll("td")[2].TextContent);
-        var banksTotal = cut.Find("[data-testid='dash-banks-total']").QuerySelectorAll("td");
-        Assert.Contains("₡365,000.00 · $730.00", banksTotal[1].TextContent);
-        Assert.Contains("₡310,000.00 · $620.00", banksTotal[2].TextContent);
-        // CARDS-2: "By card" — the alias, its count and spend; the "no card" bucket last with its own label; a total row.
-        var cardRows = cut.FindAll("[data-testid='dash-card-row']");
-        Assert.Equal(2, cardRows.Count);
-        Assert.Contains("Allan's Visa", cardRows[0].TextContent);
-        Assert.Contains("₡10,000.00 · $20.00", cardRows[0].QuerySelectorAll("td")[1].TextContent);
-        // Only money earns a column; the kind (which explains the Bank account row next door) and the count ride under the alias.
-        Assert.Equal("Dash_CardMeta[Cards_KindCredit, 1]", cardRows[0].QuerySelector("[data-testid='dash-card-meta']")!.TextContent.Trim());
-        Assert.Equal("Dash_CardCount[1]", cardRows[1].QuerySelector("[data-testid='dash-card-meta']")!.TextContent.Trim()); // the "no card" bucket has no kind
-        Assert.Equal(["3%", "97%"], cardRows.Select(r => r.QuerySelector("[data-testid='dash-card-share']")!.TextContent.Trim()));
-        Assert.Equal("none", cardRows[1].GetAttribute("data-card"));
-        Assert.Contains("Tx_NoCard", cardRows[1].TextContent);
-        Assert.Contains("₡310,000.00 · $620.00", cut.Find("[data-testid='dash-cards-total']").QuerySelectorAll("td")[1].TextContent);
-        Assert.Equal(2, cut.FindAll("[data-testid='dash-month'] option").Count);
+        cut.WaitForElement("[data-testid='dash-rate-unavailable']");
+        Assert.Empty(cut.FindAll("[data-testid='dash-verdict']"));
+        Assert.Empty(cut.FindAll("[data-testid='dash-wf']"));
     }
 
     [Fact]
@@ -254,34 +340,16 @@ public class DashboardPageTests : ComponentTestBase
         var cut = Render<Dashboard>();
 
         cut.WaitForElement("[data-testid='dash-empty']");
-        Assert.DoesNotContain(Http.Requests, r => r.RequestUri!.AbsolutePath.EndsWith("/summary"));
+        Assert.NotNull(cut.Find("[data-testid='dash-new-tx']"));
     }
 
     [Fact]
-    public async Task RateUnavailable_BlocksProjections_KeepsTheMonthHeader()
+    public async Task TheNewestMonthLoadsFirst_AndItsHeadNamesTheWindow()
     {
-        await SignInAsync();
-        Http.On(HttpMethod.Get, "/api/months", Months);
-        Http.On(HttpMethod.Get, $"/api/months/{M1}/summary", Dash(M1, rateUnavailable: true));
+        var cut = await DashboardAsync(MidMonth);
 
-        var cut = Render<Dashboard>(p => p.Add(x => x.Id, Guid.Parse(M1)));
-
-        cut.WaitForElement("[data-testid='dash-rate-unavailable']");
-        Assert.Empty(cut.FindAll("[data-testid='dash-waterfall']"));
         Assert.Contains("2026", cut.Find("[data-testid='dash-title']").TextContent);
-        Assert.Equal($"/months/{M1}", cut.Find("[data-testid='dash-month-link']").GetAttribute("href"));
-    }
-
-    [Fact]
-    public async Task DeletedMonth_ShowsTheNotFoundMessage()
-    {
-        await SignInAsync();
-        Http.On(HttpMethod.Get, "/api/months", Months);
-        Http.On(HttpMethod.Get, $"/api/months/{M2}/summary", "", HttpStatusCode.NotFound);
-
-        var cut = Render<Dashboard>();
-
-        cut.WaitForElement("[data-testid='dash-error']");
-        Assert.Contains("Month_NotFound", cut.Find("[data-testid='dash-error']").TextContent);
+        Assert.Contains("Dash_DayOfMonth[21, 35]", cut.Find(".dash-subtitle").TextContent);
+        Assert.Equal(M2, cut.Find("[data-testid='dash-month'] option[selected]").GetAttribute("value"));
     }
 }

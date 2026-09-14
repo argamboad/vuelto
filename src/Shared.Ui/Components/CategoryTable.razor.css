@@ -1,0 +1,98 @@
+/* The category card: Bootstrap's table on the app's tokens, the switcher in the card head, the bar the only custom cell. */
+.cat-card {
+    border: 1px solid var(--app-border);
+    border-radius: var(--radius-card);
+    background: var(--card-bg);
+    overflow: hidden;
+}
+
+.cat-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 9px;
+    padding: 11px var(--card-pad-x);
+}
+
+.cat-head h2 {
+    margin: 0;
+    font-size: 13px;
+    font-weight: var(--w-display);
+    color: var(--ink);
+}
+
+.cat-empty {
+    margin: 0;
+    padding: 0 var(--card-pad-x) var(--card-pad-y);
+    font-size: 12px;
+    color: var(--ink-3);
+}
+
+.cat-table {
+    margin: 0;
+    --bs-table-bg: transparent;
+    --bs-table-color: var(--ink);
+    --bs-table-border-color: var(--hair);
+    font-size: 12px;
+    font-weight: var(--w-body);
+}
+
+.cat-table thead th {
+    padding: 8px var(--card-pad-x) 8px 0;
+    border-bottom: 1px solid var(--hair);
+    background: var(--zebra);
+    font-size: 10px;
+    font-weight: var(--w-display);
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    white-space: nowrap;
+}
+
+.cat-table thead th:first-child,
+.cat-table tbody td:first-child { padding-left: var(--card-pad-x); }
+
+.cat-table tbody td {
+    padding: 8px var(--card-pad-x) 8px 0;
+    border-bottom: 1px solid var(--hair);
+    vertical-align: middle;
+    font-variant-numeric: tabular-nums;
+}
+
+.cat-table tbody tr:hover td { background: var(--zebra); }
+
+.cat-name { font-weight: var(--w-control); }
+.cat-count { color: var(--ink-3); }
+.cat-budget { color: var(--ink-2); }
+.cat-spent { font-weight: var(--w-display); }
+
+.cat-total td {
+    border-bottom: 0;
+    font-weight: var(--w-display);
+    background: var(--zebra);
+}
+
+.cat-bar-col { width: 32%; }
+
+/* The bar: the plan as the track, the spend on top; red past the plan. Height and radius are the pace bar's. */
+.cat-bar {
+    position: relative;
+    height: 8px;
+    border-radius: var(--radius-bar);
+    background: var(--rail);
+    overflow: hidden;
+}
+
+.cat-bar-fill {
+    height: 100%;
+    border-radius: var(--radius-bar);
+    background: var(--bs-primary);
+}
+
+.cat-bar[data-over="true"] .cat-bar-fill { background: var(--bad); }
+
+/* Below md the numbers carry the comparison. */
+@media (max-width: 767.98px) {
+    .col-md { display: none; }
+}

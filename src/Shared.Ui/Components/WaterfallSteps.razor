@@ -1,0 +1,27 @@
+@* SKIN-5 · the eleven-row waterfall as four steps. The ARITHMETIC and its ORDER are unchanged — that is the
+   handout's own "do not change" — only the presentation is: an operator before each label keeps it reading as
+   one calculation, and the sub-line carries what the old muted rows used to say. *@
+<div class="wf" data-testid="@TestId">
+    @foreach (var s in Steps)
+    {
+        <div class="wf-step" data-testid="@($"{TestId}-step")" data-tone="@s.Tone">
+            <div class="wf-label">
+                @if (!string.IsNullOrEmpty(s.Op))
+                {
+                    <span class="wf-op" aria-hidden="true">@s.Op</span>
+                }
+                @s.Label
+            </div>
+            <div class="wf-value">@s.Value</div>
+            @if (!string.IsNullOrWhiteSpace(s.Sub))
+            {
+                <div class="wf-sub">@s.Sub</div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public IReadOnlyList<WaterfallStep> Steps { get; set; } = [];
+    [Parameter] public string TestId { get; set; } = "wf";
+}

@@ -17,15 +17,15 @@
         var todayX = X(Clamp(Today), days);
         <svg viewBox="0 0 @Width @Height" width="100%" height="@Height" role="img" aria-label="@Title" style="font: 11px var(--bs-body-font-family); display: block;">
             <title>@Title</title>
-            <line x1="@Left" y1="@Top" x2="@Left" y2="@(Top + PlotH)" stroke="var(--bs-border-color)" />
-            <line x1="@Left" y1="@(Top + PlotH)" x2="@(Left + PlotW)" y2="@(Top + PlotH)" stroke="var(--bs-border-color)" />
+            <line x1="@Left" y1="@Top" x2="@Left" y2="@(Top + PlotH)" stroke="var(--app-border)" />
+            <line x1="@Left" y1="@(Top + PlotH)" x2="@(Left + PlotW)" y2="@(Top + PlotH)" stroke="var(--app-border)" />
             <text x="@(Left - 6)" y="@Top" text-anchor="end" dominant-baseline="middle" fill="var(--bs-secondary-color)">@Format(max)</text>
             <text x="@(Left - 6)" y="@(Top + PlotH)" text-anchor="end" dominant-baseline="middle" fill="var(--bs-secondary-color)">0</text>
             <text x="@Left" y="@(Height - 4)" fill="var(--bs-secondary-color)">@From.ToString("d MMM", CultureInfo.CurrentCulture)</text>
             <text x="@(Left + PlotW)" y="@(Height - 4)" text-anchor="end" fill="var(--bs-secondary-color)">@To.ToString("d MMM", CultureInfo.CurrentCulture)</text>
             @if (Plan > 0)
             {
-                <line x1="@Left" y1="@(Top + PlotH)" x2="@(Left + PlotW)" y2="@Y(Plan, max)" stroke="var(--bs-tertiary-color)" stroke-width="2" stroke-dasharray="6 4" data-testid="chart-plan" />
+                <line x1="@Left" y1="@(Top + PlotH)" x2="@(Left + PlotW)" y2="@Y(Plan, max)" stroke="var(--brand-accent-light)" stroke-width="2" stroke-dasharray="6 4" data-testid="chart-plan" />
             }
             @if (Points.Count > 0)
             {
@@ -42,7 +42,7 @@
             <span class="d-inline-block me-3"><span class="d-inline-block align-middle me-1" style="width: 12px; height: 3px; background: var(--bs-primary);"></span>@Localizer["Chart_Actual"]</span>
             @if (Plan > 0)
             {
-                <span class="d-inline-block me-3"><span class="d-inline-block align-middle me-1" style="width: 12px; height: 0; border-top: 2px dashed var(--bs-tertiary-color);"></span>@Localizer["Chart_Plan"]</span>
+                <span class="d-inline-block me-3"><span class="d-inline-block align-middle me-1" style="width: 12px; height: 0; border-top: 2px dashed var(--brand-accent-light);"></span>@Localizer["Chart_Plan"]</span>
             }
             <span class="d-inline-block"><span class="d-inline-block align-middle me-1" style="width: 12px; height: 0; border-top: 2px dashed var(--bs-warning);"></span>@Localizer["Chart_Today"]</span>
         </div>
@@ -61,8 +61,12 @@
     [Parameter] public string Title { get; set; } = "";
     [Parameter] public string TestId { get; set; } = "chart";
 
-    private const int Width = 640, Height = 220, Left = 70, Top = 18, Right = 12, Bottom = 22;
-    private const int PlotW = Width - Left - Right, PlotH = Height - Top - Bottom;
+    /// <summary>The viewBox height — 220 as a card among charts, shorter when promoted to a full-width header (SKIN-10).</summary>
+    [Parameter] public int Height { get; set; } = 220;
+
+    private const int Width = 640, Left = 70, Top = 18, Right = 12, Bottom = 22;
+    private const int PlotW = Width - Left - Right;
+    private int PlotH => Height - Top - Bottom;
 
     private DateOnly Clamp(DateOnly d) => d < From ? From : d > To ? To : d;
 

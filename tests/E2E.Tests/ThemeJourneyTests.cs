@@ -28,6 +28,8 @@ public class ThemeJourneyTests : E2ETestBase
         // Flip to dark from the header: applies live, no reload. The switcher saves the
         // choice server-side with a best-effort background PUT; wait for it so the steps
         // below can't race it (the "follows the user" legs depend on it).
+        // SKIN-4: the switcher sits inside the user menu, hidden until the trigger opens it.
+        await Page.GetByTestId("user-menu").ClickAsync();
         await Page.RunAndWaitForResponseAsync(
             () => Page.GetByTestId("theme-switcher").SelectOptionAsync("dark"),
             r => r.Url.EndsWith("/api/auth/theme") && r.Request.Method == "PUT");
@@ -35,7 +37,7 @@ public class ThemeJourneyTests : E2ETestBase
 
         // Survives a reload: theme.js re-applies from localStorage before first paint.
         await Page.ReloadAsync();
-        await Expect(Page.GetByTestId("sign-out")).ToBeVisibleAsync(new() { Timeout = 30_000 });
+        await Expect(Page.GetByTestId("user-menu")).ToBeVisibleAsync(new() { Timeout = 30_000 });
         await Expect(Page.Locator("html")).ToHaveAttributeAsync("data-bs-theme", "dark");
 
         // "New device": a fresh context has no localStorage, so it renders light — and the
@@ -50,13 +52,14 @@ public class ThemeJourneyTests : E2ETestBase
         // "system" is a real preference (stored, not null): switching back on the second
         // device propagates — the first device returns to the OS scheme (light) when its
         // next cold start reconciles.
+        await secondPage.GetByTestId("user-menu").ClickAsync();   // SKIN-4: open the menu first
         await secondPage.RunAndWaitForResponseAsync(
             () => secondPage.GetByTestId("theme-switcher").SelectOptionAsync("system"),
             r => r.Url.EndsWith("/api/auth/theme") && r.Request.Method == "PUT");
         await Expect(secondPage.Locator("html")).ToHaveAttributeAsync("data-bs-theme", "light");
 
         await Page.ReloadAsync();
-        await Expect(Page.GetByTestId("sign-out")).ToBeVisibleAsync(new() { Timeout = 30_000 });
+        await Expect(Page.GetByTestId("user-menu")).ToBeVisibleAsync(new() { Timeout = 30_000 });
         await Expect(Page.Locator("html")).ToHaveAttributeAsync("data-bs-theme", "light", new() { Timeout = 30_000 });
     }
 }

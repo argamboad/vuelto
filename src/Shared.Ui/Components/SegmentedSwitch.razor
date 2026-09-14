@@ -1,0 +1,31 @@
+@* SKIN-2 · the control that lets one panel replace three stacked cards. Real radio inputs inside a fieldset,
+   not styled buttons: a radio group is arrow-key navigable and announces "2 of 3" on its own, which a row of
+   <button>s does not. The inputs are visually hidden rather than display:none — a hidden input is not
+   focusable, and the keyboard behaviour is the reason to use radios at all. *@
+<fieldset class="segmented" data-testid="@TestId">
+    <legend>@Label</legend>
+    <div class="segmented-track">
+        @foreach (var o in Options)
+        {
+            <label class="segmented-option" data-selected="@(o.Value == Value ? "true" : null)">
+                <input type="radio" name="@_name" value="@o.Value" checked="@(o.Value == Value)"
+                       data-testid="@($"{TestId}-{o.Value}")" @onchange="@(() => ValueChanged.InvokeAsync(o.Value))" />
+                <span>@o.Label</span>
+            </label>
+        }
+    </div>
+</fieldset>
+
+@code {
+    [Parameter] public IReadOnlyList<SegmentedOption> Options { get; set; } = [];
+    [Parameter] public string? Value { get; set; }
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+
+    /// <summary>Names the group. Always rendered — a fieldset without a legend is an unlabelled group.</summary>
+    [Parameter] public string? Label { get; set; }
+
+    [Parameter] public string TestId { get; set; } = "segmented";
+
+    // One radio group per instance, so two switches on the same page cannot deselect each other.
+    private readonly string _name = $"seg-{Guid.NewGuid():N}";
+}

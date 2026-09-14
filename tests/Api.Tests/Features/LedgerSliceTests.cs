@@ -118,14 +118,17 @@ public class LedgerSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
     {
         var c = await ContextAsync();
 
+        // Jul 10 falls in the third week of July's window (Thu Jun 25 -> Jul 1, Jul 2 -> 8, Jul 9 -> 15): the week is
+        // named even for a month that does not exist yet, from the same boundaries that would create it.
         var prospective = await c.Months.ResolveAsync(Jul10, default);
-        Assert.Equal(new MonthResolveResponse(null, 2026, 7, IsNew: true), prospective);
+        Assert.Equal(new MonthResolveResponse(null, 2026, 7, IsNew: true, WeekNumber: 3), prospective);
         Assert.Equal(0, await c.Db.Months.CountAsync());
 
         await c.Transactions.CreateAsync(Create(c, Jun5), default);
         var existing = await c.Months.ResolveAsync(May30, default);
         Assert.False(existing!.IsNew);
         Assert.Equal((await c.Db.Months.SingleAsync()).Id, existing.MonthId);
+        Assert.Equal(1, existing.WeekNumber); // May 30 sits in June's first stored week (May 28 -> Jun 3)
     }
 
     [Fact]

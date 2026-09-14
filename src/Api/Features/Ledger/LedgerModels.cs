@@ -31,12 +31,18 @@ public record MonthResponse(
         weeks?.Select(WeekResponse.From).ToList());
 }
 
-/// <summary>Which budget month a date belongs to — an uncovered date names the month that WOULD be auto-created (<c>is_new</c>), never a 404.</summary>
+/// <summary>
+/// Which budget month a date belongs to — an uncovered date names the month that WOULD be auto-created (<c>is_new</c>),
+/// never a 404. <c>week_number</c> (2026-09-12) is the week of that month's window the date falls in — the stored
+/// weeks for an existing month, the boundaries that would create them for a new one — so a form can say
+/// "September 2026 · week 3" before anything is saved.
+/// </summary>
 public record MonthResolveResponse(
     [property: JsonPropertyName("month_id")] Guid? MonthId,
     [property: JsonPropertyName("year")] int Year,
     [property: JsonPropertyName("month_number")] int MonthNumber,
-    [property: JsonPropertyName("is_new")] bool IsNew);
+    [property: JsonPropertyName("is_new")] bool IsNew,
+    [property: JsonPropertyName("week_number")] int? WeekNumber = null);
 
 public record UpdateMonthIncomeRequest(
     [property: JsonPropertyName("primary_income_amount")] decimal PrimaryIncomeAmount,
@@ -58,7 +64,9 @@ public record CreateTransactionRequest(
     [property: JsonPropertyName("refund_expected")] bool RefundExpected = false,
     [property: JsonPropertyName("refund_percentage")] decimal? RefundPercentage = null,
     [property: JsonPropertyName("card_id")] Guid? CardId = null,
-    [property: JsonPropertyName("notes")] string? Notes = null);
+    [property: JsonPropertyName("notes")] string? Notes = null,
+    // The refund's notes (LEDGER-4), taken at entry (2026-09-14): only mean something with a refund; blank clears.
+    [property: JsonPropertyName("refund_notes")] string? RefundNotes = null);
 
 public record UpdateTransactionRequest(
     [property: JsonPropertyName("payee")] string? Payee,
@@ -73,7 +81,9 @@ public record UpdateTransactionRequest(
     [property: JsonPropertyName("refund_expected")] bool RefundExpected = false,
     [property: JsonPropertyName("refund_percentage")] decimal? RefundPercentage = null,
     [property: JsonPropertyName("card_id")] Guid? CardId = null,
-    [property: JsonPropertyName("notes")] string? Notes = null);
+    [property: JsonPropertyName("notes")] string? Notes = null,
+    // null = leave the refund's notes alone, blank = clear them (the edit form always sends them while a refund is on).
+    [property: JsonPropertyName("refund_notes")] string? RefundNotes = null);
 
 public record TransactionResponse(
     [property: JsonPropertyName("id")] Guid Id,
@@ -94,12 +104,13 @@ public record TransactionResponse(
     [property: JsonPropertyName("refund_expected")] bool RefundExpected,
     [property: JsonPropertyName("refund_percentage")] decimal? RefundPercentage,
     [property: JsonPropertyName("card_id")] Guid? CardId = null,
-    [property: JsonPropertyName("notes")] string? Notes = null)
+    [property: JsonPropertyName("notes")] string? Notes = null,
+    [property: JsonPropertyName("refund_notes")] string? RefundNotes = null)
 {
     public static TransactionResponse From(Transaction t, Refund? refund) => new(
         t.Id, t.MonthId, t.Payee, t.BankId, t.PaymentMethod, t.OriginalAmount, t.Currency, t.TransactionDate,
         t.CategoryId, t.AmountCrc, t.AmountUsd, t.ExchangeRateUsed, t.TransactionType, t.Source, t.EnvelopeId,
-        refund is not null, refund?.Percentage, t.CardId, t.Notes);
+        refund is not null, refund?.Percentage, t.CardId, t.Notes, refund?.Notes);
 }
 
 /// <summary>A month's expected refund (LEDGER-3): derived from its transaction; only <c>status</c> is edited directly.</summary>

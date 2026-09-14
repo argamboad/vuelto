@@ -1,0 +1,19 @@
+@* SKIN-5 · one panel where three stacked cards used to be. The switch is the SKIN-2 segmented control, so it
+   is a real radiogroup; the caller renders whichever view is selected, because each one is a different shape
+   of table and pretending otherwise would make this component a router. *@
+<section class="breakdown" data-testid="@TestId">
+    <header class="breakdown-head">
+        <h2>@Title</h2>
+        <SegmentedSwitch Options="Options" Value="@Value" ValueChanged="ValueChanged" TestId="@($"{TestId}-switch")" />
+    </header>
+    <div class="breakdown-body">@ChildContent</div>
+</section>
+
+@code {
+    [Parameter] public string? Title { get; set; }
+    [Parameter] public IReadOnlyList<SegmentedOption> Options { get; set; } = [];
+    [Parameter] public string? Value { get; set; }
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public string TestId { get; set; } = "breakdown";
+}

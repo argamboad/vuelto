@@ -1,0 +1,160 @@
+/* SKIN-7 · amount-first, three named groups, and a rail that says where it lands before you save.
+   At lg the rail is a 320px side column; below it the rail moves ABOVE the save button in flow, keeping
+   its order — the consequence still precedes the control that acts on it. */
+.tx-layout {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 15px;
+    align-items: start;
+}
+
+.tx-form {
+    display: flex;
+    flex-direction: column;
+    gap: 13px;
+    min-width: 0;
+}
+
+/* ---------------------------------------------------------------- the money block */
+.tx-money {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 11px;
+    padding: var(--card-pad-y) var(--card-pad-x);
+    border: 1px solid var(--app-border);
+    border-radius: var(--radius-card);
+    background: var(--card-bg);
+}
+
+.tx-money-date {
+    min-width: 0;
+}
+
+/* The refund's two controls: the percentage keeps a narrow column, the notes take the rest of the row. */
+.tx-refund {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 11px;
+    margin-top: 9px;
+}
+
+.tx-refund .form-label {
+    display: block;
+    margin-bottom: 3px;
+    font-size: 11px;
+    font-weight: var(--w-body);
+    color: var(--ink-3);
+}
+
+@media (min-width: 768px) {
+    .tx-refund { grid-template-columns: 190px minmax(0, 1fr); align-items: start; }
+}
+
+/* Bank and method shown as the card's: text at control height, so the group keeps its rhythm when they lock. */
+.tx-locked {
+    min-height: 38px;
+    margin: 0;
+    padding: 7px 0;
+    font-weight: var(--w-control);
+    color: var(--ink);
+}
+
+/* ---------------------------------------------------------------- the two groups */
+.tx-group {
+    padding: var(--card-pad-y) var(--card-pad-x);
+    border: 1px solid var(--app-border);
+    border-radius: var(--radius-card);
+    background: var(--card-bg);
+}
+
+.tx-group h2 {
+    margin: 0 0 11px;
+    font-size: 11px
+    ;
+    font-weight: var(--w-display);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+}
+
+.tx-fields {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 11px;
+}
+
+.tx-field {
+    min-width: 0;
+}
+
+/* The date sits in the money block, OUTSIDE .tx-field, so it was falling back to Bootstrap's own
+   .form-label size and reading larger than every other label on the form. */
+.tx-money-date .form-label,
+.tx-field .form-label {
+    display: block;
+    margin-bottom: 3px;
+    font-size: 11px;
+    font-weight: var(--w-body);
+    color: var(--ink-3);
+}
+
+.tx-field .form-check-label {
+    font-size: 12px;
+    color: var(--ink-2);
+}
+
+/* One line under a control, saying what it does. */
+.tx-hint {
+    margin: 5px 0 0;
+    font-size: 11px;
+    font-weight: var(--w-body);
+    color: var(--ink-3);
+}
+
+.tx-hint-end {
+    text-align: right;
+}
+
+/* ---------------------------------------------------------------- the rail */
+.tx-rail-lands {
+    margin: 0 0 9px;
+    font-size: 12px;
+    font-weight: var(--w-control);
+    color: var(--ink);
+}
+
+/* label | figure, so the two currencies and the rate line up against each other. */
+.tx-rail-money {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 3px 11px;
+    margin: 0;
+    font-size: 12px;
+}
+
+.tx-rail-money dt {
+    font-weight: var(--w-body);
+    color: var(--ink-3);
+}
+
+.tx-rail-money dd {
+    margin: 0;
+    text-align: right;
+    font-weight: var(--w-control);
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+}
+
+@media (min-width: 768px) {
+    /* START, not end: the amount block is taller than the date because of its conversion line, so
+       bottom-aligning them left the Date LABEL floating halfway down the amount field. Aligned at the
+       top, both labels sit on one line and both controls start together. */
+    .tx-money { grid-template-columns: 1fr 190px; align-items: start; }
+    .tx-fields { grid-template-columns: 1fr 1fr; }
+    .tx-field-wide { grid-column: 1 / -1; }
+}
+
+@media (min-width: 992px) {
+    .tx-layout { grid-template-columns: 1fr 320px; }
+    .tx-fields { grid-template-columns: 1fr 1fr 1fr; }
+}

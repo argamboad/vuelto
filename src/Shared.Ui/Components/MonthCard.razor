@@ -1,0 +1,107 @@
+@using System.Globalization
+@inject IStringLocalizer<AppStrings> Localizer
+
+@* SKIN-8 · one pay-cycle month as a card: its window, its week count, a spent-versus-planned bar and its result,
+   so a year reads in one pass. The whole card is ONE anchor — a single tap target, not a row with a nested link —
+   and its accessible name says everything the card shows, which is why the bar is decorative (PaceBar hides its
+   track from readers and, here, its legend too: the same numbers are already in the text).
+
+   The figures are optional on purpose. A month exists from its first transaction; its money comes from a second
+   request that can be slow or fail (no exchange rate resolves), and a card never waits on it to exist. *@
+<a class="month-card" href="@Href" data-testid="@TestId" data-state="@State" aria-label="@AccessibleName()">
+    <div class="month-card-head">
+        <h2 class="month-card-title" data-testid="@Id("title")">@Title</h2>
+        <span class="month-card-chip" data-testid="@Id("chip")" data-state="@State">@Localizer[ChipKey()]</span>
+    </div>
+    <p class="month-card-window" data-testid="@Id("window")">@Window()</p>
+
+    @if (Figures is { } f)
+    {
+        <PaceBar Total="@BarTotal(f)" Segments="@Segments(f)" ShowLegend="false" TestId="@Id("bar")" />
+        <div class="month-card-foot">
+            <span class="month-card-spent" data-testid="@Id("spent")">@Localizer["Months_Spent", Amount(f.Spent)]</span>
+            <span class="month-card-result" data-testid="@Id("result")" data-tone="@(Side(f.Result) < 0 ? "bad" : "good")">@SignedResult(f)</span>
+        </div>
+    }
+    else if (FiguresLoaded)
+    {
+        <PaceBar Total="1" Segments="@NoSegments" ShowLegend="false" TestId="@Id("bar")" />
+        <p class="month-card-nofigures" data-testid="@Id("nofigures")">@Localizer["Months_NoFigures"]</p>
+    }
+    else
+    {
+        @* Still on its way: the track is there so the card does not jump when the figures land. *@
+        <PaceBar Total="1" Segments="@NoSegments" ShowLegend="false" TestId="@Id("bar")" />
+        <p class="month-card-nofigures month-card-pending" data-testid="@Id("pending")" aria-hidden="true">…</p>
+    }
+</a>
+
+@code {
+    [Parameter, EditorRequired] public string Href { get; set; } = "";
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+
+    /// <summary>current · closed · upcoming — decided by whether today sits inside, after, or before the window.</summary>
+    [Parameter] public string State { get; set; } = "closed";
+
+    [Parameter] public DateOnly WindowStart { get; set; }
+    [Parameter] public DateOnly WindowEnd { get; set; }
+    [Parameter] public int WeekCount { get; set; }
+
+    /// <summary>Null while loading or when no summary could be computed; <see cref="FiguresLoaded"/> tells the two apart.</summary>
+    [Parameter] public MonthCardFigures? Figures { get; set; }
+    [Parameter] public bool FiguresLoaded { get; set; }
+
+    /// <summary>The "show amounts in" preference. A card carries one figure per fact, so "both" shows the colón side.</summary>
+    [Parameter] public string Display { get; set; } = MoneyDisplay.Both;
+
+    [Parameter] public string TestId { get; set; } = "month-card";
+
+    private string Id(string part) => $"month-card-{part}";
+
+    private static readonly IReadOnlyList<PaceSegment> NoSegments = [];
+
+    private string ChipKey() => State switch
+    {
+        "current" => "Months_ChipCurrent",
+        "upcoming" => "Months_ChipUpcoming",
+        _ => "Months_ChipClosed",
+    };
+
+    private string Window() =>
+        $"{WindowStart.ToString(ShortDay(), CultureInfo.CurrentCulture)} – {WindowEnd.ToString(ShortDay(), CultureInfo.CurrentCulture)} · {Localizer["Months_Weeks", WeekCount]}";
+
+    /// <summary>"Aug 28" in English, "28 ago" in Spanish — the culture's month-day pattern with the month abbreviated.</summary>
+    private static string ShortDay() =>
+        CultureInfo.CurrentCulture.DateTimeFormat.MonthDayPattern.Replace("MMMM", "MMM").Replace("dd", "d").Replace(" 'de' ", " ");
+
+    private decimal Side(MoneyPair m) => Display == MoneyDisplay.Usd ? m.Usd : m.Crc;
+
+    private string Amount(MoneyPair m) => Display == MoneyDisplay.Usd
+        ? "$" + m.Usd.ToString("N2", CultureInfo.CurrentCulture)
+        : "₡" + m.Crc.ToString("N2", CultureInfo.CurrentCulture);
+
+    private string AbsAmount(MoneyPair m) => Amount(new MoneyPair(Math.Abs(m.Crc), Math.Abs(m.Usd)));
+
+    private string SignedResult(MonthCardFigures f) => (Side(f.Result) < 0 ? "−" : "+") + AbsAmount(f.Result);
+
+    /// <summary>The bar is a share of income; a month with no income yet draws against what it has, so it still fills.</summary>
+    private decimal BarTotal(MonthCardFigures f)
+    {
+        var income = Side(f.Income);
+        return income > 0 ? income : Side(f.Spent) + Side(f.Planned);
+    }
+
+    private List<PaceSegment> Segments(MonthCardFigures f) =>
+    [
+        new(Localizer["Months_Spent", Amount(f.Spent)], Side(f.Spent), "primary"),
+        new(Localizer["Dash_BarPlanned"], Side(f.Planned), "muted", Hatched: true),
+    ];
+
+    private string AccessibleName()
+    {
+        var head = $"{Title}, {Localizer[ChipKey()]}";
+        if (Figures is not { } f) return $"{head}, {Window()}";
+        var result = Side(f.Result) < 0 ? Localizer["Months_ResultOver", AbsAmount(f.Result)] : Localizer["Months_ResultLeft", AbsAmount(f.Result)];
+        return $"{head}, {Localizer["Months_Spent", Amount(f.Spent)]}, {result}";
+    }
+}

@@ -11,11 +11,13 @@ public record MoneyPairResponse([property: JsonPropertyName("crc")] decimal Crc,
     public static MoneyPairResponse From(MoneyPair p) => new(p.Crc, p.Usd);
 }
 
+/// <summary><c>category_id</c> (2026-09-12): the category the line's actuals are matched on, so the transaction form and the review queue can say what a purchase does to its line.</summary>
 public record ExpenseLineResponse(
     [property: JsonPropertyName("name")] string Name,
     [property: JsonPropertyName("budget")] MoneyPairResponse Budget,
     [property: JsonPropertyName("actual")] MoneyPairResponse Actual,
-    [property: JsonPropertyName("budget_currency")] string BudgetCurrency);
+    [property: JsonPropertyName("budget_currency")] string BudgetCurrency,
+    [property: JsonPropertyName("category_id")] Guid CategoryId = default);
 
 public record WeeklyTotalResponse(
     [property: JsonPropertyName("week_number")] int WeekNumber,
@@ -30,8 +32,14 @@ public record EnvelopeReminderResponse(
     [property: JsonPropertyName("remaining")] MoneyPairResponse Remaining,
     [property: JsonPropertyName("cadence")] string Cadence);
 
+/// <summary><c>by_class</c> (2026-09-14): this category's spend split by expense class, summing to <c>actual</c>, so a client can group unbudgeted spend by what kind of money it is.</summary>
 public record CategorySpendResponse(
     [property: JsonPropertyName("category_name")] string CategoryName,
+    [property: JsonPropertyName("actual")] MoneyPairResponse Actual,
+    [property: JsonPropertyName("by_class")] IReadOnlyList<ClassSpendResponse> ByClass);
+
+public record ClassSpendResponse(
+    [property: JsonPropertyName("class")] string Class,
     [property: JsonPropertyName("actual")] MoneyPairResponse Actual);
 
 public record BankMethodBreakdownResponse(
@@ -79,9 +87,10 @@ public record DashboardSummaryResponse(
         MoneyPairResponse.From(s.Income.Primary), MoneyPairResponse.From(s.Income.Secondary), MoneyPairResponse.From(s.Income.Total),
         MoneyPairResponse.From(s.Expenses.Card), MoneyPairResponse.From(s.Expenses.Account), MoneyPairResponse.From(s.Expenses.GrandTotal), MoneyPairResponse.From(s.Expenses.Remainder),
         MoneyPairResponse.From(s.Expenses.Budgeted), MoneyPairResponse.From(s.Expenses.Extraordinary), MoneyPairResponse.From(s.Expenses.UnplannedEssential),
-        s.FixedExpenses.Select(l => new ExpenseLineResponse(l.Name, MoneyPairResponse.From(l.Budget), MoneyPairResponse.From(l.Actual), l.BudgetCurrency)).ToList(),
-        s.VariableExpenses.Select(l => new ExpenseLineResponse(l.Name, MoneyPairResponse.From(l.Budget), MoneyPairResponse.From(l.Actual), l.BudgetCurrency)).ToList(),
-        s.OtherSpending.Select(c => new CategorySpendResponse(c.CategoryName, MoneyPairResponse.From(c.Actual))).ToList(),
+        s.FixedExpenses.Select(l => new ExpenseLineResponse(l.Name, MoneyPairResponse.From(l.Budget), MoneyPairResponse.From(l.Actual), l.BudgetCurrency, l.CategoryId)).ToList(),
+        s.VariableExpenses.Select(l => new ExpenseLineResponse(l.Name, MoneyPairResponse.From(l.Budget), MoneyPairResponse.From(l.Actual), l.BudgetCurrency, l.CategoryId)).ToList(),
+        s.OtherSpending.Select(c => new CategorySpendResponse(c.CategoryName, MoneyPairResponse.From(c.Actual),
+            c.ByClass.Select(k => new ClassSpendResponse(k.Class, MoneyPairResponse.From(k.Actual))).ToList())).ToList(),
         s.WeeklyBudgeted.Select(w => new WeeklyTotalResponse(w.WeekNumber, w.StartDate, w.EndDate, MoneyPairResponse.From(w.Total))).ToList(),
         s.WeeklyExtraordinary.Select(w => new WeeklyTotalResponse(w.WeekNumber, w.StartDate, w.EndDate, MoneyPairResponse.From(w.Total))).ToList(),
         MoneyPairResponse.From(s.Balance.CurrentBalance), MoneyPairResponse.From(s.Balance.RemainderForDebts), MoneyPairResponse.From(s.Balance.PendingBudgeted), MoneyPairResponse.From(s.Balance.ActualRemainder),

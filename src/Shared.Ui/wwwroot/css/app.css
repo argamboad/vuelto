@@ -23,7 +23,58 @@
     --bs-link-hover-color: #3A4178;
     --header-height: 60px;
     --app-bg: #F7F7FC;              /* page background surface — near-white tinted toward indigo */
-    --app-border: #E1E3F2;
+    --app-border: #E1E3F2;          /* card borders, table head rules */
+
+    /* Surfaces and ink (SKIN-1). The brand block above is untouched: these sit beside it so that
+       dark mode stays a token swap in the block below, with no component-level branching anywhere.
+       Both blocks carry the same names, which is the whole point — a component reads --ink and is
+       correct in either theme. Body and label ink clears 4.5:1 on its own surface in both themes;
+       the muted level is #6B6F8D in light rather than a lighter grey, which would not. */
+    --card-bg: #FFFFFF;             /* card and panel surface — what sits ON --app-bg */
+    --rail: #EDEEF6;                /* bar tracks, chips, segmented-control backgrounds */
+    --hair: #F1F2F9;                /* row rules INSIDE a card — lighter than --app-border */
+    --zebra: #FAFAFE;               /* table heads, consequence panes, hover */
+    --ink: #1B1D33;                 /* headings and money */
+    --ink-2: #4A4E70;               /* body copy */
+    --ink-3: #6B6F8D;               /* labels, meta, legends */
+    /* Semantic — budget meaning ONLY, and each means exactly one thing. Green/red are under/over
+       budget (plus received/destructive); amber is "needs attention" and is NEVER over-budget — an
+       incomplete bank email is amber, an overspent line is red. Gold stays the ₡ in the logo. */
+    --good: #2F8F5B;                /* under budget, received, on track */
+    --bad: #C8452F;                 /* over budget, required, destructive */
+    --warn-bg: #FFF6E0;             /* needs attention — never over-budget */
+
+    /* Radius (SKIN-1). Bootstrap's default is 6px, smaller than this design wants. One variable
+       cannot carry both a 14px card and a 9px control, so --bs-border-radius takes the CONTROL
+       value — buttons, inputs, dropdowns, alerts and modals are then right by default — and the
+       card is the single component override below. --radius-bar is for the segmented progress
+       bars SKIN-2 builds; a pill chip uses Bootstrap's own --bs-border-radius-pill. */
+    --bs-border-radius: 9px;
+    /* The design has ONE control radius, not a scale. Bootstrap derives its small and large variants from
+       their own tokens, so `.btn-sm`, `.form-control-sm` and `.form-select-sm` kept Bootstrap's 4px while
+       full-size controls took the 9 — which is why the same picker looked different on the transaction
+       form (full size) and the review queue (-sm). 119 controls in the app use a -sm variant.
+       The large token is the CARD radius, so a Bootstrap modal matches the cards it opens over. */
+    --bs-border-radius-sm: 9px;
+    --bs-border-radius-lg: 14px;
+    --radius-card: 14px;
+    --radius-bar: 6px;
+
+    /* Rhythm, from the handout's own table (page 4): card padding 19/22 · 17/19 · 15/16 and card gap
+       15 · 13 · 11, desktop · tablet · phone. Declared smallest-first and stepped UP by the two media
+       blocks below, so every card reads one pair and is correct at all three widths — nine files were
+       each carrying their own approximation before, mostly a value on no step at all. */
+    --card-pad-y: 15px;
+    --card-pad-x: 16px;
+    --card-gap: 11px;
+
+    /* Weight carries hierarchy in this design more than size does, so the three steps are named.
+       Sizes are deliberately NOT tokens: they vary per breakpoint and per component, and belong
+       with the components (SKIN-2) rather than here. Nothing renders below 11px, and 11px only
+       for uppercase labels and legends. */
+    --w-display: 800;               /* verdicts, page titles, step values, card headings */
+    --w-control: 700;               /* rows, controls, chips, legends */
+    --w-body: 600;                  /* body copy */
 }
 
 /* Dark theme (THEME-1). data-bs-theme is set on <html> pre-paint by js/theme.js; Bootstrap 5.3
@@ -32,6 +83,20 @@
 [data-bs-theme="dark"] {
     --app-bg: #14162A;              /* indigo-tinted dark surface */
     --app-border: #2C3050;
+    /* The dark half of the SKIN-1 surface/ink set. Same names, swapped values — note the ink
+       scale inverts (--ink is the LIGHTEST here) while --ink-3 stays the muted one, so a component
+       written against the light theme reads correctly with no dark-specific rule. The semantic
+       pair lightens rather than inverting: green and red have to clear 4.5:1 on #1C1F38. */
+    --card-bg: #1C1F38;
+    --rail: #282C4C;
+    --hair: #252947;
+    --zebra: #181B32;
+    --ink: #F1F2FA;
+    --ink-2: #C4C8E6;
+    --ink-3: #9EA3C6;
+    --good: #63C48D;
+    --bad: #F08A78;
+    --warn-bg: #332A12;
     --bs-link-color: #9AA4F5;
     --bs-link-hover-color: #C5CBF7;
     /* The dark counterparts of the derived family above. */
@@ -40,19 +105,24 @@
     --bs-primary-border-subtle: #363E82;
 }
 
-[data-bs-theme="dark"] a,
-[data-bs-theme="dark"] .btn-link {
-    color: var(--brand-accent-light);
+/* Links go light in dark theme — but an anchor that is really a BUTTON is excluded, because this
+   rule is specificity 0,1,1 and outranks every .btn-* colour at 0,1,0. Without the :not(.btn) an
+   <a class="btn btn-warning"> renders pale lavender on amber (1.9:1) while an identical <button>
+   renders correctly, which is a genuinely confusing bug: same classes, different result, decided by
+   the tag. This was previously patched for .btn-primary alone; every other variant still fell
+   through, and "Review now" on the dashboard was the one that showed it.
+   .btn-link is named separately on purpose: it carries .btn but IS a link, so it opts back in. */
+@media (min-width: 768px) {
+    :root { --card-pad-y: 17px; --card-pad-x: 19px; --card-gap: 13px; }
 }
 
-/* ...but not an anchor that is really a button. The rule above is specificity 0,1,1 and beats
-   .btn-primary at 0,1,0, so in dark theme an <a class="btn btn-primary"> takes the light accent and
-   sits on the indigo fill — 3.04:1, where AA wants 4.5:1. It fires for anchors only, which is why an
-   identical <button> looks right and the two render differently from the same class. */
-[data-bs-theme="dark"] a.btn-primary,
-[data-bs-theme="dark"] a.btn-primary:hover,
-[data-bs-theme="dark"] a.btn-primary:focus {
-    color: #fff;
+@media (min-width: 992px) {
+    :root { --card-pad-y: 19px; --card-pad-x: 22px; --card-gap: 15px; }
+}
+
+[data-bs-theme="dark"] a:not(.btn),
+[data-bs-theme="dark"] .btn-link {
+    color: var(--brand-accent-light);
 }
 
 /* Same collision, on the header. The bar is the primary indigo in BOTH themes, so its wordmark is
@@ -84,6 +154,15 @@
     width: auto;
 }
 
+/* The card is the only component that overrides the radius, and it needs BOTH variables, not one.
+   Bootstrap declares --bs-card-inner-border-radius as calc(var(--bs-border-radius) - border-width)
+   — derived from the GLOBAL radius, not from the card's own — so setting only the card variable
+   leaves a .card-header's top corners at 8px inside a 14px card. Visible, and easy to miss. */
+.card {
+    --bs-card-border-radius: var(--radius-card);
+    --bs-card-inner-border-radius: calc(var(--radius-card) - var(--bs-border-width));
+}
+
 html, body {
     /* Nunito is the brand typeface (loaded from Google Fonts by both hosts' index.html);
        the system stack is the offline / native-WebView fallback. */
@@ -99,6 +178,32 @@ a, .btn-link {
     color: var(--bs-primary);
 }
 
+/* SKIN-2's Buttons item is "map to the existing .btn-* classes; only radius and padding change". The
+   radius arrived with the tokens; this is the padding and weight half, which had been left undone — so
+   every button still carried Bootstrap's proportions and read as foreign beside the redesigned fields.
+   Applies to the whole app at once, which is the point of a shared treatment. */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 38px; /* a button beside an input is the input's height, never shorter */
+    font-size: 13px;
+    font-weight: var(--w-control);
+    padding: 7px 15px;
+}
+
+.btn-sm,
+.btn-group-sm > .btn {
+    min-height: 31px; /* the small input's height */
+    font-size: 12px;
+    padding: 5px 11px;
+}
+
+.btn-lg { min-height: 48px; }
+
+/* A link styled as a button is text; it keeps the line, not a control's height. */
+.btn-link { min-height: 0; display: inline; }
+
 .btn-primary {
     color: #fff;
     background-color: var(--bs-primary);
@@ -112,6 +217,16 @@ a, .btn-link {
 
 .btn-primary:focus, .btn-primary:active {
     background-color: var(--brand-dark);
+    border-color: var(--brand-dark);
+}
+
+/* The same family as the checkbox/switch overrides below: bootstrap.min.css compiles the DISABLED button
+   with a literal #0d6efd, and `.btn-primary:disabled` (0,2,0) outranks the `.btn-primary` rule above
+   (0,1,0) — so every disabled primary button in the app was Bootstrap blue, not the brand indigo. In dark
+   theme that reads BRIGHTER than the enabled button beside it, which inverts the whole point of the state.
+   Opacity .65 is Bootstrap's own and is left alone: that is what says "disabled", not the hue. */
+.btn-primary:disabled, .btn-primary.disabled {
+    background-color: var(--bs-primary);
     border-color: var(--brand-dark);
 }
 
@@ -246,4 +361,144 @@ code {
 
 .form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
     text-align: start;
+}
+
+/* ================================================================ SKIN-11 · the fourteen screens the handout never
+   drew inherit the composition here — the card shell, the table treatment, the label, the pill, the invalid
+   state — so a platform-seeded page reads as the same product as the redesigned ones. The redesigned pages
+   carry scoped CSS of their own and are untouched by these. */
+
+/* Card shell: one hairline on the app's surface, no shadow, the shared rhythm inside. */
+.card {
+    border: 1px solid var(--app-border);
+    background: var(--card-bg);
+}
+
+.card.shadow-sm { box-shadow: none !important; }
+
+.card-body { padding: var(--card-pad-y) var(--card-pad-x); }
+
+/* A card's section heading is the eyebrow every redesigned card uses ("THIS MONTH", "PACE"). */
+.card-body h2.h6,
+.card-body h3.h6 {
+    font-size: 11px;
+    font-weight: var(--w-display);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+}
+
+.form-label {
+    margin-bottom: 3px;
+    font-size: 11px;
+    font-weight: var(--w-control);
+    color: var(--ink-3);
+}
+
+/* Tables: the ledger's treatment — zebra head, hairline rules, hover, tabular figures. */
+.table {
+    --bs-table-bg: transparent;
+    --bs-table-color: var(--ink);
+    --bs-table-border-color: var(--hair);
+    --bs-table-hover-bg: var(--zebra);
+    --bs-table-hover-color: var(--ink);
+    font-size: 12px;
+    font-weight: var(--w-body);
+}
+
+.table thead th {
+    background: var(--zebra);
+    border-bottom: 1px solid var(--hair);
+    font-size: 10px;
+    font-weight: var(--w-display);
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    white-space: nowrap;
+}
+
+.table tbody td,
+.table tbody th {
+    border-bottom: 1px solid var(--hair);
+    vertical-align: middle;
+    font-variant-numeric: tabular-nums;
+}
+
+/* List rows inside a card sit on the card, not on a lighter band; the rule between them is the hairline. */
+.card .list-group-item {
+    background: transparent;
+    color: inherit;
+    border-color: var(--hair);
+}
+
+.card .list-group-item-action:hover,
+.card .list-group-item-action:focus { background: var(--zebra); }
+
+.card .list-group-item.active {
+    background: var(--bs-primary-bg-subtle);
+    color: var(--bs-primary-text-emphasis);
+    border-color: var(--hair);
+}
+
+/* Checks and switches: sized to sit with 12–13px text and 31px controls rather than Bootstrap's 16px default. */
+.form-check-input {
+    width: 18px;
+    height: 18px;
+    margin-top: 0;
+    vertical-align: middle;
+    border-color: var(--app-border);
+    border-radius: 4px;
+    background-color: var(--card-bg);
+}
+
+.form-switch .form-check-input {
+    width: 34px;
+    border-radius: 18px;
+}
+
+.form-check-input:checked {
+    background-color: var(--bs-primary);
+    border-color: var(--bs-primary);
+}
+
+/* A raw Bootstrap badge that still exists anywhere takes the pill's proportions. */
+.badge {
+    padding: 2px 9px;
+    border-radius: var(--bs-border-radius-pill);
+    font-size: 10px;
+    font-weight: var(--w-control);
+    line-height: 1.6;
+}
+
+/* The invalid state is a red border plus a message — not Bootstrap's icon. */
+.form-control.is-invalid,
+.form-select.is-invalid {
+    border-color: var(--bad);
+    background-image: none;
+    padding-right: .75rem;
+}
+
+.form-control.is-invalid:focus,
+.form-select.is-invalid:focus {
+    border-color: var(--bad);
+    box-shadow: 0 0 0 .2rem color-mix(in srgb, var(--bad) 25%, transparent);
+}
+
+.invalid-feedback {
+    font-size: 11px;
+    font-weight: var(--w-body);
+    color: var(--bad);
+}
+
+/* Below md a table folds its secondary columns (.fold-md) into a sub-line under the name (.sub-line). */
+.sub-line {
+    display: none;
+    font-size: 11px;
+    font-weight: var(--w-body);
+    color: var(--ink-3);
+}
+
+@media (max-width: 767.98px) {
+    .fold-md { display: none; }
+    .sub-line { display: block; }
 }

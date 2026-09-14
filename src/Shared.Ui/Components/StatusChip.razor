@@ -1,0 +1,14 @@
+@* SKIN-11 · a state as a pill: Active, Connected, Owner, Pro, Needs reconnect. The tone is a role the chip knows,
+   never a colour the call site picks — neutral on the rail; plan (the brand tint) for a role or a plan that is
+   simply "the one"; good and bad for done and failed; warn for needs attention; info for a plain fact. Green and
+   red keep their budget meaning elsewhere; here they mean done and broken, which is the same rule read for a
+   state. Extra attributes (a data-role, a title) pass straight through. *@
+<span class="status-chip" data-tone="@Tone" data-testid="@TestId" @attributes="Extra">@ChildContent</span>
+
+@code {
+    /// <summary>neutral (default) · plan · good · warn · bad · info</summary>
+    [Parameter] public string Tone { get; set; } = "neutral";
+    [Parameter] public string? TestId { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter(CaptureUnmatchedValues = true)] public Dictionary<string, object>? Extra { get; set; }
+}

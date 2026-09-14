@@ -1,0 +1,125 @@
+/* The rail is the track plus the today marker, which must overhang the track — so the marker is positioned
+   against the rail, not the clipped track. The rail carries the marker's overhang as padding so nothing
+   above or below the bar is covered. */
+.pace-rail {
+    position: relative;
+    padding: 4px 0;
+}
+
+.pace[data-thick="true"] .pace-rail {
+    padding-top: 10px; /* room for the cap */
+}
+
+/* The track keeps its 8px height at every width — it is the scanning cue, so it does not shrink on phone. */
+.pace-track {
+    position: relative;
+    display: flex;
+    height: 8px;
+    border-radius: var(--radius-bar);
+    background: var(--rail);
+    overflow: hidden;
+}
+
+/* The dashboard's verdict bar: the handout draws it clearly heavier than the card bars — two and a half times. */
+.pace-track[data-thick="true"] {
+    height: 20px;
+    border-radius: 10px;
+}
+
+.pace-segment {
+    height: 100%;
+    min-width: 2px;
+}
+
+.pace-segment[data-tone="primary"] { background: var(--bs-primary); }
+.pace-segment[data-tone="warn"] { background: var(--warn-bg); }
+.pace-segment[data-tone="good"] { background: var(--good); }
+.pace-segment[data-tone="bad"] { background: var(--bad); }
+.pace-segment[data-tone="rail"] { background: var(--brand-accent-light); }
+/* Discretionary sits beside budgeted, so it is the lighter brand tint rather than a semantic colour;
+   "still planned" is money that has NOT moved yet, so it is a neutral grey and always hatched. */
+.pace-segment[data-tone="accent"] { background: var(--brand-accent-light); }
+.pace-segment[data-tone="muted"] { background: color-mix(in srgb, var(--ink-3) 45%, transparent); }
+
+/* Hatching means one thing wherever it appears: planned, not yet spent. Drawn over whatever tone the segment
+   already has, so "planned" reads as a lighter version of the thing it is planned against. */
+.pace-segment[data-hatched="true"] {
+    background-image: repeating-linear-gradient(
+        135deg,
+        color-mix(in srgb, var(--card-bg) 55%, transparent) 0 3px,
+        transparent 3px 6px
+    );
+}
+
+/* Today. A tick rather than a label — the elapsed share is stated in words beside the bar. Full ink with a
+   card-coloured halo on each side, so it separates from whatever segment sits under it, light or dark, and
+   it overhangs the track by 4px top and bottom. */
+.pace-marker {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--ink);
+    box-shadow: 0 0 0 1.5px var(--card-bg);
+    transform: translateX(-1px);
+}
+
+/* The thick bar's marker wears a small cap pointing down at the day — the bar is the screen's verdict, so
+   "today" gets a shape, not just a line. */
+.pace[data-thick="true"] .pace-marker::before {
+    content: "";
+    position: absolute;
+    top: -6px;
+    left: 50%;
+    border: 5px solid transparent;
+    border-top: 6px solid var(--ink);
+    border-bottom: 0;
+    transform: translateX(-50%);
+}
+
+.pace-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 13px;
+    margin: 7px 0 0;
+    padding: 0;
+    list-style: none;
+    font-size: 11px;
+    font-weight: var(--w-control);
+    color: var(--ink-3);
+}
+
+.pace-legend li {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.pace-key {
+    width: 9px;
+    height: 9px;
+    border-radius: 3px;
+    background: var(--rail);
+}
+
+.pace-legend li[data-tone="primary"] .pace-key { background: var(--bs-primary); }
+.pace-legend li[data-tone="warn"] .pace-key { background: var(--warn-bg); }
+.pace-legend li[data-tone="good"] .pace-key { background: var(--good); }
+.pace-legend li[data-tone="bad"] .pace-key { background: var(--bad); }
+.pace-legend li[data-tone="rail"] .pace-key { background: var(--brand-accent-light); }
+.pace-legend li[data-tone="accent"] .pace-key { background: var(--brand-accent-light); }
+.pace-legend li[data-tone="muted"] .pace-key { background: color-mix(in srgb, var(--ink-3) 45%, transparent); }
+
+.pace-legend li[data-hatched="true"] .pace-key {
+    background-image: repeating-linear-gradient(
+        135deg,
+        color-mix(in srgb, var(--card-bg) 55%, transparent) 0 2px,
+        transparent 2px 4px
+    );
+}
+
+/* The share sits after the amount and recedes — the money is the point, the percentage is context. */
+.pace-share {
+    color: var(--ink-3);
+    opacity: .8;
+}

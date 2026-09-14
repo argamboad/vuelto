@@ -37,12 +37,12 @@
 
 ```bash
 docker compose up -d                                   # Postgres + Mailpit
-dotnet run --project src/Api --launch-profile https    # binds https:7160 (web/desktop) AND http:5238 (android)
+dotnet run --project src/Api --launch-profile https    # binds https:7260 (web/desktop) AND http:5338 (android)
 ```
 
-- API health/liveness check: `curl -k https://localhost:7160/health` → **200** (`Healthy`);
-  `curl -k https://localhost:7160/health/ready` → **200** when the database is reachable (503 if not).
-  *(The older `curl -k -X POST https://localhost:7160/api/auth/refresh` → **401** reachability check
+- API health/liveness check: `curl -k https://localhost:7260/health` → **200** (`Healthy`);
+  `curl -k https://localhost:7260/health/ready` → **200** when the database is reachable (503 if not).
+  *(The older `curl -k -X POST https://localhost:7260/api/auth/refresh` → **401** reachability check
   still works.)*
 - **Mailpit UI: <http://localhost:8025>** — this is the dev mail trap. Every magic link, OTP code,
   and invitation email lands here. Keep it open in a tab throughout testing.
@@ -63,7 +63,7 @@ dotnet run --project src/Api --launch-profile https    # binds https:7160 (web/d
   > (reliability moved to the background): if an email never arrives while SMTP points at Mailpit, the
   > message is retrying or dead-lettered in the `OutboxMessages` table — it is **no longer** surfaced as
   > a request error.
-- Web app: `dotnet run --project src/Web --launch-profile https` → **<https://localhost:7008>**.
+- Web app: `dotnet run --project src/Web --launch-profile https` → **<https://localhost:7108>**.
   > ⚠️ Always use the **https** profile for both web and API. Chrome treats `http://localhost` and
   > `https://localhost` as different sites, so the refresh cookie is dropped over http and sign-in
   > silently fails to persist. (See `docs/DECISIONS.md` / the schemeful-same-site note.)
@@ -91,17 +91,17 @@ dotnet run --project src/Api --launch-profile https    # binds https:7160 (web/d
 
 ### 1.3 Desktop (MAUI Windows) — additional setup
 - Run the app from Visual Studio (Windows Machine target) or `dotnet build src/Maui -t:Run -f net10.0-windows...`.
-- API must be running on `https://localhost:7160` (the desktop client's base URL).
+- API must be running on `https://localhost:7260` (the desktop client's base URL).
 - OAuth uses a **loopback browser flow** — your default system browser will open a tab during OAuth.
 
 ### 1.4 Android (MAUI) — additional setup
 Follow `docs/MOBILE_TESTING.md`. The essential bits:
 - Emulator (AVD) or USB device running.
-- **`adb reverse tcp:5238 tcp:5238`** — **re-run every time the device/emulator restarts** (it does
+- **`adb reverse tcp:5338 tcp:5338`** — **re-run every time the device/emulator restarts** (it does
   not persist). Verify with `adb reverse --list`.
-- API started with the **https** profile (binds the cleartext `:5238` leg the device uses).
-- Provider redirect URIs registered: `http://localhost:5238/signin-google` and
-  `http://localhost:5238/signin-microsoft`.
+- API started with the **https** profile (binds the cleartext `:5338` leg the device uses).
+- Provider redirect URIs registered: `http://localhost:5338/signin-google` and
+  `http://localhost:5338/signin-microsoft`.
 
 ### 1.5 Environment B — deployed staging (DEPLOY, ADR-017)
 
@@ -197,13 +197,16 @@ Then I am signed in and land on the home page
 And the header shows my household name and my display name
 ```
 **Walkthrough**
-1. Open <https://localhost:7008> → you're redirected to `/login`.
+1. Open <https://localhost:7108> → you're redirected to `/login`.
 2. In the email field enter `qa-smoke@example.com`; click **Email me a 6-digit code**.
 3. **Expected:** the form switches to a code-entry view ("Enter the 6-digit code sent to …").
 4. Open Mailpit (<http://localhost:8025>); open the newest mail; copy the 6-digit code.
 5. Enter the code; click **Verify code**.
-6. **Expected:** you land on the home page; the top header shows a tenant badge (household name)
-   and your display name, plus **Household**, **Settings**, **Sign out** buttons.
+6. **Expected:** you land on the home page; the top header shows the nav (the active item as a filled
+   white pill) and, on the right, the bell and a **user menu** — the tenant chip plus your display name.
+   Opening it shows the theme switcher, then **Household**, **Billing**, **Settings** and **Sign out**.
+   (SKIN-4: those used to sit loose in the bar; the bell stays outside the menu because an unread count
+   you have to open a menu to see is not an indicator.)
 
 ### QA-SMK-02 — Web: Google OAuth sign-in 🔴 (Web)
 **Gherkin**
@@ -227,7 +230,8 @@ Then I am returned to the /login page
 And navigating to /settings redirects me back to /login
 ```
 **Walkthrough**
-1. While signed in, click **Sign out** in the header.
+1. While signed in, open the **user menu** (the tenant chip / your name, top right) and click
+   **Sign out**. Escape closes the menu without signing out; navigating anywhere closes it too.
 2. **Expected:** you land on `/login`.
 3. In the address bar go to `/settings`.
 4. **Expected:** you're bounced back to `/login` (no access without a session).
@@ -256,8 +260,8 @@ Then /health returns 200 "Healthy"
 And /health/ready returns 200 when the database is reachable, 503 when it is not
 ```
 **Walkthrough**
-1. `curl -k https://localhost:7160/health` → **200**, body `Healthy` (liveness — process up).
-2. `curl -k https://localhost:7160/health/ready` → **200** (readiness — Postgres reachable).
+1. `curl -k https://localhost:7260/health` → **200**, body `Healthy` (liveness — process up).
+2. `curl -k https://localhost:7260/health/ready` → **200** (readiness — Postgres reachable).
 3. *(Optional)* stop the DB (`docker compose stop db`) and re-run step 2 → **503**; then
    `docker compose start db` and confirm it returns to **200**.
 4. **Expected:** liveness is 200 whenever the process runs; readiness tracks DB reachability.
@@ -407,7 +411,8 @@ Then a human-readable error banner is shown
 
 ### QA-AUTH-10 — Magic link & OTP available on web; OAuth always 🟢 (Web)
 **Walkthrough:** confirm the web login page shows **both** "Email me a magic link" and "Email me a 6-digit code",
-plus Google/Microsoft buttons. (Native clients hide magic link — covered in §11–12.)
+plus Google/Microsoft buttons — all on the form pane, in that order, at every width. (Native clients hide
+magic link — covered in §11–12.)
 
 ---
 
@@ -494,11 +499,15 @@ leave/dissolve button. The single-owner invariant is enforced in the UI.
 **Gherkin**
 ```gherkin
 Given I am the only member and owner of my household
+Then the bottom card states, above the button and before any dialog, that leaving permanently deletes this household and its data
 When I click "Leave and delete" and confirm
 Then the household is dissolved and I am re-homed to a fresh solo household
 ```
 **Walkthrough**
-1. As sole owner (no other members), bottom card ("Leave & dissolve") → **Leave and delete**.
+1. As sole owner (no other members), bottom card ("Leave & dissolve") → **Expected (SKIN-11):** a
+   "This will" panel with the consequence in words sits above **Leave and delete** — the same card shows
+   "This will" above **Transfer** for an owner with members, and above **Leave** for a plain member.
+   Click **Leave and delete**.
 2. **Expected:** a confirm dialog warning the household will be deleted; on confirm, the app reloads
    and you land signed in with a **new empty household you own** (you're never left tenant-less).
 
@@ -781,11 +790,13 @@ owner's household (so no dissolve).
 **Gherkin**
 ```gherkin
 Given I am signed in on /settings
+Then the Danger zone states, above the button and before any dialog, that deleting permanently removes my account and personal data
 When I use the Danger zone "Delete my account" and confirm
 Then my account and personal data are deleted and I'm signed out
 ```
 **Walkthrough**
-1. **Settings** → **Danger zone** → **Delete my account** → confirm the dialog.
+1. **Settings** → **Danger zone** → **Expected (SKIN-11):** a "This will" panel stating the consequence
+   above **Delete my account**. Click it → confirm the dialog.
 2. **Expected (member):** account deleted; you're signed out and land on `/login`. Signing in again
    creates a brand-new account.
 3. **Owner with other members:** an error tells you to **transfer ownership first** (nothing deleted).
@@ -970,7 +981,9 @@ Given I am on /login in English
 When I choose Español in the language switcher
 Then the page text renders in Spanish
 ```
-**Walkthrough:** on `/login`, use the language switcher (bottom of the card) → **Español**.
+**Walkthrough:** on `/login`, use the language select — beside the theme select, under the sign-in
+controls on the form pane (SKIN-3: at desktop width the page is a split, brand panel left and the form
+pane right; below that the panel drops out and the lockup sits above the heading) → **Español**.
 **Expected:** titles, button labels, and prompts switch to Spanish; the choice persists on reload.
 
 ### QA-I18N-02 — Language persists per user across sessions 🟠 (Web) ⚙️ Automated in CI
@@ -1099,13 +1112,15 @@ And every user of every tenant receives it once the outbox delivers
 **Gherkin**
 ```gherkin
 Given I am staff on a tenant's detail in /admin
+Then the Subscription section states, above the button and before any dialog, what comping (or reverting) will do
 When I use "Upgrade to Pro (comp)" (and later "Revert to Free")
 Then the tenant's entitlements match the plan immediately, with no payment involved
 And a provider-managed (Stripe-backed) subscription refuses the override
 ```
 **Walkthrough**
-1. As staff, open a **Free** tenant's detail. The header shows a **plan badge** (`free`) next to the
-   status badge; the **Subscription** section shows **Upgrade to Pro (comp)**.
+1. As staff, open a **Free** tenant's detail. The header shows a **plan chip** (`free`) next to the
+   status chip; the **Subscription** section shows a "This will" panel stating what comping does, with
+   **Upgrade to Pro (comp)** beneath it (on Pro, the panel says what reverting does instead — SKIN-11).
 2. Comp it → confirm. **Expected:** "Subscription updated."; badge flips to `pro` / `active`; the
    button is replaced by **Revert to Free**. The comp **never lapses** (no period end) and is audited
    in-tenant (`admin.subscription.comped`).
@@ -1353,7 +1368,9 @@ Then the card reads Debit and not one past transaction moved
 When I edit it again ticking "Also correct past transactions on this card"
 Then the notice names how many moved, and those rows read Bank account on the month page
 When I open New transaction and pick that card
-Then Payment method becomes Bank account by itself, and I can still change it
+Then Bank and Payment method become the card's own — its bank, and Bank account for a debit card — shown as text under a hint reading "From the card — change the card to change these", not as pickers I could contradict
+And picking "No card" opens Bank and Payment method back up; a card with no bank on record leaves Bank open and points at Cards
+And the "How it was paid" group reads Card, then Bank, then Payment method
 And confirming a voucher on that card books the transaction against the bank account, still naming the card
 ```
 **Walkthrough:** **Settings → Manage cards** → **Expected:** a **Kind** column reading Credit or Debit.
@@ -1361,7 +1378,10 @@ And confirming a voucher on that card books the transaction against the bank acc
 page is unchanged. **Edit** → tick **Also correct past transactions on this card** → **Save** → **Expected:**
 "Updated. N past transaction(s) now match this card"; those rows now read **Bank account**, and the
 dashboard's **By bank and payment method** moves that money from the card group to the account group. **New
-transaction** → pick the debit card → **Expected:** **Payment method** flips to **Bank account** on its own.
+transaction** → the "How it was paid" group lists **Card** first → pick the debit card → **Expected:** **Bank**
+reads the card's bank and **Payment method** reads **Bank account**, both as text, with "From the card — change
+the card to change these" under the card; pick **No card** → **Expected:** both are pickers again. Pick a card
+with no bank set → **Expected:** Bank stays a picker and the hint links to **Cards**.
 Confirm a voucher on it → **Expected:** the booked row is **Bank account**. Via Postman (**24 · Cards →
 Update card**) with `kind: "prepaid"` → **Expected:** 400 naming `kind`.
 
@@ -1465,6 +1485,31 @@ And a PUT to an envelope id from another household returns 404
 
 ## 10h. Web — Months & transactions (app slice LEDGER-1/2) 🟠
 
+> **The transaction form is presented per SKIN-7 (2026-09-12):** amount FIRST and at display size, with the
+> currency toggle inside the same input group and the live conversion under it; then two named groups,
+> **What it was** and **How it was paid**; then a **Before you save** rail stating which pay-cycle month the
+> date lands in and both sides of the money. The class picker is five CHIPS in a radio group, not a dropdown
+> — all five, because each one opens a different path (unplanned → expected refund, envelope → bucket
+> picker, inflow → income). Save stays ENABLED and surfaces validation on submit; it never goes quietly
+> dead. Unchanged: which month a date falls into is the pay-cycle logic's business, and the rate freezes on
+> save, never on edit.
+
+> **Months and the month page are presented per SKIN-8 (2026-09-12).** **Months** is a card grid (three
+> columns at desktop, two on tablet, one on phone): each card is ONE link carrying the month name, a
+> **Current** / **Closed** / **Upcoming** chip (current = the window that holds today, not simply the newest),
+> the window and week count, an 8px spent-versus-planned bar, "Spent ₡…" and the result in green (left) or
+> red (over). The figures come from each month's summary after the grid is already on screen; a month whose
+> rate cannot resolve still shows as a card, with "Figures unavailable". A closed month's bar is solid and its
+> result is what was actually left. The **month page** opens with "← All months" and the Dashboard link, the
+> title, and one chip per week ("W1 · Jun 25"; hover for the full window); **income is one row** (two
+> amount + currency groups and **Save income**); the ledger is one table — Date, Payee, Category, Paid with,
+> Class, Amount — with class CHIPS, a stacked **Amount** cell (the "Show in" currency on top, the other
+> muted beneath; one side only when a single currency is chosen) and **Paid with** = the bank with the
+> card's alias beneath it. Below tablet width Category and Paid with hide and the payee gains a muted
+> sub-line ("Groceries · Cash · Casa VISA") with the class chip beneath it, the date narrows to "Jul 6", and
+> the filters fold behind a **Filters** button next to the payee search; the table never scrolls sideways. Refund rows use a status
+> PILL (amber Pending, green Received — under the payee on a phone) and a stacked amount.
+
 > The core loop (ADR-V005/V006/V007): a transaction's date decides its pay-cycle month; months
 > appear with their first transaction (weeks materialized, income snapshotted) and leave with their
 > last; the exchange rate is frozen at creation. Fixture with the default settings (Thursday /
@@ -1475,27 +1520,39 @@ And a PUT to an envelope id from another household returns 404
 **Gherkin**
 ```gherkin
 Given a fresh household with no months, Budget settings saved with 5-week incomes 3750 USD / 312500 CRC
-When I open New transaction, type "AutoMercado", 50000 CRC, date 2026-07-10, bank Cash, class Budgeted
+When I open New transaction
+Then the AMOUNT is the first field, at display size, with the currency toggle inside its own input group and the conversion under it ("= $… at ₡… per $1 · frozen when you save")
+And the rest reads as two named groups — What it was (payee, category, class chips, notes) and How it was paid (bank, card, method, rate)
+And a Before you save rail states which month AND week the date lands in ("Goes to July 2026 · week 3 — a new month will be created"), lists ₡, $ and the rate used, and — for budgeted spending whose category backs a line in an existing month — states that line's spend so far, its plan, and the total after this purchase
+When I type "AutoMercado", 50000 CRC, date 2026-07-10, bank Cash, class Budgeted
 And I click "+ New" beside Category, type "Viajes" and Create
 Then "Viajes" is selected without leaving the form (it also appears under Settings → Categories); typing "viajes" again just selects it
 Then the date says "Goes to July 2026 — a new month will be created" and the rate is pre-filled
 When I Save
-Then I land on July 2026: 5 weeks (25 Jun – 29 Jul), income 3750 USD / 312500 CRC, one row ₡50,000.00 / $<50000 ÷ rate>
-And the transactions table sorts by Date, Payee, Category, Bank or Class when I click the header (click again to flip; ▲/▼ marks the active one)
-And the filter row above it narrows the rows by date range, payee text, category, bank and class, with "Showing n of m" and a Clear button
+Then I land on July 2026: five week chips (W1 · Jun 25 … W5 · Jul 23), the income row 3750 USD / 312500 CRC, one row whose Amount cell stacks ₡50,000.00 over $<50000 ÷ rate>, its class a "Budgeted" chip
+And the transactions table sorts by Date, Payee, Category, Paid with or Class when I click the header (click again to flip; ▲/▼ marks the active one)
+And the filters above it narrow the rows by payee search, category, bank, card, class and date range, with "Showing n of m" and a Clear button; on a phone the search stays and the rest fold behind a Filters button
 ```
 **Walkthrough:** **Settings → Budget** → save 5-week incomes `3750` USD and `312500` CRC. **Dashboard →
 New transaction** (or nav **Months → New transaction**): fill the fields; beside **Category** click
 **+ New**, type `Viajes`, **Create** → **Expected:** the inline form closes and **Viajes** is selected
 (Enter also creates, Esc cancels; a blank name → "A name is required."; a name matching an inactive
-category offers **Reactivate “…”**). Pick the date `2026-07-10` → **Expected:** the "Goes to July 2026 — a new month will be created" hint under the
-date; the **Exchange rate** field pre-filled (or, without a key, the red hint asking for one — type
-`500`). **Save** → **Expected:** the **July 2026** page with 5 week badges, the income card showing
-3750 USD / 312500 CRC, and the row. With a few rows in place: click **Payee** → **Expected:** A→Z with
-▲; click again → Z→A ▼; **Date** flips newest/oldest. Type `auto` under **Payee contains** →
+category offers **Reactivate “…”**). Pick the date `2026-07-10` → **Expected:** the rail reads "Goes to July 2026 · week 3 — a new month will be
+created" (week 3: Jun 25 – Jul 1, Jul 2 – 8, Jul 9 – 15); with the date back in an existing month and a
+budgeted category that has a line, a second line reads "Groceries: ₡8,000.00 spent of ₡60,000.00 planned —
+after this, ₡58,000.00" (a dollar purchase against a colón line is converted at today's rate first); the **Exchange rate** field pre-filled (or, without a key, the red hint asking for one — type
+`500`). **Save** → **Expected:** the **July 2026** page with five week chips (hover one → its full window), the
+income row showing 3750 USD / 312500 CRC, and the row: a **Budgeted** chip and the amount stacked
+(₡ on top, $ muted beneath — or one side only if **Show in** is set to a single currency on the
+dashboard). With a few rows in place: click **Payee** → **Expected:** A→Z with ▲; click again → Z→A ▼;
+**Date** flips newest/oldest; **Paid with** orders by bank. Type `auto` in **Search payee** →
 **Expected:** only AutoMercado, "Showing 1 of n"; pick a **Category**, **Bank** or **Class** that
 matches nothing → "No transactions match these filters."; **Clear filters** → all rows back (the
 filters and sort are on-screen only — no request, and the CSV export still covers the whole month).
+Narrow the window below tablet width → **Expected:** the Category, Paid with and Class columns are gone,
+each payee carries a muted sub-line with the first two ("Groceries · Cash") and its class chip beneath, the
+date reads "Jul 10", Edit sits over Delete, and the selects sit behind a **Filters** button (a dot on it
+means a filter is active); nothing scrolls sideways.
 Via Postman (**15 · Months → List months**) → 1 month with
 `week_count` 5; **Resolve a date** with `2026-05-30` → `is_new: true`, `month_number` 6 (June's
 window starts 28 May).
@@ -1509,9 +1566,10 @@ Then the $ amount doubles and the rate field was disabled (frozen) throughout
 When I Edit again and change the date to 2026-06-05
 Then I land on June 2026 (new, 4 weeks) and July 2026 no longer appears in Months
 ```
-**Walkthrough:** on the month page → **Edit** → **Expected:** the rate input disabled with the
+**Walkthrough:** on the month page → **Edit** → **Expected:** the amount field's conversion line now reads
+"frozen when this was saved" rather than "frozen when you save", and the rate input disabled with the
 "Frozen when the transaction was created" hint. Amount `100000` → **Save** → **Expected:** the row's
-$ column doubles (same rate). **Edit** → date `2026-06-05` → **Expected:** "Goes to June 2026 — a
+amount doubles on both lines of the stack (same rate). **Edit** → date `2026-06-05` → **Expected:** "Goes to June 2026 — a
 new month will be created" → **Save** → **Expected:** the **June 2026** page (4 weeks); nav
 **Months** → **Expected:** only June — July left with its last transaction. Via Postman
 (**16 · Transactions → Update transaction**) → `exchange_rate_used` unchanged in the response.
@@ -1540,8 +1598,8 @@ Then 400 invalid_request
 When I PUT /api/months/{id}/income with an id from another household
 Then 404
 ```
-**Walkthrough:** on the month page's **Income this month** card → primary `1600000`, currency
-**CRC** → **Save** → **Expected:** "Income updated."; reload → values kept. Via Postman (**15 ·
+**Walkthrough:** on the month page's income row → primary `1600000`, its currency select
+**CRC** → **Save income** → **Expected:** "Income updated."; reload → values kept. Via Postman (**15 ·
 Months → Update month income — invalid (400)**) → `invalid_request`. With an id copied from a
 *different* household's list → **Expected:** 404 (never 403 — no existence oracle). Also
 (**16 · Transactions → Create transaction — invalid (400)**) → `invalid_request` naming the field.
@@ -1551,9 +1609,9 @@ Months → Update month income — invalid (400)**) → `invalid_request`. With 
 ```gherkin
 Given I am on New transaction
 When I pick class Unplanned
-Then a "Refund expected" switch appears; switching it on shows a percentage field
-When I enter "Hospital", 50000 CRC, 30 %, and Save
-Then the month page lists an expected refund: Hospital · 30% · ₡15,000.00 · $<30> · Pending
+Then a "Refund expected" switch appears; switching it on shows the percentage beside a "Refund notes" box that spans the row like the transaction's own Notes
+When I enter "Hospital", 50000 CRC, 30 %, "CASE-7 · lent to Diego", and Save
+Then the month page lists an expected refund: Hospital · 30% · ₡15,000.00 · $<30> · Pending, with the note behind its icon
 When I Edit the transaction to 80000 and Save
 Then the refund reads ₡24,000.00 (30 % of 80,000)
 When I Edit it again, switch Refund expected off and Save
@@ -1561,9 +1619,14 @@ Then the refund is gone
 ```
 **Walkthrough:** **New transaction** → **Class** "Unplanned" → **Expected:** the **Refund expected**
 switch appears (it is absent for every other class). Switch it on → **Expected:** the percentage
-field; with `50000` and `30` the hint reads "Expected back: 15,000.00 CRC". Fill the rest and
-**Save** → **Expected:** the month page's **Expected refunds** table shows Hospital · 30% ·
-₡15,000.00 · Pending with a **Mark received** button. **Edit** → amount `80000` → **Save** →
+field with **Refund notes** beside it — a one-row box at the percentage's height (drag it taller) spanning the rest of the row, with a 0/250 counter
+like the transaction's own Notes and a placeholder reading "Optional — case number, who owes it, when you expect
+it back"; no separate Case No.; with `50000` and `30` the hint reads "Expected back: 15,000.00 CRC". Type
+`CASE-7 · lent to Diego`, fill the rest and **Save** → **Expected:** the month page's **Refunds** table shows
+Hospital · 30% · ₡15,000.00 stacked over $30 · an amber **Pending** pill and a note icon whose hover text is
+"CASE-7 · lent to Diego", with a **Mark received** button (its accessible name says "Mark Hospital received").
+**Edit the transaction** → **Expected:** the refund notes prefilled; clear them and **Save** → **Expected:**
+the note icon is gone. **Edit** → amount `80000` → **Save** →
 **Expected:** the refund row reads ₡24,000.00. **Edit** → switch off → **Save** → **Expected:** "No
 refunds expected this month." Via Postman (**16 · Transactions → Create transaction**) with
 `refund_expected: true, refund_percentage: 150` → **Expected:** 400 `invalid_request` naming
@@ -1575,27 +1638,27 @@ refunds expected this month." Via Postman (**16 · Transactions → Create trans
 Given an expected refund of ₡15,000.00 (Pending) on a purchase in this month
 And the Received on date next to Mark received defaults to today and refuses a date before the purchase
 When I keep a date inside this month and click Mark received
-Then the badge reads "Received <date>" and the transactions table gains an Income (inflow) row of ₡15,000.00 on that date, marked "Derived from a refund — read-only"
+Then the pill reads "Received <date>" and the transactions table gains an Income (inflow) row of ₡15,000.00 on that date, marked "Derived from a refund — read-only"
 And the Income card shows "Other income this month" ₡15,000.00 with a "show the 1 transaction(s)" link that filters the table to inflows, and the dashboard's Income gains an "Other income (inflows)" sub-row of the same amount
 And that row has no Edit/Delete buttons
 When I click Back to pending
-Then the inflow row disappears and the badge is Pending again
+Then the inflow row disappears and the pill is Pending again
 When I pick a date in the NEXT month and click Mark received
-Then the badge reads "Received <date>" with a "booked in another month — view" link, this month's table has NO inflow row, and the linked month (created if needed) holds it
+Then the pill reads "Received <date>" with a "booked in another month — view" link, this month's table has NO inflow row, and the linked month (created if needed) holds it
 When I click Back to pending → the inflow is gone, and that month with it if it was otherwise empty
 ```
 **Walkthrough:** on the month page, the pending row shows **Received on** (today) next to **Mark
 received**; the date input's minimum is the purchase date. **Mark received** → **Expected:** "Refund
-updated.", the badge **Received <today>**, the button now **Back to pending**, and a new **Income
+updated.", the pill **Received <today>**, the button now **Back to pending**, and a new **Income
 (inflow)** row dated today with the refund's amounts whose actions column says "Derived from a refund —
 read-only". Via Postman
 (**16 · Transactions → Delete transaction**) with that inflow's id → **Expected:** 400
-`derived_transaction`. **Back to pending** → **Expected:** the inflow row is gone, the badge
+`derived_transaction`. **Back to pending** → **Expected:** the inflow row is gone, the pill
 **Pending**. Via Postman (**17 · Refunds → Update refund status**) send `received` twice →
 **Expected:** 200 both times, one inflow in **List month transactions**. With an id copied from a
 *different* household → **Expected:** 404. (The concurrent-flip 409 is proven by `Api.Tests`.)
 **Cross-month (ADR-V017):** **Back to pending**, pick a **Received on** date in the *next* month →
-**Mark received** → **Expected:** the badge "Received <date>" plus **booked in another month — view**;
+**Mark received** → **Expected:** the pill "Received <date>" plus **booked in another month — view**;
 this month's transactions table has no inflow; the link opens the next month (auto-created if it did
 not exist) with the inflow row dated as picked. Postman **Update refund status** with `received_date`
 before the purchase → **Expected:** 400 `invalid_request`. **Back to pending** → **Expected:** the
@@ -1650,7 +1713,7 @@ Postman (**22 · Review queue → Clear the review queue**) with `confirm: false
 ```gherkin
 Given an unplanned essential expecting a 50% refund
 When I open the month page and Edit the refund
-Then I can set Case No. and a note, and blank clears either
+Then I can set Case No. and a note, and blank clears either (the transaction form asks for the note at entry — QA-LED-05)
 When I change the transaction's amount
 Then the refund's ₡/$ re-derive and both fields survive
 When I untick "refund expected" on the transaction
@@ -1660,7 +1723,7 @@ And PUT /api/refunds/{id}/details with a 61-character case number is 400; an unk
 **Walkthrough:** create an **Unplanned** transaction with **refund expected** `50` → month page → **Expected
 refunds** → **Expected:** a row with **Case No.** reading "—". **Edit** → `CASE-2026-4471` and `lent to Diego`
 → **Save** → **Expected:** the case number in its column and a note icon beside the payee whose hover text is
-the note. **Edit the transaction** → double the amount → **Save** → month page → **Expected:** the refund's
+the note (on a phone the Case No. and % columns hide and the payee's sub-line reads "50% · CASE-2026-4471"). **Edit the transaction** → double the amount → **Save** → month page → **Expected:** the refund's
 amounts doubled, the case number and note untouched. **Edit the refund** → clear both → **Save** →
 **Expected:** "—" again and no icon. **Edit the transaction** → untick refund expected → **Save** →
 **Expected:** the refund row is gone. Via Postman (**17 · Refunds → Set case number and note**) with a
@@ -1669,46 +1732,81 @@ amounts doubled, the case number and note untouched. **Edit the refund** → cle
 ## 10i. Web — Budget lines: fixed & variable (app slice EXPENSES-1) 🟠
 
 > The budget baseline (ADR-V007/V008): two ordered lists of single-currency lines, each tied to a
-> category that backs at most one active line across both lists; optional bank; reorder with ▲▼.
-> Never seeded — a fresh household starts empty.
+> category that backs at most one active line across both lists; optional bank; reorder by drag or the
+> handle's move menu. Never seeded — a fresh household starts empty.
+
+> **Presented per SKIN-9 (2026-09-12).** The page opens on a **commitment header**: "Planned every month
+> ₡…" (every active line, both lists, added at today's rate in the "Show in" currency — the header says
+> "at today's rate"), "N% of a typical income" with the income figure at the right (a typical income = the
+> four-week defaults under Settings → Budget; when those are still zero there is no share, and without a
+> rate each currency is summed on its own side, "₡400,000.00 + $13.00"), and a two-tone Fixed / Variable
+> bar. Each list is a card of GRID ROWS, not a table: a drag handle (⠿), the name, the amount in the
+> line's OWN currency (never converted), the category, a "BAC · account" chip for bank + method, and
+> **Edit**; the list total sits in the card header. An inactive line is struck through in muted ink with a
+> small INACTIVE label, has no handle, and keeps Edit (which is how it comes back). One **+ Add a line**
+> button in the page head opens a **dialog** (Fixed / Variable switch, then the same fields as before);
+> Edit opens the same dialog prefilled, without the switch. On tablet the chip column hides; on phone the
+> category goes too and both reappear as a sub-line under the name.
 
 ### QA-EXP-01 — Create fixed and variable lines; the single-currency and category rules hold 🟠 (Web / API)
 **Gherkin**
 ```gherkin
 Given I am on Budget (nav) in a fresh household
-Then both sections show "No lines yet"
-When I add fixed "Mortgage", 300000 CRC, category Housing, bank BAC, Bank account, and Create
-And "+ New" beside Category creates a category in place (it is then offered on the other list too)
-Then it appears with ₡300,000.00 · Housing · BAC · Bank account · Active
-When I add variable "Netflix", 13 USD, category Entertainment, no bank, Credit card
-Then it appears with $13.00 · Entertainment · Unassigned
-When I add fixed "Rent" with category Housing
-Then the form shows "that category already backs another budget line" and nothing is created
+Then both lists show "No lines yet" and the header reads "Planned every month ₡0.00"
+When I click + Add a line, keep Fixed, enter "Mortgage", 300000 CRC, category Housing, bank BAC, Bank account, and Create
+And "+ New" beside Category creates a category in place (it is then offered for either list)
+Then the dialog closes and the row reads Mortgage · ₡300,000.00 · Housing · "BAC · account", with a drag handle
+And the header's planned total is ₡300,000.00 and, if income defaults are saved, its share of a typical income
+When I add a line, switch to Variable, enter "Netflix", 13 USD, category Entertainment, no bank, Credit card
+Then it appears under Variable as $13.00 · Entertainment · "Unassigned · card", and the header adds it at today's rate
+When I add a fixed "Rent" with category Housing
+Then the dialog shows "that category already backs another budget line" and nothing is created
 ```
-**Walkthrough:** nav **Budget** → **Expected:** "No lines yet — add the first one." under both
-headings. **New fixed line** → name `Mortgage`, **Monthly budget** `300000` **CRC**, **Category**
-Housing (or **+ New** → type a name → **Create** → **Expected:** selected in place, and listed on the
-other section's picker as well), **Bank** BAC, **Payment method** Bank account → **Create** → **Expected:**
-"Created." and the row. **Edit** on any row → **Expected:** the page scrolls so the whole form card is in view. **New variable line** → `Netflix`, `13` **USD**, Entertainment, bank left **Unassigned**,
-Credit card → **Create** → **Expected:** the row shows $13.00 and "Unassigned". **New fixed line** →
-`Rent`, `50000` CRC, category **Housing** → **Create** → **Expected:** the red message about the
-category already backing another line. Via Postman (**18 · Expenses → Create fixed expense —
+**Walkthrough:** nav **Budget** → **Expected:** the header "Planned every month ₡0.00" and "No lines yet —
+add the first one." in both cards. **+ Add a line** → **Expected:** a dialog with a **Fixed | Variable**
+switch (Fixed selected) and the fields; the name has focus. Name `Mortgage`, **Monthly budget** `300000`
+**CRC**, **Category** Housing (or **+ New** → type a name → **Create** → **Expected:** selected in place),
+**Bank** BAC, **Payment method** Bank account → **Create** → **Expected:** "Created.", the dialog gone, the
+row with its ⠿ handle, and the header now ₡300,000.00 (with "N% of a typical income" and the income figure
+if Settings → Budget has four-week defaults; "at today's rate" under the bar). **Edit** on the row →
+**Expected:** the same dialog prefilled, no Fixed/Variable switch, an **Active** toggle; **Cancel** or
+Escape closes it. **+ Add a line** → switch **Variable** → `Netflix`, `13` **USD**, Entertainment, bank
+left **Unassigned**, Credit card → **Create** → **Expected:** the row under Variable shows $13.00 (its own
+currency) and the chip "Unassigned · card"; the header total grew by 13 × today's rate and the bar gained
+a lighter Variable segment. **+ Add a line** → `Rent`, `50000` CRC, category **Housing** → **Create** →
+**Expected:** the red message inside the dialog about the category already backing another line. Narrow
+the window below tablet width → **Expected:** the category and chip leave their columns and sit under the
+name as "Housing · BAC · account"; the header stacks its number above the bar. Via Postman (**18 · Expenses → Create fixed expense —
 invalid (400)**) → `invalid_request` ("exactly one of budget_crc or budget_usd…").
 
-### QA-EXP-02 — Reorder with ▲▼; inactive lines stay out of the order 🟠 (Web / API)
+### QA-EXP-02 — Reorder by drag or the handle's move menu; inactive lines stay out of the order 🟠 (Web / API)
 **Gherkin**
 ```gherkin
-Given fixed lines Mortgage (1st) and Water (2nd)
-When I click ▼ on Mortgage
-Then Water is first and Mortgage second, and a reload keeps that order
+Given fixed lines Mortgage (1st), Water (2nd) and Gym (3rd)
+When I drag Mortgage's handle and drop it on Water
+Then Water is first and Mortgage second, immediately, and a reload keeps that order
+When I click Gym's handle
+Then a menu offers Move up, Move down (disabled: last line) and "Move to position" with 3 positions
+When I choose Move up
+Then Gym is second and the menu closes
+When I choose "Move to position" 1 on Mortgage
+Then Mortgage is first again
 When I Edit Water, switch Active off, Save
-Then Water shows Inactive without ▲▼, and Mortgage's ▲▼ are both disabled (only active line)
+Then Water is struck through with INACTIVE and no handle, and the other handles' menus offer only 2 positions
+When the reorder save fails (API down)
+Then the rows return to their previous order and "Couldn't save the order" shows
 ```
-**Walkthrough:** add `Water` (`15000` CRC, another category). **▼** on Mortgage → **Expected:** the
-rows swap; **F5** → order kept. **Edit** Water → **Active** off → **Save** → **Expected:** Inactive
-badge, no arrows on that row, Mortgage's arrows disabled. Via Postman (**18 · Expenses → Reorder
-fixed expenses**) with only one of two active ids → **Expected:** 400 `invalid_request` ("must
-exactly match the active fixed expense lines").
+**Walkthrough:** add `Water` (`15000` CRC) and `Gym` (`25000` CRC), other categories. Drag **⠿** on
+Mortgage onto the Water row → **Expected:** the rows swap at once (optimistic), no flash; **F5** → order
+kept. Click **⠿** on Gym → **Expected:** a small menu: **Move up**, **Move down** (disabled — it is last),
+**Move to position** with positions 1–3; Escape or a click outside closes it. **Move up** → **Expected:**
+Gym second, menu gone. **⠿** on Mortgage → **Move to position** `1` → **Expected:** Mortgage first. The
+menu is the keyboard path (Tab to the handle, Enter, arrow to an item) and the only path on a phone,
+where drag does not exist. **Edit** Water → **Active** off → **Save** → **Expected:** Water struck
+through, INACTIVE, no handle, still an **Edit** link; the other lines' menus now offer positions 1–2.
+Stop the API, move a line → **Expected:** it springs back and "Couldn't save the order" shows above the
+list. Via Postman (**18 · Expenses → Reorder fixed expenses**) with only one of two active ids →
+**Expected:** 400 `invalid_request` ("must exactly match the active fixed expense lines").
 
 ### QA-EXP-03 — Duplicate names per list; the inactive clash restores the line; foreign ids are 404 🟠 (Web / API)
 **Gherkin**
@@ -1719,10 +1817,11 @@ When I add variable "Mortgage" → created (names are unique per list)
 When I add fixed "water" with 20000 CRC → the yellow warning with Reactivate; clicking it makes "Water" Active at ₡20,000.00
 And a PUT to a line id from another household returns 404
 ```
-**Walkthrough:** **New fixed line** `MORTGAGE` → **Expected:** the red message, no row. **New variable
-line** `Mortgage` (any free category) → **Expected:** created. **New fixed line** `water`, `20000` →
-**Create** → **Expected:** "…already exists but is inactive — reactivate it?" with **Reactivate** →
-click → **Expected:** "Updated.", **Water** (stored spelling) Active with ₡20,000.00. Via Postman
+**Walkthrough:** **+ Add a line** (Fixed) `MORTGAGE` → **Expected:** the red message in the dialog, no
+row. **+ Add a line** → **Variable** → `Mortgage` (any free category) → **Expected:** created. **+ Add a
+line** (Fixed) `water`, `20000` → **Create** → **Expected:** the amber "…already exists but is inactive —
+reactivate it?" inside the dialog with **Reactivate** → click → **Expected:** "Updated.", the dialog gone,
+**Water** (stored spelling) back in the list at ₡20,000.00 with its handle. Via Postman
 (**18 · Expenses → Update fixed expense**) with an id copied from a *different* household →
 **Expected:** 404 (never 403 — no existence oracle).
 
@@ -1733,20 +1832,23 @@ click → **Expected:** "Updated.", **Water** (stored spelling) Active with ₡2
 > The month at a glance (ADR-V004/V006/V007): every figure a ₡/$ pair. Actuals sum each transaction's
 > frozen amounts; projections (income conversion, budget display, pending budgeted, remainder for debts)
 > use the rate resolved through the chain. No rate → projections are blocked, never guessed.
+>
+> **Presented per SKIN-5 (2026-09-11):** one verdict, the pace, four steps, the line lists, one breakdown
+> panel. The ARITHMETIC is unchanged — the same figures in the same order as the eleven-row waterfall this
+> replaced — so what moved is where each number is read, not what it is.
 
-### QA-DASH-01 — The dashboard reflects income, lines vs actuals, other spending and the balance 🟠 (Web / API)
+### QA-DASH-01 — The dashboard reflects income, lines vs actuals, and the unbudgeted spend 🟠 (Web / API)
 **Gherkin**
 ```gherkin
 Given a household with fixed line Mortgage ₡350,000 (Housing, BAC, Bank account) and no other lines
 And June transactions: Mortgage ₡300,000 bank account on Jun 5, and a ₡10,000 Unplanned lunch on Jun 12 in category Dining
 When I open Dashboard (nav)
 Then the newest month loads with "4 weeks · 28/5/2026 – 24/6/2026" and the rate line
-And Fixed expenses shows Mortgage — Budgeted ₡350,000.00 · $700.00 — Actual ₡300,000.00 in green
-And Other spending lists Dining ₡10,000.00; Unplanned essentials shows ₡10,000.00
-And Week by week shows the mortgage in week 2
+And Fixed lines shows Mortgage as a progress row — planned ₡350,000.00 · $700.00 with a signed delta of −₡50,000.00 in green — and the heading reads "₡50,000.00 under"
+And Where it went opens on By week with the mortgage in week 2; its Unbudgeted tab lists Dining ₡10,000.00
 When I Edit Mortgage's budget down to ₡250,000 and reload the dashboard
-Then Mortgage's actual turns red (over budget) and Still planned drops to ₡0.00
-And the Fixed, Variable, Other spending and Week by week tables each end with a Total row (the sum of the rows shown; the lines total keeps the over/under colour)
+Then Mortgage's row is marked over (red bar and a +₡50,000.00 delta) and Still planned drops to ₡0.00
+And each Where-it-went table ends with a Total row (the sum of the rows shown), and each line list's heading carries its own over/under figure
 And a line budgeted in dollars is judged in dollars: a $2.99 line paid at $2.99 is green even when its colón projection sits a few colones under the frozen colón actual (the totals turn red only when over on both sides)
 When I set "Show in" (top right) to $
 Then every pair on the page reads in dollars only — except each budget line's Budgeted cell, which stays in the currency the line is set in
@@ -1754,11 +1856,11 @@ Then every pair on the page reads in dollars only — except each budget line's 
 **Walkthrough:** **Budget** → add fixed `Mortgage` `350000` CRC, Housing, BAC, Bank account. **New
 transaction** → `Bank`, `300000` CRC, Housing, BAC, Bank account, `2026-06-05`, Budgeted → **Save**.
 **New transaction** → `Soda`, `10000` CRC, Dining, BAC, Credit card, `2026-06-12`, Unplanned → **Save**.
-Nav **Dashboard** → **Expected:** June 2026 with the weeks line and "₡… per $1 …"; the Fixed table with
-Mortgage's actual in **green**; **Other spending** with Dining; **Unplanned essentials & refunds**
-₡10,000.00; **Week by week** 4 rows, week 2 = ₡300,000.00 budgeted. **Budget** → **Edit** Mortgage →
-`250000` → **Save** → **Dashboard** → **Expected:** actual ₡300,000.00 now **red**; **Still planned**
-₡0.00. Via Postman (**19 · Dashboard → Month summary**) → 200 with `exchange_rate`, `rate_source`,
+Nav **Dashboard** → **Expected:** June 2026, the head reading "4 weeks · 28/5/2026 – 24/6/2026 · day N of
+28" with the rate badge beside it; **Fixed lines** with Mortgage's delta in **green** and "₡50,000.00
+under" on the heading; **Where it went** on **By week**, 4 rows, week 2 = ₡300,000.00 budgeted; its
+**Unbudgeted** tab listing Dining. **Budget** → **Edit** Mortgage → `250000` → **Save** → **Dashboard**
+→ **Expected:** Mortgage's delta now **red** at +₡50,000.00; **Still planned** ₡0.00. Via Postman (**19 · Dashboard → Month summary**) → 200 with `exchange_rate`, `rate_source`,
 `summary.fixed_expenses[0].actual.crc = 300000`.
 
 ### QA-DASH-02 — Month selector, entry points, empty state, and the blocked projections when no rate resolves 🟠 (Web / API)
@@ -1780,7 +1882,7 @@ figures show. **Month details** → **Expected:** `/months/{id}` (June). **Dashb
 empty, stop the API, restart it (empty cache), and in a household whose only transaction was just
 deleted there is nothing to resolve — via Postman (**13 · Exchange rate → Current rate**) → 503; the
 dashboard page for a remaining month shows the red "No exchange rate could be resolved…" block and no
-figures, while the month title and buttons stay. Postman (**19 · Dashboard → Month summary**) with an
+figures — no verdict, no pace bar, no four-step row — while the month title and buttons stay. Postman (**19 · Dashboard → Month summary**) with an
 unknown id → 404.
 
 ---
@@ -1790,6 +1892,19 @@ unknown id → 404.
 > Read-only reporting over the frozen transaction amounts (ADR-V004/V006). One period rule for both:
 > a month (its anchor window, ending on the last week's end date) or a `from`–`to` range. The CSV is
 > delivered through the platform's signed-link download (ADR-010), so it works on web and native alike.
+
+> **Presented per SKIN-10 (2026-09-12).** The page opens on its verdict: **four KPI tiles** — Total spend
+> ("N% of income" when the month has an income), Budgeted and Discretionary ("N% of spend"), Unplanned
+> ("₡… refundable" from the month's expected refunds, or its share for a range) — and, for a month, the
+> **Pace against the plan** chart full width with "N% of the month elapsed · M% of the plan spent" as text
+> beside its title. Below them a **Table | Chart** switch governs only the detail. **Table** is ONE "By
+> category" card behind a **Budgeted | Discretionary | Unplanned** switcher (rows already loaded, no
+> request): Category, an inline **Spent vs budget** bar (only where there is a budget: the budgeted class
+> of a month; red past the plan; hidden on a phone), the # count, Budget and Spent (red when over, judged
+> in the line's own currency), with a Total row. **Chart** holds the eight charts as before — class bars,
+> the class / income / budget donuts, month by month, by bank, by card, card vs account — restyled; the
+> pace chart is no longer among them because it is always above. The period picker and Export CSV sit in
+> the page head; month and date range stay mutually exclusive.
 
 ### QA-DASH-03 — "Show in" follows the account, and a first choice on a device follows you 🟠 (Web / API)
 **Gherkin**
@@ -1808,42 +1923,55 @@ app in a private window (same account, sign in) → **Expected:** the dashboard 
 display settings — invalid (400)** → **Expected:** 400 `invalid_request`; **Reset display settings to
 both** → 200. (The impersonation refusal and the account-erasure wipe are covered by `Api.Tests`.)
 
-### QA-DASH-04 — "This month": the stacked bar and the waterfall down to the forecast 🟠 (Web)
+### QA-DASH-04 — One verdict, the pace, and the four-step month 🟠 (Web)
 **Gherkin**
 ```gherkin
 Given the month above (income configured, ₡310,000 spent against a ₡350,000 plan)
 When I open Dashboard
-Then a stacked bar heads the card: the full width is the income, filled by Budgeted, Discretionary, Unplanned and Still planned, the green rest is the Forecast, with a dashed Today marker at the month's elapsed share
-And below it the waterfall reads Income (Primary / Secondary underneath, Secondary hidden when zero) → − Budgeted spent → − Discretionary spent → − Unplanned spent → = Spent so far → = Left now → − Still planned ("N% of the month elapsed") → = Forecast at month end
-And Other income (inflows) appears as its own sub-row under Income when an inflow exists
+Then the page opens on ONE verdict: a state in words with a coloured dot, the caption "Forecast left at month end", the forecast at display size, and one sentence explaining it
+And the state is derived, never stored: forecast above zero and spend at or under the elapsed share reads On track; forecast above zero but spend ahead of it reads Watch; a forecast at or below zero reads Over
+And beside it the pace bar — thicker than the month-card bars, this is the screen's verdict — draws Budgeted, Discretionary, Unplanned, a hatched Still planned and the green Forecast, with a capped Today tick standing taller than the bar at the elapsed share, over a summary reading "N% committed · N% of the month gone"
+And every legend entry carries its AMOUNT beside its whole-percent share, in the currency "Show in" is set to
+And below them four steps read Income → − Spent so far → − Still planned → = Forecast at month end, the operator belonging to the row rather than the label
+And Other income (inflows) is named on the Income step when an inflow exists; expected refunds are named WITH THEIR AMOUNT on the Forecast step ("Expected refunds: ₡… — not counted until they land as income"), because they are NOT counted in it
 When the plan does not fit the income
-Then the forecast is red with a warning line, and the bar grows a red tail past the income
+Then the verdict reads Over in red, the Forecast step is red, and the warning line appears beneath the steps
 When I set "Show in" to $
-Then the bar draws in $ too — the card has no switch of its own — and in "Both" its legend lists each segment in ₡ and $
+Then the forecast, the steps and the pace legend all read in dollars; in "Both" the dollars sit UNDER the colones rather than after a middot, and the legend keeps its amounts inline
 ```
-**Walkthrough:** **Dashboard** → **Expected:** the **This month** card opens with the bar, then the
-waterfall in that order; Spent so far = the three class rows added up; Left now = income − spent. Add a
-budget line big enough to exceed the income → reload → **Expected:** **Forecast at month end** in **red**
-with the warning line beneath it, and the bar's red tail. Enter an **Income (inflow)** transaction →
-**Expected:** an **Other income** sub-row under Income, and the income total grows by it.
+**Walkthrough:** **Dashboard** → **Expected:** the verdict card first (**ON TRACK** with a green dot for a
+month spending under its elapsed share), then **THIS MONTH** with the bar and "N% committed · N% of the
+month gone", then the four steps on one row. Read the bar's legend → **Expected:** each class named with
+its **money** and a whole-percent share — not a percentage alone. Add a budget line big enough to exceed
+the income → reload → **Expected:** the verdict flips to **Over** in red, the **Forecast at month end**
+step red, and the warning line under the steps. Enter an **Income (inflow)** transaction → **Expected:**
+**Other income** named under the Income step and the income total grown by it. Switch **Show in** to
+**₡**, then **$**, then **Both** → **Expected:** every figure follows, and in **Both** no money cell is
+doubled on one line.
 
-### QA-DASH-05 — Where the money left from: bank × method beside the card table 🟠 (Web)
+### QA-DASH-05 — Where it went: one panel, four cuts, and the envelope strip 🟠 (Web)
 **Gherkin**
 ```gherkin
-Given the month above, with at least one transaction naming a card
+Given the month above, with at least one transaction naming a card and one category with no budget line
 When I open Dashboard
-Then "By bank and payment method" and "By card" sit side by side on one row
-And the bank table groups by payment method (card first), each group closed by a "… — total" row, with a grand Total
-And By card lists each card's alias with its kind and transaction count beneath, its spend, and its share of the month — "No card" last, and a Total row
-When no transaction names a card
-Then the By card table is absent entirely (a lone "No card" row says nothing)
+Then ONE "Where it went" panel replaces the separate week, bank and card cards, with a segmented switch reading By week | By bank | By card | Unbudgeted
+And the switch is a real radio group: it is reachable by keyboard and announces its position
+And By week opens first; each cut ends in a Total row, and switching between them refetches nothing
+And Unbudgeted lists the categories with spend and no budget line — the old "Other spending" card — grouped by class with a subtotal per group: Discretionary, then Unplanned, then "Marked budgeted, no line" only when a purchase classed Budgeted sits in a category no line covers; a category whose money came in two classes appears once per group with that group's share
+And By card lists each card's alias with its kind and transaction count beneath, its spend, and its share of the month — "No card" last
+Given an envelope is due this month by its cadence
+Then a thin envelope strip sits between the four steps and the line lists, one row per due bucket
+When no envelope is due
+Then that strip is absent entirely, and the page is one section shorter
 ```
-**Walkthrough:** **Dashboard** → scroll to the pair → **Expected:** two cards on one row, neither table
-scrolling sideways and no money pair broken across two lines (check in **Both** currency mode, the widest).
-The bank table: **Unassigned · Credit card** first, then **BAC · Bank account**, each group closed by a
-**… — total** row, then a grand **Total**. **By card:** the card's alias with "Credit · N transaction(s)"
-under it, its spend, and a share that adds to 100%. Remove the card from every transaction → reload →
-**Expected:** the By card card is gone and the bank table sits alone.
+**Walkthrough:** **Dashboard** → scroll to **Where it went** → **Expected:** one panel, the switch on
+**By week**. Tab to the switch and use the arrow keys → **Expected:** it moves between the four options
+like a radio group. Click through **By bank**, **By card**, **Unbudgeted** → **Expected:** each renders
+its own table with a **Total**, nothing scrolls sideways, and no money pair breaks across two lines (check
+in **Both**, the widest). **By card:** the card's alias with "Credit · N transaction(s)" under it and a
+share adding to 100%. **Unbudgeted:** the categories with no budget line, grouped under **Discretionary** / **Unplanned** / **Marked budgeted, no line** headings, each heading carrying its subtotal — the unplanned lunch sits under **Unplanned**; a category with both a discretionary and a budgeted purchase appears under both, with each share, and the Total at the bottom still equals the sum of the headings. Envelopes: with a bucket due
+this month → **Expected:** the strip above the line lists naming it, with contributed and remaining.
+Deactivate it (or pick a month where its cadence does not apply) → reload → **Expected:** no strip at all.
 
 ### QA-REP-01 — Category analysis by month shows budgets; a date range doesn't 🟠 (Web / API)
 **Gherkin**
@@ -1851,8 +1979,11 @@ under it, its spend, and a share that adds to 100%. Remove the card from every t
 Given June 2026 has Groceries budgeted ₡60,000 (a fixed line) and transactions: Groceries budgeted ₡8,000 total, Dining Discretionary ₡2,000, an Income (inflow) ₡9,000
 When I open Reports (nav)
 Then the newest month loads with "one budget month — budgets shown next to actuals"
-And Budgeted lists Groceries — # 2 — Budgeted (month) ₡60,000.00 — Actual ₡8,000.00 in green, with a Total row (the # column counts the transactions behind each row and its total adds them up)
-And Discretionary lists Dining ₡2,000.00 under a "Spent" column (no budget beside it, so no "Actual"); Unplanned shows "Nothing in this class for the period."; the inflow appears nowhere
+And four tiles read Total spend ₡10,000.00 with "N% of income", Budgeted ₡8,000.00 "80% of spend", Discretionary ₡2,000.00 "20% of spend", Unplanned ₡0.00
+And the Pace against the plan chart sits full width under them, with "N% of the month elapsed · M% of the plan spent" beside its title
+And By category opens on Budgeted: Groceries — a Spent vs budget bar a fifth full — # 2 — Budgeted (month) ₡60,000.00 — Actual ₡8,000.00 in green, with a Total row (the # column counts the transactions behind each row and its total adds them up)
+When I switch the class to Discretionary
+Then Dining ₡2,000.00 shows under a "Spent" column with no bar and no budget beside it (so no "Actual"), without a request; Unplanned shows "Nothing in this class for the period."; the inflow appears nowhere
 When I switch Period to "Date range", set 2026-01-01 – 2026-06-30 and Load
 Then the note says "custom range — monthly budgets don't apply" and the Budgeted (month) column is gone
 When I set From 2026-06-30 and To 2026-06-01 and Load
@@ -1864,10 +1995,13 @@ And "Both" brings the ₡ · $ pairs back; the choice is remembered on this devi
 ```
 **Walkthrough:** **Budget** → fixed `Supermarket` `60000` CRC on Groceries. **New transaction** ×3 →
 Groceries Budgeted `5000` (`2026-06-05`) and `3000` (`2026-06-12`), Dining Discretionary `2000`
-(`2026-06-10`), plus an **Income (inflow)** `9000`. Nav **Reports** → **Expected:** the month selector on
-the newest month; the Budgeted card with the budget column and the green actual; Dining under
-Discretionary; the inflow absent from every card. **Period** → **Date range** → From `2026-01-01`, To
-`2026-06-30` → **Load** → **Expected:** the multi-month note, no budget column, same totals. Reverse the
+(`2026-06-10`), plus an **Income (inflow)** `9000`. Nav **Reports** → **Expected:** the month selector (top right) on
+the newest month; the four tiles; the pace chart with its summary line; **By category** on **Budgeted**
+with the bar, the budget column and the green actual. Switch the class to **Discretionary** →
+**Expected:** Dining, no bar, no budget column; **Unplanned** → "Nothing in this class…"; the inflow
+absent everywhere. **Period** → **Date range** → From `2026-01-01`, To `2026-06-30` → **Load** →
+**Expected:** the multi-month note, the tiles still adding the period up (Total spend without a share),
+no pace chart, no budget column and no bars, same totals. Reverse the
 dates → **Load** → **Expected:** the red order message. Via Postman (**20 · Reports → Category analysis
 (month)**) → 200 with `single_month: true`, `budgeted[0].budgeted_crc = 60000`, an `income` `{crc, usd}`
 pair, `budget_total.crc = 60000`; (**date range**) → `income: null`, `budget_total: null`,
@@ -1902,8 +2036,8 @@ on local storage), `file_name`, `row_count`; open the URL **without** a token �
 **Gherkin**
 ```gherkin
 Given the June data above, in month mode
-When I switch View to Chart
-Then each class shows the same rows as horizontal bars (largest first) with the budget as a muted track and the actual on top — red past it — plus a "Spend by class" donut with shares
+When I switch the View to Chart (the Table | Chart switch under the pace chart)
+Then the tiles and the pace chart stay where they are, the By category card is replaced by the charts, and each class shows the same rows as horizontal bars (largest first) with the budget as a muted track and the actual on top — red past it — plus a "Spend by class" donut with shares
 And an "Income vs spend" donut: the same class slices plus a muted Remaining slice, the month's income in the hole (income = configured incomes at today's rate + inflows, as on the dashboard); overspent → no Remaining and a red "Over income by ₡…"
 And an "Income vs budget" donut: Budget lines (every active line, a $ line converted at today's rate) and Uncommitted, the income in the hole; a plan above the income → no Uncommitted and a red "Budget exceeds income by ₡…"
 When I switch the chart currency to $
@@ -1911,27 +2045,31 @@ Then every chart redraws in the other currency, and the choice is remembered on 
 When I switch Period to Date range
 Then the income and budget donuts are gone (both are per month) while the class bars stay
 ```
-**Walkthrough:** **Reports** → **View → Chart** → **Expected:** "Income vs spend" beside "Spend by class",
+**Walkthrough:** **Reports** → **View → Chart** → **Expected:** tiles and pace unchanged above; below, "Income vs spend" beside "Spend by class",
 Remaining = the month's income − ₡10,000 spent, the income in the hole (the inflow counts as income here,
 never as spend); "Income vs budget" with Budget lines ₡60,000 and Uncommitted = income − ₡60,000. Flip the
 ₡/$ switch → **Expected:** every figure redraws; reload the page → the choice stuck. **Date range** →
 **Expected:** both income cards gone, the class bars unchanged.
 
-### QA-REP-04 — Chart view: pace, month by month, and where the money left from 🟠 (Web)
+### QA-REP-04 — Pace against the plan, month by month, and where the money left from 🟠 (Web)
 **Gherkin**
 ```gherkin
 Given the June data above, in month mode, with at least one transaction naming a card
-When I look at the Pace card
-Then a line steps through the days that had spend, against a straight plan line to the budget total, with a dashed Today marker and "N% of the month elapsed · M% of the plan spent"
-And "Month by month" shows one bar per month, oldest first, spend on an income track, red for a month that spent more than its income
+When I look at the Pace against the plan card (always visible under the tiles, in Table or Chart view)
+Then a line steps through the days that had spend, against a dashed plan line to the budget total, with a dashed Today marker, and "N% of the month elapsed · M% of the plan spent" as text beside the title
+And on a phone the chart keeps its width, loses height and the Today marker — the summary line still says the elapsed share
+When I switch the View to Chart
+Then "Month by month" shows one bar per month, oldest first, spend on an income track, red for a month that spent more than its income
 And "Spend by bank" and "Spend by card" sit side by side as two donuts — same shape, same question — with "No card" last in the card one
 And "Card vs account" sits below them across the full width: its donut on the left, and on the right "Budgeted vs spent, by payment method" with one bar pair per method and a caption naming both figures
 When I switch Period to Date range
 Then pace and month-by-month are gone, the two donuts stay, and the budget-by-method bars go (budgets are per month)
 ```
-**Walkthrough:** **Reports → Chart** (month mode) → **Expected:** the **Pace** card with three points
-(Jun 5, 10, 12), the plan line to ₡60,000 and Today at the right edge — caption "100% … · 17% of the plan
-spent"; **Month by month** with one bar (June) on its income track. Scroll on → **Expected:** **Spend by
+**Walkthrough:** **Reports** (month mode) → **Expected:** the **Pace against the plan** card under the
+tiles with three points (Jun 5, 10, 12), the plan line to ₡60,000 and Today at the right edge — "100% …
+· 17% of the plan spent" beside the title; narrow the window below tablet width → the chart is shorter
+and the Today marker gone. **View → Chart** → **Expected:** **Month by month** with one bar (June) on
+its income track. Scroll on → **Expected:** **Spend by
 bank** and **Spend by card** on one row, both donuts; below them **Card vs account** full width with the
 bars using the space, captioned "budgeted ₡… · spent ₡…" per method. Switch to **Date range** →
 **Expected:** pace and trend gone, the two donuts still there, the method bars gone. Via Postman
@@ -2048,6 +2186,12 @@ unrecognized }`; with no inboxes → all zeros.
 
 ## 10n. Web — Email ingestion: suggestions & review queue (app slice EMAIL-5/6) 🟠
 
+> **The queue is presented per SKIN-6 (2026-09-12):** each staged email is a two-pane row — the draft, and
+> beside it a plain-language statement of what confirming will do, with the actions under it. Confirm blocks
+> VISIBLY while a required field is empty, naming which, instead of failing on submit. Amber on this screen
+> means one thing only: the bank email arrived incomplete. Nothing books until confirmed, discard is still a
+> soft delete of the DRAFT and never the source email, and remembering a merchant is still opt-in per draft.
+
 > The staged drafts (QA-EMAIL-04) become transactions only here. Merchant rules prefill the queue; the user
 > always confirms. Can be run without a live inbox by staging a draft row directly (see the note in
 > QA-EMAIL-06) — the confirm path is identical.
@@ -2074,23 +2218,38 @@ on, and **Months** shows no new transaction yet.
 **Gherkin**
 ```gherkin
 Given a pending draft in the Review queue (header badge shows 1, dashboard banner says 1 waiting)
+Then each draft is a TWO-PANE row: the draft on the left, and on the right a "Confirming will" panel stating in words what the click books — the amount, the category, the class, and which PAY-CYCLE month AND week the date lands in (not always the calendar one); for budgeted spending whose category backs a line in that month, the sentence goes on with the line's spend so far, its plan and the total after this booking
+And the class is three chips, not a dropdown — Budgeted, Discretionary, Unplanned — reachable by keyboard as a radio group
 When I pick a category (or create one right there with "+ New" — every card on the queue then lists it) and class, tick "Remember this merchant" and Confirm
-And when the class is Unplanned, a "Refund expected" switch appears with a percentage and an "Expected back: …" preview; confirming with it books the transaction AND its pending refund in that month
+And when the class is Unplanned, a "Refund expected" switch appears with a percentage, an "Expected back: …" preview and a "Refund notes" box beside the percentage, spanning the row like Notes; confirming with it books the transaction AND its pending refund in that month, carrying the notes
 Then "Confirmed and remembered", the draft leaves the queue, the badge disappears, and the month lists a transaction with source email and the voucher's amount, bank, date and card (the queue card shows "VISA ····1234"; the card is created as VISA-1234 on first sight — QA-CAT-05)
 And Settings → Manage suggestions now has a rule for that merchant
 When I confirm the same draft again through the API
 Then 409 not_pending, and no second transaction exists
 When I discard another pending draft
 Then it leaves the queue; discarding it again → 409; the same email never re-stages on the next Sync now
+Given a draft the parser could not fully read
+Then an amber notice names the missing fields IN THE USER'S WORDS (Payee, Amount, Date — not the parser's field names), each blank input carries a red border and points at that notice
+And the consequence panel reads "Nothing yet — … still missing" and Confirm is DISABLED — blocked visibly, never failing on submit
+When I fill those blanks in
+Then the panel switches to the booking sentence and Confirm enables, without leaving the row
 ```
 **Walkthrough:** need a pending draft — either QA-EMAIL-04 with a real email, or stage one directly
 (dev only): `INSERT INTO "PendingVouchers" (…)` with your household's `TenantId`, a `BankId` from
 `"Banks"`, `Status = 'pending'`, `Merchant`, `Amount`, `Currency = 'CRC'`, `Date`, `Fingerprint`,
 `ProviderMessageId`, `ParsedBank = 'Bac'`, `MissingFields = '{}'`. Open **Dashboard** → **Expected:** the
 amber banner "1 voucher(s) … waiting for review → Review now" (even with no months yet) and the header
-**Review** link with a **1** badge. **Review** → **Expected:** the card shows merchant, ₡ amount, date,
-type, bank; category prefilled only when a rule matches; parsed fields read-only (a draft with blanks shows
-"Could not read: …" and opens exactly those fields). Pick a category — or **+ New** beside the picker, type
+**Review** link with a **1** badge. **Review** → **Expected:** each draft is a **two-pane row** — merchant, ₡ amount, date,
+type, bank and card on the left; a **CONFIRMING WILL** panel on the right. Read that panel → **Expected:**
+a sentence naming the amount, the category, the class, the month and the week, e.g. "Book ₡7,200.00 into
+Carne as Budgeted, in September 2026 · week 3." followed, when Carne backs a budget line in that month, by
+"Carne: ₡… spent of ₡… planned — after this, ₡…" (the line clause appears only for a voucher in the line's
+own currency — the queue holds no rate to convert with). Category is prefilled only when a rule matches, and then carries a **from
+your rule** chip. The class is **three chips** — tab to them and use the arrow keys → **Expected:** they
+move like a radio group, and picking **Unplanned** reveals the refund switch. Parsed fields stay read-only;
+a draft the parser could not read shows the **amber** notice naming **Payee / Amount / Date**, red borders
+on exactly those inputs, **"Nothing yet — … still missing"** in the panel and **Confirm disabled**; filling
+them in flips the panel to the booking sentence and enables Confirm without the row moving. Pick a category — or **+ New** beside the picker, type
 a name, **Create** → **Expected:** selected on this card and offered on every other card — tick **Remember this merchant**,
 **Confirm** → **Expected:** the green notice, the card gone, the badge gone; **Months → that month** lists
 the transaction (source `email`); **Settings → Manage suggestions** has the new rule. On another draft pick
@@ -2299,7 +2458,7 @@ light/dark setting live.
 
 ## 13. Android — MAUI 🟠
 
-> Prereq every run: **`adb reverse tcp:5238 tcp:5238`** + API on the https profile. See
+> Prereq every run: **`adb reverse tcp:5338 tcp:5338`** + API on the https profile. See
 > `docs/MOBILE_TESTING.md`.
 
 ### QA-AND-01 — OTP sign-in 🔴 (Android) ⚙️ Automated in CI
@@ -2310,7 +2469,7 @@ When I request an OTP and enter the code from Mailpit
 Then I am signed in
 ```
 **Walkthrough**
-1. Confirm `adb reverse --list` shows `tcp:5238`. Launch the app.
+1. Confirm `adb reverse --list` shows `tcp:5338`. Launch the app.
 2. Login screen: email field + **Email me a 6-digit code**; Google/Microsoft buttons; **no magic
    link**.
 3. Enter an email → request code → read it in Mailpit (host) → enter it.
@@ -2326,7 +2485,7 @@ Then the in-app browser returns to the app via the perezosoft:// scheme, signed 
 **Walkthrough**
 1. Tap **Continue with Google**. **Expected:** a browser tab opens to Google consent.
 2. Approve. **Expected:** the tab returns control to the app (`perezosoft://auth` intent), now signed
-   in. (Repeat **Microsoft** if its `:5238` redirect is registered.)
+   in. (Repeat **Microsoft** if its `:5338` redirect is registered.)
 
 ### QA-AND-03 — "Remember me" across app restart 🟠 (Android)
 **Walkthrough:** swipe-close the app; reopen. **Expected:** still signed in (refresh token in the
@@ -2344,8 +2503,9 @@ Given I am signed in on Android
 When I open the navigation (hamburger)
 Then the menu is tappable and not hidden under the status bar
 ```
-**Walkthrough:** tap the hamburger; use **Household/Settings/Sign out**. **Expected:** the header sits
-below the status bar (safe-area padding) and every item is tappable.
+**Walkthrough:** tap the hamburger; inside the sheet, open the **user menu** (tenant chip / your name)
+and use **Household/Settings/Sign out**. **Expected:** the header sits below the status bar (safe-area
+padding), the menu flows inside the sheet rather than floating over it, and every item is tappable.
 
 ### QA-AND-06 — Core flows on Android 🟢 (Android)
 **Walkthrough:** spot-check language switch, invite (token revealed), and leave. **Expected:** parity
@@ -2439,7 +2599,7 @@ Then approving still signs me in — the redirect relaunches the app and complet
 
 > **These platforms compile in CI but had never been RUN before this pass.** Prereqs: a Mac with
 > **Xcode 26.5** (the CI pin), the repo, and the API + Postgres + Mailpit running on that Mac (the
-> iOS **simulator** shares the host network, so `https://localhost:7160` works; a **physical device**
+> iOS **simulator** shares the host network, so `https://localhost:7260` works; a **physical device**
 > needs the API bound to a LAN address + the dev cert trusted). Launch:
 > `dotnet build src/Maui -t:Run -f net10.0-ios` (simulator) / `-f net10.0-maccatalyst`.
 > The **G7 fix is required** (PR #109) — before it, both platforms crashed at first resolve (no
@@ -2575,7 +2735,7 @@ the API directly:
 > each owner and copy its access token from `POST /api/auth/refresh` or the Swagger **Authorize**
 > button, exactly as §14b describes) so you hold **two JWTs carrying different `tenant_id` claims**. A
 > few cases need the **two browser contexts** of §1.2 (a normal window + an incognito/second profile);
-> those are flagged in the title. Base URL `https://localhost:7160` (use `-k` for the dev cert) locally,
+> those are flagged in the title. Base URL `https://localhost:7260` (use `-k` for the dev cert) locally,
 > or the staging host for Environment B. Grab each tenant's ids up front: `GET /api/household` as A and
 > as B gives you A's/B's household id + member user-ids; note one **B** member user-id, one **B**
 > notification/webhook/api-key id (create them if needed) for the cross-tenant probes.
@@ -2955,7 +3115,7 @@ Then it targets the configured HTTPS API (build fails if none) — no http://loc
 1. Build a **Release** AAB/MSIX without dev overrides. Inspect the effective base URL + Android network
    security config.
 2. **Expected (post-remediation):** base URL is the configured **HTTPS** API; a missing base URL **fails
-   the build**; no `http://localhost:5238` and no cleartext-permitting network config is shipped.
+   the build**; no `http://localhost:5338` and no cleartext-permitting network config is shipped.
 3. **Was (pre-v3 audit NAT-3):** this step used to FAIL and was recorded Blocked. The finding is fixed (v3 remediation, PRs #147–#191) — the assertions above now hold; expect **Pass**.
 
 ### QA-ADV-24 — Windows loopback OAuth binds state (login-CSRF guard) 🟢 (Desktop)
@@ -2989,7 +3149,7 @@ Then it is rejected — no session is minted from an unsolicited/forged callback
 > `Webhooks__Enabled=true`, then restart the API. Management of keys/webhooks is **owner-only**, so sign in
 > as an owner and grab a JWT access token from `POST /api/auth/refresh` (the Swagger "Authorize" button
 > shows one) to call the `/api/apikeys` and `/api/webhooks` management routes below. Base URL in these
-> steps is `https://localhost:7160` (use `-k` for the dev cert).
+> steps is `https://localhost:7260` (use `-k` for the dev cert).
 
 ### QA-API-01 — Config gate: surfaces are 404 when disabled 🟢 (curl)
 **Gherkin**
@@ -3000,7 +3160,7 @@ Then it does not exist (404) — the routes aren't mapped and the API-key scheme
 ```
 **Walkthrough**
 1. With both flags **unset/false**, restart the API and call
-   `curl -k https://localhost:7160/api/public/openapi.json` and `.../api/apikeys` (with a JWT).
+   `curl -k https://localhost:7260/api/public/openapi.json` and `.../api/apikeys` (with a JWT).
 2. **Expected:** **404** for both. Now set the two flags true, restart, and re-check — they become live
    (401/200). Leave them **on** for the rest of this section.
 
@@ -3012,7 +3172,7 @@ When I create an API key
 Then I receive the raw pk_… key exactly once, and listing later shows only its prefix/metadata
 ```
 **Walkthrough**
-1. `curl -k -X POST https://localhost:7160/api/apikeys -H "Authorization: Bearer <JWT>" -H "Content-Type: application/json" -d '{"name":"qa","scopes":["read"]}'`
+1. `curl -k -X POST https://localhost:7260/api/apikeys -H "Authorization: Bearer <JWT>" -H "Content-Type: application/json" -d '{"name":"qa","scopes":["read"]}'`
 2. **Expected:** **201** with a `key` field like `pk_…` — **copy it now** (never shown again). `GET /api/apikeys`
    lists it with `prefix`/`scopes` but **no** `key`.
 3. **Non-owner:** repeat as a member/admin → **403**.
@@ -3025,16 +3185,16 @@ When I call the public API with it
 Then whoami returns my tenant, and a write-scoped route is refused (403 insufficient_scope)
 ```
 **Walkthrough**
-1. `curl -k https://localhost:7160/api/public/whoami -H "X-Api-Key: pk_…"` → **200**, body shows my
+1. `curl -k https://localhost:7260/api/public/whoami -H "X-Api-Key: pk_…"` → **200**, body shows my
    `tenant_id`, the key name, and `["read"]`.
-2. `curl -k -X POST https://localhost:7160/api/public/echo -H "X-Api-Key: pk_…" -d '{"message":"hi"}'`
+2. `curl -k -X POST https://localhost:7260/api/public/echo -H "X-Api-Key: pk_…" -d '{"message":"hi"}'`
    with the **read-only** key → **403 `insufficient_scope`**. (A key created with `"write"` succeeds.)
 3. **No/blank/garbage key** → **401**. **Revoked key** (`DELETE /api/apikeys/{id}`) → **401** afterwards.
 4. **Postman:** import `/api/public/openapi.json`, set an `X-Api-Key` header on the collection, run `whoami`.
 
 ### QA-API-04 — Per-key rate limit 🟠 (curl)
 **Walkthrough**
-1. Fire `whoami` with one key ~65 times in a minute (`for i in $(seq 1 65); do curl -k -s -o /dev/null -w "%{http_code}\n" https://localhost:7160/api/public/whoami -H "X-Api-Key: pk_…"; done`).
+1. Fire `whoami` with one key ~65 times in a minute (`for i in $(seq 1 65); do curl -k -s -o /dev/null -w "%{http_code}\n" https://localhost:7260/api/public/whoami -H "X-Api-Key: pk_…"; done`).
 2. **Expected:** the first 60 are **200**, then **429**. A **second** key still returns **200** (budgets are
    per key, not shared).
 
@@ -3709,6 +3869,89 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   TTL guard; interrupted links land on Settings' banner). New **QA-AND-15** (on-device kill test;
   renumbered from the branch's QA-AND-14 — that slot went to THEME-1's restart test in the interim).
   Suite 149 → **150** cases.
+- **Updated 2026-09-12** — **The two API additions the redesign needed (app-owned backend, additive).**
+  `GET /api/months/resolve` now carries `week_number` — the week of the month's window the date falls in,
+  from the stored weeks for an existing month and from the boundaries that would create them for a new
+  one — and the summary's line rows (`fixed_expenses`, `variable_expenses`) carry `category_id`. With
+  them the transaction form's rail reads "Goes to September 2026 · week 3" and, for budgeted spending
+  with a line, "Groceries: ₡8,000.00 spent of ₡60,000.00 planned — after this, ₡58,000.00"; the review
+  queue's "Confirming will" sentence names the week and the same line impact (only when the voucher's
+  currency is the line's — the queue holds no rate). This lifts the two limits recorded under SKIN-6 and
+  SKIN-7 below. QA-LED-01 and QA-EMAIL-06 extended. **Case count unchanged at 191.**
+- **Updated 2026-09-12** — **The fourteen screens the handout never drew, conformed (SKIN-11, UI
+  redesign).** Household, Settings, Billing, Admin console, Email settings, Cards, Envelopes, Merchant
+  mappings, Banks and Categories (through the shared catalog component), Join, Home and the two auth
+  pages take the redesigned screens' composition: one page head, the hairline card shell with the
+  eyebrow section heading, the ledger's table treatment, status chips instead of Bootstrap badges, the
+  red-border invalid state, and tables that fold their secondary columns under the name on phone
+  (Cards, Envelopes, Merchant mappings, the admin roster). Envelopes' two target columns stack as one.
+  Decision 5 lands on the destructive actions: "This will" consequence panels above transfer, leave and
+  dissolve on Household, delete account on Settings, and comp/revert on Admin — the browser confirm
+  behind each stays as the last gate (the CI journeys accept it). QA-HH-07, QA-SET-07 and QA-ADMIN-06
+  gain a *Then* for the stated consequence. **Case count unchanged at 191.**
+- **Updated 2026-09-12** — **Reports: four tiles, the pace chart promoted, one category table (SKIN-10,
+  UI redesign).** The page opens on Total spend / Budgeted / Discretionary / Unplanned tiles (share of
+  income or of spend; the month's refundable amount on Unplanned) and the pace chart full width, then a
+  Table | Chart switch over the detail. Table is one "By category" card with a class switcher, a
+  spent-vs-budget bar where a budget exists, the # count, Budget and Spent. Chart keeps the eight charts
+  (plan §7.1: promote one, demote the rest, delete none) minus the pace, which is always above. The old
+  StackedBar component is gone (nothing drew it since SKIN-5). QA-REP-01/03/04 reworded. **Case count
+  unchanged at 191.**
+- **Updated 2026-09-12** — **Budget: a commitment header, reorderable grid rows, one dialog (SKIN-9, UI
+  redesign).** The page opens on "Planned every month ₡…" with "N% of a typical income" (the four-week
+  defaults, at today's rate — no share without defaults, no conversion without a rate) and a Fixed/Variable
+  bar. The two tables become cards of grid rows: ⠿ handle, name, amount in the line's own currency,
+  category, a "bank · method" chip, Edit; inactive lines are struck through with no handle. ▲▼ are gone:
+  reorder by drag, or by the handle's move menu (up / down / to position — the keyboard and phone path),
+  optimistic with rollback. Creating and editing move into a dialog behind one **+ Add a line** button
+  with a Fixed/Variable switch. **QA-EXP-02 rewritten** (its ▲▼ steps stopped existing); QA-EXP-01/03
+  reworded for the dialog. **Case count unchanged at 191.**
+- **Updated 2026-09-12** — **Months as a card grid, the month page as one ledger (SKIN-8, UI redesign).**
+  The months list-group becomes cards (3/2/1 columns) that are single links: chip (Current = the window
+  holding today / Closed / Upcoming), window and week count, an 8px spent-vs-planned bar, "Spent ₡…" and
+  a green/red result — fed from each month's existing summary after the grid renders, so no API change
+  and a rate-less month still shows. The month page: "← All months" + Dashboard link, week CHIPS, income
+  as ONE row with **Save income**, and a six-column ledger (Date · Payee · Category · Paid with · Class ·
+  Amount) with class chips, a stacked amount that follows "Show in", and Paid with = bank + card alias.
+  Below tablet width Category, Paid with and Class hide into the payee cell (sub-line + chip) and the
+  filters fold behind a **Filters** button; no sideways scroll. Refund rows: amber/green status pills, stacked amount, buttons that name the
+  merchant. Edit/Delete stay on every row (the handout drew none; the delete flow is tested and walked).
+  QA-LED-01/02/04/05/06/08 reworded. **Case count unchanged at 191.**
+- **Updated 2026-09-12** — **Catch-up: the login split (SKIN-3) and the app shell (SKIN-4).** These two
+  slices shipped their code without their QA prose, against the plan's own rule that the prose travels
+  with the screen. Corrected here: QA-SMK-01 step 6 and QA-SMK-03 now describe the user menu (Household,
+  Billing, Settings and Sign out live behind the tenant chip; the bell stays in the bar), QA-AND-05 the
+  same inside the phone sheet, and QA-I18N-01 / QA-AUTH-10 the form pane of the split sign-in. **Case
+  count unchanged at 191.**
+- **Updated 2026-09-12** — **The transaction form, amount-first (SKIN-7, UI redesign).** Twelve stacked
+  fields become the amount at display size (currency toggle inside the input group, live conversion beneath),
+  two named groups — What it was / How it was paid — and a **Before you save** rail naming the pay-cycle
+  month and both sides of the money. The class picker becomes five chips in a radio group; ALL FIVE stay,
+  because each opens a path the others do not (unplanned → expected refund, envelope → bucket picker,
+  inflow → income). CARDS-3's silent method change now says so. QA-LED-01/02 and QA-CAT-07 extended.
+  **Case count unchanged at 191.** Save deliberately stays ENABLED and surfaces validation on submit — the
+  opposite rule from the review queue, where the blocker is a parsed blank the user cannot argue with.
+  Limit recorded at the time: the handout's rail also shows the budget line's new total, unreachable while the
+  summary's line rows carried no category id — **lifted the same day by the API additions entry above.**
+- **Updated 2026-09-12** — **The review queue says what confirming will do (SKIN-6, UI redesign).** Each
+  staged email becomes a two-pane row: the draft, and a "Confirming will" panel stating the amount, the
+  category, the class and the pay-cycle month the date lands in. Confirm is disabled while anything required
+  is empty and the panel names it — blocked visibly rather than failing on submit — and the parser's blanks
+  are named in the user's words (Payee / Amount / Date) with red borders and aria wiring. The class picker
+  becomes three chips in a radio group; ALL THREE classes stay, because picking Unplanned is what opens the
+  expected-refund path. QA-EMAIL-06 extended. **Case count unchanged at 191.** Two limits recorded rather
+  than papered over at the time: the handout's sentence also names the WEEK and the budget line's new total,
+  and neither was reachable — `/api/months/resolve` returned no week and the summary's line rows no category
+  id — **both lifted the same day by the API additions entry above.**
+- **Updated 2026-09-11** — **The dashboard as one verdict (SKIN-5, UI redesign).** The eleven-row
+  waterfall becomes a verdict card, a pace bar and four steps; the separate week / bank / card cards
+  become ONE "Where it went" panel behind a By week | By bank | By card | Unbudgeted switch (the old
+  Other-spending card is that fourth option); envelopes become a strip rendered only when a bucket is due
+  by its cadence. The pace legend carries each class's AMOUNT beside its share, in the selected display
+  currency. QA-DASH-01/02/04/05 rewritten — 04 and 05 substantially, because their Gherkin described rows
+  and cards that no longer exist. **Case count unchanged at 191.** Untouched, and still asserted: the
+  waterfall arithmetic and its order, the frozen per-transaction rates, and the exclusion of expected
+  refunds from the forecast.
 - **Updated 2026-09-04** — **Email settings: Connect greys out once a provider is connected.** The
   page always rendered both Connect buttons, so a second Outlook/Gmail attempt only surfaced as the
   `already_connected` bounce. With the one-inbox-per-provider rule (EMAIL-2) now reflected in the UI, the

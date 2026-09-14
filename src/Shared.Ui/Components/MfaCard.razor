@@ -12,11 +12,11 @@
             <h2 class="h6 fw-bold mb-0">@Localizer["Mfa_Title"]</h2>
             @if (_state == State.On)
             {
-                <span class="badge bg-success-subtle text-success-emphasis" data-testid="mfa-status-on">@Localizer["Mfa_On"]</span>
+                <StatusChip Tone="good" TestId="mfa-status-on">@Localizer["Mfa_On"]</StatusChip>
             }
             else if (_state != State.Loading)
             {
-                <span class="badge bg-secondary-subtle text-secondary-emphasis">@Localizer["Mfa_Off"]</span>
+                <StatusChip>@Localizer["Mfa_Off"]</StatusChip>
             }
         </div>
         <p class="small text-muted mb-3">@Localizer["Mfa_Subtitle"]</p>

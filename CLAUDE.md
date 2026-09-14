@@ -18,6 +18,21 @@ the donor's tests as the spec, and **never modify platform code in this repo** �
 its seams; a generic gap goes upstream to `perezosoft-platform` first.
 
 ## Read before you act
+- **This app owns a dev PORT BLOCK, and it is not the platform's.** `perezosoft-platform` seeds every
+  new app with its own ports, so out of the box an app cannot run beside the platform *or* beside a
+  sibling app — same Web port, same API port, first one wins and the second dies. The convention is
+  **+100 per downstream app** on all four. This repo's block:
+
+  | | https | http |
+  |---|---|---|
+  | Web | **7108** | **5269** |
+  | API | **7260** | **5338** |
+
+  (Platform keeps 7008/5169 + 7160/5238; the next app takes 7208/5369 + 7360/5438.) The http API leg
+  is the one the Android emulator reaches through `adb reverse tcp:5338 tcp:5338`, so **provider
+  redirect URIs must name `http://localhost:5338/signin-{provider}`** — see `docs/MOBILE_TESTING.md`.
+  `docs/audits/**` and `docs/qa-runs/**` still record the old ports on purpose: they are logs of what
+  a run actually used.
 - **CI is proportional to the change (LOCALCI-3, inherited from the platform 2026-09-11).** A job
   called `changes` reads the diff once and publishes `code` / `native` / `docs`; every non-deploy job
   gates on it, so a docs-only push does not pay for a build. **`secret-scan` and `qa-artifacts` never
@@ -237,6 +252,7 @@ deferred items without an explicit decision.
 | `docs/MOBILE_TESTING.md` | Run/sign-in on the Android emulator (adb reverse, OAuth) |
 | `docs/QA_TEST_PLAN.md` | Manual QA plan — step-by-step tests across web + all four native platforms (191 cases: smoke + regression + §14a v3-audit adversarial/tenant-isolation + §13c native release checklist) |
 | `docs/ROADMAP.md` | Sequenced plan — pillars done (JOBS/BILLING/OBS) + the next waves (RBAC, files, GDPR, MFA, …) |
+| `docs/UI_REDESIGN_PLAN.md` | **PR #63 open (`feat/ui-redesign` → `develop`, 2026-09-14): all 11 slices + the additive API fields + the fix set; pinned after merge: budget-line bank removal, refund `case_number` removal** — the `UI Handout.pdf` presentation-layer redesign read against this codebase: epic `SKIN`, eleven app-side slices shipped as ONE PR with a commit each (11 conforms the fourteen screens the handout never drew), five stale claims in it (incl. three silent removals of shipped behaviour), what it costs in strings/tests/QA, the three design decisions (each with a proposal, each due at its own slice gate), the per-slice QA-plan impact map (§5b), and the show-then-green-light rule before every slice |
 | `docs/STATUS.md` | 2026-07-04 status snapshot + operator guides — native QA pass (✅ 2026-07-14), Apple first-run smoke (MacBook walkthrough), prod activation (⤵ downstream Phase-8 runbook, ADR-017 amendment); SaaS-readiness assessment |
 | `docs/PLATFORM_BACKLOG.md` | Per-item design sketches for the future foundation slices (the detail behind ROADMAP) |
 | `docs/stories/` | User stories per epic — generated at build time |

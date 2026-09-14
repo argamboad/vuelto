@@ -41,7 +41,7 @@ public class LedgerPagesTests : ComponentTestBase
         Assert.Contains("Tx_GoesToNew[July 2026]", cut.Find("[data-testid='tx-resolve']").TextContent);
 
         cut.Find("[data-testid='tx-payee']").Input("AutoMercado");
-        cut.Find("[data-testid='tx-amount']").Change("50000");
+        cut.Find("[data-testid='tx-amount-field-input']").Change("50000");
         cut.Find("[data-testid='tx-category']").Change(CatId);
         cut.Find("[data-testid='tx-bank']").Change(BankId);
         cut.Find("[data-testid='tx-save']").Click();
@@ -67,7 +67,7 @@ public class LedgerPagesTests : ComponentTestBase
         var cut = Render<TransactionForm>();
         cut.WaitForElement("[data-testid='tx-save']");
         cut.Find("[data-testid='tx-payee']").Input("AutoMercado");
-        cut.Find("[data-testid='tx-amount']").Change("100");
+        cut.Find("[data-testid='tx-amount-field-input']").Change("100");
         cut.Find("[data-testid='tx-category']").Change(CatId);
         cut.Find("[data-testid='tx-save']").Click();
 
@@ -87,13 +87,13 @@ public class LedgerPagesTests : ComponentTestBase
         var cut = Render<TransactionForm>();
 
         cut.WaitForAssertion(() => Assert.Equal("448.27", cut.Find("[data-testid='tx-rate']").GetAttribute("value")));
-        cut.Find("[data-testid='tx-currency']").Change("USD");
+        cut.Find("[data-testid='tx-amount-field-currency-USD']").Change(true);
         Assert.Equal("453.69", cut.Find("[data-testid='tx-rate']").GetAttribute("value"));
-        cut.Find("[data-testid='tx-currency']").Change("CRC");
+        cut.Find("[data-testid='tx-amount-field-currency-CRC']").Change(true);
         Assert.Equal("448.27", cut.Find("[data-testid='tx-rate']").GetAttribute("value"));
 
         cut.Find("[data-testid='tx-rate']").Change("460");
-        cut.Find("[data-testid='tx-currency']").Change("USD");
+        cut.Find("[data-testid='tx-amount-field-currency-USD']").Change(true);
         Assert.Equal("460", cut.Find("[data-testid='tx-rate']").GetAttribute("value"));
     }
 
@@ -138,7 +138,7 @@ public class LedgerPagesTests : ComponentTestBase
         Assert.Equal("0/250", cut.Find("[data-testid='tx-notes-count']").TextContent.Trim());
 
         cut.Find("[data-testid='tx-payee']").Input("AutoMercado");
-        cut.Find("[data-testid='tx-amount']").Change("50000");
+        cut.Find("[data-testid='tx-amount-field-input']").Change("50000");
         cut.Find("[data-testid='tx-category']").Change(CatId);
         cut.Find("[data-testid='tx-bank']").Change(BankId);
         cut.Find("[data-testid='tx-notes']").Input("  Stocking up before the trip ");
@@ -164,7 +164,7 @@ public class LedgerPagesTests : ComponentTestBase
         Assert.Contains("VISA-1234", cut.Find("[data-testid='tx-card']").TextContent);
 
         cut.Find("[data-testid='tx-payee']").Input("AutoMercado");
-        cut.Find("[data-testid='tx-amount']").Change("50000");
+        cut.Find("[data-testid='tx-amount-field-input']").Change("50000");
         cut.Find("[data-testid='tx-category']").Change(CatId);
         cut.Find("[data-testid='tx-bank']").Change(BankId);
         cut.Find("[data-testid='tx-card']").Change(CardId);
@@ -187,7 +187,7 @@ public class LedgerPagesTests : ComponentTestBase
 
         cut.WaitForAssertion(() => Assert.Contains("Tx_RateUnavailable", cut.Find("[data-testid='tx-rate-hint']").TextContent));
         cut.Find("[data-testid='tx-payee']").Input("X");
-        cut.Find("[data-testid='tx-amount']").Change("100");
+        cut.Find("[data-testid='tx-amount-field-input']").Change("100");
         cut.Find("[data-testid='tx-category']").Change(CatId);
         cut.Find("[data-testid='tx-bank']").Change(BankId);
         cut.Find("[data-testid='tx-save']").Click();
@@ -266,7 +266,7 @@ public class LedgerPagesTests : ComponentTestBase
         cut.WaitForAssertion(() => Assert.Equal(NewCatId, cut.Find("[data-testid='tx-category']").GetAttribute("value")));
         Assert.Contains(cut.FindAll("[data-testid='tx-category'] option"), o => o.GetAttribute("value") == NewCatId && o.TextContent == "Viajes");
         cut.Find("[data-testid='tx-payee']").Input("Hotel");
-        cut.Find("[data-testid='tx-amount']").Change("80000");
+        cut.Find("[data-testid='tx-amount-field-input']").Change("80000");
         cut.Find("[data-testid='tx-bank']").Change(BankId);
         cut.Find("[data-testid='tx-save']").Click();
 

@@ -259,8 +259,8 @@ here so they are not rediscovered later:
 2. **The "client secret" is a rotating ES256 JWT**, minted from a downloaded `.p8` key + Team ID +
    Key ID + Service ID, expiring every ≤6 months. This breaks the single-static-secret-in-`.env`
    shape of ADR-001 (the package can generate/cache the JWT from the key material).
-3. **Apple forbids `localhost` redirect URIs.** Google/MS redirect to `https://localhost:7160` /
-   `http://localhost:5238`, which the QA plan and `MOBILE_TESTING.md` rely on. Apple needs a real
+3. **Apple forbids `localhost` redirect URIs.** Google/MS redirect to `https://localhost:7260` /
+   `http://localhost:5338`, which the QA plan and `MOBILE_TESTING.md` rely on. Apple needs a real
    **HTTPS domain or tunnel** even for local QA — a workflow asterisk, not a code change.
 4. **`form_post` callback** (because name/email scope is requested) ⇒ the OAuth correlation cookie
    must be `SameSite=None; Secure`; relevant given the schemeful-same-site cookie history.

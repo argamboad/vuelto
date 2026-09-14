@@ -1,24 +1,122 @@
-.login-wrapper {
-    display: flex;
-    justify-content: center;
-    align-items: flex-start;
-    padding: 2rem 1rem;
+/* SKIN-3 · the split. One column by default — phone and tablet are form-first, with the brand panel absent
+   rather than shrunk — and two columns at lg, where the form pane takes a fixed 440px and the panel takes
+   what is left. The pane is the card: no border, no shadow, no nested shell. */
+.login-split {
+    display: grid;
+    grid-template-columns: 1fr;
+    /* Viewport units, not 100% — nothing in the chain above (the layout wrapper, body) has a height,
+       so a percentage resolves against auto and the panel collapses to its own content. dvh is the
+       one that behaves when a phone browser's chrome slides away; vh is the fallback under it. */
+    min-height: 100vh;
+    min-height: 100dvh;
 }
 
-.login-card {
-    width: 100%;
-    max-width: 420px;
-    border-radius: 14px;
-    border: 1px solid var(--app-border, #E0E7EF);
+/* ---------------------------------------------------------------- brand panel (lg and up only) */
+.login-brand {
+    display: none; /* below lg it is not hidden visually — it is not rendered as a column at all */
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 44px 48px;
+    /* The handout says this panel is flat --bs-primary. It cannot be: the LOCKUP'S COIN DISC IS
+       --bs-primary, so on a --bs-primary panel the mark sits on itself and only the ring and the
+       gold colon survive — and the tagline, a muted indigo, disappears with it. Neither lockup
+       variant fixes that, because both share the same coin; the background is what has to move.
+       --brand-dark is the palette's own darkest shade, it is what the wordmark ink is drawn from,
+       and the light-on-dark lockup is designed for exactly this ground. */
+    background: var(--brand-dark);
 }
 
-.login-lockup {
-    width: 100%;
-    max-width: 240px;
+/* One flat brand ground in BOTH themes, so its copy is fixed light values rather than tokens — there is no dark
+   counterpart to swap to, and an ink token here would go dark-on-indigo in one of the two themes. */
+.login-brand-lockup {
+    /* Large enough that the tagline under the wordmark is readable — it is set small and muted in
+       the asset, so size is what carries it rather than colour. */
+    width: min(300px, 62%);
     height: auto;
 }
 
-/* OAuth buttons */
+.login-promise h2 {
+    margin: 0 0 13px;
+    max-width: 15em;
+    font-size: 26px;
+    font-weight: var(--w-display);
+    line-height: 1.25;
+    color: #fff;
+    text-wrap: balance;
+}
+
+.login-promise p {
+    margin: 0;
+    max-width: 26em;
+    font-size: 13px;
+    font-weight: var(--w-body);
+    line-height: 1.55;
+    color: #DCDFF8;
+}
+
+.login-region {
+    margin: 0;
+    font-size: 11px;
+    font-weight: var(--w-control);
+    letter-spacing: 0.06em;
+    color: #DCDFF8;
+    opacity: 0.75;
+}
+
+/* ---------------------------------------------------------------- form pane */
+.login-pane {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 22px 20px;
+    background: var(--card-bg);
+}
+
+.login-form {
+    width: 100%;
+    max-width: 360px;
+}
+
+/* Below lg the mark sits above the heading; app.css swaps its source per theme, which is why this keeps
+   the .login-lockup class and the panel's mark does not. */
+.login-lockup {
+    display: block;
+    width: min(200px, 80%);
+    height: auto;
+    margin: 0 auto 17px;
+}
+
+.login-heading {
+    margin-bottom: 19px;
+}
+
+.login-heading h1 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: var(--w-display);
+    color: var(--ink);
+}
+
+.login-heading p {
+    margin: 3px 0 0;
+    font-size: 12px;
+    font-weight: var(--w-body);
+    color: var(--ink-3);
+}
+
+/* Language and theme stay side by side at every width. */
+.login-prefs {
+    display: flex;
+    gap: 8px;
+    margin-top: 26px;
+}
+
+.login-prefs > div {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+/* ---------------------------------------------------------------- OAuth buttons (carried over unchanged) */
 .btn-oauth {
     display: flex;
     align-items: center;
@@ -29,7 +127,7 @@
     border: 1.5px solid #D0D5DD;
     color: #344054;
     padding: .6rem 1rem;
-    border-radius: 8px;
+    border-radius: var(--bs-border-radius);
     text-decoration: none;
     transition: border-color .15s, box-shadow .15s;
 }
@@ -59,8 +157,8 @@
     display: flex;
     align-items: center;
     gap: .75rem;
-    color: #98A2B3;
-    font-size: .8rem;
+    color: var(--ink-3);
+    font-size: 11px;
 }
 
 .divider-text::before,
@@ -68,14 +166,17 @@
     content: '';
     flex: 1;
     height: 1px;
-    background: #E4E7EC;
+    background: var(--app-border);
 }
 
-[data-bs-theme="dark"] .divider-text {
-    color: var(--bs-secondary-color);
+/* ---------------------------------------------------------------- breakpoints */
+@media (min-width: 768px) {
+    .login-pane { padding: 32px 40px; }
 }
 
-[data-bs-theme="dark"] .divider-text::before,
-[data-bs-theme="dark"] .divider-text::after {
-    background: var(--bs-border-color);
+@media (min-width: 992px) {
+    .login-split { grid-template-columns: 1fr 440px; }
+    .login-brand { display: flex; }
+    .login-lockup { display: none; } /* the panel carries the mark at this width */
+    .login-pane { padding: 48px 44px; }
 }
