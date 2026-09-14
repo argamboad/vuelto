@@ -1,6 +1,6 @@
 # UI redesign — plan
 
-> **Status (2026-09-14): PR #63 open (`feat/ui-redesign` → `develop`) — all 11 slices built and committed
+> **Status (2026-09-14): MERGED — PR #63 (`feat/ui-redesign` → `develop`) — all 11 slices built and committed
 > (SKIN-1 tokens · 2 components · 3 login · 4 shell · 5 dashboard · 6 review · 7 transaction form · 8 months and month detail · 9 budget · 10 reports · 11 the fourteen-screen sweep),
 > plus three fix commits found by looking (dark-theme anchor buttons, disabled primary buttons, the
 > stated rhythm/radius applied as one source). Nothing pushed; the PR to `develop` is the next step.** The source is `UI Handout.pdf`
