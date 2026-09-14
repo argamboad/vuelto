@@ -10,7 +10,7 @@ namespace Vuelto.Api.Tests.Features;
 
 /// <summary>
 /// EXPENSES-1 on real Postgres (donor US-016/017/054 rules): never seeded; ordered by sort_order; create
-/// appends; validation (single-currency, method, required active category, optional active bank) writes
+/// appends; validation (single-currency, method, required active category) writes
 /// nothing; 409 offer with stored name; a category backs at most one active line ACROSS both lists;
 /// names are unique per list only; update never touches sort_order; reorder needs the exact active set
 /// and lands atomically; uniform 404; tenant isolation; contributors.
@@ -20,7 +20,7 @@ public class ExpenseLineSliceTests(PostgresFixture fixture) : PostgresTestBase(f
 {
     private static readonly DateTimeOffset T0 = new(2026, 9, 3, 12, 0, 0, TimeSpan.Zero);
 
-    public sealed record Ctx(AppDbContext Db, Guid Tenant, FixedExpenseHandler Fixed, VariableExpenseHandler Variable, Guid Cat1, Guid Cat2, Guid Cat3, Guid InactiveCat, Guid BankId, Guid InactiveBank);
+    public sealed record Ctx(AppDbContext Db, Guid Tenant, FixedExpenseHandler Fixed, VariableExpenseHandler Variable, Guid Cat1, Guid Cat2, Guid Cat3, Guid InactiveCat);
 
     private async Task<Ctx> ContextAsync()
     {
@@ -28,27 +28,25 @@ public class ExpenseLineSliceTests(PostgresFixture fixture) : PostgresTestBase(f
         var db = Fixture.CreateContext(tenant);
         Category C(string n, bool active = true) => new() { TenantId = tenant, Name = n, IsActive = active, CreatedAt = T0, UpdatedAt = T0 };
         var (c1, c2, c3, ci) = (C("Housing"), C("Food"), C("Transport"), C("Old", false));
-        var bank = new Bank { TenantId = tenant, Name = "BAC", CreatedAt = T0, UpdatedAt = T0 };
-        var oldBank = new Bank { TenantId = tenant, Name = "Closed", IsActive = false, CreatedAt = T0, UpdatedAt = T0 };
-        db.Categories.AddRange(c1, c2, c3, ci); db.Banks.AddRange(bank, oldBank);
+        db.Categories.AddRange(c1, c2, c3, ci);
         await db.SaveChangesAsync();
         db.ChangeTracker.Clear();
 
         var current = new TestCurrentTenant { TenantId = tenant };
         var clock = new FakeTimeProvider(T0);
         var f = new EfRepository<FixedExpense>(db); var v = new EfRepository<VariableExpense>(db);
-        var cats = new EfRepository<Category>(db); var banks = new EfRepository<Bank>(db);
+        var cats = new EfRepository<Category>(db);
         return new Ctx(db, tenant,
-            new FixedExpenseHandler(f, f, v, cats, banks, current, clock),
-            new VariableExpenseHandler(v, f, v, cats, banks, current, clock),
-            c1.Id, c2.Id, c3.Id, ci.Id, bank.Id, oldBank.Id);
+            new FixedExpenseHandler(f, f, v, cats, current, clock),
+            new VariableExpenseHandler(v, f, v, cats, current, clock),
+            c1.Id, c2.Id, c3.Id, ci.Id);
     }
 
-    private static CreateExpenseRequest Line(string name, Guid category, decimal crc = 300_000m, decimal usd = 0m, string method = "bank_account", Guid? bank = null) =>
-        new(name, crc, usd, method, category, bank);
+    private static CreateExpenseRequest Line(string name, Guid category, decimal crc = 300_000m, decimal usd = 0m, string method = "bank_account") =>
+        new(name, crc, usd, method, category);
 
-    private static UpdateExpenseRequest Edit(string name, Guid category, decimal crc = 300_000m, decimal usd = 0m, string method = "bank_account", Guid? bank = null, bool active = true) =>
-        new(name, crc, usd, method, category, bank, active);
+    private static UpdateExpenseRequest Edit(string name, Guid category, decimal crc = 300_000m, decimal usd = 0m, string method = "bank_account", bool active = true) =>
+        new(name, crc, usd, method, category, active);
 
     [Fact]
     public async Task FirstList_IsEmpty_NothingIsSeeded()
@@ -64,11 +62,11 @@ public class ExpenseLineSliceTests(PostgresFixture fixture) : PostgresTestBase(f
         var c = await ContextAsync();
 
         var (a, e1) = await c.Fixed.CreateAsync(Line("  Mortgage ", c.Cat1, crc: 300_000.005m), default);
-        var (b, e2) = await c.Fixed.CreateAsync(Line("Netflix", c.Cat2, crc: 0m, usd: 13m, method: "Credit_Card", bank: c.BankId), default);
+        var (b, e2) = await c.Fixed.CreateAsync(Line("Netflix", c.Cat2, crc: 0m, usd: 13m, method: "Credit_Card"), default);
 
         Assert.Null(e1); Assert.Null(e2);
-        Assert.Equal(("Mortgage", 300_000.01m, 0m, "bank_account", 0, true, (Guid?)null), (a!.Name, a.BudgetCrc, a.BudgetUsd, a.PaymentMethod, a.SortOrder, a.IsActive, a.BankId));
-        Assert.Equal((0m, 13m, "credit_card", 1, c.BankId), (b!.BudgetCrc, b.BudgetUsd, b.PaymentMethod, b.SortOrder, b.BankId));
+        Assert.Equal(("Mortgage", 300_000.01m, 0m, "bank_account", 0, true), (a!.Name, a.BudgetCrc, a.BudgetUsd, a.PaymentMethod, a.SortOrder, a.IsActive));
+        Assert.Equal((0m, 13m, "credit_card", 1), (b!.BudgetCrc, b.BudgetUsd, b.PaymentMethod, b.SortOrder));
         Assert.Equal(c.Tenant, (await c.Db.FixedExpenses.SingleAsync(x => x.Id == a.Id)).TenantId);
     }
 
@@ -83,8 +81,6 @@ public class ExpenseLineSliceTests(PostgresFixture fixture) : PostgresTestBase(f
         { c => Line("X", c.Cat1, crc: 100m, usd: 5m), "exactly one" },
         { c => Line("X", Guid.CreateVersion7()), "category" },
         { c => Line("X", c.InactiveCat), "category" },
-        { c => Line("X", c.Cat1, bank: Guid.CreateVersion7()), "bank" },
-        { c => Line("X", c.Cat1, bank: c.InactiveBank), "bank" },
     };
 
     [Theory]
@@ -150,32 +146,27 @@ public class ExpenseLineSliceTests(PostgresFixture fixture) : PostgresTestBase(f
         var (line, _) = await c.Fixed.CreateAsync(Line("Water", c.Cat2), default);
         Assert.Equal(1, line!.SortOrder);
 
-        var (updated, error) = await c.Fixed.UpdateAsync(line.Id, Edit("Agua", c.Cat3, crc: 0m, usd: 25m, method: "credit_card", bank: c.BankId), default);
+        var (updated, error) = await c.Fixed.UpdateAsync(line.Id, Edit("Agua", c.Cat3, crc: 0m, usd: 25m, method: "credit_card"), default);
 
         Assert.Null(error);
-        Assert.Equal(("Agua", 0m, 25m, "credit_card", c.Cat3, c.BankId, 1, true), (updated!.Name, updated.BudgetCrc, updated.BudgetUsd, updated.PaymentMethod, updated.CategoryId, updated.BankId, updated.SortOrder, updated.IsActive));
-
-        var (cleared, _) = await c.Fixed.UpdateAsync(line.Id, Edit("Agua", c.Cat3, crc: 0m, usd: 25m, method: "credit_card", bank: null), default);
-        Assert.Null(cleared!.BankId);
+        Assert.Equal(("Agua", 0m, 25m, "credit_card", c.Cat3, 1, true), (updated!.Name, updated.BudgetCrc, updated.BudgetUsd, updated.PaymentMethod, updated.CategoryId, updated.SortOrder, updated.IsActive));
         Assert.Equal("not_found", (await c.Fixed.UpdateAsync(Guid.CreateVersion7(), Edit("X", c.Cat1), default)).Error!.Error);
     }
 
     [Fact]
-    public async Task List_OrderedBySortOrder_ActiveByDefault_DeactivatedBankStillReferenced()
+    public async Task List_OrderedBySortOrder_ActiveByDefault()
     {
         var c = await ContextAsync();
-        var (a, _) = await c.Variable.CreateAsync(Line("Groceries", c.Cat1, method: "credit_card", bank: c.BankId), default);
+        var (a, _) = await c.Variable.CreateAsync(Line("Groceries", c.Cat1, method: "credit_card"), default);
         var (b, _) = await c.Variable.CreateAsync(Line("Fuel", c.Cat2, method: "credit_card"), default);
         var (hidden, _) = await c.Variable.CreateAsync(Line("Old", c.Cat3, method: "credit_card"), default);
         await c.Variable.UpdateAsync(hidden!.Id, Edit("Old", c.Cat3, method: "credit_card", active: false), default);
-        var bank = await c.Db.Banks.SingleAsync(x => x.Id == c.BankId); bank.IsActive = false; await c.Db.SaveChangesAsync();
 
         var active = await c.Variable.ListAsync(false, default);
         var all = await c.Variable.ListAsync(true, default);
 
         Assert.Equal([a!.Id, b!.Id], active!.Select(x => x.Id));
         Assert.Equal(3, all!.Count);
-        Assert.Equal(c.BankId, all[0].BankId); // a line whose bank was later deactivated still names it
     }
 
     [Fact]

@@ -23,7 +23,7 @@ public abstract class ExpenseLineDataContributor<TLine>(IRepository<TLine> lines
     {
         var rows = await lines.QueryAllTenants().Where(e => e.TenantId == tenantId)
             .OrderBy(e => e.SortOrder)
-            .Select(e => new { e.Id, e.Name, e.BudgetCrc, e.BudgetUsd, e.PaymentMethod, e.CategoryId, e.BankId, e.SortOrder, e.IsActive, e.CreatedAt, e.UpdatedAt })
+            .Select(e => new { e.Id, e.Name, e.BudgetCrc, e.BudgetUsd, e.PaymentMethod, e.CategoryId, e.SortOrder, e.IsActive, e.CreatedAt, e.UpdatedAt })
             .ToListAsync(cancellationToken);
         return rows.Count == 0 ? null : rows;
     }

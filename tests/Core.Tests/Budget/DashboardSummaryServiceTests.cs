@@ -496,15 +496,18 @@ public class DashboardSummaryServiceTests
         Assert.Equal(summary.Expenses.GrandTotal.Crc, budgetActuals + summary.OtherSpending.Sum(c => c.Actual.Crc));
     }
 
-    // ---- bank × payment-method breakdown ----
+    // ---- by bank (actuals) and by payment method (budget vs actual) ----
+    // Owner decision (2026-09-14): a budget line names no bank — a plan is "pay by card / by account", not
+    // "pay from BAC"; the transaction records the real bank. So the bank cut is actuals only, and the
+    // budget-vs-actual comparison lives on the method axis, where it stays honest.
 
     private static readonly Guid BacBankId = Guid.NewGuid();
     private static readonly Guid CashBankId = Guid.NewGuid();
 
     private static Transaction WithBank(Transaction tx, Guid bankId) { tx.BankId = bankId; return tx; }
 
-    private static FixedExpense FixedLine(string name, decimal crc, decimal usd, string method, Guid category, Guid? bankId, int order) =>
-        new() { TenantId = TenantId, Name = name, BudgetCrc = crc, BudgetUsd = usd, PaymentMethod = method, CategoryId = category, BankId = bankId, SortOrder = order };
+    private static FixedExpense FixedLine(string name, decimal crc, decimal usd, string method, Guid category, int order) =>
+        new() { TenantId = TenantId, Name = name, BudgetCrc = crc, BudgetUsd = usd, PaymentMethod = method, CategoryId = category, SortOrder = order };
 
     [Fact]
     public void ByCard_GroupsTheMonthsExpenseRowsByCard_NoCardLast()
@@ -526,55 +529,71 @@ public class DashboardSummaryServiceTests
     }
 
     [Fact]
-    public void BankMethodBreakdown_GroupsBudgetByBankAndMethod_BanklessGoesToUnassignedLast()
-    {
-        var rows = With(fixedLines: [FixedLine("Mortgage", 300_000m, 0m, "bank_account", MortgageCat, BacBankId, 1), FixedLine("Subscriptions", 10_000m, 0m, "credit_card", DiningCat, null, 2)],
-            banks: new Dictionary<Guid, string> { [BacBankId] = "BAC" }).BankMethodBreakdown;
-
-        var bac = Assert.Single(rows, r => r.BankId == BacBankId);
-        Assert.Equal(("BAC", "bank_account", 300_000m, 0m), (bac.BankName, bac.PaymentMethod, bac.Budget.Crc, bac.Actual.Crc));
-        var unassigned = Assert.Single(rows, r => r.BankId == null);
-        Assert.Equal(("", 10_000m), (unassigned.BankName, unassigned.Budget.Crc));
-        Assert.Null(rows[^1].BankId);
-    }
-
-    [Fact]
-    public void BankMethodBreakdown_GroupsActualByTransactionBankAndMethod_ExcludesInflow()
+    public void BankMethodBreakdown_GroupsActualByTransactionBankAndMethod_ExcludesInflow_BankNameOrder()
     {
         var rows = With(transactions:
         [
-            WithBank(Tx(DiningCat, 5_000m, 10m, "extraordinary", new DateOnly(2026, 6, 5)), BacBankId),
-            WithBank(Tx(DiningCat, 7_000m, 14m, "budgeted", new DateOnly(2026, 6, 6)), BacBankId),
-            WithBank(Tx(GroceriesCat, 3_000m, 6m, "inflow", new DateOnly(2026, 6, 7)), BacBankId),
-            WithBank(Tx(GroceriesCat, 9_000m, 18m, "budgeted", new DateOnly(2026, 6, 8), "bank_account"), CashBankId)
+            WithBank(Tx(DiningCat, 5_000m, 10m, "extraordinary", new DateOnly(2026, 6, 5)), CashBankId),
+            WithBank(Tx(DiningCat, 7_000m, 14m, "budgeted", new DateOnly(2026, 6, 6)), CashBankId),
+            WithBank(Tx(GroceriesCat, 3_000m, 6m, "inflow", new DateOnly(2026, 6, 7)), CashBankId),
+            WithBank(Tx(GroceriesCat, 9_000m, 18m, "budgeted", new DateOnly(2026, 6, 8), "bank_account"), BacBankId)
         ], banks: new Dictionary<Guid, string> { [BacBankId] = "BAC", [CashBankId] = "Cash" }).BankMethodBreakdown;
 
-        Assert.Equal(12_000m, Assert.Single(rows, r => r.BankId == BacBankId && r.PaymentMethod == "credit_card").Actual.Crc);
-        Assert.Equal(9_000m, Assert.Single(rows, r => r.BankId == CashBankId && r.PaymentMethod == "bank_account").Actual.Crc);
-        Assert.DoesNotContain(rows, r => r.Actual.Crc == 3_000m);
+        Assert.Equal(2, rows.Count);
+        Assert.Equal(("BAC", "bank_account", 9_000m, 18m), (rows[0].BankName, rows[0].PaymentMethod, rows[0].Actual.Crc, rows[0].Actual.Usd));
+        Assert.Equal(("Cash", "credit_card", 12_000m), (rows[1].BankName, rows[1].PaymentMethod, rows[1].Actual.Crc));
+        Assert.DoesNotContain(rows, r => r.Actual.Crc == 3_000m); // inflow is income, not spend
     }
 
     [Fact]
-    public void BankMethodBreakdown_ListsBudgetOnlyAndActualOnlyCells()
+    public void BankMethodBreakdown_HasNoBudgetAxis_ALineAloneMakesNoRow()
     {
-        var rows = With(transactions: [WithBank(Tx(DiningCat, 5_000m, 10m, "extraordinary", new DateOnly(2026, 6, 5)), BacBankId)],
-            fixedLines: [FixedLine("Mortgage", 300_000m, 0m, "bank_account", MortgageCat, BacBankId, 1)],
+        // A plan names no bank, so lines cannot put a row on the bank cut — only money that moved does.
+        var rows = With(fixedLines: [FixedLine("Mortgage", 300_000m, 0m, "bank_account", MortgageCat, 1)],
             banks: new Dictionary<Guid, string> { [BacBankId] = "BAC" }).BankMethodBreakdown;
-
-        var budgetOnly = Assert.Single(rows, r => r.PaymentMethod == "bank_account");
-        Assert.Equal((300_000m, 0m), (budgetOnly.Budget.Crc, budgetOnly.Actual.Crc));
-        var actualOnly = Assert.Single(rows, r => r.PaymentMethod == "credit_card");
-        Assert.Equal((0m, 5_000m), (actualOnly.Budget.Crc, actualOnly.Actual.Crc));
+        Assert.Empty(rows);
     }
 
     [Fact]
-    public void BankMethodBreakdown_UsdBudgetConvertsAtRate_AndDeactivatedBankNameResolves()
+    public void BankMethodBreakdown_DeactivatedBankStillNamesItsRow()
     {
-        var row = Assert.Single(With(fixedLines: [FixedLine("Car loan", 0m, 400m, "bank_account", CarLoanCat, BacBankId, 1)],
+        var row = Assert.Single(With(transactions: [WithBank(Tx(DiningCat, 5_000m, 10m, "extraordinary", new DateOnly(2026, 6, 5)), BacBankId)],
             banks: new Dictionary<Guid, string> { [BacBankId] = "BAC (closed)" }).BankMethodBreakdown);
-        Assert.Equal(("BAC (closed)", 400m, 200_000m), (row.BankName, row.Budget.Usd, row.Budget.Crc));
+        Assert.Equal(("BAC (closed)", 5_000m), (row.BankName, row.Actual.Crc));
     }
 
     [Fact]
-    public void BankMethodBreakdown_Empty_WhenNoLinesOrExpenseTransactions() => Assert.Empty(With().BankMethodBreakdown);
+    public void MethodBreakdown_BudgetsByLineMethod_ActualsByRowMethod_CardThenAccount()
+    {
+        var rows = With(
+            fixedLines: [FixedLine("Mortgage", 300_000m, 0m, "bank_account", MortgageCat, 1), FixedLine("Subscriptions", 10_000m, 0m, "credit_card", DiningCat, 2)],
+            transactions:
+            [
+                WithBank(Tx(DiningCat, 5_000m, 10m, "extraordinary", new DateOnly(2026, 6, 5)), CashBankId),
+                WithBank(Tx(GroceriesCat, 3_000m, 6m, "inflow", new DateOnly(2026, 6, 7)), CashBankId),
+                WithBank(Tx(GroceriesCat, 9_000m, 18m, "budgeted", new DateOnly(2026, 6, 8), "bank_account"), BacBankId)
+            ]).MethodBreakdown;
+
+        Assert.Equal(["credit_card", "bank_account"], rows.Select(r => r.PaymentMethod)); // the order the form offers them
+        Assert.Equal((10_000m, 5_000m), (rows[0].Budget.Crc, rows[0].Actual.Crc));
+        Assert.Equal((300_000m, 9_000m), (rows[1].Budget.Crc, rows[1].Actual.Crc));
+    }
+
+    [Fact]
+    public void MethodBreakdown_UsdBudgetConvertsAtRate()
+    {
+        var rows = With(fixedLines: [FixedLine("Car loan", 0m, 400m, "bank_account", CarLoanCat, 1)]).MethodBreakdown;
+        Assert.Equal((400m, 200_000m), (rows[1].Budget.Usd, rows[1].Budget.Crc));
+        Assert.Equal((0m, 0m), (rows[0].Budget.Crc, rows[0].Actual.Crc));
+    }
+
+    [Fact]
+    public void MethodBreakdown_AlwaysTwoRows_EvenWithNothing()
+    {
+        // The dashboard's Card / Bank account summary is a fixed shape, so an empty month still shows both at zero.
+        var s = With();
+        Assert.Equal(["credit_card", "bank_account"], s.MethodBreakdown.Select(r => r.PaymentMethod));
+        Assert.All(s.MethodBreakdown, r => Assert.Equal((0m, 0m, 0m, 0m), (r.Budget.Crc, r.Budget.Usd, r.Actual.Crc, r.Actual.Usd)));
+        Assert.Empty(s.BankMethodBreakdown);
+    }
 }

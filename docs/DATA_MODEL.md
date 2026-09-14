@@ -160,7 +160,7 @@ A budget line the dashboard compares actuals against.
 - `id`, `tenant_id`, `name`, `budget_crc`, `budget_usd`
 - `payment_method` — `credit_card` | `bank_account`
 - `category_id` (FK → Category, **required**, no cascade — categories are soft-deleted)
-- `bank_id` (FK → Bank, **nullable** = "Unassigned", no cascade)
+- no bank (dropped 2026-09-14, `DropExpenseLineBank`): a plan is "pay by card / by account"; the transaction records the real bank
 - `is_active`, `sort_order`
 
 ### Month

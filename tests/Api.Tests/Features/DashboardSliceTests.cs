@@ -47,7 +47,7 @@ public class DashboardSliceTests(PostgresFixture fixture) : PostgresTestBase(fix
         var mortgage = new Transaction { TenantId = tenant, MonthId = month.Id, BankId = bac.Id, CategoryId = housing.Id, Payee = "Bank", PaymentMethod = "bank_account", OriginalAmount = 300_000m, Currency = "CRC", TransactionDate = new DateOnly(2026, 6, 5), AmountCrc = 300_000m, AmountUsd = 600m, ExchangeRateUsed = 500m, TransactionType = "budgeted", CreatedAt = T0, UpdatedAt = T0 };
         var lunch = new Transaction { TenantId = tenant, MonthId = month.Id, BankId = bac.Id, CategoryId = dining.Id, Payee = "Soda", PaymentMethod = "credit_card", OriginalAmount = 10_000m, Currency = "CRC", TransactionDate = new DateOnly(2026, 6, 12), AmountCrc = 10_000m, AmountUsd = 20m, ExchangeRateUsed = 500m, TransactionType = "unplanned_essential", CreatedAt = T0, UpdatedAt = T0 };
         var refund = new Refund { TenantId = tenant, MonthId = month.Id, TransactionId = lunch.Id, Payee = "Soda", TransactionDate = lunch.TransactionDate, Percentage = 50m, AmountCrc = 5_000m, AmountUsd = 10m, CreatedAt = T0, UpdatedAt = T0 };
-        var line = new FixedExpense { TenantId = tenant, Name = "Mortgage", BudgetCrc = 350_000m, PaymentMethod = "bank_account", CategoryId = housing.Id, BankId = bac.Id, CreatedAt = T0, UpdatedAt = T0 };
+        var line = new FixedExpense { TenantId = tenant, Name = "Mortgage", BudgetCrc = 350_000m, PaymentMethod = "bank_account", CategoryId = housing.Id, CreatedAt = T0, UpdatedAt = T0 };
         var envelope = new Envelope { TenantId = tenant, Name = "Marchamo", AnnualTargetCrc = 718_000m, CreatedAt = T0, UpdatedAt = T0 };
 
         db.AddRange(housing, dining, bac, month); db.AddRange(weeks); db.AddRange(mortgage, lunch, refund, line, envelope);
@@ -99,7 +99,9 @@ public class DashboardSliceTests(PostgresFixture fixture) : PostgresTestBase(fix
         Assert.Equal(4, s.WeeklyBudgeted.Count);
         Assert.Equal(300_000m, s.WeeklyBudgeted[1].Total.Crc);
         var bacAccount = Assert.Single(s.BankMethodBreakdown, b => b.PaymentMethod == "bank_account");
-        Assert.Equal(("BAC", 350_000m, 300_000m), (bacAccount.BankName, bacAccount.Budget.Crc, bacAccount.Actual.Crc));
+        Assert.Equal(("BAC", 300_000m), (bacAccount.BankName, bacAccount.Actual.Crc)); // actuals only: a plan names no bank (2026-09-14)
+        var account = Assert.Single(s.MethodBreakdown, m => m.PaymentMethod == "bank_account");
+        Assert.Equal((350_000m, 300_000m), (account.Budget.Crc, account.Actual.Crc)); // the plan-vs-spent comparison moved to the method axis
         Assert.Equal(1_500_000m - 310_000m, s.CurrentBalance.Crc);
     }
 

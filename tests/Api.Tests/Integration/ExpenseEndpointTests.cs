@@ -28,14 +28,13 @@ public class ExpenseEndpointTests(IntegrationTestFactory factory)
         var member = await _factory.SeedUserAsync(TenantRoles.Member);
         var client = _factory.CreateClientFor(member);
         var categories = (await client.GetFromJsonAsync<List<NamedDto>>("/api/categories"))!; // first read seeds them
-        var bank = (await client.GetFromJsonAsync<List<NamedDto>>("/api/banks"))![0];
 
         Assert.Empty((await client.GetFromJsonAsync<List<LineDto>>("/api/expenses/fixed"))!); // never seeded
 
-        var first = await client.PostAsJsonAsync("/api/expenses/fixed", new { name = "Mortgage", budget_crc = 300_000m, budget_usd = 0m, payment_method = "bank_account", category_id = categories[0].Id, bank_id = bank.Id });
+        var first = await client.PostAsJsonAsync("/api/expenses/fixed", new { name = "Mortgage", budget_crc = 300_000m, budget_usd = 0m, payment_method = "bank_account", category_id = categories[0].Id });
         Assert.Equal(HttpStatusCode.Created, first.StatusCode);
         var mortgage = (await first.Content.ReadFromJsonAsync<LineDto>())!;
-        Assert.Equal((0, bank.Id), (mortgage.SortOrder, mortgage.BankId));
+        Assert.Equal(0, mortgage.SortOrder);
 
         var second = await client.PostAsJsonAsync("/api/expenses/fixed", new { name = "Water", budget_crc = 15_000m, budget_usd = 0m, payment_method = "bank_account", category_id = categories[1].Id });
         var water = (await second.Content.ReadFromJsonAsync<LineDto>())!;
@@ -69,7 +68,6 @@ public class ExpenseEndpointTests(IntegrationTestFactory factory)
     private sealed record LineDto(
         [property: JsonPropertyName("id")] Guid Id,
         [property: JsonPropertyName("sort_order")] int SortOrder,
-        [property: JsonPropertyName("bank_id")] Guid? BankId,
         [property: JsonPropertyName("is_active")] bool IsActive);
     private sealed record ConflictDto([property: JsonPropertyName("error")] string Error, [property: JsonPropertyName("message")] string Message);
 }

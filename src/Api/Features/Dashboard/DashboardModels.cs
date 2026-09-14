@@ -42,9 +42,15 @@ public record ClassSpendResponse(
     [property: JsonPropertyName("class")] string Class,
     [property: JsonPropertyName("actual")] MoneyPairResponse Actual);
 
+/// <summary>Actuals only since 2026-09-14 — a budget line names no bank, so <c>budget</c> left this row; the plan-vs-spent comparison is <c>method_breakdown</c>.</summary>
 public record BankMethodBreakdownResponse(
-    [property: JsonPropertyName("bank_id")] Guid? BankId,
+    [property: JsonPropertyName("bank_id")] Guid BankId,
     [property: JsonPropertyName("bank_name")] string BankName,
+    [property: JsonPropertyName("payment_method")] string PaymentMethod,
+    [property: JsonPropertyName("actual")] MoneyPairResponse Actual);
+
+/// <summary><c>method_breakdown</c> (2026-09-14): budgeted vs actual per payment method, always both rows, card first.</summary>
+public record MethodBreakdownResponse(
     [property: JsonPropertyName("payment_method")] string PaymentMethod,
     [property: JsonPropertyName("budget")] MoneyPairResponse Budget,
     [property: JsonPropertyName("actual")] MoneyPairResponse Actual);
@@ -81,6 +87,7 @@ public record DashboardSummaryResponse(
     [property: JsonPropertyName("refunds_total")] MoneyPairResponse RefundsTotal,
     [property: JsonPropertyName("envelope_reminders")] IReadOnlyList<EnvelopeReminderResponse> EnvelopeReminders,
     [property: JsonPropertyName("bank_method_breakdown")] IReadOnlyList<BankMethodBreakdownResponse> BankMethodBreakdown,
+    [property: JsonPropertyName("method_breakdown")] IReadOnlyList<MethodBreakdownResponse> MethodBreakdown,
     [property: JsonPropertyName("by_card")] IReadOnlyList<CardSpendResponse> ByCard)
 {
     public static DashboardSummaryResponse From(DashboardSummary s) => new(
@@ -96,7 +103,8 @@ public record DashboardSummaryResponse(
         MoneyPairResponse.From(s.Balance.CurrentBalance), MoneyPairResponse.From(s.Balance.RemainderForDebts), MoneyPairResponse.From(s.Balance.PendingBudgeted), MoneyPairResponse.From(s.Balance.ActualRemainder),
         MoneyPairResponse.From(s.UnplannedEssentialTotal), MoneyPairResponse.From(s.RefundsTotal),
         s.EnvelopeReminders.Select(e => new EnvelopeReminderResponse(e.Name, MoneyPairResponse.From(e.AnnualTarget), MoneyPairResponse.From(e.ContributedThisMonth), MoneyPairResponse.From(e.Remaining), e.Cadence)).ToList(),
-        s.BankMethodBreakdown.Select(b => new BankMethodBreakdownResponse(b.BankId, b.BankName, b.PaymentMethod, MoneyPairResponse.From(b.Budget), MoneyPairResponse.From(b.Actual))).ToList(),
+        s.BankMethodBreakdown.Select(b => new BankMethodBreakdownResponse(b.BankId, b.BankName, b.PaymentMethod, MoneyPairResponse.From(b.Actual))).ToList(),
+        s.MethodBreakdown.Select(m => new MethodBreakdownResponse(m.PaymentMethod, MoneyPairResponse.From(m.Budget), MoneyPairResponse.From(m.Actual))).ToList(),
         s.ByCard.Select(c => new CardSpendResponse(c.CardId, c.CardName, new MoneyPairResponse(c.TotalCrc, c.TotalUsd), c.Count, c.CardKind)).ToList());
 }
 

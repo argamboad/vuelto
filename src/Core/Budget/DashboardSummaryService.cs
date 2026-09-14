@@ -56,7 +56,8 @@ public sealed class DashboardSummaryService : IDashboardSummaryService
             Pair(pendingRefunds.Sum(r => r.AmountCrc), pendingRefunds.Sum(r => r.AmountUsd)),
             CalculateEnvelopeReminders(month, envelopes, transactions),
             CalculateOtherSpending(activeFixed, activeVariable, transactions, categoryNames ?? new Dictionary<Guid, string>()),
-            CalculateBankMethodBreakdown(activeFixed, activeVariable, transactions, rate, bankNames ?? new Dictionary<Guid, string>()),
+            CalculateBankMethodBreakdown(transactions, bankNames ?? new Dictionary<Guid, string>()),
+            CalculateMethodBreakdown(activeFixed, activeVariable, transactions, rate),
             CardSpend.Calculate(transactions, cardLabels)); // CARDS-2: the month's spend by card, "no card" last
     }
 
@@ -160,30 +161,44 @@ public sealed class DashboardSummaryService : IDashboardSummaryService
             .ToList();
     }
 
-    /// <summary>Budget by each line's (bank, method); actual by each expense-class row's (bank, method); every cell with either; Unassigned last.</summary>
-    private static List<BankMethodBreakdown> CalculateBankMethodBreakdown(
-        IReadOnlyList<FixedExpense> activeFixed, IReadOnlyList<VariableExpense> activeVariable,
-        IReadOnlyList<Transaction> transactions, FxRates rate, IReadOnlyDictionary<Guid, string> bankNames)
+    /// <summary>
+    /// Actual expense-class spend by each row's (bank, method), by bank name then method. Actuals only: a budget
+    /// line names no bank (owner, 2026-09-14), so the plan-vs-spent comparison lives on the method axis below.
+    /// A deactivated bank still names its row through <paramref name="bankNames"/> (all states).
+    /// </summary>
+    private static List<BankMethodBreakdown> CalculateBankMethodBreakdown(IReadOnlyList<Transaction> transactions, IReadOnlyDictionary<Guid, string> bankNames)
     {
-        var budget = new Dictionary<(Guid? BankId, string Method), (decimal Crc, decimal Usd)>();
-        foreach (var line in activeFixed.Cast<IExpenseLine>().Concat(activeVariable))
-        {
-            var pair = BudgetPair(line, rate);
-            Accumulate(budget, (line.BankId, line.PaymentMethod), (pair.Crc, pair.Usd));
-        }
         var actual = new Dictionary<(Guid? BankId, string Method), (decimal Crc, decimal Usd)>();
         foreach (var tx in transactions.Where(t => IsExpenseClass(t.TransactionType)))
             Accumulate(actual, (tx.BankId, tx.PaymentMethod), (tx.AmountCrc, tx.AmountUsd));
 
-        return budget.Keys.Concat(actual.Keys).Distinct()
-            .Select(key =>
+        return actual
+            .Select(kv => new BankMethodBreakdown(kv.Key.BankId!.Value, bankNames.GetValueOrDefault(kv.Key.BankId!.Value, ""), kv.Key.Method, Pair(kv.Value.Crc, kv.Value.Usd)))
+            .OrderBy(c => c.BankName, StringComparer.OrdinalIgnoreCase).ThenBy(c => c.PaymentMethod, StringComparer.Ordinal)
+            .ToList();
+    }
+
+    /// <summary>Budget by each line's method (at the passed rate) vs actual expense-class spend by each row's method — always both rows, card first, the order the form offers them.</summary>
+    private static List<MethodBreakdown> CalculateMethodBreakdown(
+        IReadOnlyList<FixedExpense> activeFixed, IReadOnlyList<VariableExpense> activeVariable, IReadOnlyList<Transaction> transactions, FxRates rate)
+    {
+        var budget = new Dictionary<(Guid?, string), (decimal Crc, decimal Usd)>();
+        foreach (var line in activeFixed.Cast<IExpenseLine>().Concat(activeVariable))
+        {
+            var pair = BudgetPair(line, rate);
+            Accumulate(budget, (null, line.PaymentMethod), (pair.Crc, pair.Usd));
+        }
+        var actual = new Dictionary<(Guid?, string), (decimal Crc, decimal Usd)>();
+        foreach (var tx in transactions.Where(t => IsExpenseClass(t.TransactionType)))
+            Accumulate(actual, (null, tx.PaymentMethod), (tx.AmountCrc, tx.AmountUsd));
+
+        return new[] { PaymentMethods.CreditCard, PaymentMethods.BankAccount }
+            .Select(method =>
             {
-                var b = budget.GetValueOrDefault(key);
-                var a = actual.GetValueOrDefault(key);
-                var name = key.BankId is { } id ? bankNames.GetValueOrDefault(id, "") : "";
-                return new BankMethodBreakdown(key.BankId, name, key.Method, Pair(b.Crc, b.Usd), Pair(a.Crc, a.Usd));
+                var b = budget.GetValueOrDefault((null, method));
+                var a = actual.GetValueOrDefault((null, method));
+                return new MethodBreakdown(method, Pair(b.Crc, b.Usd), Pair(a.Crc, a.Usd));
             })
-            .OrderBy(c => c.BankId is null).ThenBy(c => c.BankName, StringComparer.OrdinalIgnoreCase).ThenBy(c => c.PaymentMethod, StringComparer.Ordinal)
             .ToList();
     }
 

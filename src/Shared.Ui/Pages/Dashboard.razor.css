@@ -185,6 +185,11 @@
     color: var(--ink-3);
 }
 
+/* The Card / Bank account summary sits above the bank table with a little air between the two. */
+.dash-method {
+    margin-bottom: 14px;
+}
+
 /* Unbudgeted group headings: eyebrow text with the subtotal in ink, a rule above to separate the groups. */
 .dash-other-group th {
     padding-top: 12px;

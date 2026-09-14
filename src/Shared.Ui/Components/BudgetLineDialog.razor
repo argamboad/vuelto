@@ -36,19 +36,13 @@
                             <select class="form-select line-currency" id="exp-currency" aria-label="@Localizer["Tx_Currency"]" data-testid="exp-currency" disabled="@_saving" @bind="_currency"><option>CRC</option><option>USD</option></select>
                         </div>
                     </div>
-                    <div class="col-12 col-md-4">
+                    <div class="col-12 col-md-6">
                         <label class="form-label" for="exp-category">@Localizer["Tx_Category"]</label>
                         <CategoryPicker Id="exp-category" TestId="exp-category" Categories="Categories" Disabled="@_saving" @bind-Value="_categoryId" OnCreated="OnCategoryCreated" />
                         <div class="form-text">@Localizer["Budget_CategoryHint"]</div>
                     </div>
-                    <div class="col-12 col-md-4">
-                        <label class="form-label" for="exp-bank">@Localizer["Tx_Bank"]</label>
-                        <select class="form-select" id="exp-bank" data-testid="exp-bank" disabled="@_saving" @bind="_bankId">
-                            <option value="">@Localizer["Budget_Unassigned"]</option>
-                            @foreach (var b in Banks) { <option value="@b.Id">@b.Name</option> }
-                        </select>
-                    </div>
-                    <div class="col-12 col-md-4">
+                    @* No bank picker (owner, 2026-09-14): a plan is "pay by card / by account", the transaction records the real bank. *@
+                    <div class="col-12 col-md-6">
                         <label class="form-label" for="exp-method">@Localizer["Tx_PaymentMethod"]</label>
                         <select class="form-select" id="exp-method" data-testid="exp-method" disabled="@_saving" @bind="_method">
                             <option value="credit_card">@Localizer["Tx_CreditCard"]</option>
@@ -92,7 +86,6 @@
     [Parameter] public string Kind { get; set; } = "fixed";
     [Parameter] public ExpenseLine? Editing { get; set; }
     [Parameter] public IReadOnlyList<CategoryOption> Categories { get; set; } = [];
-    [Parameter] public IReadOnlyList<ExpenseLinesSection.NamedItem> Banks { get; set; } = [];
     [Parameter] public EventCallback<CategoryOption> OnCategoryCreated { get; set; }
 
     /// <summary>Raised with the kind whose list changed, after a successful create, update or reactivation.</summary>
@@ -104,7 +97,6 @@
     private decimal _amount;
     private string _currency = "CRC";
     private string _categoryId = "";
-    private string _bankId = "";
     private string _method = "credit_card";
     private bool _isActive = true;
     private bool _saving;
@@ -120,7 +112,7 @@
         if (Editing is { } e)
         {
             _name = e.Name; _currency = e.Currency; _amount = e.Currency == MoneyDisplay.Crc ? e.BudgetCrc : e.BudgetUsd;
-            _categoryId = e.CategoryId.ToString(); _bankId = e.BankId?.ToString() ?? ""; _method = e.PaymentMethod; _isActive = e.IsActive;
+            _categoryId = e.CategoryId.ToString(); _method = e.PaymentMethod; _isActive = e.IsActive;
         }
     }
 
@@ -142,7 +134,6 @@
         budget_usd = _currency == "USD" ? _amount : 0m,
         payment_method = _method,
         category_id = _categoryId,
-        bank_id = _bankId == "" ? null : _bankId,
         is_active = isActive,
     };
 
@@ -171,7 +162,7 @@
         finally { _saving = false; }
     }
 
-    /// <summary>Restores the inactive line under its stored name, with the budget/category/bank just typed.</summary>
+    /// <summary>Restores the inactive line under its stored name, with the budget/category/method just typed.</summary>
     private async Task ReactivateAsync()
     {
         if (_conflict is not { ExistingId: { } id } conflict) return;
