@@ -377,25 +377,38 @@
         </table>
     };
 
+    @* Owner, 2026-09-14: a budget line names no bank, so the plan-vs-spent comparison sits on the method axis
+       (Card / Bank account, always both rows) and the bank table below is actuals only — which card or account
+       actually carried the month. *@
     private RenderFragment BankView(SummaryDto s) => __builder =>
     {
+        <table class="table table-sm dash-method" data-testid="dash-method">
+            <thead><tr><th>@Localizer["Dash_ByMethod"]</th><th class="text-end">@Localizer["Dash_Budgeted"]</th><th class="text-end">@Localizer["Dash_Actual"]</th></tr></thead>
+            <tbody>
+                @foreach (var m in s.MethodBreakdown ?? [])
+                {
+                    <tr data-testid="dash-method-row">
+                        <td>@(m.PaymentMethod == "bank_account" ? Localizer["Tx_BankAccount"] : Localizer["Tx_CreditCard"])</td>
+                        <td class="text-end text-nowrap">@Show(m.Budget)</td>
+                        <td class="text-end text-nowrap @OverTone(m.Budget, m.Actual)">@Show(m.Actual)</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
         <table class="table table-sm">
-            <thead><tr><th>@Localizer["Tx_Bank"]</th><th>@Localizer["Tx_PaymentMethod"]</th><th class="text-end">@Localizer["Dash_Budgeted"]</th><th class="text-end">@Localizer["Dash_Actual"]</th></tr></thead>
+            <thead><tr><th>@Localizer["Tx_Bank"]</th><th>@Localizer["Tx_PaymentMethod"]</th><th class="text-end">@Localizer["Dash_Actual"]</th></tr></thead>
             <tbody>
                 @foreach (var b in s.BankMethodBreakdown)
                 {
                     <tr data-testid="dash-bank-row">
                         <td>@b.BankName</td>
                         <td>@(b.PaymentMethod == "bank_account" ? Localizer["Tx_BankAccount"] : Localizer["Tx_CreditCard"])</td>
-                        <td class="text-end text-nowrap">@Show(b.Budget)</td>
-                        <td class="text-end text-nowrap @OverTone(b.Budget, b.Actual)">@Show(b.Actual)</td>
+                        <td class="text-end text-nowrap">@Show(b.Actual)</td>
                     </tr>
                 }
-                @{ var bb = Sum(s.BankMethodBreakdown.Select(b => b.Budget)); var ba = Sum(s.BankMethodBreakdown.Select(b => b.Actual)); }
                 <tr class="fw-semibold" data-testid="dash-banks-total">
                     <td colspan="2">@Localizer["Dash_Total"]</td>
-                    <td class="text-end text-nowrap">@Show(bb)</td>
-                    <td class="text-end text-nowrap @OverTone(bb, ba)">@Show(ba)</td>
+                    <td class="text-end text-nowrap">@Show(Sum(s.BankMethodBreakdown.Select(b => b.Actual)))</td>
                 </tr>
             </tbody>
         </table>
@@ -568,7 +581,8 @@
     private sealed record EnvelopeDto([property: JsonPropertyName("name")] string Name, [property: JsonPropertyName("annual_target")] MoneyDto AnnualTarget, [property: JsonPropertyName("contributed_this_month")] MoneyDto ContributedThisMonth, [property: JsonPropertyName("remaining")] MoneyDto Remaining, [property: JsonPropertyName("cadence")] string Cadence);
     private sealed record OtherDto([property: JsonPropertyName("category_name")] string CategoryName, [property: JsonPropertyName("actual")] MoneyDto Actual, [property: JsonPropertyName("by_class")] List<OtherClassDto>? ByClass = null);
     private sealed record OtherClassDto([property: JsonPropertyName("class")] string Class, [property: JsonPropertyName("actual")] MoneyDto Actual);
-    private sealed record BankDto([property: JsonPropertyName("bank_id")] Guid? BankId, [property: JsonPropertyName("bank_name")] string BankName, [property: JsonPropertyName("payment_method")] string PaymentMethod, [property: JsonPropertyName("budget")] MoneyDto Budget, [property: JsonPropertyName("actual")] MoneyDto Actual);
+    private sealed record BankDto([property: JsonPropertyName("bank_id")] Guid? BankId, [property: JsonPropertyName("bank_name")] string BankName, [property: JsonPropertyName("payment_method")] string PaymentMethod, [property: JsonPropertyName("actual")] MoneyDto Actual);
+    private sealed record MethodDto([property: JsonPropertyName("payment_method")] string PaymentMethod, [property: JsonPropertyName("budget")] MoneyDto Budget, [property: JsonPropertyName("actual")] MoneyDto Actual);
     private sealed record SummaryDto(
         [property: JsonPropertyName("income_primary")] MoneyDto IncomePrimary,
         [property: JsonPropertyName("income_secondary")] MoneyDto IncomeSecondary,
@@ -593,7 +607,8 @@
         [property: JsonPropertyName("refunds_total")] MoneyDto RefundsTotal,
         [property: JsonPropertyName("envelope_reminders")] List<EnvelopeDto> EnvelopeReminders,
         [property: JsonPropertyName("bank_method_breakdown")] List<BankDto> BankMethodBreakdown,
-        [property: JsonPropertyName("by_card")] List<CardSpendDto>? ByCard = null);
+        [property: JsonPropertyName("by_card")] List<CardSpendDto>? ByCard = null,
+        [property: JsonPropertyName("method_breakdown")] List<MethodDto>? MethodBreakdown = null);
     private sealed record CardSpendDto([property: JsonPropertyName("card_id")] Guid? CardId, [property: JsonPropertyName("card_name")] string CardName, [property: JsonPropertyName("actual")] MoneyDto Actual, [property: JsonPropertyName("count")] int Count, [property: JsonPropertyName("kind")] string? Kind = null);
     private sealed record DashMonthDto([property: JsonPropertyName("id")] Guid Id, [property: JsonPropertyName("year")] int Year, [property: JsonPropertyName("month_number")] int MonthNumber, [property: JsonPropertyName("week_count")] int WeekCount, [property: JsonPropertyName("week1_start_date")] DateOnly Week1StartDate, [property: JsonPropertyName("last_day")] DateOnly LastDay);
     private sealed record DashDto(

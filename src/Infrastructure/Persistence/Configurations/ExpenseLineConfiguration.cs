@@ -20,7 +20,7 @@ public abstract class ExpenseLineConfiguration<T> : IEntityTypeConfiguration<T> 
         b.Property(x => x.BudgetCrc).HasPrecision(12, 2);
         b.Property(x => x.BudgetUsd).HasPrecision(12, 2);
         b.HasOne<Category>().WithMany().HasForeignKey(x => x.CategoryId).OnDelete(DeleteBehavior.Restrict);
-        b.HasOne<Bank>().WithMany().HasForeignKey(x => x.BankId).OnDelete(DeleteBehavior.Restrict);
+        // No bank on a line (owner, 2026-09-14): a plan is "pay by card / by account", the transaction records the real bank.
         b.HasIndex(x => new { x.TenantId, x.Name }).IsUnique();
         b.HasIndex(x => new { x.TenantId, x.SortOrder });
     }

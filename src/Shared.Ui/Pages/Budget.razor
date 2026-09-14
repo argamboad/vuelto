@@ -44,15 +44,15 @@
                              FixedText="@BudgetMoney.Format(_fixed, _rate, _display)" VariableText="@BudgetMoney.Format(_variable, _rate, _display)"
                              Income="@TypicalIncome()" IncomeText="@(TypicalIncome() is { } i ? BudgetMoney.Amount(i, _display) : "")" HasRate="@(_rate is not null)" />
 
-        <ExpenseLinesSection @ref="_fixedSection" Kind="fixed" TitleKey="Budget_Fixed" HintKey="Budget_FixedHint" Categories="_categories" Banks="_banks"
+        <ExpenseLinesSection @ref="_fixedSection" Kind="fixed" TitleKey="Budget_Fixed" HintKey="Budget_FixedHint" Categories="_categories"
                              Rate="_rate" Display="@_display" OnEdit="OpenEdit" OnItemsChanged="items => _fixed = items" />
-        <ExpenseLinesSection @ref="_variableSection" Kind="variable" TitleKey="Budget_Variable" HintKey="Budget_VariableHint" Categories="_categories" Banks="_banks"
+        <ExpenseLinesSection @ref="_variableSection" Kind="variable" TitleKey="Budget_Variable" HintKey="Budget_VariableHint" Categories="_categories"
                              Rate="_rate" Display="@_display" OnEdit="OpenEdit" OnItemsChanged="items => _variable = items" />
     }
 
     @if (_dialog is { } d)
     {
-        <BudgetLineDialog Kind="@d.Kind" Editing="d.Editing" Categories="_categories" Banks="_banks"
+        <BudgetLineDialog Kind="@d.Kind" Editing="d.Editing" Categories="_categories"
                           OnCategoryCreated="AddCategory" OnSaved="OnSavedAsync" OnClose="() => _dialog = null" />
     }
 </div>
@@ -62,7 +62,6 @@
     private string? _error;
     private string? _notice;
     private List<CategoryOption> _categories = new();
-    private List<ExpenseLinesSection.NamedItem> _banks = new();
     private IReadOnlyList<ExpenseLine> _fixed = [];
     private IReadOnlyList<ExpenseLine> _variable = [];
     private ExpenseLinesSection? _fixedSection, _variableSection;
@@ -83,7 +82,6 @@
         {
             _display = await Display.LoadAsync();
             _categories = await Http.GetFromJsonAsync<List<CategoryOption>>("/api/categories") ?? new();
-            _banks = await Http.GetFromJsonAsync<List<ExpenseLinesSection.NamedItem>>("/api/banks?include_inactive=true") ?? new(); // all states: a deactivated bank still names its line
         }
         catch { _error = Localizer["Budget_LoadError"]; }
         finally { _loading = false; }

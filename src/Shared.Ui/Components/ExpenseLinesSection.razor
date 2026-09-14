@@ -90,9 +90,8 @@
     [Parameter, EditorRequired] public string Kind { get; set; } = "fixed";
     [Parameter, EditorRequired] public string TitleKey { get; set; } = "";
     [Parameter, EditorRequired] public string HintKey { get; set; } = "";
-    /// <summary>Active categories and banks (all states) the page loaded once for both lists.</summary>
+    /// <summary>Active categories the page loaded once for both lists.</summary>
     [Parameter] public IReadOnlyList<CategoryOption> Categories { get; set; } = [];
-    [Parameter] public IReadOnlyList<NamedItem> Banks { get; set; } = [];
 
     /// <summary>Today's rate for the section total (null: each currency is summed on its own side).</summary>
     [Parameter] public decimal? Rate { get; set; }
@@ -135,9 +134,8 @@
     /// <summary>"BAC · account" — where the money leaves from and how, as one chip.</summary>
     private string PaidWith(ExpenseLine item)
     {
-        var bank = item.BankId is { } b ? Banks.FirstOrDefault(x => x.Id == b)?.Name ?? "—" : Localizer["Budget_Unassigned"].Value;
-        var method = item.PaymentMethod == "bank_account" ? Localizer["Budget_MethodAccount"] : Localizer["Budget_MethodCard"];
-        return $"{bank} · {method}";
+        // The method alone (owner, 2026-09-14): a plan names no bank.
+        return item.PaymentMethod == "bank_account" ? Localizer["Budget_MethodAccount"].Value : Localizer["Budget_MethodCard"].Value;
     }
 
     private string SubLine(ExpenseLine item) => $"{CategoryName(item)} · {PaidWith(item)}";

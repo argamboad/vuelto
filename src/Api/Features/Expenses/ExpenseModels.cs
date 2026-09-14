@@ -11,8 +11,7 @@ public record CreateExpenseRequest(
     [property: JsonPropertyName("budget_crc")] decimal BudgetCrc,
     [property: JsonPropertyName("budget_usd")] decimal BudgetUsd,
     [property: JsonPropertyName("payment_method")] string? PaymentMethod,
-    [property: JsonPropertyName("category_id")] Guid? CategoryId,
-    [property: JsonPropertyName("bank_id")] Guid? BankId);
+    [property: JsonPropertyName("category_id")] Guid? CategoryId);
 
 public record UpdateExpenseRequest(
     [property: JsonPropertyName("name")] string? Name,
@@ -20,7 +19,6 @@ public record UpdateExpenseRequest(
     [property: JsonPropertyName("budget_usd")] decimal BudgetUsd,
     [property: JsonPropertyName("payment_method")] string? PaymentMethod,
     [property: JsonPropertyName("category_id")] Guid? CategoryId,
-    [property: JsonPropertyName("bank_id")] Guid? BankId,
     [property: JsonPropertyName("is_active")] bool IsActive);
 
 public record ReorderExpenseRequest([property: JsonPropertyName("ordered_ids")] List<Guid>? OrderedIds);
@@ -32,11 +30,11 @@ public record ExpenseResponse(
     [property: JsonPropertyName("budget_usd")] decimal BudgetUsd,
     [property: JsonPropertyName("payment_method")] string PaymentMethod,
     [property: JsonPropertyName("category_id")] Guid CategoryId,
-    [property: JsonPropertyName("bank_id")] Guid? BankId,
     [property: JsonPropertyName("sort_order")] int SortOrder,
     [property: JsonPropertyName("is_active")] bool IsActive)
 {
-    public static ExpenseResponse From(IExpenseLine e) => new(e.Id, e.Name, e.BudgetCrc, e.BudgetUsd, e.PaymentMethod, e.CategoryId, e.BankId, e.SortOrder, e.IsActive);
+    // bank_id left the line on 2026-09-14: a plan is "pay by card / by account", the transaction records the real bank.
+    public static ExpenseResponse From(IExpenseLine e) => new(e.Id, e.Name, e.BudgetCrc, e.BudgetUsd, e.PaymentMethod, e.CategoryId, e.SortOrder, e.IsActive);
 }
 
 /// <summary>The 409 body for a name clash — same contract as the catalogs: <c>existing_id</c> + <c>existing_name</c> only for an inactive clash.</summary>

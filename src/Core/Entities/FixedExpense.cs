@@ -13,7 +13,6 @@ public class FixedExpense : IExpenseLine
     public string PaymentMethod { get; set; } = PaymentMethods.CreditCard;
     public int SortOrder { get; set; }
     public Guid CategoryId { get; set; }
-    public Guid? BankId { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }

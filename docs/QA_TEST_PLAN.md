@@ -1741,7 +1741,7 @@ amounts doubled, the case number and note untouched. **Edit the refund** → cle
 > four-week defaults under Settings → Budget; when those are still zero there is no share, and without a
 > rate each currency is summed on its own side, "₡400,000.00 + $13.00"), and a two-tone Fixed / Variable
 > bar. Each list is a card of GRID ROWS, not a table: a drag handle (⠿), the name, the amount in the
-> line's OWN currency (never converted), the category, a "BAC · account" chip for bank + method, and
+> line's OWN currency (never converted), the category, an "account" / "card" chip for the method (a plan names no bank), and
 > **Edit**; the list total sits in the card header. An inactive line is struck through in muted ink with a
 > small INACTIVE label, has no handle, and keeps Edit (which is how it comes back). One **+ Add a line**
 > button in the page head opens a **dialog** (Fixed / Variable switch, then the same fields as before);
@@ -1753,12 +1753,12 @@ amounts doubled, the case number and note untouched. **Edit the refund** → cle
 ```gherkin
 Given I am on Budget (nav) in a fresh household
 Then both lists show "No lines yet" and the header reads "Planned every month ₡0.00"
-When I click + Add a line, keep Fixed, enter "Mortgage", 300000 CRC, category Housing, bank BAC, Bank account, and Create
+When I click + Add a line, keep Fixed, enter "Mortgage", 300000 CRC, category Housing, Bank account, and Create
 And "+ New" beside Category creates a category in place (it is then offered for either list)
-Then the dialog closes and the row reads Mortgage · ₡300,000.00 · Housing · "BAC · account", with a drag handle
+Then the dialog closes and the row reads Mortgage · ₡300,000.00 · Housing · "account", with a drag handle — no bank anywhere on a line (a plan is pay by card / by account; the transaction records the real bank)
 And the header's planned total is ₡300,000.00 and, if income defaults are saved, its share of a typical income
-When I add a line, switch to Variable, enter "Netflix", 13 USD, category Entertainment, no bank, Credit card
-Then it appears under Variable as $13.00 · Entertainment · "Unassigned · card", and the header adds it at today's rate
+When I add a line, switch to Variable, enter "Netflix", 13 USD, category Entertainment, Credit card
+Then it appears under Variable as $13.00 · Entertainment · "card", and the header adds it at today's rate
 When I add a fixed "Rent" with category Housing
 Then the dialog shows "that category already backs another budget line" and nothing is created
 ```
@@ -1766,17 +1766,17 @@ Then the dialog shows "that category already backs another budget line" and noth
 add the first one." in both cards. **+ Add a line** → **Expected:** a dialog with a **Fixed | Variable**
 switch (Fixed selected) and the fields; the name has focus. Name `Mortgage`, **Monthly budget** `300000`
 **CRC**, **Category** Housing (or **+ New** → type a name → **Create** → **Expected:** selected in place),
-**Bank** BAC, **Payment method** Bank account → **Create** → **Expected:** "Created.", the dialog gone, the
+**Payment method** Bank account (there is no bank field) → **Create** → **Expected:** "Created.", the dialog gone, the
 row with its ⠿ handle, and the header now ₡300,000.00 (with "N% of a typical income" and the income figure
 if Settings → Budget has four-week defaults; "at today's rate" under the bar). **Edit** on the row →
 **Expected:** the same dialog prefilled, no Fixed/Variable switch, an **Active** toggle; **Cancel** or
-Escape closes it. **+ Add a line** → switch **Variable** → `Netflix`, `13` **USD**, Entertainment, bank
-left **Unassigned**, Credit card → **Create** → **Expected:** the row under Variable shows $13.00 (its own
-currency) and the chip "Unassigned · card"; the header total grew by 13 × today's rate and the bar gained
+Escape closes it. **+ Add a line** → switch **Variable** → `Netflix`, `13` **USD**, Entertainment,
+Credit card → **Create** → **Expected:** the row under Variable shows $13.00 (its own
+currency) and the chip "card"; the header total grew by 13 × today's rate and the bar gained
 a lighter Variable segment. **+ Add a line** → `Rent`, `50000` CRC, category **Housing** → **Create** →
 **Expected:** the red message inside the dialog about the category already backing another line. Narrow
 the window below tablet width → **Expected:** the category and chip leave their columns and sit under the
-name as "Housing · BAC · account"; the header stacks its number above the bar. Via Postman (**18 · Expenses → Create fixed expense —
+name as "Housing · account"; the header stacks its number above the bar. Via Postman (**18 · Expenses → Create fixed expense —
 invalid (400)**) → `invalid_request` ("exactly one of budget_crc or budget_usd…").
 
 ### QA-EXP-02 — Reorder by drag or the handle's move menu; inactive lines stay out of the order 🟠 (Web / API)
@@ -1957,6 +1957,7 @@ When I open Dashboard
 Then ONE "Where it went" panel replaces the separate week, bank and card cards, with a segmented switch reading By week | By bank | By card | Unbudgeted
 And the switch is a real radio group: it is reachable by keyboard and announces its position
 And By week opens first; each cut ends in a Total row, and switching between them refetches nothing
+And By bank opens on a two-row "Planned vs spent, by payment method" summary — Card and Bank account, budgeted against actual, red when over — above a table of actual spend per bank and method with its Total; there is no budgeted column per bank, because a budget line names no bank
 And Unbudgeted lists the categories with spend and no budget line — the old "Other spending" card — grouped by class with a subtotal per group: Discretionary, then Unplanned, then "Marked budgeted, no line" only when a purchase classed Budgeted sits in a category no line covers; a category whose money came in two classes appears once per group with that group's share
 And By card lists each card's alias with its kind and transaction count beneath, its spend, and its share of the month — "No card" last
 Given an envelope is due this month by its cadence
@@ -1968,7 +1969,9 @@ Then that strip is absent entirely, and the page is one section shorter
 **By week**. Tab to the switch and use the arrow keys → **Expected:** it moves between the four options
 like a radio group. Click through **By bank**, **By card**, **Unbudgeted** → **Expected:** each renders
 its own table with a **Total**, nothing scrolls sideways, and no money pair breaks across two lines (check
-in **Both**, the widest). **By card:** the card's alias with "Credit · N transaction(s)" under it and a
+in **Both**, the widest). **By bank:** first a two-row summary, **Credit card** and **Bank account**, each
+planned against spent (spent turns red when over); under it the banks — BAC · Bank account · ₡300,000.00 for the
+mortgage, the lunch's bank · Credit card · ₡10,000.00 — and a **Total** of the actuals only. **By card:** the card's alias with "Credit · N transaction(s)" under it and a
 share adding to 100%. **Unbudgeted:** the categories with no budget line, grouped under **Discretionary** / **Unplanned** / **Marked budgeted, no line** headings, each heading carrying its subtotal — the unplanned lunch sits under **Unplanned**; a category with both a discretionary and a budgeted purchase appears under both, with each share, and the Total at the bottom still equals the sum of the headings. Envelopes: with a bucket due
 this month → **Expected:** the strip above the line lists naming it, with contributed and remaining.
 Deactivate it (or pick a month where its cadence does not apply) → reload → **Expected:** no strip at all.

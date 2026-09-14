@@ -11,7 +11,6 @@ public sealed record ExpenseLine(
     [property: JsonPropertyName("budget_usd")] decimal BudgetUsd,
     [property: JsonPropertyName("payment_method")] string PaymentMethod,
     [property: JsonPropertyName("category_id")] Guid CategoryId,
-    [property: JsonPropertyName("bank_id")] Guid? BankId,
     [property: JsonPropertyName("sort_order")] int SortOrder,
     [property: JsonPropertyName("is_active")] bool IsActive)
 {

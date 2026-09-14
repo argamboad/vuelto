@@ -3870,7 +3870,7 @@
                 "fixed"
               ]
             },
-            "description": "201 with the line (sort_order appended). Single-currency: exactly one of budget_crc / budget_usd non-zero. category_id required, active, and backing NO other active line in EITHER list; bank_id optional (active). Names unique per list, case-insensitively: 409 expense_exists / expense_exists_inactive + existing_id + existing_name (offer Reactivate via PUT name=existing_name, is_active=true). Run 12 · Catalog first so {{categoryId}} exists.",
+            "description": "201 with the line (sort_order appended). Single-currency: exactly one of budget_crc / budget_usd non-zero. category_id required, active, and backing NO other active line in EITHER list (no bank on a line since 2026-09-14 — a plan is pay by card / by account). Names unique per list, case-insensitively: 409 expense_exists / expense_exists_inactive + existing_id + existing_name (offer Reactivate via PUT name=existing_name, is_active=true). Run 12 · Catalog first so {{categoryId}} exists.",
             "header": [
               {
                 "key": "Content-Type",
@@ -3879,7 +3879,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Postman mortgage\",\n  \"budget_crc\": 300000,\n  \"budget_usd\": 0,\n  \"payment_method\": \"bank_account\",\n  \"category_id\": \"{{categoryId}}\",\n  \"bank_id\": null\n}"
+              "raw": "{\n  \"name\": \"Postman mortgage\",\n  \"budget_crc\": 300000,\n  \"budget_usd\": 0,\n  \"payment_method\": \"bank_account\",\n  \"category_id\": \"{{categoryId}}\"\n}"
             }
           },
           "event": [
@@ -3951,7 +3951,7 @@
                 "{{fixedExpenseId}}"
               ]
             },
-            "description": "200 with the line. Every editable field changes (name, budgets, payment_method, category_id, bank_id — null clears it, is_active); sort_order is NEVER changed here (the order route owns it). 409 on a rename onto another line's name; 400 on a category that backs another active line; 404 for another household's id.",
+            "description": "200 with the line. Every editable field changes (name, budgets, payment_method, category_id, is_active); sort_order is NEVER changed here (the order route owns it). 409 on a rename onto another line's name; 400 on a category that backs another active line; 404 for another household's id.",
             "header": [
               {
                 "key": "Content-Type",
@@ -3960,7 +3960,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Postman mortgage\",\n  \"budget_crc\": 350000,\n  \"budget_usd\": 0,\n  \"payment_method\": \"bank_account\",\n  \"category_id\": \"{{categoryId}}\",\n  \"bank_id\": null,\n  \"is_active\": true\n}"
+              "raw": "{\n  \"name\": \"Postman mortgage\",\n  \"budget_crc\": 350000,\n  \"budget_usd\": 0,\n  \"payment_method\": \"bank_account\",\n  \"category_id\": \"{{categoryId}}\",\n  \"is_active\": true\n}"
             }
           },
           "event": [
@@ -4067,7 +4067,7 @@
                 "variable"
               ]
             },
-            "description": "201 with the line (sort_order appended). Single-currency: exactly one of budget_crc / budget_usd non-zero. category_id required, active, and backing NO other active line in EITHER list; bank_id optional (active). Names unique per list, case-insensitively: 409 expense_exists / expense_exists_inactive + existing_id + existing_name (offer Reactivate via PUT name=existing_name, is_active=true). Run 12 · Catalog first so {{categoryId}} exists.",
+            "description": "201 with the line (sort_order appended). Single-currency: exactly one of budget_crc / budget_usd non-zero. category_id required, active, and backing NO other active line in EITHER list (no bank on a line since 2026-09-14 — a plan is pay by card / by account). Names unique per list, case-insensitively: 409 expense_exists / expense_exists_inactive + existing_id + existing_name (offer Reactivate via PUT name=existing_name, is_active=true). Run 12 · Catalog first so {{categoryId}} exists.",
             "header": [
               {
                 "key": "Content-Type",
@@ -4076,7 +4076,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Postman groceries\",\n  \"budget_crc\": 200000,\n  \"budget_usd\": 0,\n  \"payment_method\": \"credit_card\",\n  \"category_id\": \"{{categoryId}}\",\n  \"bank_id\": null\n}"
+              "raw": "{\n  \"name\": \"Postman groceries\",\n  \"budget_crc\": 200000,\n  \"budget_usd\": 0,\n  \"payment_method\": \"credit_card\",\n  \"category_id\": \"{{categoryId}}\"\n}"
             }
           },
           "event": [
@@ -4148,7 +4148,7 @@
                 "{{variableExpenseId}}"
               ]
             },
-            "description": "200 with the line. Every editable field changes (name, budgets, payment_method, category_id, bank_id — null clears it, is_active); sort_order is NEVER changed here (the order route owns it). 409 on a rename onto another line's name; 400 on a category that backs another active line; 404 for another household's id.",
+            "description": "200 with the line. Every editable field changes (name, budgets, payment_method, category_id, is_active); sort_order is NEVER changed here (the order route owns it). 409 on a rename onto another line's name; 400 on a category that backs another active line; 404 for another household's id.",
             "header": [
               {
                 "key": "Content-Type",
@@ -4157,7 +4157,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Postman groceries\",\n  \"budget_crc\": 220000,\n  \"budget_usd\": 0,\n  \"payment_method\": \"credit_card\",\n  \"category_id\": \"{{categoryId}}\",\n  \"bank_id\": null,\n  \"is_active\": true\n}"
+              "raw": "{\n  \"name\": \"Postman groceries\",\n  \"budget_crc\": 220000,\n  \"budget_usd\": 0,\n  \"payment_method\": \"credit_card\",\n  \"category_id\": \"{{categoryId}}\",\n  \"is_active\": true\n}"
             }
           },
           "event": [
@@ -4234,7 +4234,7 @@
                 "summary"
               ]
             },
-            "description": "200 { month, exchange_rate, exchange_rate_buy, rate_source, rate_as_of, rate_unavailable, summary }. summary: income_primary/secondary/total, expenses_card/account/total/remainder, spent_budgeted/extraordinary/unplanned (the class cut — the dashboard waterfall's rows; adds up to expenses_total), fixed_expenses[] + variable_expenses[] ({name, budget, actual, budget_currency — the side the line is SET in; judge over/under there}), other_spending[] ({category_name, actual} — expense-class spend in categories no active line backs, ₡ desc then name), weekly_budgeted[] + weekly_extraordinary[] ({week_number, start_date, end_date, total}), current_balance, remainder_for_debts, pending_budgeted, actual_remainder, unplanned_essential_total, refunds_total (pending only), envelope_reminders[] ({name, annual_target, contributed_this_month, remaining, cadence}), bank_method_breakdown[] ({bank_id (null = Unassigned, last), bank_name, payment_method, budget, actual}). 404 when the month is unknown or another household's. summary.by_card[] (CARDS-2): { card_id | null, card_name, actual {crc, usd}, count, kind } — the month's expense spend per card, the kind carried so the table can say credit or debit, \"no card\" (null) last."
+            "description": "200 { month, exchange_rate, exchange_rate_buy, rate_source, rate_as_of, rate_unavailable, summary }. summary: income_primary/secondary/total, expenses_card/account/total/remainder, spent_budgeted/extraordinary/unplanned (the class cut — the dashboard waterfall's rows; adds up to expenses_total), fixed_expenses[] + variable_expenses[] ({name, budget, actual, budget_currency — the side the line is SET in; judge over/under there}), other_spending[] ({category_name, actual} — expense-class spend in categories no active line backs, ₡ desc then name), weekly_budgeted[] + weekly_extraordinary[] ({week_number, start_date, end_date, total}), current_balance, remainder_for_debts, pending_budgeted, actual_remainder, unplanned_essential_total, refunds_total (pending only), envelope_reminders[] ({name, annual_target, contributed_this_month, remaining, cadence}), bank_method_breakdown (actuals per bank × method — no budget since 2026-09-14), method_breakdown (budget vs actual per payment method, card first)[] ({bank_id (null = Unassigned, last), bank_name, payment_method, budget, actual}). 404 when the month is unknown or another household's. summary.by_card[] (CARDS-2): { card_id | null, card_name, actual {crc, usd}, count, kind } — the month's expense spend per card, the kind carried so the table can say credit or debit, \"no card\" (null) last."
           },
           "event": [
             {

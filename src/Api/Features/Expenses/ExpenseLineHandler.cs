@@ -20,7 +20,7 @@ public interface IExpenseLineHandler
 /// EXPENSES-1: one behaviour for both budget-line tables (ADR-V007/V008). Lines are never seeded — a
 /// household builds its own catalog. Rules: unique name per list, case-insensitively, with the 409
 /// reactivation offer; exactly one of the two budgets non-zero; a required active category that backs
-/// <b>at most one active line across both lists</b>; an optional active bank; sort order appended on
+/// <b>at most one active line across both lists</b>; sort order appended on
 /// create and owned by <see cref="ReorderAsync"/> (which must name exactly the active set). Foreign ids
 /// are not found. <c>Query()</c> is tenant-filtered by the platform.
 /// </summary>
@@ -29,7 +29,6 @@ public abstract class ExpenseLineHandler<TLine>(
     IRepository<FixedExpense> fixedLines,
     IRepository<VariableExpense> variableLines,
     IRepository<Category> categories,
-    IRepository<Bank> banks,
     ICurrentTenant tenant,
     TimeProvider clock) : IExpenseLineHandler
     where TLine : class, IExpenseLine
@@ -50,7 +49,7 @@ public abstract class ExpenseLineHandler<TLine>(
     public async Task<(ExpenseResponse? Line, ErrorResponse? Error)> CreateAsync(CreateExpenseRequest r, CancellationToken cancellationToken)
     {
         if (tenant.TenantId is not { } tenantId) return (null, NoTenant());
-        var (v, invalid) = await ValidateAsync(r.Name, r.BudgetCrc, r.BudgetUsd, r.PaymentMethod, r.CategoryId, r.BankId, excludeId: null, cancellationToken);
+        var (v, invalid) = await ValidateAsync(r.Name, r.BudgetCrc, r.BudgetUsd, r.PaymentMethod, r.CategoryId, excludeId: null, cancellationToken);
         if (invalid is not null) return (null, invalid);
 
         if (await FindByNameAsync(v!.Name, cancellationToken) is { } existing)
@@ -75,7 +74,7 @@ public abstract class ExpenseLineHandler<TLine>(
         var line = await lines.Query().FirstOrDefaultAsync(e => e.Id == id, cancellationToken);
         if (line is null) return (null, new ErrorResponse("not_found", $"{Kind} expense not found"));
 
-        var (v, invalid) = await ValidateAsync(r.Name, r.BudgetCrc, r.BudgetUsd, r.PaymentMethod, r.CategoryId, r.BankId, excludeId: id, cancellationToken);
+        var (v, invalid) = await ValidateAsync(r.Name, r.BudgetCrc, r.BudgetUsd, r.PaymentMethod, r.CategoryId, excludeId: id, cancellationToken);
         if (invalid is not null) return (null, invalid);
 
         if (await FindByNameAsync(v!.Name, cancellationToken) is { } clash && clash.Id != id)
@@ -110,10 +109,10 @@ public abstract class ExpenseLineHandler<TLine>(
         return null;
     }
 
-    private sealed record Valid(string Name, decimal BudgetCrc, decimal BudgetUsd, string PaymentMethod, Guid CategoryId, Guid? BankId);
+    private sealed record Valid(string Name, decimal BudgetCrc, decimal BudgetUsd, string PaymentMethod, Guid CategoryId);
 
     private async Task<(Valid? Valid, ErrorResponse? Error)> ValidateAsync(
-        string? name, decimal budgetCrc, decimal budgetUsd, string? paymentMethod, Guid? categoryId, Guid? bankId, Guid? excludeId, CancellationToken cancellationToken)
+        string? name, decimal budgetCrc, decimal budgetUsd, string? paymentMethod, Guid? categoryId, Guid? excludeId, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(name)) return (null, Invalid("name is required"));
         if (name.Trim().Length > 100) return (null, Invalid("name must be 100 characters or fewer"));
@@ -124,20 +123,19 @@ public abstract class ExpenseLineHandler<TLine>(
 
         // Tenant-scoped lookups: another household's id simply does not exist.
         if (!await categories.Query().AnyAsync(c => c.Id == category && c.IsActive, cancellationToken)) return (null, Invalid("unknown or inactive category"));
-        if (bankId is { } bank && !await banks.Query().AnyAsync(b => b.Id == bank && b.IsActive, cancellationToken)) return (null, Invalid("unknown or inactive bank"));
 
         // A category backs at most one ACTIVE line across BOTH lists (the dashboard maps a category's spend to one line).
         var inUse = await fixedLines.Query().AnyAsync(e => e.IsActive && e.CategoryId == category && e.Id != excludeId, cancellationToken)
                  || await variableLines.Query().AnyAsync(e => e.IsActive && e.CategoryId == category && e.Id != excludeId, cancellationToken);
         if (inUse) return (null, Invalid("that category already backs another budget line"));
 
-        return (new Valid(name.Trim(), CurrencyMath.Round2(budgetCrc), CurrencyMath.Round2(budgetUsd), method, category, bankId), null);
+        return (new Valid(name.Trim(), CurrencyMath.Round2(budgetCrc), CurrencyMath.Round2(budgetUsd), method, category), null);
     }
 
     private static void Apply(TLine line, Valid v, bool isActive, DateTimeOffset now)
     {
         line.Name = v.Name; line.BudgetCrc = v.BudgetCrc; line.BudgetUsd = v.BudgetUsd; line.PaymentMethod = v.PaymentMethod;
-        line.CategoryId = v.CategoryId; line.BankId = v.BankId; line.IsActive = isActive; line.UpdatedAt = now;
+        line.CategoryId = v.CategoryId; line.IsActive = isActive; line.UpdatedAt = now;
     }
 
     /// <summary>Case-insensitive name match within this list (Postgres <c>lower()</c> on both sides).</summary>
@@ -153,8 +151,8 @@ public abstract class ExpenseLineHandler<TLine>(
 
 public sealed class FixedExpenseHandler(
     IRepository<FixedExpense> lines, IRepository<FixedExpense> fixedLines, IRepository<VariableExpense> variableLines,
-    IRepository<Category> categories, IRepository<Bank> banks, ICurrentTenant tenant, TimeProvider clock)
-    : ExpenseLineHandler<FixedExpense>(lines, fixedLines, variableLines, categories, banks, tenant, clock)
+    IRepository<Category> categories, ICurrentTenant tenant, TimeProvider clock)
+    : ExpenseLineHandler<FixedExpense>(lines, fixedLines, variableLines, categories, tenant, clock)
 {
     protected override string Kind => "fixed";
     protected override FixedExpense NewLine(Guid tenantId, DateTimeOffset now) => new() { TenantId = tenantId, Name = "", CreatedAt = now, UpdatedAt = now };
@@ -162,8 +160,8 @@ public sealed class FixedExpenseHandler(
 
 public sealed class VariableExpenseHandler(
     IRepository<VariableExpense> lines, IRepository<FixedExpense> fixedLines, IRepository<VariableExpense> variableLines,
-    IRepository<Category> categories, IRepository<Bank> banks, ICurrentTenant tenant, TimeProvider clock)
-    : ExpenseLineHandler<VariableExpense>(lines, fixedLines, variableLines, categories, banks, tenant, clock)
+    IRepository<Category> categories, ICurrentTenant tenant, TimeProvider clock)
+    : ExpenseLineHandler<VariableExpense>(lines, fixedLines, variableLines, categories, tenant, clock)
 {
     protected override string Kind => "variable";
     protected override VariableExpense NewLine(Guid tenantId, DateTimeOffset now) => new() { TenantId = tenantId, Name = "", CreatedAt = now, UpdatedAt = now };

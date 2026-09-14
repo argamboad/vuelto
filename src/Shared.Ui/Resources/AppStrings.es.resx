@@ -524,7 +524,6 @@
   <data name="Budget_Amount" xml:space="preserve"><value>Presupuesto mensual</value></data>
   <data name="Budget_AmountRequired" xml:space="preserve"><value>Ingresa un presupuesto mayor que cero.</value></data>
   <data name="Budget_CategoryHint" xml:space="preserve"><value>Las transacciones de esta categoría cuentan como el gasto de esta línea. Una categoría respalda como máximo una línea activa.</value></data>
-  <data name="Budget_Unassigned" xml:space="preserve"><value>Sin asignar</value></data>
   <data name="Budget_ActiveToggle" xml:space="preserve"><value>Activa: las líneas inactivas salen del tablero pero conservan su historial</value></data>
   <data name="Budget_Empty" xml:space="preserve"><value>Aún no hay líneas: agrega la primera.</value></data>
   <data name="Budget_LoadError" xml:space="preserve"><value>No se pudieron cargar las líneas de presupuesto. Recarga para intentar de nuevo.</value></data>
@@ -582,7 +581,7 @@
   <data name="Dash_Target" xml:space="preserve"><value>Meta anual</value></data>
   <data name="Dash_Contributed" xml:space="preserve"><value>Aportado este mes</value></data>
   <data name="Dash_Remaining" xml:space="preserve"><value>Restante</value></data>
-  <data name="Dash_BankMethod" xml:space="preserve"><value>Por banco y método de pago</value></data>
+  <data name="Dash_ByMethod" xml:space="preserve"><value>Planificado vs gastado, por método de pago</value></data>
   <data name="Dash_Share" xml:space="preserve"><value>Porcentaje</value></data>
   <data name="Review_CardsNeedNaming" xml:space="preserve"><value>{0} tarjeta(s) todavía tienen el nombre que les puso un voucher. Revisá el alias y si es de crédito o débito.</value></data>
   <data name="Review_CardsNeedNamingAction" xml:space="preserve"><value>Administrar tarjetas</value></data>

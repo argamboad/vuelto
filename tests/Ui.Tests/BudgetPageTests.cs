@@ -17,28 +17,25 @@ public class BudgetPageTests : ComponentTestBase
 {
     private const string Cat1 = "bbbbbbbb-0000-0000-0000-000000000001";
     private const string Cat2 = "bbbbbbbb-0000-0000-0000-000000000002";
-    private const string BankId = "cccccccc-0000-0000-0000-000000000003";
     private const string L1 = "aaaaaaaa-0000-0000-0000-000000000001";
     private const string L2 = "aaaaaaaa-0000-0000-0000-000000000002";
     private const string L3 = "aaaaaaaa-0000-0000-0000-000000000003";
     private const string V1 = "aaaaaaaa-0000-0000-0000-000000000011";
     private const string Fixed = $$"""
-        [{"id":"{{L1}}","name":"Mortgage","budget_crc":300000,"budget_usd":0,"payment_method":"bank_account","category_id":"{{Cat1}}","bank_id":"{{BankId}}","sort_order":0,"is_active":true},
-         {"id":"{{L2}}","name":"Netflix","budget_crc":0,"budget_usd":13,"payment_method":"credit_card","category_id":"{{Cat2}}","bank_id":null,"sort_order":1,"is_active":true},
-         {"id":"{{L3}}","name":"Old","budget_crc":5000,"budget_usd":0,"payment_method":"credit_card","category_id":"{{Cat2}}","bank_id":null,"sort_order":2,"is_active":false}]
+        [{"id":"{{L1}}","name":"Mortgage","budget_crc":300000,"budget_usd":0,"payment_method":"bank_account","category_id":"{{Cat1}}","sort_order":0,"is_active":true},
+         {"id":"{{L2}}","name":"Netflix","budget_crc":0,"budget_usd":13,"payment_method":"credit_card","category_id":"{{Cat2}}","sort_order":1,"is_active":true},
+         {"id":"{{L3}}","name":"Old","budget_crc":5000,"budget_usd":0,"payment_method":"credit_card","category_id":"{{Cat2}}","sort_order":2,"is_active":false}]
         """;
     private const string Variable = $$"""
-        [{"id":"{{V1}}","name":"Groceries","budget_crc":100000,"budget_usd":0,"payment_method":"credit_card","category_id":"{{Cat2}}","bank_id":"{{BankId}}","sort_order":0,"is_active":true}]
+        [{"id":"{{V1}}","name":"Groceries","budget_crc":100000,"budget_usd":0,"payment_method":"credit_card","category_id":"{{Cat2}}","sort_order":0,"is_active":true}]
         """;
 
     private static readonly List<CategoryOption> Categories = [new(Guid.Parse(Cat1), "Housing"), new(Guid.Parse(Cat2), "Entertainment")];
-    private static readonly List<ExpenseLinesSection.NamedItem> Banks = [new(Guid.Parse(BankId), "BAC", true)];
 
     /// <summary>Everything the page fetches: catalogs, both lists, the rate and the income defaults (1,000,000 CRC + 500 USD a month).</summary>
     private void StubPage(string fixedList = Fixed, string variableList = Variable, bool rate = true, bool income = true)
     {
         Http.On(HttpMethod.Get, "/api/categories", $$"""[{"id":"{{Cat1}}","name":"Housing","is_active":true},{"id":"{{Cat2}}","name":"Entertainment","is_active":true}]""");
-        Http.On(HttpMethod.Get, "/api/banks", $$"""[{"id":"{{BankId}}","name":"BAC","is_active":true}]""");
         Http.On(HttpMethod.Get, "/api/expenses/fixed", fixedList);
         Http.On(HttpMethod.Get, "/api/expenses/variable", variableList);
         if (rate) Http.On(HttpMethod.Get, "/api/exchange-rate", """{"rate":500,"source":"live","as_of":"2026-09-03T12:00:00+00:00"}""");
@@ -124,10 +121,11 @@ public class BudgetPageTests : ComponentTestBase
         Assert.Equal("Mortgage", rows[0].QuerySelector("[data-testid='exp-row-name']")!.TextContent.Trim());
         Assert.Equal("₡300,000.00", rows[0].QuerySelector("[data-testid='exp-row-budget']")!.TextContent.Trim());
         Assert.Equal("Housing", rows[0].QuerySelector("[data-testid='exp-row-category']")!.TextContent.Trim());
-        Assert.Equal("BAC · Budget_MethodAccount", rows[0].QuerySelector("[data-testid='exp-row-paid']")!.TextContent.Trim());
-        Assert.Equal("Housing · BAC · Budget_MethodAccount", rows[0].QuerySelector("[data-testid='exp-row-sub']")!.TextContent.Trim());
+        // A plan names no bank (owner, 2026-09-14): the chip is the method alone.
+        Assert.Equal("Budget_MethodAccount", rows[0].QuerySelector("[data-testid='exp-row-paid']")!.TextContent.Trim());
+        Assert.Equal("Housing · Budget_MethodAccount", rows[0].QuerySelector("[data-testid='exp-row-sub']")!.TextContent.Trim());
         Assert.Equal("$13.00", rows[1].QuerySelector("[data-testid='exp-row-budget']")!.TextContent.Trim());
-        Assert.Equal("Budget_Unassigned · Budget_MethodCard", rows[1].QuerySelector("[data-testid='exp-row-paid']")!.TextContent.Trim());
+        Assert.Equal("Budget_MethodCard", rows[1].QuerySelector("[data-testid='exp-row-paid']")!.TextContent.Trim());
 
         Assert.Null(rows[0].GetAttribute("data-inactive"));
         Assert.Equal("true", rows[2].GetAttribute("data-inactive"));
@@ -211,7 +209,7 @@ public class BudgetPageTests : ComponentTestBase
     {
         await SignInAsync();
         StubPage();
-        Http.On(HttpMethod.Post, "/api/expenses/variable", $$"""{"id":"{{L3}}","name":"Water","budget_crc":0,"budget_usd":25,"payment_method":"bank_account","category_id":"{{Cat2}}","bank_id":null,"sort_order":3,"is_active":true}""", HttpStatusCode.Created);
+        Http.On(HttpMethod.Post, "/api/expenses/variable", $$"""{"id":"{{L3}}","name":"Water","budget_crc":0,"budget_usd":25,"payment_method":"bank_account","category_id":"{{Cat2}}","sort_order":3,"is_active":true}""", HttpStatusCode.Created);
         var cut = RenderPage();
 
         Assert.Empty(cut.FindAll("[data-testid='budget-dialog']"));
@@ -236,7 +234,8 @@ public class BudgetPageTests : ComponentTestBase
         Assert.Contains("\"budget_usd\":25", body);
         Assert.Contains("\"payment_method\":\"bank_account\"", body);
         Assert.Contains($"\"category_id\":\"{Cat2}\"", body);
-        Assert.Contains("\"bank_id\":null", body);
+        Assert.DoesNotContain("bank_id", body); // a plan names no bank
+        Assert.Empty(cut.FindAll("[data-testid='exp-bank']"));
         Assert.Empty(cut.FindAll("[data-testid='budget-dialog']")); // closed on save
         Assert.Equal(2, Http.Requests.Count(r => r.Method == HttpMethod.Get && r.RequestUri!.AbsolutePath == "/api/expenses/variable")); // that list reloaded
     }
@@ -264,7 +263,7 @@ public class BudgetPageTests : ComponentTestBase
     {
         await SignInAsync();
         StubPage();
-        Http.On(HttpMethod.Put, $"/api/expenses/fixed/{L2}", $$"""{"id":"{{L2}}","name":"Netflix","budget_crc":0,"budget_usd":15,"payment_method":"credit_card","category_id":"{{Cat2}}","bank_id":null,"sort_order":1,"is_active":false}""");
+        Http.On(HttpMethod.Put, $"/api/expenses/fixed/{L2}", $$"""{"id":"{{L2}}","name":"Netflix","budget_crc":0,"budget_usd":15,"payment_method":"credit_card","category_id":"{{Cat2}}","sort_order":1,"is_active":false}""");
         var cut = RenderPage();
 
         cut.FindAll("[data-testid='exp-fixed'] [data-testid='exp-edit']")[1].Click();
@@ -290,7 +289,7 @@ public class BudgetPageTests : ComponentTestBase
         await SignInAsync();
         StubPage();
         Http.On(HttpMethod.Post, "/api/categories", $$"""{"id":"{{NewCatId}}","name":"Viajes","is_active":true}""", HttpStatusCode.Created);
-        Http.On(HttpMethod.Post, "/api/expenses/fixed", $$"""{"id":"{{L3}}","name":"Hotel","budget_crc":80000,"budget_usd":0,"payment_method":"credit_card","category_id":"{{NewCatId}}","bank_id":null,"sort_order":3,"is_active":true}""", HttpStatusCode.Created);
+        Http.On(HttpMethod.Post, "/api/expenses/fixed", $$"""{"id":"{{L3}}","name":"Hotel","budget_crc":80000,"budget_usd":0,"payment_method":"credit_card","category_id":"{{NewCatId}}","sort_order":3,"is_active":true}""", HttpStatusCode.Created);
         var cut = RenderPage();
 
         cut.Find("[data-testid='budget-add']").Click();
@@ -314,7 +313,7 @@ public class BudgetPageTests : ComponentTestBase
         await SignInAsync();
         StubPage();
         Http.On(HttpMethod.Post, "/api/expenses/fixed", $$"""{"error":"expense_exists_inactive","message":"'Old' already exists but is inactive — reactivate it?","existing_id":"{{L3}}","existing_name":"Old"}""", HttpStatusCode.Conflict);
-        Http.On(HttpMethod.Put, $"/api/expenses/fixed/{L3}", $$"""{"id":"{{L3}}","name":"Old","budget_crc":9000,"budget_usd":0,"payment_method":"credit_card","category_id":"{{Cat2}}","bank_id":null,"sort_order":2,"is_active":true}""");
+        Http.On(HttpMethod.Put, $"/api/expenses/fixed/{L3}", $$"""{"id":"{{L3}}","name":"Old","budget_crc":9000,"budget_usd":0,"payment_method":"credit_card","category_id":"{{Cat2}}","sort_order":2,"is_active":true}""");
         var cut = RenderPage();
 
         cut.Find("[data-testid='budget-add']").Click();
@@ -342,6 +341,6 @@ public class BudgetPageTests : ComponentTestBase
         cut.WaitForElement("[data-testid='exp-fixed'] [data-testid='exp-empty']");
         cut.WaitForElement("[data-testid='exp-variable'] [data-testid='exp-empty']");
         cut.WaitForAssertion(() => Assert.Equal("₡0.00", cut.Find("[data-testid='budget-planned']").TextContent.Trim()));
-        Assert.Contains("include_inactive=true", Assert.Single(Http.Requests, r => r.RequestUri!.AbsolutePath == "/api/banks").RequestUri!.Query); // all states for names
+        Assert.DoesNotContain(Http.Requests, r => r.RequestUri!.AbsolutePath == "/api/banks"); // a plan names no bank: the page has no reason to load them
     }
 }

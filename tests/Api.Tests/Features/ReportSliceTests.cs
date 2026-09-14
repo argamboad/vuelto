@@ -82,7 +82,7 @@ public class ReportSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
         Week W(int n, DateOnly s, DateOnly e) => new() { TenantId = tenant, MonthId = month.Id, WeekNumber = n, StartDate = s, EndDate = e };
 
         db.AddRange(groceries, dining, bac, month); db.AddRange(weeks);
-        db.Add(new FixedExpense { TenantId = tenant, Name = "Supermarket", CategoryId = groceries.Id, BudgetCrc = 60_000m, PaymentMethod = "credit_card", BankId = bac.Id, CreatedAt = T0, UpdatedAt = T0 });
+        db.Add(new FixedExpense { TenantId = tenant, Name = "Supermarket", CategoryId = groceries.Id, BudgetCrc = 60_000m, PaymentMethod = "credit_card", CreatedAt = T0, UpdatedAt = T0 });
         await db.SaveChangesAsync();
         db.ChangeTracker.Clear();
 

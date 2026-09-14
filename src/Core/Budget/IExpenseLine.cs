@@ -21,6 +21,4 @@ public interface IExpenseLine : ICatalogEntry
     /// <summary>Required — a line without a category could never show where the budget is going.</summary>
     Guid CategoryId { get; set; }
 
-    /// <summary>Optional bank the line is paid from (donor US-054). Unlike a transaction's required bank, a plan may stay bank-agnostic: null = "Unassigned".</summary>
-    Guid? BankId { get; set; }
 }

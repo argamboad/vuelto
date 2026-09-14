@@ -33,7 +33,11 @@ public record CategorySpendSummary(string CategoryName, MoneyPair Actual, IReadO
 public record ClassSpendSummary(string Class, MoneyPair Actual);
 
 /// <summary>Budgeted vs actual for one (bank, payment method) cell. <c>BankId</c> null = the "Unassigned" bucket (bankless lines).</summary>
-public record BankMethodBreakdown(Guid? BankId, string BankName, string PaymentMethod, MoneyPair Budget, MoneyPair Actual);
+/// <summary>Actual spend for one (bank, payment method) cell — actuals only: a budget line names no bank (2026-09-14), so the plan has no place here.</summary>
+public record BankMethodBreakdown(Guid BankId, string BankName, string PaymentMethod, MoneyPair Actual);
+
+/// <summary>Budgeted vs actual for one payment method — the honest axis for "am I spending on card what I planned on card". Always both methods, card first.</summary>
+public record MethodBreakdown(string PaymentMethod, MoneyPair Budget, MoneyPair Actual);
 
 public record DashboardSummary(
     IncomeSummary Income,
@@ -48,4 +52,5 @@ public record DashboardSummary(
     IReadOnlyList<EnvelopeReminder> EnvelopeReminders,
     IReadOnlyList<CategorySpendSummary> OtherSpending,
     IReadOnlyList<BankMethodBreakdown> BankMethodBreakdown,
+    IReadOnlyList<MethodBreakdown> MethodBreakdown,
     IReadOnlyList<CardSpendEntry> ByCard);

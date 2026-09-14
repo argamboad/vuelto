@@ -36,7 +36,8 @@ public class DashboardPageTests : ComponentTestBase
          "current_balance":{"crc":1190000,"usd":2380},"remainder_for_debts":{"crc":1150000,"usd":2300},"pending_budgeted":{"crc":50000,"usd":100},"actual_remainder":{"crc":1140000,"usd":2280},
          "unplanned_essential_total":{"crc":10000,"usd":20},"refunds_total":{"crc":5000,"usd":10},
          "envelope_reminders":[{"name":"Marchamo","annual_target":{"crc":718000,"usd":0},"contributed_this_month":{"crc":0,"usd":0},"remaining":{"crc":718000,"usd":0},"cadence":"monthly"}],
-         "bank_method_breakdown":[{"bank_id":"cccccccc-0000-0000-0000-000000000003","bank_name":"BAC","payment_method":"bank_account","budget":{"crc":365000,"usd":730},"actual":{"crc":300000,"usd":600}},{"bank_id":null,"bank_name":"","payment_method":"credit_card","budget":{"crc":0,"usd":0},"actual":{"crc":10000,"usd":20}}],
+         "bank_method_breakdown":[{"bank_id":"cccccccc-0000-0000-0000-000000000003","bank_name":"BAC","payment_method":"bank_account","actual":{"crc":300000,"usd":600}},{"bank_id":"cccccccc-0000-0000-0000-000000000004","bank_name":"Cash","payment_method":"credit_card","actual":{"crc":10000,"usd":20}}],
+         "method_breakdown":[{"payment_method":"credit_card","budget":{"crc":15000,"usd":30},"actual":{"crc":10000,"usd":20}},{"payment_method":"bank_account","budget":{"crc":350000,"usd":700},"actual":{"crc":300000,"usd":600}}],
          "by_card":[{"card_id":"eeeeeeee-0000-0000-0000-000000000005","card_name":"Allan's Visa","actual":{"crc":10000,"usd":20},"count":1},{"card_id":null,"card_name":"","actual":{"crc":300000,"usd":600},"count":1}]}
         """;
 
@@ -224,9 +225,18 @@ public class DashboardPageTests : ComponentTestBase
         var before = Http.Requests.Count;
 
         cut.Find("[data-testid='dash-breakdown-switch-bank']").Change(true);
+        // Owner, 2026-09-14: a plan names no bank, so the bank cut is actuals only (three cells: bank, method, actual)
+        // under a Card / Bank account summary that carries the plan-vs-spent comparison.
+        var methodRows = cut.FindAll("[data-testid='dash-method-row']");
+        Assert.Equal(2, methodRows.Count);
+        Assert.Contains("Tx_CreditCard", methodRows[0].TextContent);
+        Assert.Contains("₡15,000.00", methodRows[0].TextContent);
+        Assert.Contains("₡350,000.00", methodRows[1].TextContent);
         var bankRows = cut.FindAll("[data-testid='dash-bank-row']");
         Assert.Equal(2, bankRows.Count);
         Assert.Contains("BAC", bankRows[0].TextContent);
+        Assert.Equal(3, bankRows[0].QuerySelectorAll("td").Length);
+        Assert.Contains("₡310,000.00", cut.Find("[data-testid='dash-banks-total']").TextContent);
 
         cut.Find("[data-testid='dash-breakdown-switch-card']").Change(true);
         var cardRows = cut.FindAll("[data-testid='dash-card-row']");
