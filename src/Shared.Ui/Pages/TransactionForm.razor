@@ -74,19 +74,31 @@
 
                         @if (_type == "unplanned_essential")
                         {
-                            <div class="tx-field">
+                            @* The refund block spans the row like Notes does: the switch, then the percentage beside the notes —
+                               the notes (case number and all, asked while the receipt is in your hand, 2026-09-14) get the width
+                               the transaction's own notes get. Case No. as a column stays the month page's (LEDGER-4). *@
+                            <div class="tx-field tx-field-wide">
                                 <div class="form-check form-switch">
                                     <input class="form-check-input" type="checkbox" id="tx-refund-expected" data-testid="tx-refund-expected" disabled="@_saving" @bind="_refundExpected" />
                                     <label class="form-check-label" for="tx-refund-expected">@Localizer["Tx_RefundExpected"]</label>
                                 </div>
                                 @if (_refundExpected)
                                 {
-                                    <label class="form-label mt-2" for="tx-refund-pct">@Localizer["Tx_RefundPercent"]</label>
-                                    <input class="form-control" type="number" step="0.01" min="0" max="100" id="tx-refund-pct" data-testid="tx-refund-pct" disabled="@_saving" @bind="_refundPercentage" />
-                                    @if (_amount > 0 && _refundPercentage is > 0)
-                                    {
-                                        <p class="tx-hint" data-testid="tx-refund-preview">@Localizer["Tx_RefundPreview", $"{(_amount * _refundPercentage.Value / 100m).ToString("N2", CultureInfo.CurrentCulture)} {_currency}"]</p>
-                                    }
+                                    <div class="tx-refund">
+                                        <div>
+                                            <label class="form-label" for="tx-refund-pct">@Localizer["Tx_RefundPercent"]</label>
+                                            <input class="form-control" type="number" step="0.01" min="0" max="100" id="tx-refund-pct" data-testid="tx-refund-pct" disabled="@_saving" @bind="_refundPercentage" />
+                                            @if (_amount > 0 && _refundPercentage is > 0)
+                                            {
+                                                <p class="tx-hint" data-testid="tx-refund-preview">@Localizer["Tx_RefundPreview", $"{(_amount * _refundPercentage.Value / 100m).ToString("N2", CultureInfo.CurrentCulture)} {_currency}"]</p>
+                                            }
+                                        </div>
+                                        <div>
+                                            <label class="form-label" for="tx-refund-notes">@Localizer["Tx_RefundNotes"]</label>
+                                            <textarea class="form-control" id="tx-refund-notes" data-testid="tx-refund-notes" rows="1" maxlength="250" placeholder="@Localizer["Refund_NotesHint"]" disabled="@_saving" @bind="_refundNotes" @bind:event="oninput"></textarea>
+                                            <p class="tx-hint tx-hint-end" data-testid="tx-refund-notes-count">@_refundNotes.Length/250</p>
+                                        </div>
+                                    </div>
                                 }
                             </div>
                         }
@@ -113,30 +125,51 @@
                 @* ---------------------------------------------------------------- how it was paid *@
                 <section class="tx-group">
                     <h2>@Localizer["Tx_GroupHow"]</h2>
+                    @* Card first (owner, 2026-09-14): a card already knows its bank and how the money leaves, so picking
+                       one decides the other two — shown as text, not as pickers you could contradict. "No card" opens them
+                       again (cash, transfers); a card with no bank on record keeps the bank open and points at Cards. *@
                     <div class="tx-fields">
-                        <div class="tx-field">
-                            <label class="form-label" for="tx-bank">@Localizer["Tx_Bank"]</label>
-                            <select class="form-select" id="tx-bank" data-testid="tx-bank" disabled="@_saving" @bind="_bankId">
-                                <option value="">—</option>
-                                @foreach (var b in _banks) { <option value="@b.Id">@b.Name</option> }
-                            </select>
-                        </div>
                         <div class="tx-field">
                             <label class="form-label" for="tx-card">@Localizer["Tx_Card"]</label>
                             <select class="form-select" id="tx-card" data-testid="tx-card" disabled="@_saving" value="@_cardId" @onchange="CardChanged">
                                 <option value="">@Localizer["Tx_NoCard"]</option>
                                 @foreach (var c in _cards) { <option value="@c.Id">@c.Name</option> }
                             </select>
+                            @if (_fromCard)
+                            {
+                                <p class="tx-hint" data-testid="tx-from-card">@Localizer["Tx_FromCard"]</p>
+                            }
+                            else if (SelectedCard() is { BankId: null })
+                            {
+                                <p class="tx-hint" data-testid="tx-card-no-bank">@Localizer["Tx_CardNoBank"] <a href="/cards">@Localizer["Cards_Title"]</a></p>
+                            }
+                        </div>
+                        <div class="tx-field">
+                            <label class="form-label" for="tx-bank">@Localizer["Tx_Bank"]</label>
+                            @if (_fromCard)
+                            {
+                                <p class="form-control-plaintext tx-locked" id="tx-bank" data-testid="tx-bank-locked">@BankName(_bankId)</p>
+                            }
+                            else
+                            {
+                                <select class="form-select" id="tx-bank" data-testid="tx-bank" disabled="@_saving" @bind="_bankId">
+                                    <option value="">—</option>
+                                    @foreach (var b in _banks) { <option value="@b.Id">@b.Name</option> }
+                                </select>
+                            }
                         </div>
                         <div class="tx-field">
                             <label class="form-label" for="tx-method">@Localizer["Tx_PaymentMethod"]</label>
-                            <select class="form-select" id="tx-method" data-testid="tx-method" disabled="@_saving" @bind="_method">
-                                <option value="credit_card">@Localizer["Tx_CreditCard"]</option>
-                                <option value="bank_account">@Localizer["Tx_BankAccount"]</option>
-                            </select>
-                            @if (_methodFromCard)
+                            @if (_fromCard)
                             {
-                                <p class="tx-hint" data-testid="tx-method-from-card">@Localizer["Tx_MethodFromCard"]</p>
+                                <p class="form-control-plaintext tx-locked" id="tx-method" data-testid="tx-method-locked">@Localizer[_method == "bank_account" ? "Tx_BankAccount" : "Tx_CreditCard"]</p>
+                            }
+                            else
+                            {
+                                <select class="form-select" id="tx-method" data-testid="tx-method" disabled="@_saving" @bind="_method">
+                                    <option value="credit_card">@Localizer["Tx_CreditCard"]</option>
+                                    <option value="bank_account">@Localizer["Tx_BankAccount"]</option>
+                                </select>
                             }
                         </div>
                         <div class="tx-field">
@@ -207,21 +240,26 @@
     private string _cardId = ""; // CARDS-1: optional — "" is "no card"
     private string _notes = ""; // optional; blank is sent as null
 
-    /// <summary>CARDS-3: the card knows how the money leaves — debit spends the account. Still overridable right below.</summary>
+    private CardOptionDto? SelectedCard() => _cards.FirstOrDefault(c => c.Id.ToString() == _cardId);
+    private static string MethodFor(CardOptionDto card) => card.Kind == "debit" ? "bank_account" : "credit_card";
+    private string BankName(string id) => _banks.FirstOrDefault(b => b.Id.ToString() == id)?.Name ?? "—";
+
+    /// <summary>The card decides bank and method (owner, 2026-09-14). CARDS-3 set only the method, and left it editable.</summary>
     private void CardChanged(ChangeEventArgs e)
     {
         _cardId = e.Value?.ToString() ?? "";
-        if (_cards.FirstOrDefault(c => c.Id.ToString() == _cardId) is { } card)
+        if (SelectedCard() is { } card)
         {
-            _method = card.Kind == "debit" ? "bank_account" : "credit_card";
-            // CARDS-3 set the method silently. SKIN-7 says so, and says it is still yours to change.
-            _methodFromCard = true;
+            _method = MethodFor(card);
+            if (card.BankId is { } bank) { _bankId = bank.ToString(); _fromCard = true; }
+            else _fromCard = false; // no bank on record: the bank stays yours to pick, the hint points at Cards
         }
-        else _methodFromCard = false;
+        else _fromCard = false;
     }
 
-    /// <summary>True once a card has decided the payment method, so the form can admit it did.</summary>
-    private bool _methodFromCard;
+    /// <summary>True while a card with a bank on record is chosen: bank and method are shown as the card's, not picked.</summary>
+    private bool _fromCard;
+    private string _refundNotes = "";
     private string _method = "credit_card";
     private string _type = "budgeted";
     private string _envelopeId = "";
@@ -255,8 +293,10 @@
                 _monthId = tx.MonthId; _payee = tx.Payee; _amount = tx.OriginalAmount; _currency = tx.Currency; _date = tx.TransactionDate;
                 _categoryId = tx.CategoryId.ToString(); _bankId = tx.BankId.ToString(); _method = tx.PaymentMethod; _type = tx.TransactionType;
                 _envelopeId = tx.EnvelopeId?.ToString() ?? ""; _cardId = tx.CardId?.ToString() ?? ""; _notes = tx.Notes ?? ""; _rate = tx.ExchangeRateUsed;
-                _refundExpected = tx.RefundExpected; _refundPercentage = tx.RefundPercentage;
+                _refundExpected = tx.RefundExpected; _refundPercentage = tx.RefundPercentage; _refundNotes = tx.RefundNotes ?? "";
                 _derived = tx.Source == "refund_realization"; // only refund-derived inflows are read-only; email-booked rows are the user's own
+                // Locked only when the stored bank and method are the card's own; a row saved before the card decided them stays open.
+                _fromCard = SelectedCard() is { BankId: { } cardBank } card && cardBank.ToString() == _bankId && MethodFor(card) == _method;
             }
             else
             {
@@ -359,6 +399,8 @@
                 ["currency"] = _currency, ["transaction_date"] = _date.ToString("yyyy-MM-dd"), ["category_id"] = _categoryId,
                 ["transaction_type"] = _type, ["envelope_id"] = _type == "envelope_contribution" ? _envelopeId : null,
                 ["refund_expected"] = refund, ["refund_percentage"] = refund ? _refundPercentage : null,
+                // Sent whenever a refund is on — blank included, since blank is how you clear it (null would mean "leave alone").
+                ["refund_notes"] = refund ? _refundNotes.Trim() : null,
                 ["card_id"] = _cardId == "" ? null : _cardId,
                 ["notes"] = string.IsNullOrWhiteSpace(_notes) ? null : _notes.Trim(),
             };
@@ -457,7 +499,7 @@
     private sealed record LineDto([property: JsonPropertyName("name")] string Name, [property: JsonPropertyName("budget")] MoneyDto Budget, [property: JsonPropertyName("actual")] MoneyDto Actual, [property: JsonPropertyName("budget_currency")] string BudgetCurrency = "CRC", [property: JsonPropertyName("category_id")] Guid CategoryId = default);
     private sealed record SummaryDto([property: JsonPropertyName("fixed_expenses")] List<LineDto> FixedExpenses, [property: JsonPropertyName("variable_expenses")] List<LineDto> VariableExpenses);
     private sealed record SummaryEnvelopeDto([property: JsonPropertyName("summary")] SummaryDto? Summary);
-    private sealed record CardOptionDto([property: JsonPropertyName("id")] Guid Id, [property: JsonPropertyName("name")] string Name, [property: JsonPropertyName("kind")] string? Kind = null);
+    private sealed record CardOptionDto([property: JsonPropertyName("id")] Guid Id, [property: JsonPropertyName("name")] string Name, [property: JsonPropertyName("kind")] string? Kind = null, [property: JsonPropertyName("bank_id")] Guid? BankId = null);
     private sealed record TxDto(
         [property: JsonPropertyName("id")] Guid Id,
         [property: JsonPropertyName("month_id")] Guid MonthId,
@@ -475,6 +517,7 @@
         [property: JsonPropertyName("source")] string Source,
         [property: JsonPropertyName("envelope_id")] Guid? EnvelopeId,
         [property: JsonPropertyName("refund_expected")] bool RefundExpected,
-        [property: JsonPropertyName("refund_percentage")] decimal? RefundPercentage);
+        [property: JsonPropertyName("refund_percentage")] decimal? RefundPercentage,
+        [property: JsonPropertyName("refund_notes")] string? RefundNotes = null);
     private sealed record ErrorDto([property: JsonPropertyName("error")] string Error, [property: JsonPropertyName("message")] string Message);
 }

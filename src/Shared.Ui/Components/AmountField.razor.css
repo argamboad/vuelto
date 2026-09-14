@@ -28,9 +28,10 @@
     box-shadow: none;
 }
 
-/* Display size, tabular, and the symbol/toggle read as part of the same object. */
+/* A control-sized figure (owner, 2026-09-14: the display size read as shouting): heavier and a step larger
+   than the fields beside it, tabular, and the symbol/toggle read as part of the same object. */
 .amount-input {
-    font-size: 30px;
+    font-size: 19px;
     font-weight: var(--w-display);
     font-variant-numeric: tabular-nums;
     color: var(--ink);
@@ -41,7 +42,7 @@
 /* Part of the field, not a box beside it: no fill and no inner edge, so the glyph reads as the amount's
    own symbol. It follows the toggle — $ when dollars are selected. */
 .amount-symbol {
-    font-size: 23px;
+    font-size: 17px;
     font-weight: var(--w-display);
     color: var(--brand-gold);          /* the colón glyph is the brand mark's own, and only here */
     background: transparent;

@@ -32,8 +32,14 @@ public record EnvelopeReminderResponse(
     [property: JsonPropertyName("remaining")] MoneyPairResponse Remaining,
     [property: JsonPropertyName("cadence")] string Cadence);
 
+/// <summary><c>by_class</c> (2026-09-14): this category's spend split by expense class, summing to <c>actual</c>, so a client can group unbudgeted spend by what kind of money it is.</summary>
 public record CategorySpendResponse(
     [property: JsonPropertyName("category_name")] string CategoryName,
+    [property: JsonPropertyName("actual")] MoneyPairResponse Actual,
+    [property: JsonPropertyName("by_class")] IReadOnlyList<ClassSpendResponse> ByClass);
+
+public record ClassSpendResponse(
+    [property: JsonPropertyName("class")] string Class,
     [property: JsonPropertyName("actual")] MoneyPairResponse Actual);
 
 public record BankMethodBreakdownResponse(
@@ -83,7 +89,8 @@ public record DashboardSummaryResponse(
         MoneyPairResponse.From(s.Expenses.Budgeted), MoneyPairResponse.From(s.Expenses.Extraordinary), MoneyPairResponse.From(s.Expenses.UnplannedEssential),
         s.FixedExpenses.Select(l => new ExpenseLineResponse(l.Name, MoneyPairResponse.From(l.Budget), MoneyPairResponse.From(l.Actual), l.BudgetCurrency, l.CategoryId)).ToList(),
         s.VariableExpenses.Select(l => new ExpenseLineResponse(l.Name, MoneyPairResponse.From(l.Budget), MoneyPairResponse.From(l.Actual), l.BudgetCurrency, l.CategoryId)).ToList(),
-        s.OtherSpending.Select(c => new CategorySpendResponse(c.CategoryName, MoneyPairResponse.From(c.Actual))).ToList(),
+        s.OtherSpending.Select(c => new CategorySpendResponse(c.CategoryName, MoneyPairResponse.From(c.Actual),
+            c.ByClass.Select(k => new ClassSpendResponse(k.Class, MoneyPairResponse.From(k.Actual))).ToList())).ToList(),
         s.WeeklyBudgeted.Select(w => new WeeklyTotalResponse(w.WeekNumber, w.StartDate, w.EndDate, MoneyPairResponse.From(w.Total))).ToList(),
         s.WeeklyExtraordinary.Select(w => new WeeklyTotalResponse(w.WeekNumber, w.StartDate, w.EndDate, MoneyPairResponse.From(w.Total))).ToList(),
         MoneyPairResponse.From(s.Balance.CurrentBalance), MoneyPairResponse.From(s.Balance.RemainderForDebts), MoneyPairResponse.From(s.Balance.PendingBudgeted), MoneyPairResponse.From(s.Balance.ActualRemainder),

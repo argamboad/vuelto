@@ -32,11 +32,11 @@ public sealed class TransactionHandler(
 {
     private const int MaxAttempts = 2; // one retry: a lost month-creation race finds the winner's month next time
 
-    private sealed record Valid(string Payee, Guid BankId, string PaymentMethod, decimal Amount, string Currency, DateOnly Date, Guid CategoryId, string Type, Guid? EnvelopeId, decimal? RefundPercentage, Guid? CardId, string? Notes);
+    private sealed record Valid(string Payee, Guid BankId, string PaymentMethod, decimal Amount, string Currency, DateOnly Date, Guid CategoryId, string Type, Guid? EnvelopeId, decimal? RefundPercentage, Guid? CardId, string? Notes, string? RefundNotes, bool SetRefundNotes);
 
     /// <summary>The manual create (LEDGER-2): <c>source = manual</c>.</summary>
     public Task<(TransactionResponse? Transaction, ErrorResponse? Error)> CreateAsync(CreateTransactionRequest r, CancellationToken cancellationToken) =>
-        CreateAsync(new CreateTransactionCommand(r.Payee, r.BankId, r.PaymentMethod, r.OriginalAmount, r.Currency, r.TransactionDate, r.CategoryId, r.TransactionType, r.ExchangeRate, r.EnvelopeId, r.RefundExpected, r.RefundPercentage, CardId: r.CardId, Notes: r.Notes), cancellationToken);
+        CreateAsync(new CreateTransactionCommand(r.Payee, r.BankId, r.PaymentMethod, r.OriginalAmount, r.Currency, r.TransactionDate, r.CategoryId, r.TransactionType, r.ExchangeRate, r.EnvelopeId, r.RefundExpected, r.RefundPercentage, CardId: r.CardId, Notes: r.Notes, RefundNotes: r.RefundNotes), cancellationToken);
 
     /// <summary>
     /// The Core contract (ADR-V010): the same create for another slice's caller — the review queue books a
@@ -53,7 +53,7 @@ public sealed class TransactionHandler(
     private async Task<(TransactionResponse? Transaction, ErrorResponse? Error)> CreateAsync(CreateTransactionCommand r, CancellationToken cancellationToken)
     {
         if (tenant.TenantId is not { } tenantId) return (null, NoTenant());
-        var (v, invalid) = await ValidateAsync(r.Payee, r.BankId, r.PaymentMethod, r.OriginalAmount, r.Currency, r.TransactionDate, r.CategoryId, r.TransactionType, r.EnvelopeId, r.RefundExpected, r.RefundPercentage, r.CardId, r.Notes, cancellationToken);
+        var (v, invalid) = await ValidateAsync(r.Payee, r.BankId, r.PaymentMethod, r.OriginalAmount, r.Currency, r.TransactionDate, r.CategoryId, r.TransactionType, r.EnvelopeId, r.RefundExpected, r.RefundPercentage, r.CardId, r.Notes, r.RefundNotes, cancellationToken);
         if (invalid is not null) return (null, invalid);
         if (r.ExchangeRate is <= 0) return (null, Invalid("exchange_rate must be positive"));
 
@@ -79,7 +79,7 @@ public sealed class TransactionHandler(
                 TransactionType = v.Type, Source = r.Source, CreatedAt = now, UpdatedAt = now,
             };
             await transactions.AddAsync(tx, cancellationToken);
-            var (refund, _) = await SyncRefundAsync(tx, v.RefundPercentage, now, cancellationToken); // a new row has nothing to remove
+            var (refund, _) = await SyncRefundAsync(tx, v, now, cancellationToken); // a new row has nothing to remove
             try
             {
                 await transactions.SaveChangesAsync(cancellationToken); // month + weeks + transaction (+ refund), atomically
@@ -100,7 +100,7 @@ public sealed class TransactionHandler(
     public async Task<(TransactionResponse? Transaction, ErrorResponse? Error)> UpdateAsync(Guid id, UpdateTransactionRequest r, CancellationToken cancellationToken)
     {
         if (tenant.TenantId is not { } tenantId) return (null, NoTenant());
-        var (v, invalid) = await ValidateAsync(r.Payee, r.BankId, r.PaymentMethod, r.OriginalAmount, r.Currency, r.TransactionDate, r.CategoryId, r.TransactionType, r.EnvelopeId, r.RefundExpected, r.RefundPercentage, r.CardId, r.Notes, cancellationToken);
+        var (v, invalid) = await ValidateAsync(r.Payee, r.BankId, r.PaymentMethod, r.OriginalAmount, r.Currency, r.TransactionDate, r.CategoryId, r.TransactionType, r.EnvelopeId, r.RefundExpected, r.RefundPercentage, r.CardId, r.Notes, r.RefundNotes, cancellationToken);
         if (invalid is not null) return (null, invalid);
 
         var tx = await transactions.Query().FirstOrDefaultAsync(t => t.Id == id, cancellationToken);
@@ -123,7 +123,7 @@ public sealed class TransactionHandler(
             tx.EnvelopeId = v.EnvelopeId; tx.CardId = v.CardId; tx.Notes = v.Notes; tx.MonthId = month.Id; tx.AmountCrc = amountCrc; tx.AmountUsd = amountUsd; tx.UpdatedAt = now;
             transactions.Update(tx);
 
-            var (refund, removedInflow) = await SyncRefundAsync(tx, v.RefundPercentage, now, cancellationToken);
+            var (refund, removedInflow) = await SyncRefundAsync(tx, v, now, cancellationToken);
 
             // Month cleanup (ADR-V005): a month left with no row other than the ones leaving it goes away. "Leaving"
             // is exactly the set this save removes or moves — the transaction only when its date moved it, plus a
@@ -208,8 +208,9 @@ public sealed class TransactionHandler(
     /// Returns the refund now attached to the transaction (or null) and the realized inflow it removed (or
     /// null) — the caller owns the month cleanup, because only it knows which rows are leaving which month.
     /// </summary>
-    private async Task<(Refund? Refund, Transaction? RemovedInflow)> SyncRefundAsync(Transaction tx, decimal? percentage, DateTimeOffset now, CancellationToken cancellationToken)
+    private async Task<(Refund? Refund, Transaction? RemovedInflow)> SyncRefundAsync(Transaction tx, Valid v, DateTimeOffset now, CancellationToken cancellationToken)
     {
+        var percentage = v.RefundPercentage;
         var existing = await refunds.Query().FirstOrDefaultAsync(x => x.TransactionId == tx.Id, cancellationToken);
         var applies = tx.TransactionType == TransactionTypes.UnplannedEssential && percentage is > 0;
 
@@ -231,6 +232,7 @@ public sealed class TransactionHandler(
             {
                 TenantId = tx.TenantId, MonthId = tx.MonthId, TransactionId = tx.Id, Payee = tx.Payee, TransactionDate = tx.TransactionDate,
                 Percentage = pct, AmountCrc = amountCrc, AmountUsd = amountUsd, Status = RefundStatuses.Pending, CreatedAt = now, UpdatedAt = now,
+                Notes = v.RefundNotes, // LEDGER-4's notes, taken at entry (2026-09-14); Case No. stays the month page's
             };
             await refunds.AddAsync(refund, cancellationToken);
             return (refund, null);
@@ -238,6 +240,9 @@ public sealed class TransactionHandler(
 
         existing.MonthId = tx.MonthId; existing.Payee = tx.Payee; existing.TransactionDate = tx.TransactionDate;
         existing.Percentage = pct; existing.AmountCrc = amountCrc; existing.AmountUsd = amountUsd; existing.UpdatedAt = now;
+        // LEDGER-4: the household's notes are replaced only when the request carries them — the edit form sends
+        // them back (blank clears, as on the details endpoint); a caller that omits them leaves them alone.
+        if (v.SetRefundNotes) existing.Notes = v.RefundNotes;
         refunds.Update(existing);
 
         if (existing.InflowTransactionId is { } inflowId
@@ -263,7 +268,7 @@ public sealed class TransactionHandler(
     /// <summary>Field rules shared by create and update (donor US-006/007/012 + ADR-V007), then the catalog references (must exist in the household and be active).</summary>
     private async Task<(Valid? Valid, ErrorResponse? Error)> ValidateAsync(
         string? payee, Guid? bankId, string? paymentMethod, decimal amount, string? currency, DateOnly? date,
-        Guid? categoryId, string? type, Guid? envelopeId, bool refundExpected, decimal? refundPercentage, Guid? cardId, string? notes, CancellationToken cancellationToken)
+        Guid? categoryId, string? type, Guid? envelopeId, bool refundExpected, decimal? refundPercentage, Guid? cardId, string? notes, string? refundNotes, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(payee)) return (null, Invalid("payee is required"));
         if (payee.Trim().Length > 200) return (null, Invalid("payee must be 200 characters or fewer"));
@@ -291,7 +296,12 @@ public sealed class TransactionHandler(
 
         // The refund flag only means something on an unplanned essential (donor US-012); elsewhere it is ignored, never an error.
         var pct = refundExpected && t == TransactionTypes.UnplannedEssential ? refundPercentage : null;
-        return (new Valid(payee.Trim(), bank, method, amount, cur, d, category, t, isContribution ? envelopeId : null, pct, cardId, note), null);
+                // The refund's notes ride along only with a refund (LEDGER-4 rules: trimmed, blank is null, 250 chars).
+        // "Sent" is remembered before blank collapses to null: null in the request means "leave alone", blank means "clear".
+        var setNotes = refundNotes is not null;
+        refundNotes = string.IsNullOrWhiteSpace(refundNotes) ? null : refundNotes.Trim();
+        if (refundNotes?.Length > Refund.NotesMaxLength) return (null, Invalid($"refund_notes must be {Refund.NotesMaxLength} characters or fewer"));
+        return (new Valid(payee.Trim(), bank, method, amount, cur, d, category, t, isContribution ? envelopeId : null, pct, cardId, note, refundNotes, setNotes), null);
     }
 
     private static ErrorResponse Invalid(string message) => new("invalid_request", message);

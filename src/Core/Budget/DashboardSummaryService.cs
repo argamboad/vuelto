@@ -153,7 +153,9 @@ public sealed class DashboardSummaryService : IDashboardSummaryService
         return transactions
             .Where(t => IsExpenseClass(t.TransactionType) && !budgeted.Contains(t.CategoryId))
             .GroupBy(t => t.CategoryId)
-            .Select(g => new CategorySpendSummary(categoryNames.GetValueOrDefault(g.Key, g.Key.ToString("N")), Pair(g.Sum(t => t.AmountCrc), g.Sum(t => t.AmountUsd))))
+            .Select(g => new CategorySpendSummary(categoryNames.GetValueOrDefault(g.Key, g.Key.ToString("N")), Pair(g.Sum(t => t.AmountCrc), g.Sum(t => t.AmountUsd)),
+                g.GroupBy(t => t.TransactionType).OrderBy(c => c.Key, StringComparer.Ordinal) // budgeted · extraordinary · unplanned_essential
+                    .Select(c => new ClassSpendSummary(c.Key, Pair(c.Sum(t => t.AmountCrc), c.Sum(t => t.AmountUsd)))).ToList()))
             .OrderByDescending(c => c.Actual.Crc).ThenBy(c => c.CategoryName, StringComparer.Ordinal)
             .ToList();
     }

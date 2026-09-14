@@ -133,6 +133,33 @@ public class RefundSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
         Assert.Null(refund.InflowTransactionId);
     }
 
+    [Fact]
+    public async Task Create_WithRefundNotes_RecordsThemOnTheRefund_AndAnEditReplacesThem()
+    {
+        // Owner, 2026-09-14: the reason (case number and all) is known while the receipt is in your hand, so the
+        // form asks for it at entry rather than sending you to the month page afterwards. Same rules as the
+        // details endpoint (LEDGER-4): trimmed, blank clears, 250 characters; null on an edit leaves it alone.
+        var c = await ContextAsync();
+        var (tx, error) = await c.Transactions.CreateAsync(Unplanned(c, refund: true, pct: 30m) with { RefundNotes = "  CASE-7 · lent to Diego  " }, default);
+
+        Assert.Null(error);
+        Assert.Equal("CASE-7 · lent to Diego", tx!.RefundNotes); // echoed, so the edit form can prefill it
+        Assert.Equal("CASE-7 · lent to Diego", (await TheRefund(c)).Notes);
+
+        var (kept, keptError) = await c.Transactions.UpdateAsync(tx.Id, Edit(c, pct: 30m), default); // no refund_notes sent
+        Assert.Null(keptError);
+        Assert.Equal("CASE-7 · lent to Diego", kept!.RefundNotes); // left alone
+
+        var (edited, editError) = await c.Transactions.UpdateAsync(tx.Id, Edit(c, pct: 30m) with { RefundNotes = "   " }, default);
+        Assert.Null(editError);
+        Assert.Null(edited!.RefundNotes);
+        Assert.Null((await TheRefund(c)).Notes); // blank clears
+
+        var (_, notesTooLong) = await c.Transactions.UpdateAsync(tx.Id, Edit(c, pct: 30m) with { RefundNotes = new string('x', 251) }, default);
+        Assert.Equal("invalid_request", notesTooLong!.Error);
+        Assert.Contains("refund_notes", notesTooLong.Message);
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData(0.0)]

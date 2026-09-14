@@ -30,7 +30,7 @@ public class DashboardPageTests : ComponentTestBase
          "spent_budgeted":{"crc":300000,"usd":600},"spent_extraordinary":{"crc":0,"usd":0},"spent_unplanned":{"crc":10000,"usd":20},
          "fixed_expenses":[{"name":"Mortgage","budget":{"crc":350000,"usd":700},"actual":{"crc":300000,"usd":600}},{"name":"Water","budget":{"crc":15000,"usd":30},"actual":{"crc":18000,"usd":36}}],
          "variable_expenses":[],
-         "other_spending":[{"category_name":"Dining","actual":{"crc":10000,"usd":20}}],
+         "other_spending":[{"category_name":"Dining","actual":{"crc":10000,"usd":20},"by_class":[{"class":"unplanned_essential","actual":{"crc":10000,"usd":20}}]},{"category_name":"Trips","actual":{"crc":4000,"usd":8},"by_class":[{"class":"budgeted","actual":{"crc":1000,"usd":2}},{"class":"extraordinary","actual":{"crc":3000,"usd":6}}]}],
          "weekly_budgeted":[{"week_number":1,"start_date":"2026-06-25","end_date":"2026-07-01","total":{"crc":0,"usd":0}},{"week_number":2,"start_date":"2026-07-02","end_date":"2026-07-08","total":{"crc":300000,"usd":600}}],
          "weekly_extraordinary":[{"week_number":1,"start_date":"2026-06-25","end_date":"2026-07-01","total":{"crc":0,"usd":0}},{"week_number":2,"start_date":"2026-07-02","end_date":"2026-07-08","total":{"crc":0,"usd":0}}],
          "current_balance":{"crc":1190000,"usd":2380},"remainder_for_debts":{"crc":1150000,"usd":2300},"pending_budgeted":{"crc":50000,"usd":100},"actual_remainder":{"crc":1140000,"usd":2280},
@@ -145,7 +145,10 @@ public class DashboardPageTests : ComponentTestBase
         Assert.Empty(cut.FindAll("[data-testid='dash-wf-overplan']"));
 
         // Refunds are excluded from the forecast (ADR-V007) and the step has to keep saying so.
-        Assert.Contains("Dash_RefundsHint", cut.Find("[data-testid='dash-wf']").TextContent);
+        var forecast = cut.Find("[data-testid='dash-wf-forecast']").Closest(".wf-step")!.TextContent;
+        Assert.Contains("Dash_WfRefundsExpected", forecast); // the amount expected back, named on the step it is NOT counted in
+        Assert.Contains("₡5,000.00 · $10.00", forecast);
+        Assert.Contains("Dash_RefundsNote", forecast);
     }
 
     [Fact]
@@ -241,9 +244,26 @@ public class DashboardPageTests : ComponentTestBase
         // Owner decision, 2026-09-11: the old Other-spending card becomes an option here.
         var cut = await DashboardAsync(MidMonth);
         cut.Find("[data-testid='dash-breakdown-switch-other']").Change(true);
+        // Owner decision, 2026-09-14: the rows group by class with a subtotal each, so "how much of this was
+        // unplanned" is read off a heading, not added up by eye. Discretionary first, then Unplanned, then the
+        // catalog smell — money classed Budgeted in a category no line covers — only when it occurs.
+        var groups = cut.FindAll("[data-testid='dash-other-group']");
+        Assert.Equal(["extraordinary", "unplanned_essential", "budgeted"], groups.Select(g => g.GetAttribute("data-class")).ToList());
+        Assert.Contains("Tx_Extraordinary", groups[0].TextContent);
+        Assert.Contains("₡3,000.00", groups[0].TextContent);
+        Assert.Contains("Tx_Unplanned", groups[1].TextContent);
+        Assert.Contains("₡10,000.00", groups[1].TextContent);
+        Assert.Contains("Dash_BudgetedNoLine", groups[2].TextContent);
+        Assert.Contains("₡1,000.00", groups[2].TextContent);
 
-        Assert.Contains("Dining", cut.Find("[data-testid='dash-other']").TextContent);
-        Assert.Contains("₡10,000.00", cut.Find("[data-testid='dash-other-total']").TextContent);
+        // A category whose money came in two classes appears once per class, with that class's amount.
+        var rows = cut.FindAll("[data-testid='dash-other-row']");
+        Assert.Equal(["Trips", "Dining", "Trips"], rows.Select(r => r.QuerySelector("td")!.TextContent.Trim()).ToList());
+        Assert.Contains("₡3,000.00", rows[0].TextContent);
+        Assert.Contains("₡1,000.00", rows[2].TextContent);
+        Assert.Empty(cut.FindAll("[data-testid='dash-other-class']")); // no chips: the heading says the class
+
+        Assert.Contains("₡14,000.00", cut.Find("[data-testid='dash-other-total']").TextContent); // Dining 10,000 + Trips 4,000
     }
 
     // ---------------------------------------------------------------- envelopes

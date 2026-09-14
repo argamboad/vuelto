@@ -70,7 +70,9 @@ public record ConfirmVoucherRequest(
     [property: JsonPropertyName("refund_expected")] bool RefundExpected = false,
     [property: JsonPropertyName("refund_percentage")] decimal? RefundPercentage = null,
     // The reason, recorded while the voucher is in front of you — the ledger's optional 250-character note.
-    [property: JsonPropertyName("notes")] string? Notes = null);
+    [property: JsonPropertyName("notes")] string? Notes = null,
+    // The refund's notes (LEDGER-4), same as the manual form (2026-09-14).
+    [property: JsonPropertyName("refund_notes")] string? RefundNotes = null);
 
 /// <summary>EMAIL-7: the guard on the queue reset — the client has to say it means it (the household-dissolve shape, ADR-V009).</summary>
 public record ClearQueueRequest([property: JsonPropertyName("confirm")] bool Confirm = false);

@@ -26,7 +26,11 @@ public record BalanceSummary(MoneyPair CurrentBalance, MoneyPair RemainderForDeb
 public record EnvelopeReminder(string Name, MoneyPair AnnualTarget, MoneyPair ContributedThisMonth, MoneyPair Remaining, string Cadence);
 
 /// <summary>A category with expense-class spend but no active budget line.</summary>
-public record CategorySpendSummary(string CategoryName, MoneyPair Actual);
+/// <summary><paramref name="ByClass"/>: the category's spend split by expense class, so an unbudgeted row can be grouped by what kind of money it is. Sums to <paramref name="Actual"/>.</summary>
+public record CategorySpendSummary(string CategoryName, MoneyPair Actual, IReadOnlyList<ClassSpendSummary> ByClass);
+
+/// <summary>One expense class's share of a category's spend.</summary>
+public record ClassSpendSummary(string Class, MoneyPair Actual);
 
 /// <summary>Budgeted vs actual for one (bank, payment method) cell. <c>BankId</c> null = the "Unassigned" bucket (bankless lines).</summary>
 public record BankMethodBreakdown(Guid? BankId, string BankName, string PaymentMethod, MoneyPair Budget, MoneyPair Actual);

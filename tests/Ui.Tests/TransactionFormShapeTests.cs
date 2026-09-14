@@ -18,20 +18,34 @@ public class TransactionFormShapeTests : ComponentTestBase
     private const string Cat = "cccccccc-0000-0000-0000-000000000001";
     private const string Bank = "bbbbbbbb-0000-0000-0000-000000000001";
     private const string Card = "eeeeeeee-0000-0000-0000-000000000005";
+    private const string BanklessCard = "eeeeeeee-0000-0000-0000-000000000006";
+    private const string TxId = "dddddddd-0000-0000-0000-000000000009";
 
     private async Task<IRenderedComponent<TransactionForm>> FormAsync()
     {
         await SignInAsync();
         Http.On(HttpMethod.Get, "/api/categories", $$"""[{"id":"{{Cat}}","name":"Groceries","is_active":true}]""");
         Http.On(HttpMethod.Get, "/api/banks", $$"""[{"id":"{{Bank}}","name":"BAC","is_active":true}]""");
-        Http.On(HttpMethod.Get, "/api/cards", $$"""[{"id":"{{Card}}","name":"Casa VISA ····4417","kind":"debit","is_active":true}]""");
+        Http.On(HttpMethod.Get, "/api/cards", $$"""[{"id":"{{Card}}","name":"Casa VISA ····4417","kind":"debit","bank_id":"{{Bank}}","is_active":true},{"id":"{{BanklessCard}}","name":"AMEX ····1001","kind":"credit","bank_id":null,"is_active":true}]""");
         Http.On(HttpMethod.Get, "/api/envelopes", "[]");
         Http.On(HttpMethod.Get, "/api/exchange-rate", """{"rate":540.11,"source":"live","as_of":"2026-09-12T12:00:00+00:00","buy":538,"sell":540.11}""");
         Http.On(HttpMethod.Get, "/api/months/resolve", """{"id":null,"year":2026,"month_number":9,"is_new":true}""");
+        Http.On(HttpMethod.Post, "/api/transactions", $$"""{"id":"{{TxId}}","month_id":"{{TxId}}","payee":"x","bank_id":"{{Bank}}","payment_method":"credit_card","original_amount":1,"currency":"CRC","transaction_date":"2026-09-12","category_id":"{{Cat}}","exchange_rate_used":540.11,"transaction_type":"budgeted","source":"manual","envelope_id":null,"refund_expected":false,"refund_percentage":null}""", System.Net.HttpStatusCode.Created);
 
         var cut = Render<TransactionForm>();
         cut.WaitForElement("[data-testid='tx-form']");
         return cut;
+    }
+
+    private async Task<string> SavedBodyAsync(IRenderedComponent<TransactionForm> cut)
+    {
+        cut.Find("[data-testid='tx-payee']").Input("Hospital");
+        cut.Find("[data-testid='tx-amount-field-input']").Change("50000");
+        cut.Find("[data-testid='tx-category']").Change(Cat);
+        cut.Find("[data-testid='tx-save']").Click();
+        cut.WaitForAssertion(() => Assert.Single(Http.Requests, r => r.Method == HttpMethod.Post && r.RequestUri!.AbsolutePath == "/api/transactions"));
+        var post = Http.Requests.Single(r => r.Method == HttpMethod.Post && r.RequestUri!.AbsolutePath == "/api/transactions");
+        return await post.Content!.ReadAsStringAsync();
     }
 
     [Fact]
@@ -162,16 +176,110 @@ public class TransactionFormShapeTests : ComponentTestBase
     }
 
     [Fact]
-    public async Task PickingACardSetsTheMethod_AndSaysThatItDid()
+    public async Task PickingACardSetsTheBankAndTheMethod_AndLocksThemUntilTheCardChanges()
     {
+        // Owner, 2026-09-14: a card already knows its bank and how the money leaves, so picking one decides
+        // both — shown as text, not as pickers you could contradict. "No card" opens them again (cash, transfers).
         var cut = await FormAsync();
-        Assert.Empty(cut.FindAll("[data-testid='tx-method-from-card']"));
+        Assert.NotNull(cut.Find("[data-testid='tx-bank']"));
+        Assert.NotNull(cut.Find("[data-testid='tx-method']"));
+        Assert.Empty(cut.FindAll("[data-testid='tx-from-card']"));
 
-        // CARDS-3: a debit card means a bank account. It used to happen silently.
         cut.Find("[data-testid='tx-card']").Change(Card);
 
-        Assert.Equal("bank_account", cut.Find("[data-testid='tx-method']").GetAttribute("value"));
-        Assert.Contains("Tx_MethodFromCard", cut.Find("[data-testid='tx-method-from-card']").TextContent);
+        Assert.Empty(cut.FindAll("select[data-testid='tx-bank']"));
+        Assert.Empty(cut.FindAll("select[data-testid='tx-method']"));
+        Assert.Contains("BAC", cut.Find("[data-testid='tx-bank-locked']").TextContent);
+        Assert.Contains("Tx_BankAccount", cut.Find("[data-testid='tx-method-locked']").TextContent);
+        Assert.Contains("Tx_FromCard", cut.Find("[data-testid='tx-from-card']").TextContent);
+
+        var body = await SavedBodyAsync(cut);
+        Assert.Contains($"\"bank_id\":\"{Bank}\"", body);
+        Assert.Contains("\"payment_method\":\"bank_account\"", body);
+        Assert.Contains($"\"card_id\":\"{Card}\"", body);
+    }
+
+    [Fact]
+    public async Task NoCardAgain_OpensBankAndMethodBackUp()
+    {
+        var cut = await FormAsync();
+        cut.Find("[data-testid='tx-card']").Change(Card);
+        cut.Find("[data-testid='tx-card']").Change("");
+
+        Assert.NotNull(cut.Find("select[data-testid='tx-bank']"));
+        Assert.NotNull(cut.Find("select[data-testid='tx-method']"));
+        Assert.Empty(cut.FindAll("[data-testid='tx-from-card']"));
+    }
+
+    [Fact]
+    public async Task ACardWithNoBankOnRecord_LeavesTheBankOpen_AndPointsAtCards()
+    {
+        var cut = await FormAsync();
+        cut.Find("[data-testid='tx-card']").Change(BanklessCard);
+
+        Assert.NotNull(cut.Find("select[data-testid='tx-bank']"));
+        Assert.Equal("credit_card", cut.Find("select[data-testid='tx-method']").GetAttribute("value")); // the kind still sets the method
+        Assert.Empty(cut.FindAll("[data-testid='tx-from-card']"));
+        var hint = cut.Find("[data-testid='tx-card-no-bank']");
+        Assert.Contains("Tx_CardNoBank", hint.TextContent);
+        Assert.Equal("/cards", hint.QuerySelector("a")!.GetAttribute("href"));
+    }
+
+    [Fact]
+    public async Task TheHowGroupReadsCardThenBankThenMethod()
+    {
+        // The card decides the other two, so it comes first.
+        var cut = await FormAsync();
+        var html = cut.Find("[data-testid='tx-form']").InnerHtml;
+        Assert.True(html.IndexOf("tx-card", StringComparison.Ordinal) < html.IndexOf("tx-bank", StringComparison.Ordinal));
+        Assert.True(html.IndexOf("tx-bank", StringComparison.Ordinal) < html.IndexOf("tx-method", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task EditingARowPaidWithACard_ShowsItsBankAndMethodAsTheCards()
+    {
+        await SignInAsync();
+        Http.On(HttpMethod.Get, "/api/categories", $$"""[{"id":"{{Cat}}","name":"Groceries","is_active":true}]""");
+        Http.On(HttpMethod.Get, "/api/banks", $$"""[{"id":"{{Bank}}","name":"BAC","is_active":true}]""");
+        Http.On(HttpMethod.Get, "/api/cards", $$"""[{"id":"{{Card}}","name":"Casa VISA ····4417","kind":"debit","bank_id":"{{Bank}}","is_active":true}]""");
+        Http.On(HttpMethod.Get, "/api/envelopes", "[]");
+        Http.On(HttpMethod.Get, "/api/exchange-rate", """{"rate":540.11,"source":"live","as_of":"2026-09-12T12:00:00+00:00","buy":538,"sell":540.11}""");
+        Http.On(HttpMethod.Get, "/api/months/resolve", """{"id":null,"year":2026,"month_number":9,"is_new":true}""");
+        Http.On(HttpMethod.Get, $"/api/transactions/{TxId}", $$"""{"id":"{{TxId}}","month_id":"{{TxId}}","payee":"Hospital","bank_id":"{{Bank}}","card_id":"{{Card}}","notes":null,"payment_method":"bank_account","original_amount":50000,"currency":"CRC","transaction_date":"2026-09-12","category_id":"{{Cat}}","exchange_rate_used":540.11,"transaction_type":"unplanned_essential","source":"manual","envelope_id":null,"refund_expected":true,"refund_percentage":30,"refund_notes":"CASE-7, lent to Diego"}""");
+
+        var cut = Render<TransactionForm>(p => p.Add(x => x.Id, Guid.Parse(TxId)));
+        cut.WaitForElement("[data-testid='tx-form']");
+
+        // Stored values agree with the card, so they show as the card's; and the refund notes prefill.
+        Assert.Contains("BAC", cut.Find("[data-testid='tx-bank-locked']").TextContent);
+        Assert.Contains("Tx_BankAccount", cut.Find("[data-testid='tx-method-locked']").TextContent);
+        Assert.Equal("CASE-7, lent to Diego", cut.Find("[data-testid='tx-refund-notes']").GetAttribute("value")); // a bound textarea carries its text as value
+    }
+
+    [Fact]
+    public async Task ARefundAsksForItsNotes_AsBigAsTheTransactionsOwn_AndSendsThemAlong()
+    {
+        // Why you expect it back (case number and all) used to be reachable only from the month page, after the fact.
+        // Owner, 2026-09-14: ONE notes field, no separate Case No. — a textarea like the transaction's own notes.
+        var cut = await FormAsync();
+        cut.Find("[data-testid='tx-type-unplanned_essential']").Change(true);
+        Assert.Empty(cut.FindAll("[data-testid='tx-refund-notes']"));
+        cut.Find("[data-testid='tx-refund-expected']").Change(true);
+
+        cut.Find("[data-testid='tx-refund-pct']").Change("30");
+        var notes = cut.Find("textarea[data-testid='tx-refund-notes']");
+        Assert.Equal("250", notes.GetAttribute("maxlength"));
+        Assert.Equal("1", notes.GetAttribute("rows")); // one row, the percentage's height; the user can drag it taller
+        Assert.Contains("Tx_RefundNotes", cut.Find("label[for='tx-refund-notes']").TextContent);
+        Assert.Empty(cut.FindAll("[data-testid='tx-refund-case']"));
+        notes.Input("CASE-7, lent to Diego"); // ASCII on purpose: the JSON body escapes anything else as a unicode sequence
+        Assert.Contains("21/250", cut.Find("[data-testid='tx-refund-notes-count']").TextContent);
+
+        cut.Find("[data-testid='tx-bank']").Change(Bank);
+        var body = await SavedBodyAsync(cut);
+        Assert.Contains("\"refund_percentage\":30", body);
+        Assert.DoesNotContain("refund_case_number", body);
+        Assert.Contains("\"refund_notes\":\"CASE-7, lent to Diego\"", body);
     }
 
     [Fact]

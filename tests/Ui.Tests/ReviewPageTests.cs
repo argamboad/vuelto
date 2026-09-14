@@ -77,6 +77,9 @@ public class ReviewPageTests : ComponentTestBase
         Card(cut, 0).QuerySelector("[data-testid='review-refund-expected']")!.Change(true);
         Card(cut, 0).QuerySelector("[data-testid='review-refund-pct']")!.Change("30");
         Assert.Contains("Tx_RefundPreview[2,286.00 CRC]", Card(cut, 0).QuerySelector("[data-testid='review-refund-preview']")!.TextContent); // 30 % of the voucher's ₡7,620
+        // The same refund notes the manual form asks for (owner, 2026-09-14): why you expect it back, case number and all.
+        Assert.Null(Card(cut, 0).QuerySelector("[data-testid='review-refund-case']"));
+        Card(cut, 0).QuerySelector("textarea[data-testid='review-refund-notes']")!.Input("CASE-7, lent to Diego");
 
         Card(cut, 0).QuerySelector("[data-testid='review-confirm']")!.Click();
 
@@ -84,6 +87,8 @@ public class ReviewPageTests : ComponentTestBase
         var body = await Assert.Single(Http.Requests, r => r.Method == HttpMethod.Post && r.RequestUri!.AbsolutePath.StartsWith("/api/pending-vouchers")).Content!.ReadAsStringAsync();
         Assert.Contains("\"refund_expected\":true", body);
         Assert.Contains("\"refund_percentage\":30", body);
+        Assert.DoesNotContain("refund_case_number", body);
+        Assert.Contains("\"refund_notes\":\"CASE-7, lent to Diego\"", body);
     }
 
     [Fact]

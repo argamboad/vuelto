@@ -6,13 +6,17 @@
 
    The track is aria-hidden on purpose. Colour and hatching say nothing to a screen reader, so the legend
    below carries the same facts as text; the bar is the picture, the legend is the copy. *@
-<div class="pace" data-testid="@TestId">
-    <div class="pace-track" data-testid="@Id("track")" aria-hidden="true">
-        @foreach (var s in Segments.Where(s => s.Value > 0))
-        {
-            <div class="pace-segment" data-testid="@Id("segment")" data-tone="@s.Tone"
-                 data-hatched="@(s.Hatched ? "true" : null)" style="width: @Pct(s.Value)" title="@s.Label"></div>
-        }
+<div class="pace" data-testid="@TestId" data-thick="@(Thick ? "true" : null)">
+    @* The marker sits beside the track, not inside it: the track clips its rounded ends, and a marker clipped to
+       the bar's height was lost against a dark segment. Out here it overhangs the bar and keeps its halo. *@
+    <div class="pace-rail" aria-hidden="true">
+        <div class="pace-track" data-testid="@Id("track")" data-thick="@(Thick ? "true" : null)">
+            @foreach (var s in Segments.Where(s => s.Value > 0))
+            {
+                <div class="pace-segment" data-testid="@Id("segment")" data-tone="@s.Tone"
+                     data-hatched="@(s.Hatched ? "true" : null)" style="width: @Pct(s.Value)" title="@s.Label"></div>
+            }
+        </div>
         @if (Marker is { } m)
         {
             <div class="pace-marker" data-testid="@Id("marker")" style="left: @Percent(Math.Clamp(m, 0m, 1m))"></div>
@@ -42,6 +46,9 @@
 
     /// <summary>Off when the same figures already sit beside the bar as text (a month card) — the legend would say it twice.</summary>
     [Parameter] public bool ShowLegend { get; set; } = true;
+
+    /// <summary>The dashboard's own bar is the handout's thicker one (20px, with a capped today marker); cards and headers keep the 8px scanning cue.</summary>
+    [Parameter] public bool Thick { get; set; }
 
     [Parameter] public string TestId { get; set; } = "pace";
 

@@ -91,6 +91,8 @@ public class DashboardSliceTests(PostgresFixture fixture) : PostgresTestBase(fix
         Assert.Equal(("Mortgage", 350_000m, 700m, 300_000m), (mortgage.Name, mortgage.Budget.Crc, mortgage.Budget.Usd, mortgage.Actual.Crc));
         Assert.Equal(c.Db.Categories.Single(x => x.Name == "Housing").Id, mortgage.CategoryId); // a line names its category, so a client can match a purchase to it
         Assert.Equal(("Dining (old)", 10_000m), (Assert.Single(s.OtherSpending).CategoryName, s.OtherSpending[0].Actual.Crc)); // inactive category still named
+        var lunch = Assert.Single(s.OtherSpending[0].ByClass); // the lunch was unplanned: the row says how much of its money is which class
+        Assert.Equal(("unplanned_essential", 10_000m, 20m), (lunch.Class, lunch.Actual.Crc, lunch.Actual.Usd));
         Assert.Equal(10_000m, s.UnplannedEssentialTotal.Crc);
         Assert.Equal(5_000m, s.RefundsTotal.Crc);
         Assert.Equal("Marchamo", Assert.Single(s.EnvelopeReminders).Name);

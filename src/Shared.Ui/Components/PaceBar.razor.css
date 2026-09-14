@@ -1,3 +1,15 @@
+/* The rail is the track plus the today marker, which must overhang the track — so the marker is positioned
+   against the rail, not the clipped track. The rail carries the marker's overhang as padding so nothing
+   above or below the bar is covered. */
+.pace-rail {
+    position: relative;
+    padding: 4px 0;
+}
+
+.pace[data-thick="true"] .pace-rail {
+    padding-top: 10px; /* room for the cap */
+}
+
 /* The track keeps its 8px height at every width — it is the scanning cue, so it does not shrink on phone. */
 .pace-track {
     position: relative;
@@ -6,6 +18,12 @@
     border-radius: var(--radius-bar);
     background: var(--rail);
     overflow: hidden;
+}
+
+/* The dashboard's verdict bar: the handout draws it clearly heavier than the card bars — two and a half times. */
+.pace-track[data-thick="true"] {
+    height: 20px;
+    border-radius: 10px;
 }
 
 .pace-segment {
@@ -33,14 +51,30 @@
     );
 }
 
-/* Today. A hairline rather than a label — the elapsed share is stated in words beside the bar. */
+/* Today. A tick rather than a label — the elapsed share is stated in words beside the bar. Full ink with a
+   card-coloured halo on each side, so it separates from whatever segment sits under it, light or dark, and
+   it overhangs the track by 4px top and bottom. */
 .pace-marker {
     position: absolute;
-    top: -2px;
-    bottom: -2px;
+    top: 0;
+    bottom: 0;
     width: 2px;
-    background: var(--ink-2);
+    background: var(--ink);
+    box-shadow: 0 0 0 1.5px var(--card-bg);
     transform: translateX(-1px);
+}
+
+/* The thick bar's marker wears a small cap pointing down at the day — the bar is the screen's verdict, so
+   "today" gets a shape, not just a line. */
+.pace[data-thick="true"] .pace-marker::before {
+    content: "";
+    position: absolute;
+    top: -6px;
+    left: 50%;
+    border: 5px solid transparent;
+    border-top: 6px solid var(--ink);
+    border-bottom: 0;
+    transform: translateX(-50%);
 }
 
 .pace-legend {

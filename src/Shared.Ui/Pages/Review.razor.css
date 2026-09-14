@@ -80,6 +80,18 @@
     font-weight: var(--w-control);
 }
 
+/* The refund's two controls, as on the transaction form: a narrow percentage column, the notes take the rest. */
+.draft-refund {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 9px;
+    margin-top: 7px;
+}
+
+@media (min-width: 768px) {
+    .draft-refund { grid-template-columns: 170px minmax(0, 1fr); align-items: start; }
+}
+
 .draft-hint {
     margin-top: 3px;
     font-size: 11px;

@@ -445,7 +445,9 @@
   <data name="Tx_BeforeYouSave" xml:space="preserve"><value>Antes de guardar</value></data>
   <data name="Tx_ConvertedAt" xml:space="preserve"><value>= {0} a ₡{1} por $1 · se congela al guardar</value></data>
   <data name="Tx_ConvertedAtFrozen" xml:space="preserve"><value>= {0} a ₡{1} por $1 · congelado al guardarse</value></data>
-  <data name="Tx_MethodFromCard" xml:space="preserve"><value>Se tomó de la tarjeta — podés cambiarlo.</value></data>
+  <data name="Tx_FromCard" xml:space="preserve"><value>Se toma de la tarjeta; cambiá la tarjeta para cambiarlos.</value></data>
+  <data name="Tx_CardNoBank" xml:space="preserve"><value>Esta tarjeta aún no tiene banco; asignalo en</value></data>
+  <data name="Tx_RefundNotes" xml:space="preserve"><value>Notas del reembolso</value></data>
   <data name="Tx_ClassHint_Budgeted" xml:space="preserve"><value>Cuenta contra una línea del presupuesto de este mes.</value></data>
   <data name="Tx_ClassHint_Extraordinary" xml:space="preserve"><value>No planificado pero prescindible — cuenta en gastos, fuera del plan.</value></data>
   <data name="Tx_ClassHint_Unplanned" xml:space="preserve"><value>No planificado e inevitable — cuenta en gastos y puede esperar un reembolso.</value></data>
@@ -498,7 +500,7 @@
   <data name="Month_Refunds" xml:space="preserve"><value>Reembolsos esperados</value></data>
   <data name="Month_NoRefunds" xml:space="preserve"><value>No se esperan reembolsos este mes.</value></data>
   <data name="Refund_CaseNumber" xml:space="preserve"><value>Número de caso</value></data>
-  <data name="Refund_NotesHint" xml:space="preserve"><value>Por qué esperás que vuelva; por ejemplo "prestado a Diego"</value></data>
+  <data name="Refund_NotesHint" xml:space="preserve"><value>Opcional: número de caso, quién lo debe, cuándo esperás que vuelva</value></data>
   <data name="Refund_Pending" xml:space="preserve"><value>Pendiente</value></data>
   <data name="Refund_Received" xml:space="preserve"><value>Recibido</value></data>
   <data name="Refund_MarkReceived" xml:space="preserve"><value>Marcar recibido</value></data>
@@ -575,7 +577,6 @@
   <data name="Dash_Week" xml:space="preserve"><value>Semana</value></data>
   <data name="Dash_UnplannedAndRefunds" xml:space="preserve"><value>Imprevistos y reembolsos</value></data>
   <data name="Dash_RefundsExpected" xml:space="preserve"><value>Reembolsos aún esperados</value></data>
-  <data name="Dash_RefundsHint" xml:space="preserve"><value>Los imprevistos cuentan en los gastos; los reembolsos esperados son informativos hasta que llegan como ingreso.</value></data>
   <data name="Dash_Envelopes" xml:space="preserve"><value>Recordatorios de sobres</value></data>
   <data name="Dash_NoEnvelopes" xml:space="preserve"><value>No hay recordatorios de sobres este mes.</value></data>
   <data name="Dash_Target" xml:space="preserve"><value>Meta anual</value></data>
@@ -823,4 +824,7 @@
   <data name="Tx_GoesToNewWeek" xml:space="preserve"><value>Va a {0} · semana {1}: se creará un mes nuevo</value></data>
   <data name="Tx_LineImpact" xml:space="preserve"><value>{0}: {1} gastado de {2} planificado; después de esto, {3}</value></data>
   <data name="Review_MonthWeek" xml:space="preserve"><value>{0} · semana {1}</value></data>
+  <data name="Dash_WfRefundsExpected" xml:space="preserve"><value>Reembolsos esperados</value></data>
+  <data name="Dash_RefundsNote" xml:space="preserve"><value>no cuentan hasta que entren como ingreso</value></data>
+  <data name="Dash_BudgetedNoLine" xml:space="preserve"><value>Marcado como presupuestado, sin línea</value></data>
 </root>

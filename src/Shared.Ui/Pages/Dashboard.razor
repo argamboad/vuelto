@@ -105,7 +105,7 @@
                                 @Localizer["Dash_PaceCommitted", CommittedPercent(s)] <span class="dash-dot" aria-hidden="true">·</span> @Localizer["Dash_MonthElapsed", ElapsedPercent()]
                             </span>
                         </header>
-                        <PaceBar TestId="dash-bar" Total="Side(s.IncomeTotal)" Segments="PaceSegments(s)" Marker="ElapsedPercent() / 100m" />
+                        <PaceBar TestId="dash-bar" Thick="true" Total="Side(s.IncomeTotal)" Segments="PaceSegments(s)" Marker="ElapsedPercent() / 100m" />
                         <p class="dash-rate-note">@Localizer["Dash_RateNote"]</p>
                     </section>
                 </div>
@@ -301,8 +301,10 @@
     }
 
     /// <summary>Expected refunds are NOT in the forecast (ADR-V007) — the one place that has to keep saying so.</summary>
+    /// <summary>Expected refunds are named on the step they are NOT counted in — with their amount, the way the Income step names inflows.</summary>
     private string? RefundSub(SummaryDto s) =>
-        s.RefundsTotal.Crc == 0 && s.RefundsTotal.Usd == 0 ? null : Localizer["Dash_RefundsHint"].Value;
+        s.RefundsTotal.Crc == 0 && s.RefundsTotal.Usd == 0 ? null
+            : Localizer["Dash_WfRefundsExpected"] + ": " + Show(s.RefundsTotal) + " — " + Localizer["Dash_RefundsNote"];
 
     // ---------------------------------------------------------------- the line lists
 
@@ -439,12 +441,25 @@
         else
         {
             <p class="dash-meta-block">@Localizer["Dash_OtherSpendingHint"]</p>
+            @* Grouped by what kind of money it is (owner decision, 2026-09-14): Discretionary, then Unplanned, then
+               "marked budgeted, no line" — the catalog smell — only when it occurs. A category whose money came in
+               two classes sits once per group with that group's amount, so the subtotals and the total all add up. *@
             <table class="table table-sm" data-testid="dash-other">
                 <thead><tr><th>@Localizer["Tx_Category"]</th><th class="text-end">@Localizer["Dash_Actual"]</th></tr></thead>
                 <tbody>
-                    @foreach (var o in s.OtherSpending)
+                    @foreach (var group in UnbudgetedGroups(s.OtherSpending))
                     {
-                        <tr data-testid="dash-other-row"><td>@o.CategoryName</td><td class="text-end text-nowrap">@Show(o.Actual)</td></tr>
+                        <tr class="dash-other-group" data-testid="dash-other-group" data-class="@group.Class">
+                            <th scope="rowgroup">@Localizer[group.LabelKey]</th>
+                            <th scope="rowgroup" class="text-end text-nowrap">@Show(Sum(group.Rows.Select(r => r.Actual)))</th>
+                        </tr>
+                        @foreach (var r in group.Rows)
+                        {
+                            <tr data-testid="dash-other-row">
+                                <td>@r.CategoryName</td>
+                                <td class="text-end text-nowrap">@Show(r.Actual)</td>
+                            </tr>
+                        }
                     }
                     <tr class="fw-semibold" data-testid="dash-other-total">
                         <td>@Localizer["Dash_Total"]</td>
@@ -454,6 +469,32 @@
             </table>
         }
     };
+
+    // ---------------------------------------------------------------- unbudgeted grouping
+
+    private sealed record UnbudgetedGroup(string Class, string LabelKey, List<(string CategoryName, MoneyDto Actual)> Rows);
+
+    // Discretionary first (the money you chose to spend), Unplanned second (the money you had to), and last the
+    // rows classed Budgeted in a category no line covers — which is a line missing from the catalog, not a class of
+    // spending, hence its own wording. Inside a group the biggest category comes first, as the summary sorts.
+    private static readonly (string Class, string LabelKey)[] UnbudgetedOrder =
+    [
+        (TransactionClasses.Extraordinary, "Tx_Extraordinary"),
+        (TransactionClasses.UnplannedEssential, "Tx_Unplanned"),
+        (TransactionClasses.Budgeted, "Dash_BudgetedNoLine"),
+    ];
+
+    private static IEnumerable<UnbudgetedGroup> UnbudgetedGroups(IEnumerable<OtherDto> other)
+    {
+        var byClass = other.SelectMany(o => (o.ByClass ?? []).Select(k => (k.Class, o.CategoryName, k.Actual)))
+            .ToLookup(x => x.Class);
+        foreach (var (cls, key) in UnbudgetedOrder)
+        {
+            var rows = byClass[cls].OrderByDescending(x => x.Actual.Crc).ThenBy(x => x.CategoryName, StringComparer.Ordinal)
+                .Select(x => (x.CategoryName, x.Actual)).ToList();
+            if (rows.Count > 0) yield return new UnbudgetedGroup(cls, key, rows);
+        }
+    }
 
     // ---------------------------------------------------------------- shared helpers
 
@@ -525,7 +566,8 @@
     private sealed record LineDto([property: JsonPropertyName("name")] string Name, [property: JsonPropertyName("budget")] MoneyDto Budget, [property: JsonPropertyName("actual")] MoneyDto Actual, [property: JsonPropertyName("budget_currency")] string BudgetCurrency = "CRC");
     private sealed record WeekDto([property: JsonPropertyName("week_number")] int WeekNumber, [property: JsonPropertyName("start_date")] DateOnly StartDate, [property: JsonPropertyName("end_date")] DateOnly EndDate, [property: JsonPropertyName("total")] MoneyDto Total);
     private sealed record EnvelopeDto([property: JsonPropertyName("name")] string Name, [property: JsonPropertyName("annual_target")] MoneyDto AnnualTarget, [property: JsonPropertyName("contributed_this_month")] MoneyDto ContributedThisMonth, [property: JsonPropertyName("remaining")] MoneyDto Remaining, [property: JsonPropertyName("cadence")] string Cadence);
-    private sealed record OtherDto([property: JsonPropertyName("category_name")] string CategoryName, [property: JsonPropertyName("actual")] MoneyDto Actual);
+    private sealed record OtherDto([property: JsonPropertyName("category_name")] string CategoryName, [property: JsonPropertyName("actual")] MoneyDto Actual, [property: JsonPropertyName("by_class")] List<OtherClassDto>? ByClass = null);
+    private sealed record OtherClassDto([property: JsonPropertyName("class")] string Class, [property: JsonPropertyName("actual")] MoneyDto Actual);
     private sealed record BankDto([property: JsonPropertyName("bank_id")] Guid? BankId, [property: JsonPropertyName("bank_name")] string BankName, [property: JsonPropertyName("payment_method")] string PaymentMethod, [property: JsonPropertyName("budget")] MoneyDto Budget, [property: JsonPropertyName("actual")] MoneyDto Actual);
     private sealed record SummaryDto(
         [property: JsonPropertyName("income_primary")] MoneyDto IncomePrimary,

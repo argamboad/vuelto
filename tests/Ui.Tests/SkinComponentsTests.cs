@@ -156,9 +156,34 @@ public class SkinComponentsTests : ComponentTestBase
         var cut = Render<PaceBar>(p => p.Add(x => x.Total, 100m)
             .Add(x => x.Segments, new List<PaceSegment> { new("Spent", 50m, "primary") }).Add(x => x.TestId, "p"));
 
-        // Hatching and colour are not readable by a screen reader; the legend is the accessible copy.
-        Assert.Equal("true", cut.Find("[data-testid='p-track']").GetAttribute("aria-hidden"));
+        // Hatching, colour and the today tick are not readable by a screen reader; the legend is the accessible copy.
+        // The hidden node is the rail (track + marker), so the marker is covered too.
+        Assert.Equal("true", cut.Find("[data-testid='p-track']").ParentElement!.GetAttribute("aria-hidden"));
+        Assert.Null(cut.Find("[data-testid='p-track']").GetAttribute("aria-hidden"));
         Assert.Contains("Spent", cut.Find("[data-testid='p-legend']").TextContent);
+    }
+
+    [Fact]
+    public void PaceBar_IsThinByDefault_AndThickWhereItIsTheScreensVerdict()
+    {
+        // The month cards and the budget header scan an 8px bar; the dashboard's own pace bar is the handout's thicker one.
+        var thin = Render<PaceBar>(p => p.Add(x => x.Total, 100m).Add(x => x.Segments, new List<PaceSegment> { new("Spent", 50m, "primary") }).Add(x => x.TestId, "p"));
+        Assert.Null(thin.Find("[data-testid='p-track']").GetAttribute("data-thick"));
+        var thick = Render<PaceBar>(p => p.Add(x => x.Total, 100m).Add(x => x.Thick, true).Add(x => x.Segments, new List<PaceSegment> { new("Spent", 50m, "primary") }).Add(x => x.TestId, "p"));
+        Assert.Equal("true", thick.Find("[data-testid='p-track']").GetAttribute("data-thick"));
+        Assert.Equal("true", thick.Find("[data-testid='p']").GetAttribute("data-thick")); // the marker's cap keys off the bar, not the track
+    }
+
+    [Fact]
+    public void PaceBar_TodayMarker_SitsOutsideTheClippedTrack_SoItCanOverhang()
+    {
+        // The track clips its overflow (rounded ends); a marker inside it can never stand taller than the bar,
+        // which is why "today" used to vanish against a dark segment. It lives beside the track, over it.
+        var cut = Render<PaceBar>(p => p.Add(x => x.Total, 100m).Add(x => x.Marker, 0.6m)
+            .Add(x => x.Segments, new List<PaceSegment> { new("Spent", 50m, "primary") }).Add(x => x.TestId, "p"));
+        var marker = cut.Find("[data-testid='p-marker']");
+        Assert.Equal("left: 60%", marker.GetAttribute("style"));
+        Assert.Empty(cut.FindAll("[data-testid='p-track'] [data-testid='p-marker']"));
     }
 
     [Fact]

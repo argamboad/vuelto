@@ -1368,8 +1368,9 @@ Then the card reads Debit and not one past transaction moved
 When I edit it again ticking "Also correct past transactions on this card"
 Then the notice names how many moved, and those rows read Bank account on the month page
 When I open New transaction and pick that card
-Then the method switches to Bank account AND the form SAYS it did ("Set from the card — you can change it"), instead of changing silently
-Then Payment method becomes Bank account by itself, and I can still change it
+Then Bank and Payment method become the card's own — its bank, and Bank account for a debit card — shown as text under a hint reading "From the card — change the card to change these", not as pickers I could contradict
+And picking "No card" opens Bank and Payment method back up; a card with no bank on record leaves Bank open and points at Cards
+And the "How it was paid" group reads Card, then Bank, then Payment method
 And confirming a voucher on that card books the transaction against the bank account, still naming the card
 ```
 **Walkthrough:** **Settings → Manage cards** → **Expected:** a **Kind** column reading Credit or Debit.
@@ -1377,7 +1378,10 @@ And confirming a voucher on that card books the transaction against the bank acc
 page is unchanged. **Edit** → tick **Also correct past transactions on this card** → **Save** → **Expected:**
 "Updated. N past transaction(s) now match this card"; those rows now read **Bank account**, and the
 dashboard's **By bank and payment method** moves that money from the card group to the account group. **New
-transaction** → pick the debit card → **Expected:** **Payment method** flips to **Bank account** on its own.
+transaction** → the "How it was paid" group lists **Card** first → pick the debit card → **Expected:** **Bank**
+reads the card's bank and **Payment method** reads **Bank account**, both as text, with "From the card — change
+the card to change these" under the card; pick **No card** → **Expected:** both are pickers again. Pick a card
+with no bank set → **Expected:** Bank stays a picker and the hint links to **Cards**.
 Confirm a voucher on it → **Expected:** the booked row is **Bank account**. Via Postman (**24 · Cards →
 Update card**) with `kind: "prepaid"` → **Expected:** 400 naming `kind`.
 
@@ -1605,9 +1609,9 @@ Months → Update month income — invalid (400)**) → `invalid_request`. With 
 ```gherkin
 Given I am on New transaction
 When I pick class Unplanned
-Then a "Refund expected" switch appears; switching it on shows a percentage field
-When I enter "Hospital", 50000 CRC, 30 %, and Save
-Then the month page lists an expected refund: Hospital · 30% · ₡15,000.00 · $<30> · Pending
+Then a "Refund expected" switch appears; switching it on shows the percentage beside a "Refund notes" box that spans the row like the transaction's own Notes
+When I enter "Hospital", 50000 CRC, 30 %, "CASE-7 · lent to Diego", and Save
+Then the month page lists an expected refund: Hospital · 30% · ₡15,000.00 · $<30> · Pending, with the note behind its icon
 When I Edit the transaction to 80000 and Save
 Then the refund reads ₡24,000.00 (30 % of 80,000)
 When I Edit it again, switch Refund expected off and Save
@@ -1615,10 +1619,14 @@ Then the refund is gone
 ```
 **Walkthrough:** **New transaction** → **Class** "Unplanned" → **Expected:** the **Refund expected**
 switch appears (it is absent for every other class). Switch it on → **Expected:** the percentage
-field; with `50000` and `30` the hint reads "Expected back: 15,000.00 CRC". Fill the rest and
-**Save** → **Expected:** the month page's **Refunds** table shows Hospital · 30% · ₡15,000.00
-stacked over $30 · an amber **Pending** pill, with a **Mark received** button (its accessible name says
-"Mark Hospital received"). **Edit** → amount `80000` → **Save** →
+field with **Refund notes** beside it — a one-row box at the percentage's height (drag it taller) spanning the rest of the row, with a 0/250 counter
+like the transaction's own Notes and a placeholder reading "Optional — case number, who owes it, when you expect
+it back"; no separate Case No.; with `50000` and `30` the hint reads "Expected back: 15,000.00 CRC". Type
+`CASE-7 · lent to Diego`, fill the rest and **Save** → **Expected:** the month page's **Refunds** table shows
+Hospital · 30% · ₡15,000.00 stacked over $30 · an amber **Pending** pill and a note icon whose hover text is
+"CASE-7 · lent to Diego", with a **Mark received** button (its accessible name says "Mark Hospital received").
+**Edit the transaction** → **Expected:** the refund notes prefilled; clear them and **Save** → **Expected:**
+the note icon is gone. **Edit** → amount `80000` → **Save** →
 **Expected:** the refund row reads ₡24,000.00. **Edit** → switch off → **Save** → **Expected:** "No
 refunds expected this month." Via Postman (**16 · Transactions → Create transaction**) with
 `refund_expected: true, refund_percentage: 150` → **Expected:** 400 `invalid_request` naming
@@ -1705,7 +1713,7 @@ Postman (**22 · Review queue → Clear the review queue**) with `confirm: false
 ```gherkin
 Given an unplanned essential expecting a 50% refund
 When I open the month page and Edit the refund
-Then I can set Case No. and a note, and blank clears either
+Then I can set Case No. and a note, and blank clears either (the transaction form asks for the note at entry — QA-LED-05)
 When I change the transaction's amount
 Then the refund's ₡/$ re-derive and both fields survive
 When I untick "refund expected" on the transaction
@@ -1922,10 +1930,10 @@ Given the month above (income configured, ₡310,000 spent against a ₡350,000 
 When I open Dashboard
 Then the page opens on ONE verdict: a state in words with a coloured dot, the caption "Forecast left at month end", the forecast at display size, and one sentence explaining it
 And the state is derived, never stored: forecast above zero and spend at or under the elapsed share reads On track; forecast above zero but spend ahead of it reads Watch; a forecast at or below zero reads Over
-And beside it the pace bar draws Budgeted, Discretionary, Unplanned, a hatched Still planned and the green Forecast, with a Today marker at the elapsed share, over a summary reading "N% committed · N% of the month gone"
+And beside it the pace bar — thicker than the month-card bars, this is the screen's verdict — draws Budgeted, Discretionary, Unplanned, a hatched Still planned and the green Forecast, with a capped Today tick standing taller than the bar at the elapsed share, over a summary reading "N% committed · N% of the month gone"
 And every legend entry carries its AMOUNT beside its whole-percent share, in the currency "Show in" is set to
 And below them four steps read Income → − Spent so far → − Still planned → = Forecast at month end, the operator belonging to the row rather than the label
-And Other income (inflows) is named on the Income step when an inflow exists; expected refunds are named on the Forecast step, because they are NOT counted in it
+And Other income (inflows) is named on the Income step when an inflow exists; expected refunds are named WITH THEIR AMOUNT on the Forecast step ("Expected refunds: ₡… — not counted until they land as income"), because they are NOT counted in it
 When the plan does not fit the income
 Then the verdict reads Over in red, the Forecast step is red, and the warning line appears beneath the steps
 When I set "Show in" to $
@@ -1949,7 +1957,7 @@ When I open Dashboard
 Then ONE "Where it went" panel replaces the separate week, bank and card cards, with a segmented switch reading By week | By bank | By card | Unbudgeted
 And the switch is a real radio group: it is reachable by keyboard and announces its position
 And By week opens first; each cut ends in a Total row, and switching between them refetches nothing
-And Unbudgeted lists the categories with spend and no budget line — the old "Other spending" card
+And Unbudgeted lists the categories with spend and no budget line — the old "Other spending" card — grouped by class with a subtotal per group: Discretionary, then Unplanned, then "Marked budgeted, no line" only when a purchase classed Budgeted sits in a category no line covers; a category whose money came in two classes appears once per group with that group's share
 And By card lists each card's alias with its kind and transaction count beneath, its spend, and its share of the month — "No card" last
 Given an envelope is due this month by its cadence
 Then a thin envelope strip sits between the four steps and the line lists, one row per due bucket
@@ -1961,7 +1969,7 @@ Then that strip is absent entirely, and the page is one section shorter
 like a radio group. Click through **By bank**, **By card**, **Unbudgeted** → **Expected:** each renders
 its own table with a **Total**, nothing scrolls sideways, and no money pair breaks across two lines (check
 in **Both**, the widest). **By card:** the card's alias with "Credit · N transaction(s)" under it and a
-share adding to 100%. **Unbudgeted:** the categories with no budget line. Envelopes: with a bucket due
+share adding to 100%. **Unbudgeted:** the categories with no budget line, grouped under **Discretionary** / **Unplanned** / **Marked budgeted, no line** headings, each heading carrying its subtotal — the unplanned lunch sits under **Unplanned**; a category with both a discretionary and a budgeted purchase appears under both, with each share, and the Total at the bottom still equals the sum of the headings. Envelopes: with a bucket due
 this month → **Expected:** the strip above the line lists naming it, with contributed and remaining.
 Deactivate it (or pick a month where its cadence does not apply) → reload → **Expected:** no strip at all.
 
@@ -2213,7 +2221,7 @@ Given a pending draft in the Review queue (header badge shows 1, dashboard banne
 Then each draft is a TWO-PANE row: the draft on the left, and on the right a "Confirming will" panel stating in words what the click books — the amount, the category, the class, and which PAY-CYCLE month AND week the date lands in (not always the calendar one); for budgeted spending whose category backs a line in that month, the sentence goes on with the line's spend so far, its plan and the total after this booking
 And the class is three chips, not a dropdown — Budgeted, Discretionary, Unplanned — reachable by keyboard as a radio group
 When I pick a category (or create one right there with "+ New" — every card on the queue then lists it) and class, tick "Remember this merchant" and Confirm
-And when the class is Unplanned, a "Refund expected" switch appears with a percentage and an "Expected back: …" preview; confirming with it books the transaction AND its pending refund in that month
+And when the class is Unplanned, a "Refund expected" switch appears with a percentage, an "Expected back: …" preview and a "Refund notes" box beside the percentage, spanning the row like Notes; confirming with it books the transaction AND its pending refund in that month, carrying the notes
 Then "Confirmed and remembered", the draft leaves the queue, the badge disappears, and the month lists a transaction with source email and the voucher's amount, bank, date and card (the queue card shows "VISA ····1234"; the card is created as VISA-1234 on first sight — QA-CAT-05)
 And Settings → Manage suggestions now has a rule for that merchant
 When I confirm the same draft again through the API

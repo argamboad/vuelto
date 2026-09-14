@@ -185,6 +185,29 @@
     color: var(--ink-3);
 }
 
+/* Unbudgeted group headings: eyebrow text with the subtotal in ink, a rule above to separate the groups. */
+.dash-other-group th {
+    padding-top: 12px;
+    border-top: 1px solid var(--hair);
+    font-size: 11px;
+    font-weight: var(--w-control);
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+}
+
+.dash-other-group th:last-child {
+    font-size: 13px;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--ink);
+}
+
+.dash-other-group + tr td:first-child,
+.dash-other-group ~ tr[data-testid="dash-other-row"] td:first-child {
+    padding-left: 14px;
+}
+
 .dash-meta-block {
     margin: 0 0 9px;
     font-size: 11px;

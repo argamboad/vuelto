@@ -97,20 +97,30 @@
 
                         @if (v.Form.TransactionClass == "unplanned_essential")
                         {
-                            @* Same as the manual form: an unplanned essential can carry an expected refund (LEDGER-3). *@
-                            <div class="draft-field">
+                            @* Same as the manual form: an unplanned essential can carry an expected refund (LEDGER-3), and the block
+                               takes the same shape — the switch, then the percentage beside a wide Refund notes box, real labels. *@
+                            <div class="draft-field draft-field-wide">
                                 <div class="form-check form-switch">
                                     <input class="form-check-input" type="checkbox" id="review-refund-@v.Id" data-testid="review-refund-expected" @bind="v.Form.RefundExpected" />
                                     <label class="form-check-label" for="review-refund-@v.Id">@Localizer["Tx_RefundExpected"]</label>
                                 </div>
                                 @if (v.Form.RefundExpected)
                                 {
-                                    <input type="number" step="0.01" min="0" max="100" class="form-control form-control-sm mt-1" data-testid="review-refund-pct"
-                                           placeholder="@Localizer["Tx_RefundPercent"]" aria-label="@Localizer["Tx_RefundPercent"]" @bind="v.Form.RefundPercentage" />
-                                    @if (RefundPreview(v) is { } preview)
-                                    {
-                                        <div class="draft-hint" data-testid="review-refund-preview">@Localizer["Tx_RefundPreview", preview]</div>
-                                    }
+                                    <div class="draft-refund">
+                                        <div>
+                                            <label class="form-label" for="review-refund-pct-@v.Id">@Localizer["Tx_RefundPercent"]</label>
+                                            <input type="number" step="0.01" min="0" max="100" class="form-control form-control-sm" id="review-refund-pct-@v.Id" data-testid="review-refund-pct" @bind="v.Form.RefundPercentage" />
+                                            @if (RefundPreview(v) is { } preview)
+                                            {
+                                                <div class="draft-hint" data-testid="review-refund-preview">@Localizer["Tx_RefundPreview", preview]</div>
+                                            }
+                                        </div>
+                                        <div>
+                                            <label class="form-label" for="review-refund-notes-@v.Id">@Localizer["Tx_RefundNotes"]</label>
+                                            <textarea class="form-control form-control-sm" id="review-refund-notes-@v.Id" rows="1" maxlength="250" data-testid="review-refund-notes"
+                                                      placeholder="@Localizer["Refund_NotesHint"]" @bind="v.Form.RefundNotes" @bind:event="oninput"></textarea>
+                                        </div>
+                                    </div>
                                 }
                             </div>
                         }
@@ -234,6 +244,7 @@
                 transaction_date = v.Missing("Date") ? v.Form.Date : null,
                 refund_expected = v.Form.TransactionClass == "unplanned_essential" && v.Form.RefundExpected,
                 refund_percentage = v.Form.TransactionClass == "unplanned_essential" && v.Form.RefundExpected ? v.Form.RefundPercentage : null,
+                refund_notes = v.Form.TransactionClass == "unplanned_essential" && v.Form.RefundExpected && !string.IsNullOrWhiteSpace(v.Form.RefundNotes) ? v.Form.RefundNotes.Trim() : null,
             };
             var res = await Http.PostAsJsonAsync($"/api/pending-vouchers/{v.Id}/confirm", body);
             if (res.StatusCode == HttpStatusCode.Conflict) { Fail(Localizer["Review_NotPending"]); await ReloadAsync(); return; }
@@ -463,6 +474,7 @@
         public string? Notes { get; set; }
         public bool RefundExpected { get; set; }
         public decimal? RefundPercentage { get; set; }
+        public string? RefundNotes { get; set; }
         public string? Payee { get; set; }
         public decimal? Amount { get; set; }
         public string Currency { get; set; } = "CRC";

@@ -30,6 +30,35 @@
     min-width: 0;
 }
 
+/* The refund's two controls: the percentage keeps a narrow column, the notes take the rest of the row. */
+.tx-refund {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 11px;
+    margin-top: 9px;
+}
+
+.tx-refund .form-label {
+    display: block;
+    margin-bottom: 3px;
+    font-size: 11px;
+    font-weight: var(--w-body);
+    color: var(--ink-3);
+}
+
+@media (min-width: 768px) {
+    .tx-refund { grid-template-columns: 190px minmax(0, 1fr); align-items: start; }
+}
+
+/* Bank and method shown as the card's: text at control height, so the group keeps its rhythm when they lock. */
+.tx-locked {
+    min-height: 38px;
+    margin: 0;
+    padding: 7px 0;
+    font-weight: var(--w-control);
+    color: var(--ink);
+}
+
 /* ---------------------------------------------------------------- the two groups */
 .tx-group {
     padding: var(--card-pad-y) var(--card-pad-x);
