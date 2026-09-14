@@ -76,7 +76,7 @@ public class OAuthResumeTests
 
     private sealed class FakeInitiator(Func<Task<IReadOnlyDictionary<string, string>?>> run) : IOAuthInitiator
     {
-        public Task<IReadOnlyDictionary<string, string>?> RunBrowserFlowAsync(string provider, string? linkToken = null) => run();
+        public Task<IReadOnlyDictionary<string, string>?> RunBrowserFlowAsync(string provider, string? linkToken = null, CancellationToken cancellationToken = default) => run();
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────

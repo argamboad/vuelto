@@ -186,7 +186,7 @@ public class AuthService(
     /// one-time code for tokens, and stores them. Returns true on success. Web hosts
     /// sign in by full-page navigation and never call this.
     /// </summary>
-    public async Task<SignInResult> SignInWithOAuthAsync(string provider)
+    public async Task<SignInResult> SignInWithOAuthAsync(string provider, CancellationToken cancellationToken = default)
     {
         if (oauth is null)
         {
@@ -195,7 +195,7 @@ public class AuthService(
         }
         try
         {
-            var result = await RunResumableBrowserFlowAsync(provider, linkToken: null);
+            var result = await RunResumableBrowserFlowAsync(provider, linkToken: null, cancellationToken);
             var code = result is not null && result.TryGetValue("code", out var c) ? c : null;
             if (string.IsNullOrEmpty(code))
                 return SignInResult.Failed;
@@ -274,13 +274,13 @@ public class AuthService(
     /// The marker is cleared the moment the flow returns to this process — from here on
     /// the normal in-memory path owns the result.
     /// </summary>
-    private async Task<IReadOnlyDictionary<string, string>?> RunResumableBrowserFlowAsync(string provider, string? linkToken)
+    private async Task<IReadOnlyDictionary<string, string>?> RunResumableBrowserFlowAsync(string provider, string? linkToken, CancellationToken cancellationToken = default)
     {
         resumeStore?.SetInFlight(new OAuthFlowMarker(provider, linkToken, Time.GetUtcNow()));
         OAuthFlowInFlightInProcess = true;
         try
         {
-            return await oauth!.RunBrowserFlowAsync(provider, linkToken);
+            return await oauth!.RunBrowserFlowAsync(provider, linkToken, cancellationToken);
         }
         finally
         {

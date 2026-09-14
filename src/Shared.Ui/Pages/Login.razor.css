@@ -86,6 +86,15 @@
     margin: 0 auto 17px;
 }
 
+/* Native, while the system browser is out: the wait line sits above the provider buttons it holds. */
+.login-oauth-waiting {
+    display: flex;
+    align-items: center;
+    margin: 0 0 10px;
+    font-size: 12px;
+    color: var(--ink-3);
+}
+
 .login-heading {
     margin-bottom: 19px;
 }

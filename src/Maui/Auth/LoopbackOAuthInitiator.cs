@@ -22,7 +22,7 @@ public sealed class LoopbackOAuthInitiator(string apiBaseUrl, ILogger<LoopbackOA
 {
     private static readonly TimeSpan Timeout = TimeSpan.FromMinutes(5);
 
-    public async Task<IReadOnlyDictionary<string, string>?> RunBrowserFlowAsync(string provider, string? linkToken = null)
+    public async Task<IReadOnlyDictionary<string, string>?> RunBrowserFlowAsync(string provider, string? linkToken = null, CancellationToken cancellationToken = default)
     {
         var redirectUri = $"http://127.0.0.1:{GetFreeLoopbackPort()}/";
         // Per-flow CSRF nonce (v3 NAT-9): the listener accepts whatever hits its port, so without this a
@@ -44,7 +44,7 @@ public sealed class LoopbackOAuthInitiator(string apiBaseUrl, ILogger<LoopbackOA
 
         try
         {
-            var loginUrl = $"{apiBaseUrl}/api/auth/native/login/{provider.ToLowerInvariant()}" +
+            var loginUrl = $"{apiBaseUrl.TrimEnd('/')}/api/auth/native/login/{provider.ToLowerInvariant()}" +
                            $"?redirect={Uri.EscapeDataString(redirectUri)}" +
                            $"&state={Uri.EscapeDataString(state)}";
             if (!string.IsNullOrEmpty(linkToken))
@@ -52,9 +52,15 @@ public sealed class LoopbackOAuthInitiator(string apiBaseUrl, ILogger<LoopbackOA
             await Browser.Default.OpenAsync(loginUrl, BrowserLaunchMode.SystemPreferred);
 
             var contextTask = listener.GetContextAsync();
-            if (await Task.WhenAny(contextTask, Task.Delay(Timeout)) != contextTask)
+            // The wait ends three ways: the redirect lands, the timeout elapses, or the user cancels from the
+            // login page (2026-09-14) — an abandoned browser tab used to hold the app for the full timeout.
+            var waitTask = Task.Delay(Timeout, cancellationToken);
+            if (await Task.WhenAny(contextTask, waitTask) != contextTask)
             {
-                logger.LogWarning("OAuth loopback timed out waiting for the provider redirect");
+                if (cancellationToken.IsCancellationRequested)
+                    logger.LogInformation("OAuth loopback cancelled by the user");
+                else
+                    logger.LogWarning("OAuth loopback timed out waiting for the provider redirect");
                 return null;
             }
 
