@@ -99,6 +99,10 @@ public class NativeAuthController(
         {
             return Redirect(To("error", "email_unverified"));
         }
+        catch (SignupNotAllowedException)
+        {
+            return Redirect(To("error", "signup_not_allowed")); // GATES-2 (ADR-027) — policy, not failure
+        }
         catch (Exception ex)
         {
             logger.LogError(ex, "Native OAuth callback failed");

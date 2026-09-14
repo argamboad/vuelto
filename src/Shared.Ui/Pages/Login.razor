@@ -234,6 +234,9 @@
         "external_failed" => Localizer["Login_ErrExternalFailed"],
         "email_unverified" => Localizer["Login_ErrEmailUnverified"],
         "invalid_link" => Localizer["Login_ErrInvalidLink"],
+        // GATES-2 (ADR-027): OAuth and magic link both land here after a refused signup. It is policy,
+        // not breakage, so it must not fall through to the catch-all below.
+        "signup_not_allowed" => Localizer["Login_ErrSignupNotAllowed"],
         _ => Localizer["Login_ErrSomethingWrong"]
     };
 
@@ -385,6 +388,9 @@
             {
                 System.Net.HttpStatusCode.Unauthorized => await OtpErrorAsync(res),
                 System.Net.HttpStatusCode.TooManyRequests => Localizer["Login_ErrTooManyRequests"],
+                // GATES-2 (ADR-027): the code was right; the deployment is not open to this address. A
+                // 401's "incorrect or expired" would send them hunting for a typo that isn't there.
+                System.Net.HttpStatusCode.Forbidden => Localizer["Login_ErrSignupNotAllowed"],
                 _ => Localizer["Login_ErrVerificationFailed"],
             };
         }

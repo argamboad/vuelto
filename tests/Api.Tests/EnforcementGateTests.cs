@@ -114,6 +114,51 @@ public class EnforcementGateTests
     }
 
     [Fact]
+    public void MarkdownAnywhere_IsNeverCodeOrNative() // LOCALCI-3 follow-up
+    {
+        // A docs-only pull request that touched tests/E2E.Tests/README.md billed the FULL run — build,
+        // test, e2e, docker, and both native builds — because the classifier's regexes key on the
+        // directory (`^tests/`, `tests/E2E\.Tests/`) and a README lives in one. A markdown file cannot
+        // change what the code does or how it builds, wherever it sits. This models the classifier
+        // script faithfully: the same regexes, applied after the same markdown exclusion, so the
+        // assertion cannot pass while the workflow still bills for a README.
+        var ci = File.ReadAllText(Path.Combine(RepoRoot(), ".github", "workflows", "ci.yml"));
+
+        static string Extract(string ci, string name)
+        {
+            var m = Regex.Match(ci, name + @"=\$\(match (?:""\$\w+"" )?'([^']+)'\)");
+            Assert.True(m.Success, $"could not find the `{name}=` regex in the changes step of ci.yml");
+            return m.Groups[1].Value;
+        }
+        var code = new Regex(Extract(ci, "code"));
+        var native = new Regex(Extract(ci, "native"));
+        var docs = new Regex(Extract(ci, "docs"));
+
+        // The exclusion the script applies before the code/native match. Absent ⇒ nothing excluded,
+        // which is exactly the defect: the test then sees the README classified as code.
+        var excl = Regex.Match(ci, @"codefiles=\$\(printf '%s\\n' ""\$files"" \| grep -vE '([^']+)'");
+        var exclude = excl.Success ? new Regex(excl.Groups[1].Value) : null;
+
+        bool Code(string p) => (exclude is null || !exclude.IsMatch(p)) && code.IsMatch(p);
+        bool Native(string p) => (exclude is null || !exclude.IsMatch(p)) && native.IsMatch(p);
+
+        // Markdown, wherever it lives, is neither.
+        Assert.False(Code("tests/E2E.Tests/README.md"), "a README under tests/ must not count as code");
+        Assert.False(Native("tests/E2E.Tests/README.md"), "a README under tests/E2E.Tests/ must not trigger the native legs");
+        Assert.False(Code("src/Api/Features/Notes/README.md"), "a README under src/ must not count as code");
+        Assert.False(Code("docs/QA_TEST_PLAN.md"));
+
+        // And the exclusion must not have eaten anything real.
+        Assert.True(Code("tests/Api.Tests/EnforcementGateTests.cs"));
+        Assert.True(Code("src/Api/Program.cs"));
+        Assert.True(Native("src/Api/Program.cs"));
+        Assert.True(Native("tests/E2E.Tests/BillingJourneyTests.cs"));
+        Assert.True(Code(".github/workflows/ci.yml"));
+        Assert.True(Code("src/Api/packages.lock.json"));
+        Assert.True(docs.IsMatch("docs/QA_TEST_PLAN.md"), "docs= is computed on the UNFILTERED list, so markdown under docs/ still counts as docs");
+    }
+
+    [Fact]
     public void TheTwoGatesThatCatchDocsMistakes_AreNeverCodeGated() // LOCALCI-3
     {
         // Stated separately from the test above because it is the opposite failure: not "someone
@@ -127,6 +172,54 @@ public class EnforcementGateTests
             var block = Regex.Match(ci, $@"(?ms)^  {Regex.Escape(job)}:\s*$.*?(?=^  [a-z][a-z0-9-]*:\s*$)");
             Assert.True(block.Success, $"{job} not found in ci.yml");
             Assert.DoesNotContain("needs.changes.outputs.code", block.Value, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void EveryContainerImage_IsPinned_NotFloating() // v3 DEP-9, widened after the 2026-09-11 outage
+    {
+        // DEP-9 says pin container images, never `:latest`. It was applied to the CI workflow's service
+        // images by hand and never machine-checked, so the Testcontainers fixtures and the dev compose
+        // file kept floating tags. On 2026-09-11 MinIO's Docker Hub repository stopped serving pulls
+        // entirely and `minio/minio:latest` took build-test down on every branch at once — with no
+        // pinned known-good to fall back to, which is the whole cost of a floating tag. This gate covers
+        // the surfaces the hand-applied convention missed: test fixtures and compose.
+        var root = RepoRoot();
+        var offenders = new List<string>();
+
+        // Testcontainers builders: new XxxBuilder("image:tag")
+        var builderImage = new Regex(@"new\s+\w*Builder\s*\(\s*""([^""]+)""");
+        foreach (var file in Directory.EnumerateFiles(Path.Combine(root, "tests"), "*.cs", SearchOption.AllDirectories))
+        {
+            if (file.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}")
+                || file.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}")) continue;
+            foreach (Match m in builderImage.Matches(File.ReadAllText(file)))
+                Check(m.Groups[1].Value, Path.GetFileName(file));
+        }
+
+        // Compose services: `image: repo/name:tag`
+        var composeImage = new Regex(@"(?m)^\s*image:\s*([^\s#]+)");
+        var compose = Path.Combine(root, "docker-compose.yml");
+        if (File.Exists(compose))
+            foreach (Match m in composeImage.Matches(File.ReadAllText(compose)))
+                Check(m.Groups[1].Value, "docker-compose.yml");
+
+        Assert.True(offenders.Count == 0,
+            "Container images must carry an explicit, non-floating tag (v3 DEP-9) — an unpinned image "
+            + "turns any upstream registry change into an immediate CI outage with nothing to fall back "
+            + $"on: {string.Join(", ", offenders)}");
+
+        void Check(string image, string where)
+        {
+            // Ignore build-arg/variable references and anything that isn't an image reference.
+            if (image.Contains('$') || image.Contains('{')) return;
+            // A tag is the part after the LAST colon, provided that colon isn't the registry's port.
+            var lastColon = image.LastIndexOf(':');
+            var tag = lastColon > 0 && !image[(lastColon + 1)..].Contains('/') ? image[(lastColon + 1)..] : null;
+            if (tag is null)
+                offenders.Add($"{where}: '{image}' has no tag (implicitly :latest)");
+            else if (tag.Equals("latest", StringComparison.OrdinalIgnoreCase))
+                offenders.Add($"{where}: '{image}' is pinned to :latest");
         }
     }
 

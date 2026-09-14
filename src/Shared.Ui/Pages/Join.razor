@@ -50,7 +50,7 @@
         @* Seat re-check refused the accept (BILLING-9): the household downgraded below its
            reserved seats. The token stays valid — upgrading self-heals. *@
         <h1 class="h5 fw-bold mb-2 text-danger" data-testid="join-household-full">@Localizer["Join_FullTitle"]</h1>
-        <p class="text-muted">@Localizer["Join_FullBody"]</p>
+        <p class="text-muted">@Localizer[_billingEnabled ? "Join_FullBody" : "Join_FullBodyNoBilling"]</p>
         <a class="btn btn-outline-secondary" href="/household">@Localizer["Join_BackToHousehold"]</a>
     }
     else if (_state == State.Error)
@@ -69,9 +69,13 @@
     private string _code = "";
     private bool _codeError;
     private bool _householdFull;
+    // GATES-1 (ADR-027): with billing off there is no plan for the owner to upgrade to, so the full-household
+    // state must not send the invitee to ask for one.
+    private bool _billingEnabled;
 
     protected override async Task OnInitializedAsync()
     {
+        _billingEnabled = await Auth.IsBillingEnabledAsync();
         if (!Auth.IsAuthenticated)
         {
             // Remember where to return after sign-in. localStorage is shared across

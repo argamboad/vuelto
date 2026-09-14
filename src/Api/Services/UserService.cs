@@ -60,6 +60,7 @@ public class UserService(
     IUserRepository repository,
     ITenantRepository tenants,
     IUnitOfWork unitOfWork,
+    ISignupGate signupGate,
     TimeProvider clock,
     ILogger<UserService> logger) : IUserService
 {
@@ -172,6 +173,13 @@ public class UserService(
     /// </summary>
     private async Task<User> CreateUserWithTenantAsync(User newUser, string? trimmedName, CancellationToken cancellationToken = default)
     {
+        // GATES-2 (ADR-027). Every user-minting path funnels through here — magic link, OTP, web OAuth,
+        // native OAuth — so the green list is enforced once rather than at four call sites that can drift
+        // apart. Note where it is NOT: an existing account never reaches this method, which is what keeps
+        // editing the list from locking out people who already have data.
+        if (!await signupGate.IsAllowedAsync(newUser.Email, cancellationToken))
+            throw new SignupNotAllowedException(newUser.Email);
+
         var now = clock.GetUtcNow();
         var tenantLabel = trimmedName is { Length: > 0 }
             ? trimmedName.Split(' ')[0]

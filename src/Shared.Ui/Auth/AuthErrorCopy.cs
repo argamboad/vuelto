@@ -9,7 +9,15 @@ namespace Vuelto.Shared.Ui.Auth;
 /// </summary>
 public static class AuthErrorCopy
 {
-    /// <summary>The lockout copy for <c>too_many_attempts</c>, else the generic incorrect/expired copy.</summary>
-    public static string OtpErrorKey(string? errorCode) =>
-        errorCode == "too_many_attempts" ? "Login_ErrTooManyAttempts" : "Login_ErrCodeIncorrect";
+    /// <summary>
+    /// The copy key for a server OTP error: the lockout line for <c>too_many_attempts</c>, the
+    /// private-testing line for <c>signup_not_allowed</c> (GATES-2, ADR-027 — the code was correct, the
+    /// deployment simply does not admit this address), else the generic incorrect/expired line.
+    /// </summary>
+    public static string OtpErrorKey(string? errorCode) => errorCode switch
+    {
+        "too_many_attempts" => "Login_ErrTooManyAttempts",
+        "signup_not_allowed" => "Login_ErrSignupNotAllowed",
+        _ => "Login_ErrCodeIncorrect",
+    };
 }

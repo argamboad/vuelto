@@ -1714,3 +1714,57 @@ identities and transactions move, the duplicate goes, the survivor shows the new
 *Brandless vouchers:* BN payments print no brand and drafts staged before brand capture carry none, so a brandless
 number resolves to the card already known by those four digits, and a branded number that meets a `CARD`
 placeholder upgrades it in place (`CARD-1966` → `VISA-1966` while still auto-named) — one plastic, one card.
+
+**ADR-027 — Pre-launch gates: billing and account creation are deployment configuration, not runtime switches (GATES-1/2). (2026-09-11)**
+A deployment must be able to run **private and free** before it is published: nothing offers to sell
+a tester anything, and a stranger who finds the URL cannot create an account. Hiding the deployment
+itself was explicitly **not** wanted — knowing the app exists is fine.
+
+Both properties are decided before the process starts and change exactly once, on launch day. That
+makes them configuration, and it puts them in the same family as the PUBAPI/HOOKS gates
+(ADR-015/016): default off, opted into per deployment.
+
+**Decision:**
+1. **`Billing:Enabled`, default off.** With the gate off the billing controllers and the provider
+   webhook are removed from the application model at startup, so the routes do not exist (404) rather
+   than existing and refusing. The client hides the billing link and refuses the route, but the API
+   remains the authority. No new economics code is needed: `PlanCatalog.Get` already falls back to
+   Free for an absent plan key, so billing-off means every tenant is Free. **Accepted consequence:**
+   while off, nobody holds `Entitlements.ProFeature`.
+2. **`Signup:AllowedEmails` / `Signup:AllowedDomains`, empty means open.** Non-empty restricts
+   account creation. The green list decides **who may found a household**; inside a household owned
+   by a green-listed person, membership is that owner's business, bounded by the seat cap.
+3. **The invitation bypass keys on the household's OWNER, not the inviter.** A valid pending
+   invitation addressed to the caller admits them when that invitation's tenant owner is
+   green-listed. Checking the owner (rather than `InvitedByUserId`) is what lets a non-listed admin
+   member invite into their owner's household, while keeping a household whose owner is not listed
+   from admitting anyone new.
+4. **The gate fires at account creation only, never at sign-in.** It lives at the single choke point
+   `UserService.CreateUserWithTenantAsync`, which every user-minting path funnels through (magic
+   link, OTP, web OAuth, native OAuth). Gating sign-in would lock out people who already have data
+   the moment the list is edited.
+5. **It deliberately does not fire when a magic link or OTP is issued.** Refusing at issue time would
+   require knowing whether the address already has an account, turning the login form into a "does
+   this person use the app" oracle. Accepted cost: a non-listed visitor learns they are not invited
+   only after entering their code.
+6. **The Free seat limit moves 3 → 5** (`PlanCatalog`, code/config per ADR-006). Three is exactly one
+   family with no headroom, and a pending invitation already consumes a seat.
+
+**Rejected — a runtime toggle on the `/admin` console.** It would need a platform-scoped settings
+table, cross-instance cache invalidation, an audit trail and an admin write endpoint (which ADR-021
+requires be enumerated), and it would downgrade the gate from "the route does not exist" to a
+per-endpoint runtime check that every future billing endpoint must remember to run. It is also a
+footgun once real subscriptions exist: switching billing off does not stop the provider charging.
+The console may display the state **read-only**.
+
+**Rejected — promotional codes attached to an email address.** A code delivered to an inbox proves
+nothing that the passwordless sign-in to that same inbox does not already prove, so it would buy a
+code lifecycle (issuance, redemption, single-use, expiry, revocation) for no additional security.
+
+**Known and accepted:** `TenantService.ReHomeAsync` gives any departing member a fresh tenant-of-one
+they own, so someone who arrived by invitation can end up owning a household. That household's owner
+is not green-listed, so it admits nobody new — the leak is cosmetic, not a hole.
+
+**Ports downstream** (`vuelto`, `jigger-jot`) once the platform suite is green, like LOCALCI-3.
+
+> *Numbering note: 025 and 026 are reserved upstream for platform-only work (local CI, the flavors program) that this app does not carry, so the sequence jumps.*

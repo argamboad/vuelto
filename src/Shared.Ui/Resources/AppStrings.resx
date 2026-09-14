@@ -83,6 +83,7 @@
   <data name="Login_OtpPrompt" xml:space="preserve"><value>Enter the 6-digit code sent to {0}.</value></data>
   <data name="Login_VerifyCode" xml:space="preserve"><value>Verify code</value></data>
   <data name="Login_ErrSomethingWrong" xml:space="preserve"><value>Something went wrong. Please try again.</value></data>
+  <data name="Login_ErrSignupNotAllowed" xml:space="preserve"><value>This app is in private testing and isn't accepting new accounts yet. If someone invited you, ask them to send the invitation again.</value></data>
   <data name="Login_ErrExternalFailed" xml:space="preserve"><value>Sign-in with the external provider failed. Please try again.</value></data>
   <data name="Login_ErrEmailUnverified" xml:space="preserve"><value>Your provider hasn't verified this email address, so it can't be attached to an existing account.</value></data>
   <data name="Login_ErrInvalidLink" xml:space="preserve"><value>This sign-in link has expired or was already used. Request a new one.</value></data>
@@ -223,6 +224,7 @@
   <data name="Join_ErrorTitle" xml:space="preserve"><value>Couldn't join</value></data>
   <data name="Join_FullTitle" xml:space="preserve"><value>This household is full</value></data>
   <data name="Join_FullBody" xml:space="preserve"><value>It has reached its plan's member limit. Ask the owner to upgrade their plan, then use your invitation again.</value></data>
+  <data name="Join_FullBodyNoBilling" xml:space="preserve"><value>It has reached its member limit. Ask the owner to free a seat, then use your invitation again.</value></data>
   <data name="Join_BackToHousehold" xml:space="preserve"><value>Back to household</value></data>
   <data name="Join_DefaultError" xml:space="preserve"><value>The invitation is invalid or has expired.</value></data>
   <data name="Settings_Preferences" xml:space="preserve"><value>Preferences</value></data>
@@ -290,6 +292,7 @@
   <data name="Household_ErrRename" xml:space="preserve"><value>Couldn't rename the household.</value></data>
   <data name="Household_ErrEmailAlreadyMember" xml:space="preserve"><value>That email is already a member.</value></data>
   <data name="Household_ErrSeatLimit" xml:space="preserve"><value>Your plan's seat limit is reached. Upgrade your plan to invite more members.</value></data>
+  <data name="Household_ErrSeatLimitNoBilling" xml:space="preserve"><value>Your household is full. Remove a member or revoke a pending invitation to free a seat.</value></data>
   <data name="Household_ErrSendInvite" xml:space="preserve"><value>Couldn't send the invitation.</value></data>
   <data name="Household_ErrRegenerate" xml:space="preserve"><value>Couldn't regenerate the token.</value></data>
   <data name="Household_StatusRevoked" xml:space="preserve"><value>Invitation revoked.</value></data>

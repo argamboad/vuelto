@@ -130,6 +130,14 @@
             Nav.NavigateTo("/login");
             return;
         }
+        // GATES-1 (ADR-027): with billing off the API has no /api/billing routes, so this page could only
+        // ever render errors. Leave before it renders anything — the link is hidden too, so arriving here
+        // means a bookmark or a typed URL.
+        if (!await Auth.IsBillingEnabledAsync())
+        {
+            Nav.NavigateTo("/");
+            return;
+        }
         // On native, checkout/portal open the system browser and the provider's redirect lands on
         // web — this page is still what the user returns to. Refresh on resume so the new plan
         // shows without a manual re-navigation (NATIVE-4, G2). Never fires on web.

@@ -23,7 +23,7 @@ services:
       start_period: 10s
 
   mail:
-    image: axllent/mailpit:latest
+    image: axllent/mailpit:v1.30.4 # pinned, not :latest — matches the CI mail trap (v3 DEP-9)
     restart: unless-stopped
     ports:
       - "${MAIL_SMTP_PORT:-1026}:1025"

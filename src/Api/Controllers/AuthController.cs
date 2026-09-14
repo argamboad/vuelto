@@ -130,6 +130,12 @@ public class AuthController(
         {
             return Redirect($"{appSettings.ClientUrl}/login?error=email_unverified");
         }
+        catch (SignupNotAllowedException)
+        {
+            // GATES-2 (ADR-027): not a failure, a policy. Say so on the login page rather than dropping
+            // the person on the generic auth-error page, which reads as "the app is broken".
+            return Redirect($"{appSettings.ClientUrl}/login?error=signup_not_allowed");
+        }
         catch (Exception ex)
         {
             logger.LogError(ex, "OAuth callback failed");
@@ -263,7 +269,17 @@ public class AuthController(
     [HttpGet("magic-link/verify")]
     public async Task<IActionResult> VerifyMagicLink([FromQuery] string token, [FromQuery] string email, CancellationToken cancellationToken)
     {
-        var user = await passwordless.RedeemMagicLinkAsync(email, token, cancellationToken);
+        User? user;
+        try
+        {
+            user = await passwordless.RedeemMagicLinkAsync(email, token, cancellationToken);
+        }
+        catch (SignupNotAllowedException)
+        {
+            // GATES-2 (ADR-027). The link itself was fine — the address may simply not create an account
+            // here yet. The token is spent either way, which is fine: re-clicking would not help.
+            return Redirect($"{appSettings.ClientUrl}/login?error=signup_not_allowed");
+        }
         if (user is null)
             return Redirect($"{appSettings.ClientUrl}/login?error=invalid_link");
 
@@ -306,7 +322,19 @@ public class AuthController(
     [EnableRateLimiting(RateLimiting.PasswordlessVerifyPolicy)]
     public async Task<IActionResult> VerifyOtp([FromBody] OtpVerifyRequest req, CancellationToken cancellationToken)
     {
-        var result = await passwordless.RedeemOtpAsync(req.Email, req.Code, cancellationToken);
+        OtpResult result;
+        try
+        {
+            result = await passwordless.RedeemOtpAsync(req.Email, req.Code, cancellationToken);
+        }
+        catch (SignupNotAllowedException)
+        {
+            // GATES-2 (ADR-027): 403, not the 401 a wrong code gets. The code WAS correct; the deployment
+            // is not open to this address. Deliberately distinguishable, because the two call for
+            // completely different actions from the person reading it.
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new ErrorResponse("signup_not_allowed", "This deployment is in private testing and is not accepting new accounts."));
+        }
         if (result.Status != OtpStatus.Success || result.User is null)
         {
             // Collapse "no active code" and "wrong code" to one client error so the response can't

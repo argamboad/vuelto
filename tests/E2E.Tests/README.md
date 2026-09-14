@@ -17,6 +17,7 @@ smoke path that doesn't need an external OAuth provider.
      --Email:Smtp:Host=localhost --Email:Smtp:Port=1026 --Email:Smtp:Username= --Email:Smtp:Password= \
      --Auth:RateLimit:PasswordlessPermitLimit=1000 \
      --Admin:StaffEmails:0=e2e-staff@example.com \
+     --Billing:Enabled=true \
      --Billing:Stripe:SecretKey=
    ```
    The `Admin:StaffEmails` entry enables the admin-console journey (ADMIN-3); it must match

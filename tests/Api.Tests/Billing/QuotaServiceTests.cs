@@ -18,20 +18,23 @@ namespace Vuelto.Api.Tests.Billing;
 [Collection(PostgresCollection.Name)]
 public class QuotaServiceTests(PostgresFixture fixture) : PostgresTestBase(fixture)
 {
-    // Catalog example limits this suite pins to: Free seats=3 / export=3; Pro seats=10.
+    // Catalog example limits this suite pins to: Free export=3; Pro seats=10. The Free SEAT limit is read
+    // from the catalog rather than copied, so re-tuning it (GATES-1 moved it 3 → 5) re-tunes these tests
+    // with it — what they actually assert is the rule at the boundary, not the number.
+    private static readonly int FreeSeats = PlanCatalog.Get(PlanKeys.Free).SeatLimit!.Value;
 
     [Fact]
     public async Task Seats_UnderFreeLimit_CanAdd()
     {
         var tenant = Guid.CreateVersion7();
-        await SeedTenantWithMembersAsync(tenant, members: 2); // Free (no sub) → limit 3
+        await SeedTenantWithMembersAsync(tenant, members: FreeSeats - 1); // Free (no sub), one seat spare
 
         await using var db = Fixture.CreateContext(tenant);
         var quota = BuildQuota(db, tenant);
 
         var usage = await quota.GetSeatUsageAsync();
-        Assert.Equal(2, usage.Used);
-        Assert.Equal(3, usage.Limit);
+        Assert.Equal(FreeSeats - 1, usage.Used);
+        Assert.Equal(FreeSeats, usage.Limit);
         Assert.True(await quota.CanAddSeatsAsync());
     }
 
@@ -39,7 +42,7 @@ public class QuotaServiceTests(PostgresFixture fixture) : PostgresTestBase(fixtu
     public async Task Seats_AtFreeLimit_CannotAdd()
     {
         var tenant = Guid.CreateVersion7();
-        await SeedTenantWithMembersAsync(tenant, members: 3);
+        await SeedTenantWithMembersAsync(tenant, members: FreeSeats);
 
         await using var db = Fixture.CreateContext(tenant);
         var quota = BuildQuota(db, tenant);
@@ -52,13 +55,13 @@ public class QuotaServiceTests(PostgresFixture fixture) : PostgresTestBase(fixtu
     public async Task Seats_PendingInvitesCountTowardSeats()
     {
         var tenant = Guid.CreateVersion7();
-        await SeedTenantWithMembersAsync(tenant, members: 2);
-        await SeedPendingInviteAsync(tenant, "pending@x.com"); // 2 members + 1 pending = 3
+        await SeedTenantWithMembersAsync(tenant, members: FreeSeats - 1);
+        await SeedPendingInviteAsync(tenant, "pending@x.com"); // the pending invite takes the last seat
 
         await using var db = Fixture.CreateContext(tenant);
         var quota = BuildQuota(db, tenant);
 
-        Assert.Equal(3, (await quota.GetSeatUsageAsync()).Used);
+        Assert.Equal(FreeSeats, (await quota.GetSeatUsageAsync()).Used);
         Assert.False(await quota.CanAddSeatsAsync());
     }
 
@@ -202,12 +205,12 @@ public class QuotaServiceTests(PostgresFixture fixture) : PostgresTestBase(fixtu
     public async Task Invite_BeyondFreeSeatLimit_ReturnsSeatLimitReached()
     {
         var tenant = Guid.CreateVersion7();
-        var ownerId = await SeedTenantWithMembersAsync(tenant, members: 3); // Free, at cap
+        var ownerId = await SeedTenantWithMembersAsync(tenant, members: FreeSeats); // Free, at cap
 
         await using var db = Fixture.CreateContext(tenant);
         var svc = new ServiceHarness(db, currentTenant: new TestCurrentTenant { TenantId = tenant }).InvitationService();
 
-        var result = await svc.CreateAsync(tenant, ownerId, "fourth@x.com");
+        var result = await svc.CreateAsync(tenant, ownerId, "one-too-many@x.com");
         Assert.Equal(InviteCreateStatus.SeatLimitReached, result.Status);
     }
 

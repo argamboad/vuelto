@@ -138,6 +138,38 @@
               }
             }
           ]
+        },
+        {
+          "name": "Deployment features",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/features",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "features"
+              ]
+            },
+            "description": "Which config-gated surfaces this deployment switched on (GATES-1, ADR-027). Anonymous — the web client calls it before it has an identity, to decide whether to render the billing link and let /billing route.\n\n`billing` mirrors `Billing__Enabled`. While it is false every request in the Billing folder returns 404: the controllers are removed from the route table, not merely refused. Switching billing on is a deployment decision (restart required), never a runtime toggle.\n\nNo auth, no roles, no error codes — always 200."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"reports the billing gate\", () => pm.expect(pm.response.json()).to.have.property(\"billing\"));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         }
       ]
     },

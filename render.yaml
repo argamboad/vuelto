@@ -25,6 +25,10 @@ services:
       # ── Secrets — set these in the dashboard (sync:false keeps them out of git) ──
       - key: ConnectionStrings__DefaultConnection
         sync: false                 # Neon SESSION-pooler URI + sslmode=require (see runbook)
+      - key: Billing__Enabled
+        value: "true"               # GATES-1 (ADR-027): the billing surface exists here. Set "false" (or drop it)
+                                    # to publish free — /api/billing + the webhook then 404 and every tenant is Free,
+                                    # and the Stripe key below stops being required to boot.
       - key: Billing__Stripe__SecretKey
         sync: false                 # REQUIRED in Production (fail-closed guard) — a Stripe TEST key for staging
       - key: Auth__AppBaseUrl
@@ -57,6 +61,15 @@ services:
       # - key: Authentication__Microsoft__ClientId      # also the mail-consent app for EMAIL-2 (Outlook inboxes)
       #   sync: false
       # - key: Authentication__Microsoft__ClientSecret
+      #   sync: false
+      # Signup green list (GATES-2, ADR-027) — leave these out entirely and signup is OPEN to anyone
+      # who finds the URL. Set one per person, numbered from zero and CONTIGUOUS (__0, __1, __2 …);
+      # each listed person may found a household and invite others into it without those others being
+      # listed. Add them in the Render dashboard rather than here if you would rather not commit the
+      # addresses — a key absent from this file is not touched by a blueprint sync.
+      # - key: Signup__AllowedEmails__0
+      #   sync: false
+      # - key: Signup__AllowedDomains__0
       #   sync: false
       # - key: PublicApi__Enabled
       #   value: "false"

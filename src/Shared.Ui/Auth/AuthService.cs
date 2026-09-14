@@ -502,6 +502,30 @@ public class AuthService(
         }
     }
 
+    // Cached for the app's lifetime: a deployment's gates are startup config and cannot change under a
+    // running client. Nothing resets it — unlike the staff probe, this has nothing to do with identity.
+    private bool? _billingEnabled;
+
+    /// <summary>
+    /// Whether this deployment has the billing surface switched on (GATES-1, ADR-027) — drives the
+    /// billing nav link and the <c>/billing</c> page gate. Anonymous probe of <c>GET /api/features</c>,
+    /// since the header renders before identity is known. False on any error: fail closed to "no billing"
+    /// rather than render a link into routes that may not exist.
+    /// </summary>
+    public async Task<bool> IsBillingEnabledAsync()
+    {
+        if (_billingEnabled is { } cached) return cached;
+        try
+        {
+            var res = await httpClient.GetFromJsonAsync<FeaturesResponse>("/api/features");
+            return (_billingEnabled = res?.Billing ?? false).Value;
+        }
+        catch
+        {
+            return false; // don't cache transient failures
+        }
+    }
+
     /// <summary>True when the current access token is an admin "sign in as" token.</summary>
     public bool IsImpersonating => Claim(AppClaims.ImpersonatedBy) is not null;
 
@@ -633,6 +657,13 @@ public class AuthService(
     {
         [System.Text.Json.Serialization.JsonPropertyName("is_staff")]
         public bool IsStaff { get; init; }
+    }
+
+    // GET /api/features — the config-gated surfaces this deployment switched on.
+    private sealed record FeaturesResponse
+    {
+        [System.Text.Json.Serialization.JsonPropertyName("billing")]
+        public bool Billing { get; init; }
     }
 
     // GET /api/auth/providers — the OAuth providers this deployment configured.

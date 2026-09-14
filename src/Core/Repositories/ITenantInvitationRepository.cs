@@ -16,6 +16,15 @@ public interface ITenantInvitationRepository
     /// <summary>An existing pending invite for (tenant, email), if any (dedup).</summary>
     Task<TenantInvitation?> GetPendingByEmailAsync(Guid tenantId, string email, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Every still-valid invitation addressed to <paramref name="email"/>, across all tenants (GATES-2).
+    /// Cross-tenant by necessity: the signup gate runs before the caller has an account, let alone a
+    /// tenant, so there is no scope to read within. "Valid" means pending and not yet expired at
+    /// <paramref name="now"/> — an accepted, revoked or lapsed invitation is not a standing pass for the
+    /// address it named.
+    /// </summary>
+    Task<List<TenantInvitation>> GetValidByEmailAcrossTenantsAsync(string email, DateTimeOffset now, CancellationToken cancellationToken = default);
+
     /// <summary>Lookup by the hashed token (any status — caller validates). Pass the hash, not the raw token.</summary>
     Task<TenantInvitation?> GetByTokenHashAsync(string tokenHash, CancellationToken cancellationToken = default);
 

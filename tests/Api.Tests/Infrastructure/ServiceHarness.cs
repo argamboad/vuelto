@@ -15,7 +15,8 @@ namespace Vuelto.Api.Tests.Infrastructure;
 /// test doubles for settings, email, and the clock. Construct one per logical actor:
 /// the context's current tenant drives the global query filter.
 /// </summary>
-public sealed class ServiceHarness(AppDbContext db, TimeProvider? clock = null, ICurrentTenant? currentTenant = null)
+public sealed class ServiceHarness(AppDbContext db, TimeProvider? clock = null, ICurrentTenant? currentTenant = null,
+    SignupSettings? signup = null)
 {
     public AppDbContext Db { get; } = db;
     public TimeProvider Clock { get; } = clock ?? TimeProvider.System;
@@ -37,7 +38,14 @@ public sealed class ServiceHarness(AppDbContext db, TimeProvider? clock = null, 
     public IAuditLog Audit { get; } = new Vuelto.Infrastructure.Audit.AuditLog(
         new EfRepository<AuditEvent>(db), clock ?? TimeProvider.System);
 
-    public UserService UserService() => new(Users, Tenants, UnitOfWork, Clock, NullLogger<UserService>.Instance);
+    /// <summary>The signup green list (GATES-2). Defaults to empty ⇒ open, so existing tests are unaffected.</summary>
+    public SignupSettings Signup { get; } = signup ?? new SignupSettings();
+
+    public ISignupGate SignupGate() =>
+        new SignupGate(Signup, Invitations, Tenants, Clock, NullLogger<SignupGate>.Instance);
+
+    public UserService UserService() =>
+        new(Users, Tenants, UnitOfWork, SignupGate(), Clock, NullLogger<UserService>.Instance);
 
     public RefreshTokenService RefreshTokenService(int expiryDays = 30) =>
         new(RefreshTokens, TokenGen, Hasher, new TestRefreshSettings(expiryDays), Clock);
