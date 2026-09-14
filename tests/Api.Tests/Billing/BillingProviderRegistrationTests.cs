@@ -30,7 +30,41 @@ public class BillingProviderRegistrationTests
 
     [Fact]
     public void NoStripeKey_OutsideDevelopment_ThrowsAtStartup() =>
-        Assert.Throws<InvalidOperationException>(() => ResolveImpl(Environments.Production, new()));
+        Assert.Throws<InvalidOperationException>(() => ResolveImpl(Environments.Production, new()
+        {
+            ["Billing:Enabled"] = "true", // the guard is about a REACHABLE billing surface
+        }));
+
+    // GATES-1 (ADR-027). The fail-fast above exists for ONE reason: the fake trusts a literal webhook
+    // signature and the webhook is anonymous. With the billing gate off that webhook route does not exist
+    // (BillingGateConvention removes the controllers), so the reason evaporates — and the guard would
+    // otherwise stop the exact deployment this gate is for: published, free, with no Stripe account.
+
+    [Fact]
+    public void BillingGatedOff_OutsideDevelopment_Boots_WithNoStripeKey() =>
+        Assert.Equal(typeof(FakeBillingProvider), ResolveImpl(Environments.Production, new()
+        {
+            ["Billing:Enabled"] = "false",
+        }));
+
+    [Fact]
+    public void BillingGatedOff_ByOmission_OutsideDevelopment_AlsoBoots() => // unset == off, the shipped default
+        Assert.Equal(typeof(FakeBillingProvider), ResolveImpl(Environments.Production, new()));
+
+    [Fact]
+    public void BillingGatedOn_OutsideDevelopment_StillDemandsARealKey() => // the guard keeps its teeth
+        Assert.Throws<InvalidOperationException>(() => ResolveImpl(Environments.Production, new()
+        {
+            ["Billing:Enabled"] = "true",
+        }));
+
+    [Fact]
+    public void BillingGatedOff_WithAStripeKey_StillUsesStripe() => // a key present means someone meant it
+        Assert.Equal(typeof(StripeBillingProvider), ResolveImpl(Environments.Production, new()
+        {
+            ["Billing:Enabled"] = "false",
+            ["Billing:Stripe:SecretKey"] = "sk_test_123",
+        }));
 
     // v3 DEP-10: when the deploy declares its expected Stripe mode, a mismatched key fails closed at startup.
 

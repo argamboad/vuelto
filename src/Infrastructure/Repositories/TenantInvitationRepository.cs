@@ -39,6 +39,20 @@ public class TenantInvitationRepository(AppDbContext db) : ITenantInvitationRepo
             && i.InvitedEmail == normalized, cancellationToken);
     }
 
+    // Pre-ACCOUNT lookup (GATES-2): the signup gate asks this before the caller exists, so there is no
+    // tenant to scope to — hence the cross-tenant hatch, tagged so the RLS backstop (ADR-020) sanctions
+    // it per query. Read-only and never composed with a set-based write (RLS-4). InvitedEmail is stored
+    // normalized, so normalize in C# rather than emitting a per-row ToLower().
+    public async Task<List<TenantInvitation>> GetValidByEmailAcrossTenantsAsync(string email, DateTimeOffset now, CancellationToken cancellationToken = default)
+    {
+        var normalized = email.Trim().ToLowerInvariant();
+        return await db.TenantInvitations.IgnoreQueryFilters().TagWith(RlsTags.CrossTenant)
+            .Where(i => i.InvitedEmail == normalized
+                        && i.Status == InvitationStatuses.Pending
+                        && i.ExpiresAt >= now)
+            .ToListAsync(cancellationToken);
+    }
+
     // Pre-membership lookup: the accepting user is not yet in the invitation's tenant
     // (their JWT still carries their old tenant), so this must bypass the tenant filter.
     public async Task<TenantInvitation?> GetByTokenHashAsync(string tokenHash, CancellationToken cancellationToken = default) =>

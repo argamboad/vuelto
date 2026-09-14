@@ -131,7 +131,7 @@ public class BillingControllerTests(PostgresFixture fixture) : PostgresTestBase(
         Assert.Equal("none", summary.Status);
         Assert.False(summary.HasSubscription);
         Assert.Equal(1, summary.Seats.Used);           // just the owner
-        Assert.Equal(3, summary.Seats.Limit);          // free-plan example quota
+        Assert.Equal(PlanCatalog.Get(PlanKeys.Free).SeatLimit, summary.Seats.Limit); // the catalog's Free quota, not a copy of it
     }
 
     [Fact]
@@ -165,7 +165,7 @@ public class BillingControllerTests(PostgresFixture fixture) : PostgresTestBase(
         var ok = Assert.IsType<OkObjectResult>(await controller.Summary(default));
         var summary = Assert.IsType<BillingSummaryResponse>(ok.Value);
         Assert.Equal(PlanKeys.Free, summary.PlanKey);  // lapsed → fail-closed
-        Assert.Equal(3, summary.Seats.Limit);
+        Assert.Equal(PlanCatalog.Get(PlanKeys.Free).SeatLimit, summary.Seats.Limit);
         Assert.True(summary.HasSubscription);          // portal still reachable to fix payment
     }
 

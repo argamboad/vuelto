@@ -83,7 +83,10 @@
                                 <NavLink class="user-menu-item is-staff" href="/admin" data-testid="nav-admin">@Localizer["Nav_Admin"]</NavLink>
                             }
                             <NavLink class="user-menu-item" href="/household">@Localizer["Nav_Household"]</NavLink>
-                            <NavLink class="user-menu-item" href="/billing" data-testid="nav-billing">@Localizer["Nav_Billing"]</NavLink>
+                            @if (_billingEnabled)
+                            {
+                                <NavLink class="user-menu-item" href="/billing" data-testid="nav-billing">@Localizer["Nav_Billing"]</NavLink>
+                            }
                             <NavLink class="user-menu-item" href="/settings">@Localizer["Nav_Settings"]</NavLink>
                             <button type="button" class="user-menu-item is-signout" data-testid="sign-out" @onclick="SignOutAsync">@Localizer["Nav_SignOut"]</button>
                         </div>
@@ -105,6 +108,9 @@
     private bool _menuOpen;
     private bool _userOpen;   // SKIN-4: the tenant/name menu holding household, billing, settings, sign out
     private bool _isStaff;
+    // GATES-1 (ADR-027): a deployment with billing off has no /billing routes at all, so the link would
+    // be a dead end — and, worse, an advertisement for an upgrade path that does not exist.
+    private bool _billingEnabled;
     private int _reviewCount; // EMAIL-6: pending vouchers waiting in the review queue (best-effort; hidden at 0)
 
     // Close the menu after any navigation so it doesn't stay open over the new page on mobile.
@@ -123,6 +129,7 @@
     protected override async Task OnInitializedAsync()
     {
         _isStaff = await Auth.IsStaffAsync();
+        _billingEnabled = await Auth.IsBillingEnabledAsync(); // anonymous + deployment-wide: no identity re-check needed
         await RefreshReviewCountAsync();
     }
 

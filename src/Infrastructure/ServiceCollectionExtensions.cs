@@ -133,14 +133,20 @@ public static class ServiceCollectionExtensions
             }
             services.AddScoped<IBillingProvider, StripeBillingProvider>();
         }
-        else if (environment.IsDevelopment())
+        // GATES-1 (ADR-027): with the billing gate off there is no anonymous webhook to forge — the
+        // controllers are gone from the route table entirely — so the fail-fast below would only stop the
+        // deployment this gate exists for: published, free, no Stripe account. The fake stays registered
+        // because tenant dissolve still asks the provider to cancel (BillingDataContributor), where it is
+        // an inert no-op. `BillingControllers_AreAllGated` is what keeps "no reachable webhook" true.
+        else if (environment.IsDevelopment() || !configuration.GetValue("Billing:Enabled", false))
             services.AddScoped<IBillingProvider, FakeBillingProvider>();
         else
             throw new InvalidOperationException(
-                "No Billing:Stripe:SecretKey is configured and the environment is not Development. The " +
-                "in-memory FakeBillingProvider trusts a literal webhook signature and must never run " +
-                "outside Development (it would accept forged, unauthenticated cross-tenant billing " +
-                "writes). Configure a real Stripe secret key for this environment.");
+                "Billing:Enabled is true but no Billing:Stripe:SecretKey is configured, and the environment " +
+                "is not Development. The in-memory FakeBillingProvider trusts a literal webhook signature " +
+                "and must never back a REACHABLE billing surface outside Development (it would accept " +
+                "forged, unauthenticated cross-tenant billing writes). Configure a real Stripe secret key " +
+                "for this environment, or leave Billing:Enabled off to run without billing.");
 
         // File/blob storage (ADR-010). An S3-compatible backend (AWS/MinIO/R2/B2) is selected when a
         // bucket is configured; otherwise local disk — the dev/test default with zero setup. Same

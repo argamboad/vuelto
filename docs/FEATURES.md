@@ -33,7 +33,11 @@ Flow:
 4. `UserService.GetOrCreateUserAsync` resolves the account: known `UserLogin` → that user; else a
    matching **verified** email → links the new provider (an **unverified** email match is refused —
    the takeover guard); else a brand-new `User` + fresh `Tenant` + owner `TenantMembership` are
-   created atomically.
+   created atomically — **subject to the signup green list** (GATES-2, ADR-027): when
+   `Signup:AllowedEmails`/`AllowedDomains` are configured, only those addresses, plus anyone holding a
+   valid pending invitation into a household whose **owner** is listed, may create an account. An
+   existing account always signs in regardless. Refusal is `?error=signup_not_allowed` on the redirect
+   paths and **403 `signup_not_allowed`** on `POST /api/auth/otp/verify`.
 5. The API sets the refresh-token cookie and redirects to the client, which calls
    `POST /api/auth/refresh` to obtain its JWT access token.
 
@@ -98,7 +102,9 @@ Flow:
    `Permission.ManageMembers`, which both owner and admin hold — RBAC, ADR-009). A `TenantInvitation`
    is created (status `pending`, hashed token); inviting an existing member is refused (409), a pending
    invite for the same email is refreshed, not duplicated, and hitting the plan's seat cap returns
-   **402 `seat_limit_reached`** (BILLING-5 — pending invites reserve a seat).
+   **402 `seat_limit_reached`** (BILLING-5 — pending invites reserve a seat). With billing gated off
+   (GATES-1) the same 402 is worded as "your household is full", with no upgrade offered — there is no
+   plan to buy.
 2. The raw token is returned once (revealed in the UI) **and** emailed as `/join?token=...`.
 3. The invitee opens `/join`, signs in if needed, then `POST /api/household/invitations/accept`
    validates the token, moves their `TenantMembership` to the inviting tenant, and consumes the

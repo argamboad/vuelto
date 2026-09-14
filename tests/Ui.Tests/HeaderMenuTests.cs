@@ -54,6 +54,7 @@ public class HeaderMenuTests : ComponentTestBase
     [Fact]
     public async Task EveryDestinationThatLeftTheBarIsStillReachable()
     {
+        StubFeatures(); // GATES-1 (ADR-027): billing is a destination only while the gate is open — off, the item is gone, not hidden
         var cut = await HeaderAsync();
         cut.Find("[data-testid='user-menu']").Click();
 

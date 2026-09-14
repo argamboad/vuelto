@@ -117,6 +117,15 @@ The domain teams underestimate most — here it's done, including the ugly parts
   ("see what the customer sees" without their password), and broadcast announcements delivered
   through the notification system.
 
+### 🚦 Pre-launch gates *(config-gated — ship before you sell, and before you are public)*
+- **Billing off by default:** the billing routes do not exist, nobody is shown an upgrade, and every
+  tenant sits on the free plan. A deployment needs no payment-provider account at all until it decides
+  to charge.
+- **Signup green list:** when configured, only listed addresses may create an account — plus anyone
+  invited into a household whose owner is listed, so a tester can bring their family without each of
+  them being listed. Existing accounts are never locked out when the list changes.
+- Both are cleared on launch day; see `NEW_APP_GUIDE.md` Phase 8.
+
 ### 🔌 Public API & API keys *(config-gated, off by default)*
 - Tenants can mint API keys (stored hash-only), scoped to their data automatically.
 - Per-key **rate limiting** and a public **OpenAPI document** for integrators.

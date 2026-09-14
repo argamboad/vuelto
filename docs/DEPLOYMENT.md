@@ -92,12 +92,18 @@ Tear down with `docker compose --profile app down`.
 > the blueprint uses it. If you move to a host without that block, 587 is equally fine (the sender uses
 > `SecureSocketOptions.Auto`). A paid Render instance lifts the block too.
 
-## 3. Stripe (test mode) — REQUIRED
+## 3. Stripe (test mode) — REQUIRED ONLY IF YOU SELL SOMETHING
 
-The billing provider is **fail-closed**: in any non-Development environment the app **refuses to boot**
-without `Billing__Stripe__SecretKey` (the in-memory fake provider trusts an unsigned webhook and must
-never run in Production — GAP-1). For staging, use a **test-mode** secret key (`sk_test_…`) from the
-Stripe dashboard. You don't need working billing to sign in — this just satisfies the guard.
+**Skip this whole section if you are publishing free.** Leave `Billing__Enabled` unset (its shipped
+default — GATES-1, ADR-027) and the billing surface does not exist: `/api/billing` and the provider
+webhook 404, the client renders no billing link, and every tenant is on the Free plan. No Stripe account
+is needed to deploy, and nothing in the app offers anyone an upgrade.
+
+With `Billing__Enabled=true` the provider is **fail-closed**: in any non-Development environment the app
+**refuses to boot** without `Billing__Stripe__SecretKey` (the in-memory fake provider trusts an unsigned
+webhook and must never back a reachable billing surface in Production — GAP-1). For staging, use a
+**test-mode** secret key (`sk_test_…`) from the Stripe dashboard. You don't need working billing to sign
+in — this just satisfies the guard.
 
 **Wiring real billing (still test mode) — the three ids, where each one hides:**
 
@@ -226,12 +232,25 @@ run an automated post-deploy smoke, wire the pipeline in `.github/workflows/ci.y
 
 ## Environment variables (reference)
 
+**Where to put them, and what a change costs.** Anything with a `value:` in `render.yaml` is declared
+by the blueprint: edit it there and redeploy, because a blueprint sync can overwrite the same key typed
+into the dashboard. Anything marked `sync: false`, or absent from the file entirely, is dashboard-only
+and is left alone by a sync — that is where secrets live, and it is the right place for the signup
+green list if you would rather not commit people's addresses. Saving an environment change in the
+dashboard **restarts the service**, which is all that is needed: every gate and guard in this table is
+read at startup, so there is no cache to clear and no deploy to trigger.
+
+**Indexed keys** (`Signup__AllowedEmails__0`, `Admin__StaffEmails__0`, `Proxy__KnownNetworks__0`) are
+arrays. Number them from zero and keep them contiguous — one address per key, not a comma-separated
+list in `__0`.
+
 | Key | Required | Notes |
 |---|---|---|
 | `ASPNETCORE_ENVIRONMENT` | yes | `Production` (set by `render.yaml`) |
 | `ConnectionStrings__DefaultConnection` | yes | Neon **direct** endpoint, `SSL Mode=Require` |
 | `Jwt__Secret` | yes | ≥32 chars; Render auto-generates |
-| `Billing__Stripe__SecretKey` | **yes** | fail-closed guard; a `sk_test_…` key for staging |
+| `Billing__Enabled` | optional | default **off** — off means no `/api/billing` routes at all and everyone is Free (GATES-1) |
+| `Billing__Stripe__SecretKey` | **if billing is on** | fail-closed guard; a `sk_test_…` key for staging. Not needed while the gate is off |
 | `Email__Smtp__Host/Port/Username/Password` | yes | Brevo |
 | `Email__Smtp__FromAddress` | yes | a Brevo-**verified** sender; sends fail without it |
 | `Email__Smtp__FromName` | no | display name on outgoing mail |
@@ -247,6 +266,7 @@ run an automated post-deploy smoke, wire the pipeline in `.github/workflows/ci.y
 | `ExchangeRate__BccrUrl` | no | the mirror URL (default `https://api.hacienda.go.cr/indicadores/tc`); outbound HTTPS from the host must be allowed |
 | `ExchangeRate__ApiKey` | only with `exchangerate-api` | free key from app.exchangerate-api.com; when the chosen provider can't answer ⇒ the household's last transaction rate, else "unavailable" — never a fabricated rate (ADR-V006) |
 | `PublicApi__Enabled`, `Webhooks__Enabled` | optional | default off |
+| `Signup__AllowedEmails__0…`, `Signup__AllowedDomains__0…` | optional | the signup green list (GATES-2). Both empty ⇒ open. Non-empty ⇒ only these may create an account, plus anyone invited into a household whose **owner** is listed |
 | `Admin__StaffEmails__0…` | optional | platform-staff allowlist |
 | `ConnectionStrings__Migrations` | prod (two-role RLS) | owner/migrator connection — startup migrations do DDL (§7) |
 | `Rls__EnforceRuntimeRole` | prod (two-role RLS) | `true` — fail-closed startup check that RLS actually applies (§7) |

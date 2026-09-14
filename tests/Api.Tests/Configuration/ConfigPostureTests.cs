@@ -32,6 +32,25 @@ public class ConfigPostureTests
         Assert.False(BoundFromEmptyConfig<WebhooksSettings>(WebhooksSettings.SectionName).Enabled);
 
     [Fact]
+    public void Billing_IsOff_ByDefault() => // GATES-1/ADR-027: a fresh deployment sells nobody anything
+        Assert.False(BoundFromEmptyConfig<BillingSettings>(BillingSettings.SectionName).Enabled);
+
+    [Fact]
+    public void SignupGreenList_IsEmpty_ByDefault()
+    {
+        // GATES-2/ADR-027 — the one gate whose EMPTY state is deliberately OPEN, so read this before
+        // "fixing" it: an empty green list means anyone may sign up, which is the right default for a
+        // template (a fresh app must not be born locked). What must never drift is a NON-EMPTY default,
+        // which would silently restrict every downstream app that never configured it. So the posture
+        // pinned here is emptiness, and `IsRestricted` is what code branches on.
+        var settings = BoundFromEmptyConfig<SignupSettings>(SignupSettings.SectionName);
+
+        Assert.Empty(settings.AllowedEmails);
+        Assert.Empty(settings.AllowedDomains);
+        Assert.False(settings.IsRestricted);
+    }
+
+    [Fact]
     public void PlatformStaffAllowlist_IsEmpty_ByDefault() => // no self-serve / accidental platform staff
         Assert.Empty(BoundFromEmptyConfig<PlatformAdminSettings>("Admin").StaffEmails);
 

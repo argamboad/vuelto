@@ -3246,6 +3246,122 @@ app fires no published events. (Published events via `IWebhookPublisher` also lo
 
 ---
 
+## 14c. Pre-launch gates — billing off + signup green list (GATES) 🟠
+
+> Both gates are **deployment configuration**, read at startup (ADR-027) — every change below needs an
+> **API restart**, and neither can be flipped from inside the app. They exist so a deployment can run
+> **private and free** before it is published: nothing offers to sell a tester anything, and a stranger
+> who finds the URL cannot create an account. Hiding the deployment itself is explicitly out of scope.
+
+### QA-GATE-01 — Billing off: the surface does not exist 🔴 (Web + curl)
+**Precondition:** `Billing__Enabled` unset in the repo-root `.env` (the shipped default); restart.
+**Gherkin**
+```gherkin
+Given Billing:Enabled is unset
+When I look at the header and call the billing routes
+Then there is no billing link, /billing does not render, and the API answers 404
+```
+**Walkthrough**
+1. Sign in as an owner. **Expected:** the header shows Household / Settings but **no Billing** button.
+2. Type `/billing` in the address bar. **Expected:** you land on the home page — the page refuses to render.
+3. `curl -k https://localhost:7160/api/billing` → **404** (not 401 — the route is gone, not protected).
+4. `curl -k -X POST https://localhost:7160/api/billing/webhook -d '{}'` → **404**. The provider callback is
+   gated too: signature authentication is not a reason to accept events for a deployment with no provider.
+5. Check the API startup log for one line reading `Pre-launch gates: billing disabled...`.
+
+---
+
+### QA-GATE-02 — Billing off: nothing offers an upgrade 🟠 (Web)
+**Precondition:** QA-GATE-01's state, plus a household at its seat cap (see QA-HH-14).
+**Gherkin**
+```gherkin
+Given billing is gated off and my household is full
+When I invite one more member, and when an invitee opens a valid invitation
+Then both are told the household is full, and neither is told to upgrade a plan
+```
+**Walkthrough**
+1. As owner of a full household, invite another address. **Expected:** "Your household is full. Remove a
+   member or revoke a pending invitation to free a seat." — **no** mention of upgrading.
+2. Open a still-valid invitation to that household as the invitee. **Expected:** the full-household page
+   says to ask the owner to free a seat, **not** to ask them to upgrade their plan.
+3. Switch the UI to Spanish and repeat step 1 — the Spanish copy must be the no-upgrade wording too.
+
+---
+
+### QA-GATE-03 — Billing on: the surface comes back whole 🟠 (Web)
+**Precondition:** set `Billing__Enabled=true`; restart.
+**Gherkin**
+```gherkin
+Given Billing:Enabled is true
+When I sign in as an owner
+Then the billing link is back, /billing renders the plan summary, and the seat-limit copy offers an upgrade
+```
+**Walkthrough**
+1. The header shows **Billing**; `/billing` renders the plan + seat usage (§10c applies in full).
+2. A seat-capped invite now reads "...Upgrade your plan to invite more members."
+3. `curl -k https://localhost:7160/api/features` → `{"billing":true}` (anonymous — this is what the client reads).
+
+---
+
+### QA-GATE-04 — Green list: a stranger cannot create an account 🔴 (Web)
+**Precondition:** in `.env` set `Signup__AllowedEmails__0=` **your own address**; restart. Use a *second*
+address you control that is NOT listed and has **no account yet**.
+**Gherkin**
+```gherkin
+Given a green list that does not contain my address
+When I complete a first-time sign-in with a valid code
+Then I am told the app is in private testing and no account is created
+```
+**Walkthrough**
+1. On `/login`, request a code for the unlisted address. **Expected:** the send succeeds — the gate runs at
+   redemption, not at issue, deliberately (refusing at issue would reveal whether an address has an account).
+2. Enter the **correct** code from Mailpit. **Expected:** "This app is in private testing and isn't
+   accepting new accounts yet..." (HTTP **403**, `signup_not_allowed`) — NOT the "incorrect or expired" line.
+3. Confirm in the DB (or by retrying) that **no** user row and **no** household were created.
+4. Repeat with the same unlisted address via **Sign in with Google**. **Expected:** the same private-testing
+   message on the login page — the provider button is not a side door.
+5. Repeat via a **magic link**. **Expected:** the same message.
+
+---
+
+### QA-GATE-05 — Green list: a listed person founds a household and can bring their family 🟠 (Web)
+**Precondition:** QA-GATE-04's state (your address listed, one unlisted address available).
+**Gherkin**
+```gherkin
+Given my address is on the green list
+When I sign in, and then invite the unlisted address into MY household
+Then I get my own household, and my invitee may sign up even though they are not listed
+```
+**Walkthrough**
+1. Sign in with your listed address. **Expected:** normal sign-in; you own a household.
+2. Invite the unlisted address from **Household**. Open the invitation as that address and sign in for the
+   first time. **Expected:** sign-in succeeds and they join **your** household — the invitation admits them
+   because the household's **owner** (you) is green-listed.
+3. Have that member press **Leave**. They are re-homed into their own empty household — expected, and
+   harmless: now have them invite a **third** unlisted address. **Expected:** the third address is refused
+   at sign-in, because the owner of that household is not green-listed. This is the one-hop boundary.
+
+---
+
+### QA-GATE-06 — Green list never locks out an existing account 🔴 (Web)
+**Precondition:** an account that already exists and is **not** on the green list (e.g. the one from
+QA-GATE-05 step 2, after removing it from the list if you added it).
+**Gherkin**
+```gherkin
+Given an account that already exists and is not on the green list
+When it signs in
+Then the sign-in succeeds
+```
+**Walkthrough**
+1. Sign out, then sign in again with that existing, unlisted account. **Expected:** success — the gate is on
+   account **creation** only. This is the case that makes editing the list safe once people have data.
+2. Clear `Signup__AllowedEmails__0` entirely and restart. **Expected:** the startup log reads
+   `signup open to anyone` and any new address can sign up again — this is what publishing looks like.
+
+---
+
+---
+
 ## 15. Traceability matrix (feature → cases → API)
 
 | Feature area | Test cases | Key API endpoints |
@@ -3287,6 +3403,7 @@ app fires no published events. (Published events via `IWebhookPublisher` also lo
 | Billing — dissolve cleanup (BILLING-7) | covered by `Api.Tests` (`BillingDissolveTests`) | on tenant dissolve, `BillingDataContributor` wipes the `Subscription` projection **and** enqueues a `"billing.cancel"` outbox message → `IBillingProvider.CancelSubscriptionAsync` (a deleted tenant stops being billed). `HasDataAsync`=false (billing never blocks leaving); export gains a `billing` section (plan/status/period, no Stripe ids). Manual (Stripe test mode): subscribe a throwaway tenant, delete the account, confirm the Stripe subscription is canceled. |
 | Public API + API keys (PUBAPI, **config-gated off**) | **QA-API-01..04** (curl/Postman) + `Api.Tests` (`ApiKeyServiceTests`, `RateLimitingTests`); boot-verified on/off | `PublicApi:Enabled` toggles it. Owner-only `/api/apikeys` (create → raw `pk_…` once, list, revoke; `Permission.ManageApiKeys`); API-key auth scheme mints a `tenant_id`-scoped principal; demo `/api/public/whoami` (read scope) + `/api/public/echo` (write scope) via `.RequireApiScope`. **PUBAPI-2:** per-key rate limit (60/min, isolated per key → 429) + a leak-free public OpenAPI doc at `/api/public/openapi.json` (only the public routes). **Off (default) ⇒ routes 404.** Manual: `PublicApi__Enabled=true`, mint a key, `curl -H "X-Api-Key: pk_…" /api/public/whoami`; fetch `/api/public/openapi.json`. |
 | Outbound webhooks (HOOKS, **config-gated off**) | **QA-API-01, 05, 06** (curl/webhook.site) + `Api.Tests` (`WebhookSubscriptionServiceTests`, `WebhookDeliveryTests`, `WebhookDeliveryLogTests`) + `Core.Tests` (`WebhookSignatureTests`); boot-verified on/off | `Webhooks:Enabled` toggles it. Owner-only `/api/webhooks` (register → signing secret `whsec_…` once, list, delete, **send test**; `Permission.ManageWebhooks`). `IWebhookPublisher.PublishAsync` fans out to matching active subs → one `"webhook"` **outbox** message each → signed POST (`X-Webhook-Signature`), retry/dead-letter via the outbox. **HOOKS-2:** a delivery log (`GET /api/webhooks/{id}/deliveries` — one row per attempt, success/status/error) + **replay** (`POST /api/webhooks/deliveries/{id}/replay` — re-enqueue the exact payload). **Off (default) ⇒ routes 404.** Manual: `Webhooks__Enabled=true`, register a receiver (e.g. a webhook.site URL), hit **send test**, view deliveries, replay one. |
+| Pre-launch gates (GATES, **both deployment config**) | **QA-GATE-01..06** (§14c) + `Api.Tests` (`BillingGateTests`, `SignupGateTests`, `SignupRefusalSurfacingTests`, `ConfigPostureTests`) + `Ui.Tests` (`BillingGateUiTests`, `SeatLimitCopyTests`, `SignupRefusedCopyTests`) | `Billing:Enabled` off (default) removes the billing controllers from the application model, so `GET /api/billing`, `POST …/checkout`, `…/portal` and `…/webhook` all **404** and every tenant resolves Free; the client reads `GET /api/features` (anonymous) to hide the link and refuse `/billing`, and the seat-limit copy drops the upgrade pitch. `Signup:AllowedEmails` / `Signup:AllowedDomains` (empty = open) gate account **creation** at `UserService.CreateUserWithTenantAsync` — refusal is **403** `signup_not_allowed` on `POST /api/auth/otp/verify` and `?error=signup_not_allowed` on the OAuth / magic-link redirects. An invitation admits its addressee only when that invitation's tenant **owner** is green-listed. ADR-027. |
 | Audit log (API-only) | covered by `Api.Tests` (`AuditLogTests`) | append-only `IAuditLog` + interceptor |
 | RBAC roles (admin tier) | HH-09/10/11/12 (web roster promote/demote + admin capability/limits); `Api.Tests` (`RolePermissionsTests`, `PermissionServiceTests`, `MemberRoleManagementTests`) | `PUT /api/household/members/{id}/role` (owner-only; admin↔member, owner via transfer only); permission seam gates tenant writes |
 | File storage (API-only) | covered by `Api.Tests` (`LocalDiskFileStorageTests`, `FileDownloadTokenizerTests`, `FilesControllerTests`, `S3FileStorageMinioTests` [real MinIO], `FileStorageRegistrationTests`) | `IFileStorage` (tenant-scoped keys; local disk / S3-compatible — AWS/MinIO/R2/B2, config-gated); local signed `GET /api/files/{token}` (expiring, single-key, tenant-checked → 404 on any failure); S3 native presigned URLs |
@@ -3539,6 +3656,12 @@ Record one row per executed case. Build = API/web commit SHA (`git rev-parse --s
 | QA-API-04 | curl | | | | | |
 | QA-API-05 | curl | | | | | |
 | QA-API-06 | curl | | | | | |
+| QA-GATE-01 | Web + curl | | | | | |
+| QA-GATE-02 | Web | | | | | |
+| QA-GATE-03 | Web | | | | | |
+| QA-GATE-04 | Web | | | | | |
+| QA-GATE-05 | Web | | | | | |
+| QA-GATE-06 | Web | | | | | |
 | … | | | | | | |
 
 **§14a adversarial / tenant-isolation (QA-ADV-*).** All rows are **Not-run** (blank) until executed.

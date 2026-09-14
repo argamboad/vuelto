@@ -253,6 +253,9 @@
     private string? _revealedEmail;
     private bool _exporting;
     private string? _exportUrl;
+    // GATES-1 (ADR-027): chooses between the seat-limit copy that offers an upgrade and the one that
+    // just says the household is full. A deployment with billing off has no plan to sell.
+    private bool _billingEnabled;
 
     // Client-side mirror of the RolePermissions matrix (ADR-009). The API is the real gate; this just
     // shows/hides controls so the UI matches what the caller can actually do.
@@ -272,6 +275,7 @@
             return;
         }
         _myUserId = Auth.UserId ?? Guid.Empty;
+        _billingEnabled = await Auth.IsBillingEnabledAsync();
         await Reload();
     }
 
@@ -340,8 +344,10 @@
             }
             else if (resp.StatusCode == System.Net.HttpStatusCode.PaymentRequired)
             {
-                // Seat quota reached (BILLING-5) — prompt to upgrade rather than a generic error.
-                SetStatus(Localizer["Household_ErrSeatLimit"], false);
+                // Seat quota reached (BILLING-5) — prompt to upgrade rather than a generic error, EXCEPT
+                // when billing is off (GATES-1, ADR-027): there is no plan to buy, so pointing at one
+                // sends the owner to a page that does not exist.
+                SetStatus(Localizer[_billingEnabled ? "Household_ErrSeatLimit" : "Household_ErrSeatLimitNoBilling"], false);
             }
             else { SetStatus(Localizer["Household_ErrSendInvite"], false); }
         }

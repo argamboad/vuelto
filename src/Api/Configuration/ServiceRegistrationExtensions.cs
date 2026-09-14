@@ -16,6 +16,8 @@ public static class ServiceRegistrationExtensions
     public static IServiceCollection AddAuthServices(this IServiceCollection services)
     {
         services.AddScoped<IUserService, UserService>();
+        // GATES-2 (ADR-027): decides who may create an account. Scoped — it reads invitations + memberships.
+        services.AddScoped<ISignupGate, SignupGate>();
         services.AddScoped<IJwtTokenService, JwtTokenService>();
         services.AddScoped<IRefreshTokenService, RefreshTokenService>();
         services.AddScoped<ISessionService, SessionService>();

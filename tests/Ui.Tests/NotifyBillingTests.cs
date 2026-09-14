@@ -81,6 +81,7 @@ public class NotifyBillingTests : ComponentTestBase
     public async Task Billing_RendersLocalizedPlanAndStatus_NotRawTokens()
     {
         await SignInAsync();
+        StubFeatures(); // GATES-1: the page leaves immediately when billing is gated off
         Http.On(HttpMethod.Get, "/api/billing", """{"plan_key":"free","status":"active"}""");
 
         var cut = Render<Billing>();
@@ -97,6 +98,7 @@ public class NotifyBillingTests : ComponentTestBase
         // The hosted checkout sends the user back to /billing/success — the same page, with a banner. The webhook
         // that flips the plan lands a moment later, so the page refetches on its own (no manual reload).
         await SignInAsync();
+        StubFeatures(); // GATES-1: the page leaves immediately when billing is gated off
         Http.On(HttpMethod.Get, "/api/billing", """{"plan_key":"free","status":"active"}""");
         Services.GetRequiredService<NavigationManager>().NavigateTo("/billing/success");
 
@@ -104,6 +106,8 @@ public class NotifyBillingTests : ComponentTestBase
         cut.WaitForElement("[data-testid='billing-plan']");
         Assert.Contains("Billing_CheckoutSuccess", cut.Find("[data-testid='billing-checkout-success']").TextContent);
         Assert.Empty(cut.FindAll("[data-testid='billing-checkout-cancel']"));
+
+        StubFeatures(); // GATES-1: the page leaves immediately when billing is gated off
 
         Http.On(HttpMethod.Get, "/api/billing", """{"plan_key":"pro","status":"active"}"""); // the webhook landed
         cut.WaitForAssertion(() => Assert.Equal("Plan_pro", cut.Find("[data-testid='billing-plan']").TextContent.Trim()), TimeSpan.FromSeconds(5));
@@ -115,6 +119,7 @@ public class NotifyBillingTests : ComponentTestBase
         // After a cancellation the entitlement is free but the record is still "canceled" with its period end:
         // that date is when the paid plan ENDED (never "renews"), and there is nothing live to manage.
         await SignInAsync();
+        StubFeatures(); // GATES-1: the page leaves immediately when billing is gated off
         Http.On(HttpMethod.Get, "/api/billing", """{"plan_key":"free","status":"canceled","current_period_end":"2026-10-07T00:00:00+00:00","has_subscription":true}""");
 
         var cut = Render<Billing>();
@@ -124,6 +129,8 @@ public class NotifyBillingTests : ComponentTestBase
         Assert.Empty(cut.FindAll("[data-testid='billing-renews']"));
         Assert.Empty(cut.FindAll("[data-testid='billing-portal']"));
         Assert.NotNull(cut.Find("[data-testid='billing-upgrade']"));
+
+        StubFeatures(); // GATES-1: the page leaves immediately when billing is gated off
 
         Http.On(HttpMethod.Get, "/api/billing", """{"plan_key":"pro","status":"active","current_period_end":"2026-10-07T00:00:00+00:00","has_subscription":true}""");
         var live = Render<Billing>();
@@ -135,6 +142,7 @@ public class NotifyBillingTests : ComponentTestBase
     public async Task Billing_ReturnFromCheckout_Cancel_ShowsTheHonestBanner_AndChangesNothing()
     {
         await SignInAsync();
+        StubFeatures(); // GATES-1: the page leaves immediately when billing is gated off
         Http.On(HttpMethod.Get, "/api/billing", """{"plan_key":"free","status":"active"}""");
         Services.GetRequiredService<NavigationManager>().NavigateTo("/billing/cancel");
 

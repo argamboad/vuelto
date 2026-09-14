@@ -308,21 +308,26 @@ jobs:
           fi
 
           files=$(git diff --name-only "$BASE_SHA" "${{ github.sha }}")
-          match() { printf '%s\n' "$files" | grep -qE "$1" && echo true || echo false; }
+          # A markdown file cannot change what the code does or how it builds, wherever it lives —
+          # but the code/native regexes key on DIRECTORY, so tests/E2E.Tests/README.md once billed a
+          # full run including both native builds. Strip markdown before those two matches only;
+          # docs= still sees everything, so markdown under docs/ keeps counting as docs.
+          codefiles=$(printf '%s\n' "$files" | grep -vE '\.md$' || true)
+          match() { printf '%s\n' "$1" | grep -qE "$2" && echo true || echo false; }
 
           # Anything that can change what the code DOES or how it is built. Lockfiles and the
           # workflow itself are in here on purpose: a change to either can break a build that no
           # source file touched.
-          code=$(match '^(src/|tests/|Directory\.Packages\.props|Directory\.Build\.props|global\.json|Dockerfile|docker-compose\.yml|\.config/dotnet-tools\.json|\.github/(workflows/ci\.yml|scripts/)|.*packages\.lock\.json)')
+          code=$(match "$codefiles" '^(src/|tests/|Directory\.Packages\.props|Directory\.Build\.props|global\.json|Dockerfile|docker-compose\.yml|\.config/dotnet-tools\.json|\.github/(workflows/ci\.yml|scripts/)|.*packages\.lock\.json)')
 
           # Narrower, and unchanged from the old native-paths regex: what the expensive native legs
           # can actually be broken by.
-          native=$(match '^(src/|tests/E2E\.Tests/|tests/native-smoke-android/|Directory\.Packages\.props|\.github/workflows/ci\.yml|global\.json)')
+          native=$(match "$codefiles" '^(src/|tests/E2E\.Tests/|tests/native-smoke-android/|Directory\.Packages\.props|\.github/workflows/ci\.yml|global\.json)')
 
           {
             echo "code=$code"
             echo "native=$native"
-            echo "docs=$(match '^docs/')"
+            echo "docs=$(match "$files" '^docs/')"
           } >> "$GITHUB_OUTPUT"
 
           [ "$code" = "true" ] || echo "::notice::No code touched — build, test, e2e, docker and license gates skipped."
@@ -884,6 +889,9 @@ jobs:
           Auth__RateLimit__PasswordlessPermitLimit: "1000"
           # Staff allowlist for the admin-console E2E journey (ADMIN-3) — must match
           # AnnouncementJourneyTests.StaffEmail.
+          # GATES-1 (ADR-027): billing ships gated OFF, which removes /api/billing from the route table
+          # entirely — the upgrade-loop and seat-quota journeys would 404. Open the gate for the suite.
+          Billing__Enabled: "true"
           Admin__StaffEmails__0: "e2e-staff@example.com"
           # Where server-side redirects send the BROWSER (magic-link verify, OAuth callback → the client).
           # Without this it falls back to the dev default https://localhost:7108, which is NOT running in

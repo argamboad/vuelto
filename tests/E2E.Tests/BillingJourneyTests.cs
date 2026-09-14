@@ -17,18 +17,25 @@ public class BillingJourneyTests : E2ETestBase
 {
     private static readonly LocatorAssertionsToBeVisibleOptions Slow = new() { Timeout = 30_000 };
 
+    // Seat limits mirror src/Core/Billing/PlanCatalog.cs ("EXAMPLE quotas — tune per app"); keep them
+    // in one place here so a downstream re-tune is a one-line change, as SeatQuotaJourneyTests does.
+    private const int FreePlanSeatLimit = 5; // GATES-1 (ADR-027) raised Free 3 → 5
+    private const int ProPlanSeatLimit = 10;
+
     [Test]
     public async Task Owner_Upgrades_Via_Checkout_And_Webhook_Lands_On_Pro()
     {
         var household = await SignInToHouseholdAsync(Page, UniqueEmail("billing-owner"));
         await Expect(household.MemberRows).ToHaveCountAsync(1);
 
-        // Fresh tenant: free plan, 1/3 seats, never subscribed → no portal button.
+        // Fresh tenant: Free plan, one seat used (the owner), never subscribed → no portal button.
         var billing = new BillingPage(Page);
         await billing.GotoAsync();
         // UX-5: the page renders the LOCALIZED plan/status labels (EN culture here), not the raw API tokens.
         await Expect(billing.Plan).ToHaveTextAsync("Free", new() { Timeout = 30_000 });
-        await Expect(billing.Seats).ToContainTextAsync("1 of 3");
+        // Assert the used count and let the LIMIT follow the catalog, rather than pinning a number
+        // that a re-tune silently invalidates (this is exactly what GATES-1's 3 → 5 broke).
+        await Expect(billing.Seats).ToContainTextAsync($"1 of {FreePlanSeatLimit}");
         await Expect(billing.Portal).Not.ToBeVisibleAsync();
 
         // The hosted-checkout domain is external and fake — stub it so the redirect can land.
@@ -49,11 +56,11 @@ public class BillingJourneyTests : E2ETestBase
         // Simulate the provider's "subscription active" callback — the same POST Stripe would make.
         await PostBillingWebhookAsync(tenantId, status: "active");
 
-        // Back on the billing page: the projection made the tenant pro (10 seats, portal available).
+        // Back on the billing page: the projection made the tenant Pro (more seats, portal available).
         await billing.GotoAsync();
         await Expect(billing.Plan).ToHaveTextAsync("Pro", new() { Timeout = 30_000 });
         await Expect(billing.Status).ToHaveTextAsync("Active");
-        await Expect(billing.Seats).ToContainTextAsync("1 of 10");
+        await Expect(billing.Seats).ToContainTextAsync($"1 of {ProPlanSeatLimit}");
         await Expect(billing.Portal).ToBeVisibleAsync();
     }
 

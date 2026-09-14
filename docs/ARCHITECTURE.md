@@ -323,3 +323,7 @@ proxy forwarding → static WASM assets + security headers (config-gated) → HS
 CORS → session → **authentication → authorization → request-log scope → rate limiter** →
 controllers; then health endpoints, `/api/version`, config-gated PUBAPI/HOOKS maps, and the
 SPA fallback (with an explicit `/api/**` 404 guard so unmatched API routes never return the shell).
+Billing is gated one layer earlier and differently: being attribute-routed, it has no `Map…` call to
+skip, so `BillingGateConvention` (GATES-1, ADR-027) removes its controllers from the MVC **application
+model** while `AddControllers` is configured — the routes are never built, so a gated-off deployment
+404s instead of refusing per request.

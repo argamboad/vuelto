@@ -45,7 +45,21 @@ if (builder.Environment.IsDevelopment())
 else
     builder.Logging.AddJsonConsole(o => { o.IncludeScopes = true; o.UseUtcTimestamp = true; });
 
-builder.Services.AddControllers();
+// GATES-1 (ADR-027): billing is config-gated, default OFF, so a deployment can run private and free.
+// Bound HERE (before AddControllers) because the gate is structural — the convention drops the billing
+// controllers out of the application model, so their routes are never built and answer 404 rather than
+// existing and refusing. The provider settings under the same section stay inert while this is off.
+var billingSettings = new BillingSettings();
+builder.Configuration.GetSection(BillingSettings.SectionName).Bind(billingSettings);
+builder.Services.AddSingleton(billingSettings);
+
+builder.Services.AddControllers(o => o.Conventions.Add(new BillingGateConvention(billingSettings)));
+
+// GATES-2 (ADR-027): the signup green list. Empty ⇒ open, which is the right default for a template but
+// also the one posture a typo can produce silently — so the startup log states which one is in effect.
+var signupSettings = new SignupSettings();
+builder.Configuration.GetSection(SignupSettings.SectionName).Bind(signupSettings);
+builder.Services.AddSingleton(signupSettings);
 
 // OpenAPI / Swagger UI. The "Authorize" button takes a JWT access token (get one
 // from POST /api/auth/refresh after signing in) so protected endpoints are testable.
@@ -230,6 +244,17 @@ if (allowedOrigins.Length > 0)
 }
 
 var app = builder.Build();
+
+// Say out loud which pre-launch posture this deployment booted with (GATES-1/2, ADR-027). Both gates are
+// invisible from inside the app when they are wrong: a misspelled Signup__AllowedEmails__0 leaves a
+// "private" deployment wide open, and a forgotten Billing__Enabled leaves a launched app with no way to
+// take money. One line at startup is the cheapest place to notice either.
+app.Logger.LogInformation(
+    "Pre-launch gates: billing {BillingState}; signup {SignupState}.",
+    billingSettings.Enabled ? "ENABLED" : "disabled (no /api/billing routes; every tenant is Free)",
+    signupSettings.IsRestricted
+        ? $"RESTRICTED to {signupSettings.AllowedEmails.Length} address(es) + {signupSettings.AllowedDomains.Length} domain(s), plus their households' invitees"
+        : "open to anyone");
 
 // Apply EF migrations on startup so a freshly-created database (e.g. after a
 // `docker compose down -v && up`) gets its schema with no manual `dotnet ef database update`.

@@ -54,6 +54,15 @@ public abstract class ComponentTestBase : BunitContext
     }
 
     /// <summary>
+    /// Stub the anonymous <c>GET /api/features</c> gate probe (GATES-1, ADR-027). Explicit rather than a
+    /// harness default: a page that reads a gate should have to say which side of it the test is on.
+    /// Unstubbed, the probe 404s and <see cref="AuthService.IsBillingEnabledAsync"/> fails closed to off —
+    /// which is why a billing page test that forgets this finds itself redirected home.
+    /// </summary>
+    protected void StubFeatures(bool billing = true) =>
+        Http.On(HttpMethod.Get, "/api/features", $"{{\"billing\":{billing.ToString().ToLowerInvariant()}}}");
+
+    /// <summary>
     /// Put <see cref="Auth"/> into a signed-in state by driving the actual refresh flow: stub
     /// POST /api/auth/refresh to return an access token carrying the given claims, then InitializeAsync.
     /// Higher fidelity than reflecting the private field — the same code path a cold start uses.

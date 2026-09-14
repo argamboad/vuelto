@@ -122,7 +122,8 @@ Follow **`docs/DEPLOYMENT.md`** top to bottom — it's the runbook. The order an
 ## Phase 8 — Activate production (~10 min, when ready for customers)
 
 Per `DEPLOYMENT.md` §6 / `STATUS.md` §5: create the prod Render service (separate Neon DB;
-**live** Stripe key — the startup guard enforces sanity), add GitHub secret
+a **live** Stripe key *if you are charging* — see the gates below, since the startup guard only
+demands one when billing is switched on), add GitHub secret
 **`RENDER_DEPLOY_HOOK_PROD`**, and create the **`production` environment with a required
 reviewer**. Releases become: PR `develop → main`, merge, click approve.
 
@@ -131,6 +132,28 @@ staging is its terminal environment), so **your** activation is the first real r
 the **RLS two-role setup + posture guard** (`DEPLOYMENT.md` §7) and the **live-Stripe-key startup
 guard**. Both are tested in CI, but budget a smoke check (sign-in + a checkout round-trip) right
 after flipping them on.
+
+### Launch day — the two pre-launch gates (GATES, ADR-027)
+
+Production being *reachable* and the app being *open* are separate decisions, and the platform ships
+both switches closed so you can run a private, free deployment first — friends testing, nothing on
+sale, no stranger signing up off the URL. Neither can be flipped from inside the app; both are read
+at startup, so changing either needs a restart.
+
+| Switch | Shipped default | What "off" means |
+|---|---|---|
+| `Billing__Enabled` | off | `/api/billing` and the provider webhook **do not exist** (404), no billing link in the header, every tenant is on Free, and nothing anywhere offers an upgrade. No Stripe account needed to deploy. |
+| `Signup__AllowedEmails__0…` / `Signup__AllowedDomains__0…` | empty (= open) | Non-empty restricts **account creation** to those addresses, plus anyone invited into a household whose **owner** is listed. Existing accounts always sign in. |
+
+Publishing is therefore three steps, in whichever order suits you:
+
+1. Set `Billing__Enabled=true` — **or leave it off** to publish free. Only with it on does the
+   live-Stripe-key startup guard apply.
+2. Clear the `Signup__Allowed*` entries to open signup to anyone.
+3. Restart the service, then check the startup log line beginning `Pre-launch gates:` — it states the
+   posture it actually booted with, which is the cheapest way to catch a misspelled key.
+
+Run **QA-GATE-01..06** (`QA_TEST_PLAN.md` §14c) before and after the flip.
 
 ## Phase 9 — Native apps (optional, and deliberately last)
 

@@ -55,8 +55,11 @@ public static class PlanCatalog
     {
         // EXAMPLE quotas (BILLING-5): tune these per app, or set null/omit for unlimited. Seats = tenant
         // members + pending invites; usage keys are monthly, enforced where you call TryConsumeAsync.
+        // Free's seat limit is 5, raised from 3 by GATES-1 (ADR-027): three was exactly one household
+        // with zero headroom, and a merely PENDING invitation already consumes a seat — so a private
+        // test could not add a fourth person at all.
         [PlanKeys.Free] = new(PlanKeys.Free, new HashSet<string>(),
-            SeatLimit: 3,
+            SeatLimit: 5,
             UsageLimits: new Dictionary<string, int> { [UsageKeys.Export] = 3 }),
         [PlanKeys.Pro] = new(PlanKeys.Pro, new HashSet<string> { Entitlements.ProFeature },
             SeatLimit: 10,
