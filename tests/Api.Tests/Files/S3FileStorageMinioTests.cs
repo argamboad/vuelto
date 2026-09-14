@@ -15,7 +15,9 @@ namespace Vuelto.Api.Tests.Files;
 public sealed class MinioFixture : IAsyncLifetime
 {
     public const string Bucket = "vuelto-test";
-    private readonly MinioContainer _minio = new MinioBuilder("minio/minio:latest").Build();
+    // MinIO's own registry, pinned: Docker Hub's minio/minio repository disappeared on 2026-09-14 (404), which
+    // broke CI on an image the tests had never changed. A pinned tag can't drift or vanish under us again.
+    private readonly MinioContainer _minio = new MinioBuilder("quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z").Build();
 
     public S3StorageSettings Settings { get; private set; } = default!;
 
