@@ -218,7 +218,6 @@
                         <tr>
                             <th scope="col">@Localizer["Tx_Date"]</th>
                             <th scope="col">@Localizer["Tx_Payee"]</th>
-                            <th scope="col" class="col-md">@Localizer["Refund_CaseNumber"]</th>
                             <th scope="col" class="text-end col-md">%</th>
                             <th scope="col" class="text-end">@Localizer["Tx_Amount"]</th>
                             <th scope="col" class="col-status">@Localizer["Catalog_Status"]</th>
@@ -242,11 +241,10 @@
                                             <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" focusable="false"><path d="M2 1.5h8.5L14 5v9.5H2z" opacity=".3"/><path d="M4 7h8v1.2H4zm0 2.6h8v1.2H4zm0 2.6h5v1.2H4z"/></svg>
                                         </span>
                                     }
-                                    <span class="tx-sub" aria-hidden="true">@r.Percentage.ToString("N0", CultureInfo.CurrentCulture)%@(string.IsNullOrWhiteSpace(r.CaseNumber) ? "" : " · " + r.CaseNumber)</span>
+                                    <span class="tx-sub" aria-hidden="true">@r.Percentage.ToString("N0", CultureInfo.CurrentCulture)%</span>
                                     @* On a phone the status column goes too; the pill sits under the payee. *@
                                     <span class="tx-sub-chip" aria-hidden="true"><span class="status-pill" data-tone="@(r.Status == "received" ? "good" : "warn")">@RefundStatusText(r)</span></span>
                                 </td>
-                                <td class="col-md" data-testid="refund-case">@(string.IsNullOrWhiteSpace(r.CaseNumber) ? "—" : r.CaseNumber)</td>
                                 <td class="text-end col-md">@r.Percentage.ToString("N0", CultureInfo.CurrentCulture)%</td>
                                 <td class="text-end"><Money Crc="r.AmountCrc" Usd="r.AmountUsd" Display="@_display" Size="row" TestId="refund-amount" /></td>
                                 <td class="col-status">
@@ -274,17 +272,13 @@
                             </tr>
                             @if (_editingRefund == r.Id)
                             {
-                                @* LEDGER-4: the claim it is chased under, and why it is expected — the two fields
-                                   the household owns, edited where the refund already is. *@
+                                @* LEDGER-4: why it is expected (case number and all — one field since 2026-09-14), the
+                                   field the household owns, edited where the refund already is. *@
                                 <tr data-testid="refund-edit-row">
-                                    <td colspan="7">
+                                    <td colspan="6">
                                         <div class="refund-edit">
-                                            <div class="refund-edit-field">
-                                                <label class="form-label" for="case-@r.Id">@Localizer["Refund_CaseNumber"]</label>
-                                                <input class="form-control form-control-sm" id="case-@r.Id" data-testid="refund-case-input" maxlength="60" disabled="@_saving" @bind="_editCase" @bind:event="oninput" />
-                                            </div>
                                             <div class="refund-edit-field refund-edit-notes">
-                                                <label class="form-label" for="rnotes-@r.Id">@Localizer["Tx_Notes"]</label>
+                                                <label class="form-label" for="rnotes-@r.Id">@Localizer["Tx_RefundNotes"]</label>
                                                 <input class="form-control form-control-sm" id="rnotes-@r.Id" data-testid="refund-notes-input" maxlength="250" placeholder="@Localizer["Refund_NotesHint"]" disabled="@_saving" @bind="_editNotes" @bind:event="oninput" />
                                             </div>
                                             <div class="refund-edit-buttons">
@@ -382,14 +376,12 @@
 
     /// <summary>LEDGER-3: pending → received books the derived inflow; received → pending removes it. A lost concurrent flip is a 409.</summary>
     private Guid? _editingRefund;
-    private string _editCase = "";
     private string _editNotes = "";
 
     private void OpenRefundEdit(RefundDto r)
     {
         _notice = null; _error = null;
         _editingRefund = r.Id;
-        _editCase = r.CaseNumber ?? "";
         _editNotes = r.Notes ?? "";
     }
 
@@ -400,7 +392,6 @@
         {
             var res = await Http.PutAsJsonAsync($"/api/refunds/{r.Id}/details", new
             {
-                case_number = string.IsNullOrWhiteSpace(_editCase) ? null : _editCase.Trim(),
                 notes = string.IsNullOrWhiteSpace(_editNotes) ? null : _editNotes.Trim(),
             });
             if (res.IsSuccessStatusCode) { _editingRefund = null; _notice = Localizer["Catalog_Updated"]; await LoadAsync(); }
@@ -575,7 +566,6 @@
         [property: JsonPropertyName("status")] string Status,
         [property: JsonPropertyName("received_date")] DateOnly? ReceivedDate = null,
         [property: JsonPropertyName("inflow_month_id")] Guid? InflowMonthId = null,
-        [property: JsonPropertyName("case_number")] string? CaseNumber = null,
         [property: JsonPropertyName("notes")] string? Notes = null);
 
     private sealed record ErrorDto(

@@ -499,7 +499,6 @@
   <data name="Tx_Validation_Refund" xml:space="preserve"><value>Enter a refund percentage between 0 and 100.</value></data>
   <data name="Month_Refunds" xml:space="preserve"><value>Expected refunds</value></data>
   <data name="Month_NoRefunds" xml:space="preserve"><value>No refunds expected this month.</value></data>
-  <data name="Refund_CaseNumber" xml:space="preserve"><value>Case No.</value></data>
   <data name="Refund_NotesHint" xml:space="preserve"><value>Optional — case number, who owes it, when you expect it back</value></data>
   <data name="Refund_Pending" xml:space="preserve"><value>Pending</value></data>
   <data name="Refund_Received" xml:space="preserve"><value>Received</value></data>

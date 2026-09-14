@@ -127,25 +127,22 @@ public record RefundResponse(
     [property: JsonPropertyName("inflow_transaction_id")] Guid? InflowTransactionId,
     [property: JsonPropertyName("received_date")] DateOnly? ReceivedDate = null,
     [property: JsonPropertyName("inflow_month_id")] Guid? InflowMonthId = null,
-    [property: JsonPropertyName("case_number")] string? CaseNumber = null,
     [property: JsonPropertyName("notes")] string? Notes = null)
 {
     /// <param name="inflowMonthId">The month the realized inflow lives in (ADR-V017) — null when pending or unknown to the caller.</param>
     public static RefundResponse From(Refund r, Guid? inflowMonthId = null) =>
-        new(r.Id, r.MonthId, r.TransactionId, r.Payee, r.TransactionDate, r.Percentage, r.AmountCrc, r.AmountUsd, r.Status, r.InflowTransactionId, r.ReceivedDate, inflowMonthId, r.CaseNumber, r.Notes);
+        new(r.Id, r.MonthId, r.TransactionId, r.Payee, r.TransactionDate, r.Percentage, r.AmountCrc, r.AmountUsd, r.Status, r.InflowTransactionId, r.ReceivedDate, inflowMonthId, r.Notes);
 }
 
 /// <summary><c>received_date</c> (only read for <c>received</c>) dates the inflow and picks its month; unset = today (ADR-V017).</summary>
 public record UpdateRefundStatusRequest([property: JsonPropertyName("status")] string? Status, [property: JsonPropertyName("received_date")] DateOnly? ReceivedDate = null);
 
 /// <summary>
-/// LEDGER-4: the two fields the household owns on a refund — the claim/case reference it is being chased under, and
-/// why it is expected. Both are replaced wholesale by what is sent; blank clears. Kept off the status route on
-/// purpose: there, an omitted field would be ambiguous between "leave alone" and "clear".
+/// LEDGER-4: the field the household owns on a refund — why it is expected (case number and all; the separate
+/// <c>case_number</c> was folded into it on 2026-09-14). Replaced wholesale by what is sent; blank clears. Kept off
+/// the status route on purpose: there, an omitted field would be ambiguous between "leave alone" and "clear".
 /// </summary>
-public record UpdateRefundDetailsRequest(
-    [property: JsonPropertyName("case_number")] string? CaseNumber,
-    [property: JsonPropertyName("notes")] string? Notes);
+public record UpdateRefundDetailsRequest([property: JsonPropertyName("notes")] string? Notes);
 
 /// <summary>A month's transaction row with the catalog names resolved — inactive names still render (ADR-V008).</summary>
 public record TransactionListItemResponse(
