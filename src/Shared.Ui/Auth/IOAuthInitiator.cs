@@ -16,7 +16,9 @@ public interface IOAuthInitiator
     /// "Google", "Microsoft") and returns the query parameters the API redirected back
     /// with — <c>code</c> for sign-in, or <c>linked</c>/<c>error</c> for account linking
     /// when <paramref name="linkToken"/> is supplied. Null if the user cancelled or the
-    /// flow timed out.
+    /// flow timed out — or <paramref name="cancellationToken"/> fired: the login page offers
+    /// Cancel while the browser is out, so an abandoned tab no longer holds the app until the
+    /// listener's own timeout (2026-09-14).
     /// </summary>
-    Task<IReadOnlyDictionary<string, string>?> RunBrowserFlowAsync(string provider, string? linkToken = null);
+    Task<IReadOnlyDictionary<string, string>?> RunBrowserFlowAsync(string provider, string? linkToken = null, CancellationToken cancellationToken = default);
 }

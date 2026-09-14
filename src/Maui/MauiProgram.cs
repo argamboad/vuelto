@@ -23,7 +23,15 @@ public static class MauiProgram
 	// the dev localhost base (it would send OTP codes + refresh tokens cleartext to whatever binds
 	// device-localhost). Release compiles in the real base from the $(ApiBaseUrl) build property —
 	// the csproj fails the build if it's unset — surfaced here via AssemblyMetadata.
-	private static string ApiBaseUrl =>
+	// Normalized: no trailing slash. The OAuth initiators build the browser URL by concatenating
+	// "/api/auth/native/login/…" onto this, and a base passed as "https://host/" produced
+	// "https://host//api/…" — which the API serves as the web client's fallback page instead of the
+	// OAuth challenge, so the browser signed the user into the WEB app and the native app never got
+	// its code (2026-09-14, Windows + Android, staging). HttpClient tolerated the slash; the
+	// concatenation did not.
+	private static string ApiBaseUrl => RawApiBaseUrl.TrimEnd('/');
+
+	private static string RawApiBaseUrl =>
 #if DEBUG
 		Environment.GetEnvironmentVariable("VUELTO_API_BASE_URL") is { Length: > 0 } o ? o :
 #if ANDROID

@@ -93,6 +93,7 @@
   <data name="Login_ErrVerificationFailed" xml:space="preserve"><value>Verification failed. Please try again.</value></data>
   <data name="Login_ErrTooManyRequests" xml:space="preserve"><value>Too many requests. Please wait a minute, then try again.</value></data>
   <data name="Login_ErrEnterCode" xml:space="preserve"><value>Enter the code from your email.</value></data>
+  <data name="Login_OAuthWaiting" xml:space="preserve"><value>Finish signing in in your browser, or</value></data>
   <data name="Login_ErrOAuthCancelled" xml:space="preserve"><value>Sign-in was cancelled or didn't complete. Please try again.</value></data>
   <data name="Login_ErrOAuthResumeExpired" xml:space="preserve"><value>Your sign-in took too long to complete. Please try again.</value></data>
   <data name="Common_Loading" xml:space="preserve"><value>Loading…</value></data>

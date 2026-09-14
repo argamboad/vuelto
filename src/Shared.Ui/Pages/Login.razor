@@ -56,6 +56,15 @@
                  via AuthService and stays in the app. -->
             @if (_providers.Contains("google") || _providers.Contains("microsoft"))
             {
+                @* Native, browser out: say so and offer a way back — the Windows loopback wait is five minutes
+                   and an abandoned tab used to hold the app for all of it (2026-09-14). *@
+                @if (_oauthBusy)
+                {
+                    <p class="login-oauth-waiting" data-testid="login-oauth-waiting">
+                        <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>@Localizer["Login_OAuthWaiting"]
+                        <button type="button" class="btn btn-link btn-sm p-0 ms-1" data-testid="login-oauth-cancel" @onclick="CancelOAuth">@Localizer["Common_Cancel"]</button>
+                    </p>
+                }
                 <div class="d-grid gap-2">
                     @if (_providers.Contains("google"))
                     {
@@ -429,14 +438,16 @@
     }
 
     private bool _oauthBusy;
+    private CancellationTokenSource? _oauthCts;
 
     private async Task SignInWithOAuth(string provider)
     {
         _error = null;
         _oauthBusy = true;
+        _oauthCts = new CancellationTokenSource();
         try
         {
-            var result = await Auth.SignInWithOAuthAsync(provider);
+            var result = await Auth.SignInWithOAuthAsync(provider, _oauthCts.Token);
             if (result.Status == SignInStatus.Success)
             {
                 Nav.NavigateTo("/");
@@ -450,10 +461,20 @@
                 _mode = Mode.MfaChallenge;
                 return;
             }
-            _error = Localizer["Login_ErrOAuthCancelled"];
+            // A deliberate Cancel is not an error; only an unexplained return is.
+            if (!_oauthCts.IsCancellationRequested)
+                _error = Localizer["Login_ErrOAuthCancelled"];
         }
-        finally { _oauthBusy = false; }
+        finally
+        {
+            _oauthBusy = false;
+            _oauthCts.Dispose();
+            _oauthCts = null;
+        }
     }
+
+    /// <summary>Stops waiting on the browser: the loopback listener / WebAuthenticator wait returns null and the buttons come back.</summary>
+    private void CancelOAuth() => _oauthCts?.Cancel();
 
     private async Task OnOtpKeyDown(KeyboardEventArgs e)
     {

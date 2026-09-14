@@ -93,6 +93,7 @@
   <data name="Login_ErrVerificationFailed" xml:space="preserve"><value>La verificación falló. Inténtalo de nuevo.</value></data>
   <data name="Login_ErrTooManyRequests" xml:space="preserve"><value>Demasiadas solicitudes. Espera un minuto y vuelve a intentarlo.</value></data>
   <data name="Login_ErrEnterCode" xml:space="preserve"><value>Introduce el código de tu correo.</value></data>
+  <data name="Login_OAuthWaiting" xml:space="preserve"><value>Terminá de iniciar sesión en el navegador, o</value></data>
   <data name="Login_ErrOAuthCancelled" xml:space="preserve"><value>El inicio de sesión se canceló o no se completó. Inténtalo de nuevo.</value></data>
   <data name="Login_ErrOAuthResumeExpired" xml:space="preserve"><value>El inicio de sesión tardó demasiado en completarse. Inténtalo de nuevo.</value></data>
   <data name="Common_Loading" xml:space="preserve"><value>Cargando…</value></data>
