@@ -73,7 +73,7 @@ public class RefundEndpointTests(IntegrationTestFactory factory)
         var client = _factory.CreateClientFor(member);
 
         Assert.Equal(HttpStatusCode.NotFound,
-            (await client.PutAsJsonAsync($"/api/refunds/{Guid.CreateVersion7()}/details", new { case_number = "CASE-1", notes = "x" })).StatusCode);
+            (await client.PutAsJsonAsync($"/api/refunds/{Guid.CreateVersion7()}/details", new { notes = "x" })).StatusCode);
     }
 
     private sealed record NamedDto([property: JsonPropertyName("id")] Guid Id, [property: JsonPropertyName("name")] string Name);

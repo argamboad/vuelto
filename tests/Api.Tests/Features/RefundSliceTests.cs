@@ -67,21 +67,21 @@ public class RefundSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
     private async Task<Refund> TheRefund(Ctx c) => await c.Db.Refunds.SingleAsync();
     private async Task<List<Transaction>> Inflows(Ctx c) => await c.Db.Transactions.Where(t => t.TransactionType == "inflow").ToListAsync();
 
-    // ---- LEDGER-4: the two fields the household owns ----
+    // ---- LEDGER-4: the one field the household owns (the case number went with it on 2026-09-14 — it lives in the notes) ----
 
     [Fact]
     public async Task Details_AreTheHouseholdsOwn_AndSurviveTheTransactionBeingEdited()
     {
-        // LEDGER-4: an insurance claim number and why the money is owed. Everything else on a refund is
-        // derived and rewritten whenever its transaction changes — these two must not be.
+        // LEDGER-4: why the money is owed (claim number and all). Everything else on a refund is
+        // derived and rewritten whenever its transaction changes — this one must not be.
         var c = await ContextAsync();
         var (tx, _) = await c.Transactions.CreateAsync(Unplanned(c, refund: true, pct: 50m), default);
         var refund = await TheRefund(c);
 
-        var (saved, error) = await c.Refunds.SetDetailsAsync(refund.Id, new UpdateRefundDetailsRequest("  CASE-2026-4471 ", "  Lent to Diego  "), default);
+        var (saved, error) = await c.Refunds.SetDetailsAsync(refund.Id, new UpdateRefundDetailsRequest("  CASE-2026-4471, lent to Diego  "), default);
 
         Assert.Null(error);
-        Assert.Equal(("CASE-2026-4471", "Lent to Diego"), (saved!.CaseNumber, saved.Notes)); // trimmed
+        Assert.Equal("CASE-2026-4471, lent to Diego", saved!.Notes); // trimmed
 
         // Re-derive: raise the transaction's amount, which rewrites the refund's money.
         var (updated, txError) = await c.Transactions.UpdateAsync(tx!.Id, Edit(c, amount: 80_000m), default);
@@ -90,7 +90,7 @@ public class RefundSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
 
         var after = await c.Db.Refunds.AsNoTracking().SingleAsync();
         Assert.Equal(40_000m, after.AmountCrc);                                   // the derived half moved
-        Assert.Equal(("CASE-2026-4471", "Lent to Diego"), (after.CaseNumber, after.Notes)); // the household's half did not
+        Assert.Equal("CASE-2026-4471, lent to Diego", after.Notes);               // the household's half did not
         Assert.NotNull(updated);
     }
 
@@ -100,19 +100,16 @@ public class RefundSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
         var c = await ContextAsync();
         await c.Transactions.CreateAsync(Unplanned(c, refund: true, pct: 50m), default);
         var refund = await TheRefund(c);
-        await c.Refunds.SetDetailsAsync(refund.Id, new UpdateRefundDetailsRequest("CASE-1", "note"), default);
+        await c.Refunds.SetDetailsAsync(refund.Id, new UpdateRefundDetailsRequest("note"), default);
 
-        var (cleared, _) = await c.Refunds.SetDetailsAsync(refund.Id, new UpdateRefundDetailsRequest("   ", null), default);
-        Assert.Equal((null, null), (cleared!.CaseNumber, cleared.Notes)); // blank clears, it does not "leave alone"
+        var (cleared, _) = await c.Refunds.SetDetailsAsync(refund.Id, new UpdateRefundDetailsRequest("   "), default);
+        Assert.Null(cleared!.Notes); // blank clears, it does not "leave alone"
 
-        var (_, tooLong) = await c.Refunds.SetDetailsAsync(refund.Id, new UpdateRefundDetailsRequest(new string('x', 61), null), default);
-        Assert.Equal("invalid_request", tooLong!.Error);
-        Assert.Contains("case_number", tooLong.Message);
+        var (_, notesTooLong) = await c.Refunds.SetDetailsAsync(refund.Id, new UpdateRefundDetailsRequest(new string('x', 251)), default);
+        Assert.Equal("invalid_request", notesTooLong!.Error);
+        Assert.Contains("notes", notesTooLong.Message);
 
-        var (_, notesTooLong) = await c.Refunds.SetDetailsAsync(refund.Id, new UpdateRefundDetailsRequest(null, new string('x', 251)), default);
-        Assert.Contains("notes", notesTooLong!.Message);
-
-        var (_, missing) = await c.Refunds.SetDetailsAsync(Guid.CreateVersion7(), new UpdateRefundDetailsRequest("x", null), default);
+        var (_, missing) = await c.Refunds.SetDetailsAsync(Guid.CreateVersion7(), new UpdateRefundDetailsRequest("x"), default);
         Assert.Equal("not_found", missing!.Error); // a foreign or unknown id is the uniform 404
     }
 

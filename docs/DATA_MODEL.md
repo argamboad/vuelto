@@ -196,9 +196,9 @@ An expected refund **derived** from an `unplanned_essential` transaction; only `
 - `payee`, `transaction_date`, `percentage`, `amount_crc`, `amount_usd`
 - `status` — `pending` | `received`
 - `inflow_transaction_id` (FK → Transaction, nullable, set-null) — the realized inflow, present ⇔ `received`
-- `case_number` (≤ 60) and `notes` (≤ 250) — the household's own two fields (LEDGER-4): the claim this refund is
-  chased under, and why it is expected. Everything else here is derived from the transaction and rewritten on
-  every edit; these two are never touched by that
+- `notes` (≤ 250) — the household's own field (LEDGER-4): why this refund is expected, case number and all
+  (a separate `case_number` column was dropped on 2026-09-14, `DropRefundCaseNumber`). Everything else here is
+  derived from the transaction and rewritten on every edit; this one is never touched by that
 - `received_date` (nullable) — the day the money landed, present ⇔ `received`; the inflow is dated with it and lives in **that** day's month, not necessarily the refund's (ADR-V017)
 
 ### MerchantCategoryMapping

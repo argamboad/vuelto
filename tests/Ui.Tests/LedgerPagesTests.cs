@@ -98,32 +98,34 @@ public class LedgerPagesTests : ComponentTestBase
     }
 
     [Fact]
-    public async Task MonthRefunds_ShowTheCaseAndNote_AndTheInlineEditPutsThem()
+    public async Task MonthRefunds_ShowTheNote_AndTheInlineEditPutsIt()
     {
-        // LEDGER-4: the claim it is chased under and why it is expected, edited where the refund already is.
+        // LEDGER-4: why it is expected (claim number and all — one field since 2026-09-14), edited where the refund already is.
         await SignInAsync();
         StubCatalogs();
         Http.On(HttpMethod.Get, $"/api/months/{MonthId}", $$"""{"id":"{{MonthId}}","year":2026,"month_number":7,"week_count":5,"week1_start_date":"2026-06-25","primary_income_amount":3750,"primary_income_currency":"USD","secondary_income_amount":0,"secondary_income_currency":"CRC","weeks":[{"week_number":1,"start_date":"2026-06-25","end_date":"2026-07-01"}]}""");
         Http.On(HttpMethod.Get, $"/api/months/{MonthId}/transactions", "[]");
         Http.On(HttpMethod.Get, $"/api/months/{MonthId}/refunds", $$"""
-            [{"id":"{{RefundId}}","payee":"Clinic","transaction_date":"2026-07-10","percentage":50,"amount_crc":25000,"amount_usd":50,"status":"pending","case_number":"CASE-2026-4471","notes":"Lent to Diego"}]
+            [{"id":"{{RefundId}}","payee":"Clinic","transaction_date":"2026-07-10","percentage":50,"amount_crc":25000,"amount_usd":50,"status":"pending","notes":"CASE-2026-4471, lent to Diego"}]
             """);
-        Http.On(HttpMethod.Put, $"/api/refunds/{RefundId}/details", $$"""{"id":"{{RefundId}}","payee":"Clinic","transaction_date":"2026-07-10","percentage":50,"amount_crc":25000,"amount_usd":50,"status":"pending","case_number":"CASE-9","notes":""}""");
+        Http.On(HttpMethod.Put, $"/api/refunds/{RefundId}/details", $$"""{"id":"{{RefundId}}","payee":"Clinic","transaction_date":"2026-07-10","percentage":50,"amount_crc":25000,"amount_usd":50,"status":"pending","notes":""}""");
 
         Services.GetRequiredService<NavigationManager>().NavigateTo($"http://localhost/months/{MonthId}");
         var cut = Render<MonthDetail>(p => p.Add(x => x.Id, Guid.Parse(MonthId)));
 
-        cut.WaitForAssertion(() => Assert.Equal("CASE-2026-4471", cut.Find("[data-testid='refund-case']").TextContent.Trim()));
-        Assert.Equal("Lent to Diego", cut.Find("[data-testid='refund-note']").GetAttribute("title"));
+        cut.WaitForAssertion(() => Assert.Equal("CASE-2026-4471, lent to Diego", cut.Find("[data-testid='refund-note']").GetAttribute("title")));
+        Assert.Empty(cut.FindAll("[data-testid='refund-case']"));        // no Case No. column: it lives in the notes
+        Assert.DoesNotContain("Refund_CaseNumber", cut.Find("[data-testid='month-refund-table']").TextContent);
 
         cut.Find("[data-testid='refund-edit']").Click();
-        cut.Find("[data-testid='refund-case-input']").Input("CASE-9");
+        Assert.Empty(cut.FindAll("[data-testid='refund-case-input']"));
+        Assert.Contains("Tx_RefundNotes", cut.Find("[data-testid='refund-edit-row']").TextContent); // the same label the transaction form uses
         cut.Find("[data-testid='refund-notes-input']").Input("  ");   // blank clears
         cut.Find("[data-testid='refund-details-save']").Click();
 
         cut.WaitForAssertion(() => Assert.Single(Http.Requests, r => r.Method == HttpMethod.Put && r.RequestUri!.AbsolutePath.EndsWith("/details")));
         var body = await Http.Requests.Single(r => r.Method == HttpMethod.Put && r.RequestUri!.AbsolutePath.EndsWith("/details")).Content!.ReadAsStringAsync();
-        Assert.Contains("\"case_number\":\"CASE-9\"", body);
+        Assert.DoesNotContain("case_number", body);
         Assert.Contains("\"notes\":null", body);
     }
 

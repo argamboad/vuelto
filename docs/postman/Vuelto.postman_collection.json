@@ -3772,7 +3772,7 @@
           ]
         },
         {
-          "name": "Set case number and note",
+          "name": "Set refund notes",
           "request": {
             "method": "PUT",
             "header": [
@@ -3783,7 +3783,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"case_number\": \"CASE-2026-4471\",\n  \"notes\": \"Lent to Diego\"\n}"
+              "raw": "{\n  \"notes\": \"CASE-2026-4471, lent to Diego\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/refunds/{{refundId}}/details",
@@ -3797,7 +3797,7 @@
                 "details"
               ]
             },
-            "description": "200 with the refund (LEDGER-4): the household's own two fields — the claim this refund is chased under and why it is expected. Both are replaced by what is sent and BLANK CLEARS (that is why this is not the status route, where an omitted field would be ambiguous). case_number ≤ 60 and notes ≤ 250 characters, longer is 400. Everything else on a refund is derived from its transaction and rewritten on every edit; these two are not. Unknown or another household's id is 404."
+            "description": "200 with the refund (LEDGER-4): the household's own field — why this refund is expected, case number and all (the separate case_number was folded into notes on 2026-09-14). Replaced by what is sent and BLANK CLEARS (that is why this is not the status route, where an omitted field would be ambiguous). notes ≤ 250 characters, longer is 400. Everything else on a refund is derived from its transaction and rewritten on every edit; this one is not. Unknown or another household's id is 404."
           },
           "event": [
             {
@@ -3805,7 +3805,7 @@
               "script": {
                 "exec": [
                   "pm.test(\"200 or 404 (set refundId first)\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));",
-                  "if (pm.response.code === 200) pm.test(\"carries both fields\", () => { const r = pm.response.json(); pm.expect(r).to.have.property('case_number'); pm.expect(r).to.have.property('notes'); });"
+                  "if (pm.response.code === 200) pm.test(\"carries notes\", () => { const r = pm.response.json(); pm.expect(r).to.have.property('notes'); pm.expect(r).to.not.have.property('case_number'); });"
                 ],
                 "type": "text/javascript"
               }
