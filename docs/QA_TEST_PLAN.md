@@ -2324,11 +2324,16 @@ Then I am signed in within the app (no browser)
 Given the desktop login screen
 When I click Continue with Google and complete consent in the system browser
 Then the browser shows a "you can close this" page and the app completes sign-in
+When instead I close the browser tab without signing in
+Then the app's login screen, which was saying "Finish signing in in your browser, or Cancel", comes back on Cancel — no five-minute wait, no restart, no error
 ```
 **Walkthrough**
-1. Click **Continue with Google**. **Expected:** your **system browser** opens to Google consent.
+1. Click **Continue with Google**. **Expected:** your **system browser** opens to Google consent, and the app's
+   login screen reads "Finish signing in in your browser, or **Cancel**" above the held provider buttons.
 2. Approve. **Expected:** the browser tab shows a "you can close this tab" page; **focus returns to
    the app**, now signed in. (Repeat for **Microsoft**.)
+3. Sign out. **Continue with Google** again, then **close the browser tab**. **Expected:** the app is still
+   waiting; click **Cancel** → the provider buttons are live again immediately, with no error line.
 
 ### QA-DSK-03 — "Remember me" across app restart 🟠 (Desktop)
 **Gherkin**

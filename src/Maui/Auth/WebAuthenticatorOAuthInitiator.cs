@@ -20,18 +20,25 @@ public sealed class WebAuthenticatorOAuthInitiator(
     string callbackScheme,
     ILogger<WebAuthenticatorOAuthInitiator> logger) : IOAuthInitiator
 {
-    public async Task<IReadOnlyDictionary<string, string>?> RunBrowserFlowAsync(string provider, string? linkToken = null)
+    public async Task<IReadOnlyDictionary<string, string>?> RunBrowserFlowAsync(string provider, string? linkToken = null, CancellationToken cancellationToken = default)
     {
         var callbackUrl = $"{callbackScheme}://auth";
-        var loginUrl = $"{apiBaseUrl}/api/auth/native/login/{provider.ToLowerInvariant()}" +
+        var loginUrl = $"{apiBaseUrl.TrimEnd('/')}/api/auth/native/login/{provider.ToLowerInvariant()}" +
                        $"?redirect={Uri.EscapeDataString(callbackUrl)}";
         if (!string.IsNullOrEmpty(linkToken))
             loginUrl += $"&link_token={Uri.EscapeDataString(linkToken)}";
 
         try
         {
-            var result = await WebAuthenticator.Default.AuthenticateAsync(
-                new Uri(loginUrl), new Uri(callbackUrl));
+            // WebAuthenticator has no cancellation of its own; dismissing the browser sheet already returns.
+            // Cancel from the login page stops waiting on it (2026-09-14) — a late callback is then ignored.
+            var authTask = WebAuthenticator.Default.AuthenticateAsync(new Uri(loginUrl), new Uri(callbackUrl));
+            if (await Task.WhenAny(authTask, Task.Delay(System.Threading.Timeout.InfiniteTimeSpan, cancellationToken)) != authTask)
+            {
+                logger.LogInformation("WebAuthenticator flow cancelled by the user");
+                return null;
+            }
+            var result = await authTask;
             // result.Properties is the parsed callback query (code, or linked/error).
             return result.Properties;
         }
