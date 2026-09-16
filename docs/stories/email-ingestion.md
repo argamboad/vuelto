@@ -93,7 +93,10 @@ folders travel as `{id, name}` pairs (the name is captured at pick time so the p
 scanned without a provider round-trip, back-filled once from the provider for rows that predate it, `null`
 when unresolvable — never the id; readers use the id),
 interval 5…1440 minutes, lowering `import_from` pulls the cursor back (backfill) while raising it never
-advances the cursor (that would silently skip un-imported mail). The page sends a picked day as that day's
+advances the cursor (that would silently skip un-imported mail). **Adding a folder** the connection didn't
+scan before also pulls the cursor back to `import_from` (2026-09-16 fix: the cursor is per connection, so a
+folder added after the last poll never yielded its older mail — dedup absorbs the other folders' re-read);
+keeping or dropping folders leaves it alone. The page sends a picked day as that day's
 **local midnight** (`ImportFromDate`, 2026-09-07 fix: midnight UTC read back one day early in Costa Rica).
 Tokens are never returned; another user's id is a uniform 404.
 
@@ -193,7 +196,7 @@ is recoverable). **The tenant hop:** a connection is user-keyed, so `VoucherStag
 owner's *current* household and enters that tenant before staging — the stamping interceptor and RLS then
 scope every draft (ADR-V002/V010). Bank resolved by name (`BAC Credomatic`, `Banco Nacional`) with a
 Cash / Efectivo fallback; a household with no banks gets the defaults seeded in the owner's locale first (a
-concurrent seed is absorbed). Unrecognized mail is skipped. **Cursor rules:** held at the oldest transient
+concurrent seed is absorbed). Unrecognized mail is skipped (logged at Information with sender + subject; every sync logs a fetched / staged / duplicates / unrecognized summary). **Cursor rules:** held at the oldest transient
 failure so it retries next poll (dedup covers the re-fetch), poison mail older than 7 days is dropped and
 never stalls, a saturated page resumes from the newest fetched message minus the overlap, otherwise the
 cursor advances to the poll start; a reconsent result stages nothing and leaves the cursor alone. A failed

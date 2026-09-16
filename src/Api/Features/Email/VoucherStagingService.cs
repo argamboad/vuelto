@@ -72,7 +72,14 @@ public sealed class VoucherStagingService(
                 try
                 {
                     var parsed = parser.Parse(message);
-                    if (parsed is null) { unrecognized++; continue; }
+                    if (parsed is null)
+                    {
+                        // Visible at the default level: a silent skip once hid a whole folder's missing mail.
+                        logger.LogInformation("No voucher extractor for message {MessageId} from {Sender} with subject '{Subject}' (connection {Id}); skipped",
+                            message.MessageId, message.Sender, message.Subject, connection.Id);
+                        unrecognized++;
+                        continue;
+                    }
 
                     var fingerprint = VoucherFingerprint.Compute(parsed, message.MessageId);
                     if (fingerprint is not null && await ingestedVouchers.Query().AnyAsync(i => i.Fingerprint == fingerprint, cancellationToken))
@@ -140,6 +147,8 @@ public sealed class VoucherStagingService(
         connections.Update(connection);
         await connections.SaveChangesAsync(cancellationToken);
 
+        logger.LogInformation("Connection {Id} synced: fetched {Fetched}, staged {Staged}, duplicates {Duplicates}, unrecognized {Unrecognized}; cursor now {Cursor:o}",
+            connection.Id, fetch.Messages.Count, staged, duplicates, unrecognized, connection.LastPolledAt);
         return new StagingResult(staged, duplicates, unrecognized, false);
     }
 

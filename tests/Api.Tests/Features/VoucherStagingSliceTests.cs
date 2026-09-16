@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using Vuelto.Api.Features.Email;
@@ -86,10 +87,19 @@ public class VoucherStagingSliceTests(PostgresFixture fixture) : PostgresTestBas
         return await c.Db.EmailConnections.SingleAsync(x => x.Id == conn.Id);
     }
 
-    private static VoucherStagingService Service(Ctx c, IEmailReader reader, IVoucherParser parser) => new(
+    private static VoucherStagingService Service(Ctx c, IEmailReader reader, IVoucherParser parser, ILogger<VoucherStagingService>? logger = null) => new(
         [reader], parser, new TenantRepository(c.Db), c.Current, new EfRepository<User>(c.Db), new EfRepository<Bank>(c.Db),
         new EfRepository<PendingVoucher>(c.Db), new EfRepository<IngestedVoucher>(c.Db), new EfRepository<EmailConnection>(c.Db),
-        new EfRepository<MerchantCategoryMapping>(c.Db), new FakeTimeProvider(Now), NullLogger<VoucherStagingService>.Instance);
+        new EfRepository<MerchantCategoryMapping>(c.Db), new FakeTimeProvider(Now), logger ?? NullLogger<VoucherStagingService>.Instance);
+
+    private sealed class CapturingLogger : ILogger<VoucherStagingService>
+    {
+        public List<(LogLevel Level, string Message)> Entries { get; } = [];
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+            Entries.Add((logLevel, formatter(state, exception)));
+    }
 
     private static async Task<List<PendingVoucher>> DraftsAsync(Ctx c)
     {
@@ -164,13 +174,19 @@ public class VoucherStagingSliceTests(PostgresFixture fixture) : PostgresTestBas
     }
 
     [Fact]
-    public async Task UnrecognizedMail_IsSkipped_AndTheCursorAdvancesToThePollStart()
+    public async Task UnrecognizedMail_IsSkipped_AndTheCursorAdvancesToThePollStart_AndTheSyncIsSummarizedVisibly()
     {
         var c = await SeedAsync();
         var conn = await ConnectionAsync(c);
-        var result = await Service(c, new FakeReader([Msg("a"), Msg("b")]), new FakeParser(m => m.MessageId == "a" ? Bac() : null)).StageConnectionAsync(conn);
+        var log = new CapturingLogger();
+        var result = await Service(c, new FakeReader([Msg("a"), Msg("b")]), new FakeParser(m => m.MessageId == "a" ? Bac() : null), log).StageConnectionAsync(conn);
 
         Assert.Equal((1, 1), (result.Staged, result.Unrecognized));
+        // A skipped message must be visible at the default log level — a silent skip hid the lost Pagos mail.
+        Assert.Contains(log.Entries, e => e.Level == LogLevel.Information && e.Message.Contains("'Notificación de transacción'") && e.Message.Contains("b"));
+        var summary = Assert.Single(log.Entries, e => e.Level == LogLevel.Information && e.Message.Contains("fetched 2"));
+        Assert.Contains("staged 1", summary.Message);
+        Assert.Contains("unrecognized 1", summary.Message);
         c.Db.ChangeTracker.Clear();
         Assert.Equal(Now, (await c.Db.EmailConnections.SingleAsync(x => x.Id == conn.Id)).LastPolledAt);
     }
