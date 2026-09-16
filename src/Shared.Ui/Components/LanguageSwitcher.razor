@@ -51,11 +51,11 @@
                 var res = await Http.PutAsJsonAsync("/api/auth/locale", new { locale = code });
                 if (!res.IsSuccessStatusCode) { _syncFailed = true; return; }
 
-                // A fresh token carries the language just saved, BEFORE the reload below. MainLayout's
-                // reconcile trusts the locale claim of the token in memory, and the Android app keeps that
-                // token across the reload — so it read the old language, saved it back and reloaded again
-                // (2026-09-16). The web got a new token on every reload and never saw it.
-                await Auth.TryRefreshAsync();
+                // Remembered BEFORE the reload below. MainLayout's reconcile trusts the locale claim of the
+                // token in memory, and the Android app keeps that token across the reload — so it read the
+                // old language, saved it back and reloaded again (2026-09-16). Remembered, not refreshed:
+                // a refresh rotated the web's refresh cookie while the reload was already under way.
+                Auth.RememberLocale(code);
             }
             catch { _syncFailed = true; return; }
         }
