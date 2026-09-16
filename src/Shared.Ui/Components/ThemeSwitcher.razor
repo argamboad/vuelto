@@ -63,6 +63,11 @@
             {
                 var res = await Http.PutAsJsonAsync("/api/auth/theme", new { theme });
                 _syncFailed = !res.IsSuccessStatusCode;
+
+                // A fresh token carries the theme just saved. MainLayout's reconcile trusts the claim of the
+                // token held in memory, and the Android app keeps that token across a WebView reload — so
+                // without this the next reload put the OLD theme back (2026-09-16).
+                if (!_syncFailed) await Auth.TryRefreshAsync();
             }
             catch { _syncFailed = true; }
         }

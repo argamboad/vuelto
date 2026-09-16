@@ -2546,6 +2546,9 @@ Then it walks back through the app's pages and only leaves the app at the root
 **Walkthrough:** as QA-DSK-09: signed out, switch to **Español** (re-renders) → **swipe-close** the
 app → relaunch. **Expected:** still Spanish (OS Preferences bootstrap, NATIVE-5). Signed-in accounts
 reconcile to their server-saved locale — by design.
+**Signed in (2026-09-16):** Settings → Preferences → Language → **Español**. **Expected:** the app reloads
+once, in Spanish, and **stays** Spanish — before the fix it read the old language from the sign-in token,
+saved it back and reloaded again.
 
 ### QA-AND-10 — Data export via the share sheet 🟠 (Android)
 **Walkthrough:** owner → **Household** → **Data** → **Export my data** → **Download**. **Expected:**
@@ -2575,11 +2578,19 @@ Then no control is hidden under the status bar or gesture areas
 bottom-of-screen buttons (Settings danger zone) in both orientations. **Expected:** nothing sits
 under the status bar or the gesture-nav pill; everything tappable. *(Flagged 🔍 by the parity audit —
 if this fails, it becomes a small safe-area fix slice.)*
+**Also, in both themes (2026-09-16):**
+- The **status bar** is the header's indigo with light icons in Light and Dark alike — never the old
+  sage green; on the sign-in screen (and while the app boots) it is the page's ground instead: near-white
+  with dark icons in Light, the dark indigo ground with light icons in Dark.
+- **No empty band** between the status bar and the header.
 
 ### QA-AND-14 — Theme: dark mode survives an app restart 🟢 (Android)
 **Walkthrough:** as QA-DSK-15 on Android — pick **Dark** (hamburger → header controls), force-stop
 the app (or swipe it away) and relaunch. **Expected:** boots dark, no light flash (Android WebView
 localStorage persists). **Auto** follows the system dark theme toggle live.
+**Then (2026-09-16):** signed in, pick **Light** in Settings → Preferences and immediately switch the
+language (which reloads the app). **Expected:** still Light after the reload — and the status bar follows
+each change (QA-AND-13).
 
 ### QA-AND-15 — OAuth sign-in survives process death (NATIVE-12) 🟠 (Android)
 **Gherkin**
@@ -4000,6 +4011,13 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   TTL guard; interrupted links land on Settings' banner). New **QA-AND-15** (on-device kill test;
   renumbered from the branch's QA-AND-14 — that slot went to THEME-1's restart test in the interim).
   Suite 149 → **150** cases.
+- **Updated 2026-09-16** — **Android chrome, ported from JiggerJot's emulator pass.** The same platform
+  shell code showed three defects on a real Android 16 device there: the status bar wore the platform
+  template's sage green, the top inset was applied twice (an empty band under the status bar), and a theme
+  or language picked in the app came undone at the next WebView reload (a stale token claim). All fixed
+  here too — the status bar now follows the page's theme (indigo over the header, the page ground on the
+  sign-in screen). **QA-AND-09**, **QA-AND-13** and **QA-AND-14** carry the new checks. Suite count
+  unchanged.
 - **Updated 2026-09-12** — **The two API additions the redesign needed (app-owned backend, additive).**
   `GET /api/months/resolve` now carries `week_number` — the week of the month's window the date falls in,
   from the stored weeks for an existing month and from the boundaries that would create them for a new
