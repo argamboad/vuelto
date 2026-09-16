@@ -99,6 +99,11 @@ public static class MauiProgram
 		// Theme needs no Preferences bootstrap: it's pure DOM, and theme.js reads the
 		// WebView's own localStorage before first paint (THEME-1).
 		builder.Services.AddSingleton<IThemePersistence, LocalStorageThemePersistence>();
+#if ANDROID
+		// The status and navigation bars are the OS's, not the page's: paint them to match the theme the
+		// page applies (SystemBarThemeSync). Other hosts register none.
+		builder.Services.AddSingleton<ISystemBarTheme, AndroidSystemBarTheme>();
+#endif
 
 		// Signed-URL downloads can't ride a WebView navigation — fetch + OS share sheet instead
 		// (NATIVE-3). Uses the default (Bearer) client registered below: the signed URL itself

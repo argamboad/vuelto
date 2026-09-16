@@ -1,0 +1,61 @@
+@using Microsoft.Extensions.DependencyInjection
+@implements IAsyncDisposable
+@inject IServiceProvider Services
+@inject IJSRuntime JS
+
+@* Renders nothing. Tells a host with OS-drawn system bars (ISystemBarTheme — the Android app) every
+   theme theme.js applies, including "system" following the phone and the first paint, so the status
+   bar matches what sits under it: the header, or the page's ground where there is no header. The web
+   registers no ISystemBarTheme, so nothing is watched there. *@
+
+@code {
+    /// <summary>No header under the status bar (sign-in, the boot state): paint the page's ground.</summary>
+    [Parameter] public bool Ground { get; set; }
+
+    private ISystemBarTheme? _bars;
+    private DotNetObjectReference<SystemBarThemeSync>? _self;
+    private string? _theme;
+    private bool _paintedGround;
+
+    protected override void OnInitialized() => _bars = Services.GetService<ISystemBarTheme>();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Signing in or out swaps what sits under the bar without changing the theme.
+        if (_bars is not null && _theme is not null && Ground != _paintedGround)
+            await PaintAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _bars is null) return;
+
+        _self = DotNetObjectReference.Create(this);
+        // theme.js reports the current theme straight away and every one after it.
+        try { await JS.InvokeVoidAsync("appTheme.watch", _self); }
+        catch { /* JS unavailable — the bars keep the colour the shell started with */ }
+    }
+
+    /// <summary>Called by theme.js with the theme it just applied.</summary>
+    [JSInvokable]
+    public Task OnThemeApplied(string theme)
+    {
+        _theme = theme == "dark" ? "dark" : "light";
+        return PaintAsync();
+    }
+
+    private Task PaintAsync()
+    {
+        if (_bars is null || _theme is null) return Task.CompletedTask;
+        _paintedGround = Ground;
+        return _bars.ApplyAsync(_theme, Ground);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_self is null) return;
+        try { await JS.InvokeVoidAsync("appTheme.unwatch"); }
+        catch { /* the page is going away anyway */ }
+        _self.Dispose();
+    }
+}

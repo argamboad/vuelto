@@ -13,8 +13,17 @@
         return mode === 'system' ? (media.matches ? 'dark' : 'light') : mode;
     }
 
+    // A host with OS-drawn system bars (the Android app) watches every applied theme through
+    // SystemBarThemeSync, so its status bar matches the page. Nobody watches on the web.
+    var watcher = null;
+
     function apply() {
-        document.documentElement.setAttribute('data-bs-theme', resolved());
+        var theme = resolved();
+        document.documentElement.setAttribute('data-bs-theme', theme);
+        if (watcher) {
+            try { watcher.invokeMethodAsync('OnThemeApplied', theme).catch(function () { }); }
+            catch (e) { /* the watcher went away with its page */ }
+        }
     }
 
     // OS scheme changes only matter while following the system.
@@ -27,7 +36,10 @@
             mode = m === 'light' || m === 'dark' ? m : 'system';
             apply();
         },
-        current: function () { return mode; }
+        current: function () { return mode; },
+        // Reports the current theme at once, then every change (a pick, or the OS scheme under "system").
+        watch: function (dotNetRef) { watcher = dotNetRef; apply(); },
+        unwatch: function () { watcher = null; }
     };
 
     try { window.appTheme.set(localStorage.getItem(KEY)); }

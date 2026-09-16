@@ -11,6 +11,10 @@
 @inject IJSRuntime JS
 @inject IStringLocalizer<AppStrings> Localizer
 
+@* Outside every branch: the status bar follows the theme on the sign-in screen too, where there is no
+   header under it and it takes the page's ground instead. *@
+<SystemBarThemeSync Ground="@(!_initialized || !Auth.IsAuthenticated)" />
+
 @if (!_initialized)
 {
     <div class="app-loading">

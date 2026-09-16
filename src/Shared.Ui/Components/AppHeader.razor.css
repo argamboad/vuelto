@@ -4,9 +4,10 @@
        must not be clipped. Stays 60px tall when closed / on wide screens. */
     min-height: var(--header-height, 60px);
     /* Clear the iOS notch/status bar (WKWebView + viewport-fit=cover in the MAUI
-       index.html). Android WebView always resolves env() to 0 — the Android 15+
-       edge-to-edge underlap is fixed natively instead (MainActivity pads the content
-       view by the status-bar inset). Resolves to 0 on web/desktop. */
+       index.html). On Android the shell pads the content view by the status-bar inset
+       itself and hands the WebView insets with the top spent, so this resolves to 0
+       there — older WebViews report 0 anyway, current ones would otherwise add the
+       height a second time (MainActivity, 2026-09-16). Resolves to 0 on web/desktop. */
     padding-top: env(safe-area-inset-top, 0px);
     box-shadow: 0 2px 8px rgba(0, 0, 0, .20);
     position: sticky;
