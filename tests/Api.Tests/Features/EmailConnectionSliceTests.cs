@@ -204,6 +204,36 @@ public class EmailConnectionSliceTests(PostgresFixture fixture) : PostgresTestBa
     }
 
     [Fact]
+    public async Task Update_AddingAFolder_PullsTheCursorBackToImportFrom_KeepingOrDroppingOnesNeverDoes()
+    {
+        var c = await ContextAsync();
+        var importFrom = T0.AddDays(-10);
+        var created = (await c.Handler.CreateAsync(c.UserId, Valid(), default)).Connection!;
+        await c.Handler.UpdateAsync(c.UserId, created.Id, Edit(importFrom: importFrom, folders: [new("id-vouchers", "Inbox/Vouchers")]), default);
+
+        // The poller has moved on: the cursor sits well past ImportFrom.
+        var polled = T0.AddDays(2);
+        var row = await c.Db.EmailConnections.SingleAsync(x => x.Id == created.Id);
+        row.LastPolledAt = polled;
+        await c.Db.SaveChangesAsync(); c.Db.ChangeTracker.Clear();
+
+        // Same folders (any case) or fewer: the cursor stays where the poller left it.
+        var same = (await c.Handler.UpdateAsync(c.UserId, created.Id, Edit(folders: [new("ID-VOUCHERS", "Inbox/Vouchers")]), default)).Connection!;
+        Assert.Equal(polled, same.LastPolledAt);
+
+        // A folder the cursor never covered: pull back to ImportFrom so its older mail is read (dedup absorbs the re-read of the rest).
+        var added = (await c.Handler.UpdateAsync(c.UserId, created.Id, Edit(folders: [new("id-vouchers", "Inbox/Vouchers"), new("id-pagos", "Inbox/Pagos")]), default)).Connection!;
+        Assert.Equal(importFrom, added.LastPolledAt);
+
+        c.Db.ChangeTracker.Clear();
+        var moved = await c.Db.EmailConnections.SingleAsync(x => x.Id == created.Id);
+        moved.LastPolledAt = polled;
+        await c.Db.SaveChangesAsync(); c.Db.ChangeTracker.Clear();
+        var dropped = (await c.Handler.UpdateAsync(c.UserId, created.Id, Edit(folders: [new("id-pagos", "Inbox/Pagos")]), default)).Connection!;
+        Assert.Equal(polled, dropped.LastPolledAt);
+    }
+
+    [Fact]
     public async Task Get_AndDelete_AreUserScoped()
     {
         var c = await ContextAsync();

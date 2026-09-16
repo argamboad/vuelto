@@ -79,6 +79,7 @@ public sealed class EmailConnectionHandler(IRepository<EmailConnection> connecti
             return (null, new ErrorResponse("invalid_interval", $"Polling interval must be between {MinIntervalMinutes} and {MaxIntervalMinutes} minutes."));
 
         var folders = CleanFolders(request.Folders, connection);
+        var addsFolder = folders.Any(f => !connection.Folders.Contains(f.Id, StringComparer.OrdinalIgnoreCase));
         connection.Folders = folders.Select(f => f.Id).ToArray();
         connection.FolderNames = folders.Select(f => f.Name).ToArray();
         connection.SenderFilters = senders;
@@ -93,6 +94,10 @@ public sealed class EmailConnectionHandler(IRepository<EmailConnection> connecti
             if (connection.LastPolledAt is null || fromUtc < connection.LastPolledAt.Value)
                 connection.LastPolledAt = fromUtc; // backfill: pull the cursor back; never push it forward
         }
+        // The cursor is per connection, so a newly added folder would only ever yield mail newer than the last
+        // poll. Pull it back to ImportFrom so the folder's older mail is read; dedup absorbs the other folders' re-read.
+        if (addsFolder && (connection.LastPolledAt is null || connection.ImportFrom < connection.LastPolledAt.Value))
+            connection.LastPolledAt = connection.ImportFrom;
         connection.UpdatedAt = clock.GetUtcNow();
         connections.Update(connection);
         await connections.SaveChangesAsync(cancellationToken);
