@@ -332,7 +332,18 @@ Flow:
 Notes: the PDF is built from the same figures the page reads — tiles, pace, the donuts, month by month, the
 method bars, the category tables — plus a landscape appendix of exactly the CSV export's rows. No rate
 today → income, budget and the plan line are left out and the PDF says so. A range has no month pieces.
-"Email me this report" is REPORTS-8.
+The PDF speaks the language saved in the account settings.
+
+### 17b. Email me this report *(REPORTS-8 · ADR-V022)*
+**Goal:** the month's report in my inbox.
+
+Flow:
+1. The same PDF dialog → **Email me**. `POST /api/reports/pdf/email` renders the same file and queues one email through
+   the outbox to the signed-in address, with the PDF attached and a short branded body (period, household, total
+   spend) in the account's language. The page says where it went.
+
+Notes: only to yourself (no recipient field); at most 10 a day per person (then the dialog says so); nothing is stored —
+the attachment is the copy; a file too large to attach (> 10 MiB) asks to leave the transactions out.
 
 ### 18. Connect a mailbox *(US-026, US-027, US-035, US-037, WU-5 · ADR-V010)*
 **Goal:** let the app read voucher emails — and nothing else — from a member's inbox.

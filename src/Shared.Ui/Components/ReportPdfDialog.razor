@@ -5,11 +5,12 @@
 @inject IFileDownloadLauncher DownloadLauncher
 @inject IStringLocalizer<AppStrings> Localizer
 
-@* REPORTS-7 · the PDF of the report on screen. The API renders it (POST /api/reports/pdf) with the same period, the
-   same "show in" side and chart currency, and this device's language and date; the file comes back as the CSV's
-   signed link and leaves through the same IFileDownloadLauncher (a browser download, or the native share sheet).
-   The only choice offered is whether to add the transactions; everything else follows the screen, and the dialog
-   says so. Bootstrap modal markup rendered by Blazor, like the budget-line dialog (no Bootstrap JS). *@
+@* REPORTS-7/8 · the PDF of the report on screen. The API renders it with the same period, the same "show in" side and
+   chart currency and this device's date, in the language saved in the account (the app sends none; the API reads it).
+   Download (POST /api/reports/pdf) returns the CSV's signed link and leaves through the same IFileDownloadLauncher (a
+   browser download, or the native share sheet); Email me (POST /api/reports/pdf/email) mails the file to the signed-in
+   address. The only choice offered is whether to add the transactions; everything else follows the screen, and the
+   dialog says so. Bootstrap modal markup rendered by Blazor, like the budget-line dialog (no Bootstrap JS). *@
 <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="pdf-dialog-title"
      data-testid="rep-pdf-dialog" @onkeydown="OnKeyDown">
     <div class="modal-dialog modal-dialog-centered">
@@ -35,8 +36,11 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-secondary" data-testid="rep-pdf-cancel" disabled="@_busy" @onclick="Close">@Localizer["Common_Cancel"]</button>
+                <button type="button" class="btn btn-outline-primary" data-testid="rep-pdf-email" disabled="@_busy" @onclick="EmailAsync">
+                    @(_action == "email" ? Localizer["Reports_PdfSending"] : Localizer["Reports_PdfEmail"])
+                </button>
                 <button type="button" class="btn btn-primary" data-testid="rep-pdf-download" disabled="@_busy" @onclick="DownloadAsync">
-                    @(_busy ? Localizer["Reports_Exporting"] : Localizer["Reports_PdfDownload"])
+                    @(_action == "download" ? Localizer["Reports_Exporting"] : Localizer["Reports_PdfDownload"])
                 </button>
             </div>
         </div>
@@ -55,25 +59,30 @@
     /// <summary>The device's date — the pace marker, as on screen.</summary>
     [Parameter] public DateOnly Today { get; set; } = DateOnly.FromDateTime(DateTime.Today);
 
-    /// <summary>Raised with the page notice after the download has been handed to the launcher.</summary>
-    [Parameter] public EventCallback<string> OnDownloaded { get; set; }
+    /// <summary>Raised with the page notice once the file was handed to the launcher, or the email was queued.</summary>
+    [Parameter] public EventCallback<string> OnDone { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
 
     private bool _appendix = true;
-    private bool _busy;
+    private string? _action; // "download" | "email" while a request is out
+    private bool _busy => _action is not null;
     private string? _error;
 
-    /// <summary>The app ships English and Spanish; anything else renders in English, like the API's default.</summary>
-    private static string Language => CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "es" ? "es" : "en";
-
+    /// <summary>
+    /// The language the PDF will speak, as shown: the app's, which the sign-in reconcile keeps equal to the account's
+    /// saved language (the one the API uses). The PDF ships English and Spanish; anything else reads as English.
+    /// </summary>
     private static string LanguageName
     {
         get
         {
-            var culture = CultureInfo.GetCultureInfo(Language);
+            var culture = CultureInfo.GetCultureInfo(CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "es" ? "es" : "en");
             return culture.TextInfo.ToTitleCase(culture.NativeName);
         }
     }
+
+    private PdfRequest Body() => new(Period.MonthId, Period.From?.ToString("yyyy-MM-dd"), Period.To?.ToString("yyyy-MM-dd"),
+        Display, ChartCurrency, _appendix, Today.ToString("yyyy-MM-dd"));
 
     private string AmountsLabel(string side) => side switch
     {
@@ -85,22 +94,43 @@
     private async Task DownloadAsync()
     {
         if (_busy) return;
-        _busy = true; _error = null;
+        _action = "download"; _error = null;
         try
         {
-            var body = new PdfRequest(Period.MonthId, Period.From?.ToString("yyyy-MM-dd"), Period.To?.ToString("yyyy-MM-dd"),
-                Display, ChartCurrency, _appendix, Language, Today.ToString("yyyy-MM-dd"));
-            var res = await Http.PostAsJsonAsync("/api/reports/pdf", body);
+            var res = await Http.PostAsJsonAsync("/api/reports/pdf", Body());
             res.EnsureSuccessStatusCode();
             var file = (await res.Content.ReadFromJsonAsync<PdfResponse>())!;
             await DownloadLauncher.LaunchAsync(new Uri(Http.BaseAddress!, file.DownloadUrl).ToString(), file.FileName);
-            await OnDownloaded.InvokeAsync(Localizer["Reports_PdfReady"].Value);
+            await OnDone.InvokeAsync(Localizer["Reports_PdfReady"].Value);
         }
         catch
         {
             _error = Localizer["Reports_PdfError"].Value;
         }
-        finally { _busy = false; }
+        finally { _action = null; }
+    }
+
+    private async Task EmailAsync()
+    {
+        if (_busy) return;
+        _action = "email"; _error = null;
+        try
+        {
+            var res = await Http.PostAsJsonAsync("/api/reports/pdf/email", Body());
+            if (res.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+            {
+                _error = Localizer["Reports_PdfEmailLimit"].Value;
+                return;
+            }
+            res.EnsureSuccessStatusCode();
+            var sent = (await res.Content.ReadFromJsonAsync<EmailResponse>())!;
+            await OnDone.InvokeAsync(Localizer["Reports_PdfSent", sent.SentTo].Value);
+        }
+        catch
+        {
+            _error = Localizer["Reports_PdfEmailError"].Value;
+        }
+        finally { _action = null; }
     }
 
     private async Task Close()
@@ -120,8 +150,9 @@
         [property: JsonPropertyName("display")] string Display,
         [property: JsonPropertyName("chart_currency")] string ChartCurrency,
         [property: JsonPropertyName("include_appendix")] bool IncludeAppendix,
-        [property: JsonPropertyName("language")] string Language,
         [property: JsonPropertyName("today")] string Today);
+
+    private sealed record EmailResponse([property: JsonPropertyName("sent_to")] string SentTo);
 
     private sealed record PdfResponse(
         [property: JsonPropertyName("download_url")] string DownloadUrl,

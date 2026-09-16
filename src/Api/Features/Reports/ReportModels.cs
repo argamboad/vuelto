@@ -135,6 +135,12 @@ public record ReportPdfRequest(
     [property: JsonPropertyName("language")] string? Language = null,
     [property: JsonPropertyName("today")] DateOnly? Today = null);
 
+/// <summary><c>POST /api/reports/pdf/email</c> (REPORTS-8): 202 — one email queued to <c>sent_to</c>, the caller's own address.</summary>
+public record ReportEmailResponse(
+    [property: JsonPropertyName("sent_to")] string SentTo,
+    [property: JsonPropertyName("file_name")] string FileName,
+    [property: JsonPropertyName("period")] ReportPeriodResponse Period);
+
 /// <summary>The stored PDF behind a signed, time-limited link — the CSV export's delivery (ADR-010), same launcher on web and native.</summary>
 public record ReportPdfResponse(
     [property: JsonPropertyName("download_url")] string DownloadUrl,

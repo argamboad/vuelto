@@ -86,6 +86,11 @@ Strings: new `ReportPdfStrings.resx` (+ `.es`) in Api, alongside `EmailStrings` 
 
 ### REPORTS-8 — Email me this report *(owner request, 2026-09-16)*
 
+**As built (2026-09-16, ADR-V022 amendment):** platform #235 synced inside this commit (no separate PR); the body is
+the platform's generic `BrandedEmail.Notification` (no new platform template); the cap is an app-registered rate-limit
+policy, not the monthly plan quota (which is plan-based and inert); both PDF endpoints now read the language from the
+account settings (owner question) and the app stopped sending it. The original plan text follows.
+
 **As a** household member **I want** the PDF I just configured sent to my own inbox **so that** the month's report is in my mail where I keep things.
 
 **API.** `POST /api/reports/pdf/email` — same body as REPORTS-7; builds the same PDF, queues one outbox email to the **caller's** address with the PDF attached and a short branded body (`BrandedEmail.Report(...)`, EN/ES, period + one-line summary + "attached"), returns **202** with the period and file name. Quota: A9 daily cap → 429 `quota_exceeded` (existing error shape). No file stored (attachment travels in the outbox payload). Postman updated.
@@ -190,10 +195,9 @@ whole work is done and reviewed as one.
 | 3 | `feat(income): income lines (INCOME-1)` — ADR-V023, data migration | Independent of 1–2; the largest commit. |
 | 4 | `feat(income): income by member (INCOME-2)` | Touches reports + the PDF; after 1 and 3. |
 
-**The platform seam is the one exception.** Email attachments on `IEmailSender` live in `perezosoft-platform`,
-so they are their own upstream PR plus the usual `chore/sync-platform-NNN` PR here, and both must be merged
-into `develop` **before** commit 2 is written (the branch rebases onto the synced `develop`). Owner go-ahead
-for that platform PR is still open (§6).
+**No exceptions (owner, 2026-09-16).** The platform's email-attachment seam (merged upstream as
+perezosoft-platform #235) is brought in **inside the REPORTS-8 commit**, the slice that needs it — no separate
+sync PR. Every slice is one commit on this branch; the only PR is the final one.
 
 Each commit: story first (Gherkin, in `docs/stories/`), failing tests, implementation, Postman, localization
 parity, QA-plan rows, docs — and the §4a data-safety rules. The PR checklist names the Neon restore branch and the household snapshot taken before merge, and the post-deploy parity result. No git operations without the owner's go-ahead (C+P+PR).

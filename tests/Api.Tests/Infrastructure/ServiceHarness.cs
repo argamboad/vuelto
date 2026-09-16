@@ -115,7 +115,8 @@ internal sealed class TestJwtSettings : IJwtSettings
 internal sealed class NoopEmailSender : IEmailSender
 {
     public Task SendAsync(string to, string subject, string htmlBody,
-        IReadOnlyList<EmailInlineImage>? inlineImages = null, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        IReadOnlyList<EmailInlineImage>? inlineImages = null, IReadOnlyList<EmailAttachment>? attachments = null,
+        CancellationToken cancellationToken = default) => Task.CompletedTask;
 }
 
 /// <summary>Test double for the export service — used by controller tests that don't exercise export.</summary>

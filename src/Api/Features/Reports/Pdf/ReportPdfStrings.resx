@@ -278,4 +278,10 @@
   <data name="Pdf_FooterOf" xml:space="preserve">
     <value>of</value>
   </data>
+  <data name="Pdf_EmailSubject" xml:space="preserve">
+    <value>Your spending report: {0}</value>
+  </data>
+  <data name="Pdf_EmailBody" xml:space="preserve">
+    <value>Attached is the report for {0} ({1}) of {2}. Total spend: {3}.</value>
+  </data>
 </root>

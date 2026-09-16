@@ -273,7 +273,7 @@ public class TenantInvitationService(
             // Invites go out in the inviter's saved language (the recipient may have no account).
             var inviter = await userService.GetUserByIdAsync(inviterUserId, cancellationToken);
             var emailBody = BrandedEmail.Invitation(joinUrl, rawToken, BrandedEmail.ResolveCulture(inviter?.Locale));
-            await emailSender.SendAsync(email, emailBody.Subject, emailBody.Html, emailBody.InlineImages, cancellationToken);
+            await emailSender.SendAsync(email, emailBody.Subject, emailBody.Html, emailBody.InlineImages, cancellationToken: cancellationToken);
         }
         catch (Exception ex)
         {

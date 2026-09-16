@@ -263,7 +263,7 @@
 @if (_pdfOpen && _pdfPeriod is not null)
 {
     <ReportPdfDialog Period="_pdfPeriod" Display="@_display" ChartCurrency="@_chartCurrency" Today="Today"
-                     OnDownloaded="PdfDownloaded" OnClose="() => _pdfOpen = false" />
+                     OnDone="PdfDone" OnClose="() => _pdfOpen = false" />
 }
 
 @code {
@@ -286,7 +286,7 @@
     private ReportPdfPeriod? _pdfPeriod;
     private bool _pdfOpen;
 
-    private void PdfDownloaded(string notice)
+    private void PdfDone(string notice)
     {
         _pdfOpen = false;
         _notice = notice; _noticeOk = true;

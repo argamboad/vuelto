@@ -631,6 +631,11 @@
   <data name="Reports_PdfDownload" xml:space="preserve"><value>Download</value></data>
   <data name="Reports_PdfReady" xml:space="preserve"><value>PDF ready. Your download has started.</value></data>
   <data name="Reports_PdfError" xml:space="preserve"><value>Couldn't create the PDF. Try again.</value></data>
+  <data name="Reports_PdfEmail" xml:space="preserve"><value>Email me</value></data>
+  <data name="Reports_PdfSending" xml:space="preserve"><value>Sending…</value></data>
+  <data name="Reports_PdfSent" xml:space="preserve"><value>Sent to {0}, with the PDF attached.</value></data>
+  <data name="Reports_PdfEmailLimit" xml:space="preserve"><value>You've emailed yourself today's maximum of reports. Download it instead, or try again tomorrow.</value></data>
+  <data name="Reports_PdfEmailError" xml:space="preserve"><value>Couldn't send the report. Try again, or leave the transactions out.</value></data>
   <data name="Reports_View" xml:space="preserve"><value>View</value></data>
   <data name="Reports_ViewTable" xml:space="preserve"><value>Table</value></data>
   <data name="Reports_ViewChart" xml:space="preserve"><value>Chart</value></data>

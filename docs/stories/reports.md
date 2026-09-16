@@ -271,7 +271,7 @@ Scenario: Spend by card
   reads `₡1.500,00` (the owner's "CRC" fallback was not needed).
 - **API:** `POST /api/reports/pdf` with a JSON body — the period (`month_id` **or** `from` + `to`, the shared rule and
   codes above), `display` (`CRC` | `USD` | `both`, default `both`), `chart_currency` (`CRC` | `USD`, default `CRC`),
-  `include_appendix` (default true), `language` (`en` | `es`, default `en`) and `today` (the device date for the pace
+  `include_appendix` (default true), `language` (`en` | `es`, default: the language saved in the account settings — REPORTS-8) and `today` (the device date for the pace
   marker; default the server's UTC date). An unknown value → 400 `invalid_request`. The PDF is stored through
   `IFileStorage` behind the same 15-minute signed link as the CSV and delivered by `IFileDownloadLauncher`; the response
   is `{ download_url, file_name, period, expires_in_seconds }` (the CSV export's shape without a row count), `file_name` =
@@ -321,4 +321,52 @@ Scenario: Guard rails
   When I ask with both month_id and from/to → 400 period_ambiguous
   When I ask for another household's month → 404
   When I am not signed in → 401
+```
+
+### REPORTS-8 — Email me this report *(owner request, 2026-09-16)*
+
+**As a** household member
+**I want** the PDF I just configured sent to my own inbox
+**So that** the month's report sits in my mail with everything else I keep
+
+**Context / notes:** plan `docs/REPORTS_PDF_INCOME_PLAN.md` (A1–A3, A9); ADR-V022 (amended). Needs the platform's
+attachment seam (JOBS-4, perezosoft-platform #235), synced in this slice.
+- **API:** `POST /api/reports/pdf/email` — the REPORTS-7 body and rules (period, `display`, `chart_currency`,
+  `include_appendix`, `today`; same 400/404 codes). It renders the same PDF and queues **one** email through the
+  outbox to the **caller's own address** — no recipient field, so it can't be pointed at anyone else — with the PDF
+  attached (`report-<from>_<to>.pdf`, `application/pdf`) and a short branded body in the account's language: the
+  period, the household and the total spend. Answers **202** `{ sent_to, file_name, period }`. A file over the
+  10 MiB attachment limit → 400 `report_too_large` (drop the transactions and try again).
+- **Language (both endpoints, owner question):** the PDF and the email follow the **language saved in the account's
+  settings** (`User.Locale`; `es` → Spanish, anything else → English). An explicit `language` in the body still wins
+  (API callers); the app no longer sends one.
+- **Cap (A9):** at most **10 report emails per person per day** (fixed window, per user; 429 past it) so a loop can't
+  drain the free email quota. In-memory — a restart resets the count, which is acceptable for its purpose.
+- **UI:** the PDF dialog gains **Email me** beside Download; success says "Sent to {address}" and closes the dialog;
+  a 429 says the daily limit was reached; any other failure keeps the dialog open with an error.
+
+```gherkin
+Scenario: Email me the month
+  Given I am signed in as ana@example.com with Spanish saved in my settings
+  When I open the PDF dialog on Reports for June and press "Email me"
+  Then POST /api/reports/pdf/email answers 202 { sent_to: "ana@example.com", file_name: "report-2026-05-28_2026-06-24.pdf" }
+  And one email is queued to ana@example.com in Spanish, with that PDF attached, naming the period, the household and the total spend
+  And the page says "Enviado a ana@example.com"
+
+Scenario: The account's language, not the device's
+  Given my settings say Spanish
+  When I call POST /api/reports/pdf without a language
+  Then the PDF is in Spanish
+  When I call it with language "en"
+  Then the PDF is in English
+
+Scenario: The daily cap
+  Given I have emailed myself 10 reports today
+  When I press "Email me" again
+  Then the API answers 429 and the dialog says the daily limit was reached
+
+Scenario: Guard rails
+  When I am not signed in → 401
+  When I name another household's month → 404, and nothing is queued
+  When I send display "EUR" → 400 invalid_request, and nothing is queued
 ```

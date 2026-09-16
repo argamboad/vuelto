@@ -4,7 +4,8 @@
 > atomically with the data change), a background **dispatcher**, an **inbox** for idempotent inbound
 > deliveries (e.g. Stripe webhooks), and a host for **scheduled/recurring** work. **Status: ✅ COMPLETE**
 > — JOBS-1 (outbox + dispatcher + email migration), JOBS-2 (inbox dedup gate), and JOBS-3 (scheduled-
-> jobs host + token-cleanup job) all shipped. Design decision and constraints in **ADR-007** (see its
+> jobs host + token-cleanup job) all shipped; JOBS-4 (file attachments on the email path, 2026-09-16)
+> extends JOBS-1. Design decision and constraints in **ADR-007** (see its
 > 2026-06-25 amendment). Stories use Gherkin acceptance criteria. This epic was the prerequisite for
 > reliable billing webhooks (`docs/stories/billing.md`) — **BILLING is now unblocked.**
 
@@ -171,6 +172,70 @@ boundaries unit/integration-tested; merged, app working.
 
 ---
 
+### JOBS-4 — File attachments on the email outbox path
+
+**Status: ✅ Implemented** (`feat/email-attachments`, 2026-09-16). `EmailAttachment` + its
+`Validate` guard and `MaxTotalBytes` in `src/Core/Abstractions/IEmailSender.cs`; `IEmailSender.SendAsync`
+gains `attachments` (after `inlineImages`, before the token — callers now pass `cancellationToken:` by
+name); `EmailOutboxPayload.Attachments` (nullable, defaulted); `EmailOutboxHandler` forwards them;
+`SmtpEmailSender.BuildMessage` (extracted, internal) adds MIME attachment parts. Tests:
+`tests/Api.Tests/Outbox/OutboxEmailTests.cs`, `tests/Api.Tests/Email/SmtpMessageBuilderTests.cs`,
+`tests/Core.Tests/EmailAttachmentTests.cs`. ADR-007 amendment 2026-09-16.
+
+**As a** downstream app developer
+**I want** to attach a file (e.g. a generated PDF report) to a transactional email
+**So that** users receive the document in their inbox through the same reliable outbox path
+
+**Context / notes:** the bytes ride inside the outbox payload (base64), so the total is capped at
+**10 MiB** (`EmailAttachment.MaxTotalBytes`, Brevo's limit) and checked **before** enqueueing — an
+oversize mail must never sit in the outbox failing until it dead-letters. Payloads written by the
+previous build (no `Attachments` property) must still replay after the deploy.
+
+**Acceptance criteria**
+
+```gherkin
+Scenario: An attachment survives the outbox round trip
+  Given an email with a PDF attachment
+  When it is sent through the app-facing IEmailSender
+  Then the outbox payload carries the attachment's file name, media type and bytes (base64)
+  And the email handler passes the same attachment to the SMTP sender
+
+Scenario: The SMTP message carries the attachment as a real attachment part
+  Given an email with a PDF attachment and the CID logo
+  When the SMTP sender builds the MIME message
+  Then it contains an attachment part named "report.pdf" of type application/pdf with the same bytes
+  And the logo is still an inline linked resource, not an attachment
+
+Scenario: Attachments at the size limit are accepted
+  Given attachments totalling exactly 10 MiB
+  When the email is sent
+  Then it is enqueued
+
+Scenario: Oversize attachments are rejected before anything is queued
+  Given attachments totalling more than 10 MiB
+  When the email is sent
+  Then an ArgumentException names the total and the limit
+  And no outbox message is written
+  And the SMTP sender refuses the same input before connecting
+
+Scenario: A malformed attachment is rejected
+  Given an attachment with a blank file name or a blank media type
+  When the email is sent
+  Then an ArgumentException is thrown and no outbox message is written
+
+Scenario: A message queued before the deploy still sends
+  Given an outbox email payload with no "Attachments" property
+  When the dispatcher handles it
+  Then it deserializes and is sent with no attachments
+```
+
+**Out of scope:** attachments over 10 MiB (would need storage-key references instead of inline bytes);
+per-type allow-lists; virus scanning; any HTTP/API surface (this is an internal seam — no Postman change).
+**Definition of done:** tests first; payload round trip, old-payload compatibility, handler forwarding,
+MIME shape, and the size/format guard covered; existing email callers unchanged in meaning; merged.
+
+---
+
 ## Slice plan (implementation map — when undeferred)
 
 Ordered, each a mergeable vertical slice. TDD throughout.
@@ -190,6 +255,8 @@ Ordered, each a mergeable vertical slice. TDD throughout.
      Consumed by BILLING-3. (Built as a dedup ledger, not a `direction` column — ADR-007 amendment.)
 3. ✅ **Scheduled host (JOBS-3).** — DONE. `ScheduledJobsHost : BackgroundService` + `IScheduledJob`
      (per-job intervals, failure isolation, fresh scope per run); reference `ExpiredTokenCleanupJob`.
+4. ✅ **Email attachments (JOBS-4).** — DONE 2026-09-16. `EmailAttachment` on `IEmailSender`, carried in
+     the outbox payload, 10 MiB total checked before enqueue; old payloads still replay.
 
 **Dissolve interaction (note):** pending outbox rows for a dissolving tenant should be drained or
 cancelled — the BILLING dissolve contributor handles billing-related ones; generic system effects

@@ -56,7 +56,7 @@ The seams that matter (all in `src/Core/Abstractions/` unless noted):
 | Seam | Implemented by | Purpose / ADR |
 |---|---|---|
 | `ICurrentTenant` / `ITenantContext` | one scoped `HttpCurrentTenant` serving both | tenant of the request / trusted system entry — ADR-003, ADR-020 |
-| `IEmailSender` | `OutboxEmailSender` (default) → `SmtpEmailSender` (keyed `"smtp"`) | all email; MailKit never leaks past `Infrastructure/Email/` |
+| `IEmailSender` | `OutboxEmailSender` (default) → `SmtpEmailSender` (keyed `"smtp"`) | all email (HTML + CID inline images + file attachments ≤ 10 MiB total); MailKit never leaks past `Infrastructure/Email/` |
 | `IOutbox` / `IOutboxHandler` / `IInbox` | `EfOutbox` / 4 handlers / `EfInbox` | reliable async effects — ADR-007 |
 | `IScheduledJob` | `ExpiredTokenCleanupJob`, `SubscriptionLapseSweepJob` | recurring jobs, no host edits — ADR-007 |
 | `IBillingProvider` | `StripeBillingProvider` / `FakeBillingProvider` (dev only, fail-closed at startup) | ADR-006 |
@@ -226,7 +226,9 @@ The email pipeline is a decorator chain: app code calls `IEmailSender` → resol
 `OutboxEmailSender` (enqueues `"email"` + flushes) → dispatcher → `EmailOutboxHandler` →
 keyed `IEmailSender("smtp")` = `SmtpEmailSender` (MailKit). The keyed registration is what stops
 the handler from resolving its own decorator. Templates: `BrandedEmail` (localized via explicit
-`CultureInfo`, logo embedded by CID).
+`CultureInfo`, logo embedded by CID). File attachments (`EmailAttachment`, JOBS-4) travel base64
+inside the `"email"` payload; `EmailAttachment.Validate` (10 MiB total, non-blank name + media type)
+runs before the enqueue and again in `SmtpEmailSender`, which adds them as MIME attachment parts.
 
 ## 6. Billing ([ADR-006](DECISIONS.md), [ADR-021](DECISIONS.md))
 

@@ -20,6 +20,18 @@ public static class ReportPdfModelBuilder
 
     public static ReportPdfModel Build(ReportPdfInput input) => new Builder(input).Build();
 
+    /// <summary>
+    /// REPORTS-8: the subject and the one-sentence body of the email that carries the PDF — the heading, the period,
+    /// the household and the total spend exactly as the first tile prints them, in the model's language.
+    /// </summary>
+    public static (string Subject, string Body) EmailText(ReportPdfModel model)
+    {
+        string T(string key) => Strings.GetString("Pdf_" + key, model.Culture) ?? key;
+        var h = model.Header;
+        return (string.Format(model.Culture, T("EmailSubject"), h.Heading),
+            string.Format(model.Culture, T("EmailBody"), h.Heading, h.Period, h.Household, model.Kpis[0].Value));
+    }
+
     private sealed class Builder(ReportPdfInput input)
     {
         private readonly CategoryAnalysisResponse _a = input.Analysis;

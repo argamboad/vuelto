@@ -278,4 +278,10 @@
   <data name="Pdf_FooterOf" xml:space="preserve">
     <value>de</value>
   </data>
+  <data name="Pdf_EmailSubject" xml:space="preserve">
+    <value>Tu informe de gastos: {0}</value>
+  </data>
+  <data name="Pdf_EmailBody" xml:space="preserve">
+    <value>Te adjuntamos el informe de {0} ({1}) de {2}. Gasto total: {3}.</value>
+  </data>
 </root>

@@ -456,6 +456,22 @@ the reference `ExpiredTokenCleanupJob` deletes expired login/refresh tokens hour
 single-instance per the baseline; Hangfire/Quartz remains the documented multi-node swap-in. The JOBS
 epic (outbox, inbox, scheduler) is now done — **BILLING is unblocked.**
 
+*Amendment (2026-09-16) — JOBS-4: file attachments ride the email outbox, capped at 10 MiB.* A
+downstream app needs to email a generated PDF. `IEmailSender.SendAsync` gains
+`IReadOnlyList<EmailAttachment>? attachments = null` (new Core record `EmailAttachment(FileName,
+Content, MediaType)`), placed after `inlineImages` and before the `CancellationToken` — so the token
+must now be passed **by name** (a positional token no longer compiles, which is the point: it can't
+silently rebind). The attachment bytes travel **inside the outbox payload** (base64 in the JSON
+`EmailOutboxPayload.Attachments`) rather than via `IFileStorage` + a key: one-row atomicity is kept,
+and the handler stays storage-free. That is only acceptable because the size is bounded:
+`EmailAttachment.MaxTotalBytes` = 10 MiB (Brevo's limit), checked by `EmailAttachment.Validate`
+**before enqueueing** in `OutboxEmailSender` (an oversize mail would otherwise sit in the outbox failing
+until it dead-letters) and again in `SmtpEmailSender`; a blank file name / media type is refused the
+same way. Violations throw `ArgumentException` (a programming error in the caller, not a delivery
+failure — so not `EmailSendException`). `EmailOutboxPayload.Attachments` is nullable **and defaulted**,
+so payloads enqueued by the previous build still replay. *Revisit* if an app needs attachments past the
+cap: that is the point to switch to storage-key references in the payload.
+
 **ADR-008 — Observability (structured logging + OpenTelemetry + health checks) and a tenant-scoped audit log. Implementation DEFERRED. (2026-06-25)**
 Two complementary concerns shipped as one slice group.
 **(a) Operational observability** — structured (JSON) logging with per-request scopes enriched with
@@ -1742,6 +1758,18 @@ count (QuestPDF reports none without rendering twice); Letter portrait for the r
 appendix (every CSV column); new resx pair `ReportPdfStrings` under the resource-parity gate; the brand lockup is
 linked from `Shared.Ui/wwwroot/brand` so the brand keeps one file. REPORTS-8 mails the same bytes
 (`ReportPdfHandler.RenderAsync`) as an attachment through the platform's `IEmailSender` attachment seam.
+
+*Amendment (2026-09-16, REPORTS-8 as built):* **"Email me"** is `POST /api/reports/pdf/email` — one email, queued through
+the outbox, to the caller's own address (no recipient input), the PDF attached, the body the platform's generic branded
+notification (`BrandedEmail.Notification`, HTML-encoded) naming the period, the household and the total spend; nothing is
+stored. The attachment seam (JOBS-4, platform #235) was synced inside the same commit. **Language, owner question:** both
+PDF endpoints speak the language **saved in the account settings** (`User.Locale`, English when unset or unsupported);
+an explicit `language` still wins for API callers, and the app stopped sending one — so the file follows the setting on
+every client, including a device whose UI hasn't reconciled yet. **Cap (plan A9):** 10 report emails per person per day
+through an app-registered rate-limit policy (`ReportEmailRateLimit`, added with `Configure<RateLimiterOptions>` on top of
+the platform's `AddApiRateLimiters`, which stays untouched; per user, fixed window, in memory — a restart resets it,
+acceptable for guarding the shared email quota against loops). A file over the 10 MiB attachment limit answers 400
+`report_too_large` before anything is queued.
 
 **ADR-027 — Pre-launch gates: billing and account creation are deployment configuration, not runtime switches (GATES-1/2). (2026-09-11)**
 A deployment must be able to run **private and free** before it is published: nothing offers to sell

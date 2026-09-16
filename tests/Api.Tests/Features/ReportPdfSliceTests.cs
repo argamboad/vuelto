@@ -16,6 +16,8 @@ namespace Vuelto.Api.Tests.Features;
 /// (analysis, trend, pending refunds, the CSV's rows), renders a real PDF — its text read back with PdfPig — and stores
 /// it behind the CSV's signed link. Covers the option parsing, the household name, the appendix switch and its
 /// parity with the export, the "no rate" month, a range, tenant isolation, and a payee Nunito cannot draw.
+/// REPORTS-8: the language comes from the account's settings unless the request names one, and "Email me" queues one
+/// email to the caller with the same PDF attached.
 /// </summary>
 [Collection(PostgresCollection.Name)]
 public class ReportPdfSliceTests(PostgresFixture fixture) : PostgresTestBase(fixture)
@@ -43,20 +45,38 @@ public class ReportPdfSliceTests(PostgresFixture fixture) : PostgresTestBase(fix
         }
     }
 
+    /// <summary>Records what would be sent, and applies the platform's attachment guard like the real sender.</summary>
+    private sealed class CapturingEmailSender : IEmailSender
+    {
+        public readonly List<(string To, string Subject, string Html, IReadOnlyList<EmailAttachment> Attachments)> Sent = [];
+        public bool Reject;
+
+        public Task SendAsync(string to, string subject, string htmlBody, IReadOnlyList<EmailInlineImage>? inlineImages = null,
+            IReadOnlyList<EmailAttachment>? attachments = null, CancellationToken cancellationToken = default)
+        {
+            if (Reject) throw new ArgumentException("Attachments total more than the limit.", nameof(attachments));
+            EmailAttachment.Validate(attachments);
+            Sent.Add((to, subject, htmlBody, attachments ?? []));
+            return Task.CompletedTask;
+        }
+    }
+
     private sealed class FixedRate(decimal? rate) : IExchangeRateResolver
     {
         public Task<ResolvedRate?> ResolveAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(rate is { } r ? new ResolvedRate(r, RateSources.Cache, T0) : null);
     }
 
-    private sealed record Ctx(AppDbContext Db, Guid Tenant, ReportHandler Reports, ReportPdfHandler Pdf, CapturingFileStorage Files, Guid MonthId, Guid Groceries, Guid Bac);
+    private sealed record Ctx(AppDbContext Db, Guid Tenant, Guid UserId, ReportHandler Reports, ReportPdfHandler Pdf, CapturingFileStorage Files, CapturingEmailSender Email, Guid MonthId, Guid Groceries, Guid Bac);
 
-    private async Task<Ctx> SeedAsync(decimal? rate = 500m, string household = "Casa Prueba")
+    private async Task<Ctx> SeedAsync(decimal? rate = 500m, string household = "Casa Prueba", string? locale = null)
     {
         var tenant = Guid.CreateVersion7();
         var db = Fixture.CreateContext(tenant);
 
         db.Add(new Tenant { Id = tenant, Name = household, CreatedAt = T0, UpdatedAt = T0 });
+        var user = new User { Email = $"ana-{tenant:N}@example.com", DisplayName = "Ana", EmailVerified = true, Locale = locale, CreatedAt = T0, UpdatedAt = T0 };
+        db.Add(user);
         var groceries = new Category { TenantId = tenant, Name = "Groceries", CreatedAt = T0, UpdatedAt = T0 };
         var bac = new Bank { TenantId = tenant, Name = "BAC", CreatedAt = T0, UpdatedAt = T0 };
         var month = new Month
@@ -80,9 +100,10 @@ public class ReportPdfSliceTests(PostgresFixture fixture) : PostgresTestBase(fix
             new EfRepository<Month>(db), new EfRepository<Week>(db), new EfRepository<Transaction>(db), new EfRepository<Category>(db),
             new EfRepository<Bank>(db), new EfRepository<Card>(db), new EfRepository<FixedExpense>(db), new EfRepository<VariableExpense>(db),
             files, new FixedRate(rate), clock);
+        var email = new CapturingEmailSender();
         var pdf = new ReportPdfHandler(reports, new EfRepository<Month>(db), new EfRepository<Refund>(db),
-            new TenantRepository(db), new TestCurrentTenant { TenantId = tenant }, files, clock);
-        return new Ctx(db, tenant, reports, pdf, files, month.Id, groceries.Id, bac.Id);
+            new TenantRepository(db), new UserRepository(db), new TestCurrentTenant { TenantId = tenant }, files, email, clock);
+        return new Ctx(db, tenant, user.Id, reports, pdf, files, email, month.Id, groceries.Id, bac.Id);
     }
 
     private static async Task<Transaction> AddTxAsync(Ctx c, DateOnly date, decimal crc, string payee, string type = "budgeted", DateTimeOffset? created = null)
@@ -117,12 +138,25 @@ public class ReportPdfSliceTests(PostgresFixture fixture) : PostgresTestBase(fix
     public async Task ParseOptions_Defaults_AndTheTodayFromTheClock()
     {
         var c = await SeedAsync();
-        var (options, error) = c.Pdf.ParseOptions(new ReportPdfRequest());
+        var (options, error) = await c.Pdf.ParseOptionsAsync(new ReportPdfRequest(), c.UserId, default);
         Assert.Null(error);
         Assert.Equal(new ReportPdfOptions("both", "CRC", true, "en", new DateOnly(2026, 6, 15)), options);
 
-        var (custom, _) = c.Pdf.ParseOptions(new ReportPdfRequest(Display: "usd", ChartCurrency: "Usd", IncludeAppendix: false, Language: "ES", Today: new DateOnly(2026, 6, 1)));
+        var (custom, _) = await c.Pdf.ParseOptionsAsync(new ReportPdfRequest(Display: "usd", ChartCurrency: "Usd", IncludeAppendix: false, Language: "ES", Today: new DateOnly(2026, 6, 1)), c.UserId, default);
         Assert.Equal(new ReportPdfOptions("USD", "USD", false, "es", new DateOnly(2026, 6, 1)), custom);
+    }
+
+    [Theory]
+    [InlineData("es", null, "es")]  // the account's saved language
+    [InlineData("ES", null, "es")]
+    [InlineData("fr", null, "en")]  // a language the PDF does not ship: English
+    [InlineData(null, null, "en")]  // never chosen: English
+    [InlineData("es", "en", "en")]  // an explicit request wins (API callers)
+    public async Task ParseOptions_Language_FollowsTheAccountSettings(string? locale, string? requested, string expected)
+    {
+        var c = await SeedAsync(locale: locale);
+        var (options, _) = await c.Pdf.ParseOptionsAsync(new ReportPdfRequest(Language: requested), c.UserId, default);
+        Assert.Equal(expected, options!.Language);
     }
 
     [Theory]
@@ -133,7 +167,7 @@ public class ReportPdfSliceTests(PostgresFixture fixture) : PostgresTestBase(fix
     public async Task ParseOptions_RejectsUnknownValues(string? display, string? chart, string? language)
     {
         var c = await SeedAsync();
-        var (options, error) = c.Pdf.ParseOptions(new ReportPdfRequest(Display: display, ChartCurrency: chart, Language: language));
+        var (options, error) = await c.Pdf.ParseOptionsAsync(new ReportPdfRequest(Display: display, ChartCurrency: chart, Language: language), c.UserId, default);
         Assert.Null(options);
         Assert.Equal("invalid_request", error!.Error);
     }
@@ -292,5 +326,70 @@ public class ReportPdfSliceTests(PostgresFixture fixture) : PostgresTestBase(fix
         var report = await c.Pdf.RenderAsync(await JuneAsync(c), Options(), default);
 
         Assert.Contains("Pizza", string.Join(" ", PagesText(report.Content)));
+    }
+
+    // ---- REPORTS-8: email me ----
+
+    [Fact]
+    public async Task Email_QueuesOneMailToTheCaller_WithThePdfAttached_InTheAccountsLanguage()
+    {
+        var c = await SeedAsync(locale: "es");
+        await AddTxAsync(c, new DateOnly(2026, 6, 10), 5_000m, "Super MAS");
+        var (options, _) = await c.Pdf.ParseOptionsAsync(new ReportPdfRequest(), c.UserId, default);
+
+        var result = await c.Pdf.EmailAsync(await JuneAsync(c), options!, c.UserId, default);
+
+        var sent = Assert.Single(c.Email.Sent);
+        Assert.Equal($"ana-{c.Tenant:N}@example.com", sent.To);
+        Assert.Null(result.Error);
+        Assert.Equal(sent.To, result.Response!.SentTo);
+        Assert.Equal("report-2026-05-28_2026-06-24.pdf", result.Response.FileName);
+        Assert.Equal("Tu informe de gastos: Junio 2026", sent.Subject);
+        Assert.Contains("Casa Prueba", sent.Html);
+        Assert.Contains("₡5.000,00", sent.Html);
+
+        var file = Assert.Single(sent.Attachments);
+        Assert.Equal(("report-2026-05-28_2026-06-24.pdf", "application/pdf"), (file.FileName, file.MediaType));
+        Assert.Contains("Informe de gastos", string.Join(" ", PagesText(file.Content)));
+        Assert.Empty(c.Files.Stored); // nothing kept in storage: the attachment is the copy
+    }
+
+    [Fact]
+    public async Task Email_InEnglish_WhenTheAccountSaysSo()
+    {
+        var c = await SeedAsync(locale: "en");
+        await AddTxAsync(c, new DateOnly(2026, 6, 10), 5_000m, "Super MAS");
+        var (options, _) = await c.Pdf.ParseOptionsAsync(new ReportPdfRequest(), c.UserId, default);
+
+        await c.Pdf.EmailAsync(await JuneAsync(c), options!, c.UserId, default);
+
+        var sent = Assert.Single(c.Email.Sent);
+        Assert.Equal("Your spending report: June 2026", sent.Subject);
+        Assert.Contains("₡5,000.00", sent.Html);
+    }
+
+    [Fact]
+    public async Task Email_ForAnUnknownCaller_SendsNothing()
+    {
+        var c = await SeedAsync();
+        var (options, _) = await c.Pdf.ParseOptionsAsync(new ReportPdfRequest(), c.UserId, default);
+
+        var result = await c.Pdf.EmailAsync(await JuneAsync(c), options!, Guid.CreateVersion7(), default);
+
+        Assert.True(result.UnknownUser);
+        Assert.Empty(c.Email.Sent);
+    }
+
+    [Fact]
+    public async Task Email_WhenTheFileIsTooLargeToAttach_SaysSo()
+    {
+        var c = await SeedAsync();
+        c.Email.Reject = true;
+        var (options, _) = await c.Pdf.ParseOptionsAsync(new ReportPdfRequest(), c.UserId, default);
+
+        var result = await c.Pdf.EmailAsync(await JuneAsync(c), options!, c.UserId, default);
+
+        Assert.Equal("report_too_large", result.Error!.Error);
+        Assert.Null(result.Response);
     }
 }

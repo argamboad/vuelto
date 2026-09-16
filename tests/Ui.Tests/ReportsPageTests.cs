@@ -472,7 +472,7 @@ public class ReportsPageTests : ComponentTestBase
         Assert.Equal("both", body.GetProperty("display").GetString());
         Assert.Equal("CRC", body.GetProperty("chart_currency").GetString());
         Assert.False(body.GetProperty("include_appendix").GetBoolean());
-        Assert.Equal("en", body.GetProperty("language").GetString());
+        Assert.False(body.TryGetProperty("language", out _)); // the API reads the language saved in the account
         Assert.Equal("2026-07-15", body.GetProperty("today").GetString());
         Assert.Equal(("http://localhost/api/files/tok-pdf", "report-2026-06-25_2026-07-29.pdf"), Assert.Single(Downloads.Launched));
         Assert.Empty(cut.FindAll("[data-testid='rep-pdf-dialog']"));
@@ -522,6 +522,61 @@ public class ReportsPageTests : ComponentTestBase
         cut.Find("[data-testid='rep-pdf-cancel']").Click();
         Assert.Empty(cut.FindAll("[data-testid='rep-pdf-dialog']"));
         Assert.Empty(cut.FindAll("[data-testid='rep-notice']"));
+    }
+
+    // ---------------------------------------------------------------- REPORTS-8: email me
+
+    [Fact]
+    public async Task EmailMe_SendsTheSameChoices_AndSaysWhereItWent()
+    {
+        await SignInAsync();
+        Http.On(HttpMethod.Post, "/api/reports/pdf/email",
+            """{"sent_to":"ana@example.com","file_name":"report-2026-06-25_2026-07-29.pdf","period":{"from":"2026-06-25","to":"2026-07-29"}}""",
+            HttpStatusCode.Accepted);
+        var cut = RenderMonth(today: new DateOnly(2026, 7, 15));
+
+        cut.Find("[data-testid='rep-pdf']").Click();
+        cut.Find("[data-testid='rep-pdf-appendix']").Change(false);
+        cut.Find("[data-testid='rep-pdf-email']").Click();
+
+        cut.WaitForElement("[data-testid='rep-notice']");
+        var body = await PdfBodyAsync(Assert.Single(Http.Requests, r => r.Method == HttpMethod.Post && r.RequestUri!.AbsolutePath == "/api/reports/pdf/email"));
+        Assert.Equal(M2, body.GetProperty("month_id").GetString());
+        Assert.False(body.GetProperty("include_appendix").GetBoolean());
+        Assert.Equal("2026-07-15", body.GetProperty("today").GetString());
+        Assert.False(body.TryGetProperty("language", out _));
+        Assert.Empty(Downloads.Launched); // nothing downloads: it went to the inbox
+        Assert.Empty(cut.FindAll("[data-testid='rep-pdf-dialog']"));
+        Assert.Contains("Reports_PdfSent[ana@example.com]", cut.Find("[data-testid='rep-notice']").TextContent);
+    }
+
+    [Fact]
+    public async Task EmailMe_PastTheDailyCap_SaysSo_AndKeepsTheDialog()
+    {
+        await SignInAsync();
+        Http.On(HttpMethod.Post, "/api/reports/pdf/email", "", HttpStatusCode.TooManyRequests);
+        var cut = RenderMonth();
+
+        cut.Find("[data-testid='rep-pdf']").Click();
+        cut.Find("[data-testid='rep-pdf-email']").Click();
+
+        cut.WaitForElement("[data-testid='rep-pdf-error']");
+        Assert.Contains("Reports_PdfEmailLimit", cut.Find("[data-testid='rep-pdf-error']").TextContent);
+        Assert.NotEmpty(cut.FindAll("[data-testid='rep-pdf-dialog']"));
+    }
+
+    [Fact]
+    public async Task EmailMe_Failure_KeepsTheDialog_WithTheError()
+    {
+        await SignInAsync();
+        Http.On(HttpMethod.Post, "/api/reports/pdf/email", """{"error":"report_too_large","message":"x"}""", HttpStatusCode.BadRequest);
+        var cut = RenderMonth();
+
+        cut.Find("[data-testid='rep-pdf']").Click();
+        cut.Find("[data-testid='rep-pdf-email']").Click();
+
+        cut.WaitForElement("[data-testid='rep-pdf-error']");
+        Assert.Contains("Reports_PdfEmailError", cut.Find("[data-testid='rep-pdf-error']").TextContent);
     }
 
     [Fact]
