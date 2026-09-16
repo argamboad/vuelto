@@ -53,6 +53,13 @@
 
 **Step 0 — spike (the first step of commit 1, timeboxed to a session; its findings fold into that commit).** Exit criteria: (a) QuestPDF renders a one-page document inside the compose API container (the Render image); note any `apt` package needed in the Dockerfile; (b) whether the embedded font (Nunito) carries ₡ (U+20A1) — if yes, money reads `₡1.500,00`; if not, the whole PDF writes `CRC 1.500,00` (D8); (c) an SVG string from the new Core donut builder renders in QuestPDF. Findings go into ADR-V022.
 
+**As built (2026-09-16, recorded in ADR-V022):** the spike passed with no extra system package; Nunito carries ₡, so
+D8's CRC fallback was not needed; the chart builders live in the API's PDF folder (`PdfCharts`) rather than Core,
+because the UI library references neither the API nor Core and sharing ~150 lines of geometry was not worth adding
+that link; the response has no `page_count` (QuestPDF reports none without rendering twice); the appendix is on
+landscape pages so it can carry every CSV column; the header uses the light brand lockup linked from
+`Shared.Ui/wwwroot/brand`. The original plan text follows.
+
 **Charts — one geometry, two renderers.** New pure builders in `src/Core/Charts/` (`DonutSvg`, `BarSvg`, `LineSvg`) that take the existing models (`DonutSlice`, `BarItem`, `LinePoint` move to Core) plus a **palette** (label → color string) and return the SVG markup. The Razor components become thin wrappers that pass the Bootstrap-token palette and keep every `data-testid` the Ui tests assert. The PDF passes a **print palette** of literal brand hex values and a font family name. Rule: no `var(` may appear in a PDF SVG (asserted).
 
 **API.** `POST /api/reports/pdf` under the existing `/api/reports` feature group. Body: period (`month_id` **or** `from`/`to`), `display` (`crc|usd|both`), `chart_currency`, `include_appendix`. Response mirrors `TransactionExportResponse`: `download_url`, `file_name` (`report-<period>.pdf`), `page_count`, `period`, `expires_in_seconds`. Errors reuse the analysis endpoint's (`rate_unavailable` sections degrade exactly as on screen: no rate → no income donuts / plan line, and the PDF says so). Postman collection updated in the same PR (parity gate).

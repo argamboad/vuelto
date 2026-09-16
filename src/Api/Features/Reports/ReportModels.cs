@@ -118,3 +118,26 @@ public record TransactionExportResponse(
     [property: JsonPropertyName("row_count")] int RowCount,
     [property: JsonPropertyName("period")] ReportPeriodResponse Period,
     [property: JsonPropertyName("expires_in_seconds")] int ExpiresInSeconds);
+
+/// <summary>
+/// <c>POST /api/reports/pdf</c> (REPORTS-7): the period (<c>month_id</c> or <c>from</c>+<c>to</c>, the shared rule) and how
+/// to show it — <c>display</c> CRC | USD | both (default both), <c>chart_currency</c> CRC | USD (default CRC),
+/// <c>include_appendix</c> (default true), <c>language</c> en | es (default en), and <c>today</c>, the device's date for
+/// the pace marker (default the server's UTC date).
+/// </summary>
+public record ReportPdfRequest(
+    [property: JsonPropertyName("month_id")] Guid? MonthId = null,
+    [property: JsonPropertyName("from")] string? From = null,
+    [property: JsonPropertyName("to")] string? To = null,
+    [property: JsonPropertyName("display")] string? Display = null,
+    [property: JsonPropertyName("chart_currency")] string? ChartCurrency = null,
+    [property: JsonPropertyName("include_appendix")] bool? IncludeAppendix = null,
+    [property: JsonPropertyName("language")] string? Language = null,
+    [property: JsonPropertyName("today")] DateOnly? Today = null);
+
+/// <summary>The stored PDF behind a signed, time-limited link — the CSV export's delivery (ADR-010), same launcher on web and native.</summary>
+public record ReportPdfResponse(
+    [property: JsonPropertyName("download_url")] string DownloadUrl,
+    [property: JsonPropertyName("file_name")] string FileName,
+    [property: JsonPropertyName("period")] ReportPeriodResponse Period,
+    [property: JsonPropertyName("expires_in_seconds")] int ExpiresInSeconds);

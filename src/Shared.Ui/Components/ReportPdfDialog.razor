@@ -1,0 +1,129 @@
+@using System.Globalization
+@using System.Net.Http.Json
+@using System.Text.Json.Serialization
+@inject HttpClient Http
+@inject IFileDownloadLauncher DownloadLauncher
+@inject IStringLocalizer<AppStrings> Localizer
+
+@* REPORTS-7 · the PDF of the report on screen. The API renders it (POST /api/reports/pdf) with the same period, the
+   same "show in" side and chart currency, and this device's language and date; the file comes back as the CSV's
+   signed link and leaves through the same IFileDownloadLauncher (a browser download, or the native share sheet).
+   The only choice offered is whether to add the transactions; everything else follows the screen, and the dialog
+   says so. Bootstrap modal markup rendered by Blazor, like the budget-line dialog (no Bootstrap JS). *@
+<div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="pdf-dialog-title"
+     data-testid="rep-pdf-dialog" @onkeydown="OnKeyDown">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title fs-5" id="pdf-dialog-title">@Localizer["Reports_PdfTitle"]</h2>
+                <button type="button" class="btn-close" aria-label="@Localizer["Common_Cancel"]" disabled="@_busy" @onclick="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="pdf-appendix" data-testid="rep-pdf-appendix" disabled="@_busy" @bind="_appendix" />
+                    <label class="form-check-label" for="pdf-appendix">@Localizer["Reports_PdfAppendix"]</label>
+                </div>
+                <ul class="list-unstyled small text-muted mb-0" data-testid="rep-pdf-summary">
+                    <li>@Localizer["Reports_PdfAmounts", AmountsLabel(Display)]</li>
+                    <li>@Localizer["Reports_PdfCharts", AmountsLabel(ChartCurrency)]</li>
+                    <li>@Localizer["Reports_PdfLanguage", LanguageName]</li>
+                </ul>
+                @if (_error is not null)
+                {
+                    <div class="alert alert-danger py-2 mt-3 mb-0" data-testid="rep-pdf-error">@_error</div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-testid="rep-pdf-cancel" disabled="@_busy" @onclick="Close">@Localizer["Common_Cancel"]</button>
+                <button type="button" class="btn btn-primary" data-testid="rep-pdf-download" disabled="@_busy" @onclick="DownloadAsync">
+                    @(_busy ? Localizer["Reports_Exporting"] : Localizer["Reports_PdfDownload"])
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="modal-backdrop fade show" @onclick="Close"></div>
+
+@code {
+    /// <summary>The period on screen: a month, or an inclusive range.</summary>
+    [Parameter, EditorRequired] public ReportPdfPeriod Period { get; set; } = default!;
+
+    /// <summary>The tables' "show in" (CRC | USD | both) and the one currency the charts draw.</summary>
+    [Parameter] public string Display { get; set; } = MoneyDisplay.Both;
+    [Parameter] public string ChartCurrency { get; set; } = MoneyDisplay.Crc;
+
+    /// <summary>The device's date — the pace marker, as on screen.</summary>
+    [Parameter] public DateOnly Today { get; set; } = DateOnly.FromDateTime(DateTime.Today);
+
+    /// <summary>Raised with the page notice after the download has been handed to the launcher.</summary>
+    [Parameter] public EventCallback<string> OnDownloaded { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private bool _appendix = true;
+    private bool _busy;
+    private string? _error;
+
+    /// <summary>The app ships English and Spanish; anything else renders in English, like the API's default.</summary>
+    private static string Language => CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "es" ? "es" : "en";
+
+    private static string LanguageName
+    {
+        get
+        {
+            var culture = CultureInfo.GetCultureInfo(Language);
+            return culture.TextInfo.ToTitleCase(culture.NativeName);
+        }
+    }
+
+    private string AmountsLabel(string side) => side switch
+    {
+        MoneyDisplay.Crc => "₡",
+        MoneyDisplay.Usd => "$",
+        _ => Localizer["Reports_PdfBoth"].Value,
+    };
+
+    private async Task DownloadAsync()
+    {
+        if (_busy) return;
+        _busy = true; _error = null;
+        try
+        {
+            var body = new PdfRequest(Period.MonthId, Period.From?.ToString("yyyy-MM-dd"), Period.To?.ToString("yyyy-MM-dd"),
+                Display, ChartCurrency, _appendix, Language, Today.ToString("yyyy-MM-dd"));
+            var res = await Http.PostAsJsonAsync("/api/reports/pdf", body);
+            res.EnsureSuccessStatusCode();
+            var file = (await res.Content.ReadFromJsonAsync<PdfResponse>())!;
+            await DownloadLauncher.LaunchAsync(new Uri(Http.BaseAddress!, file.DownloadUrl).ToString(), file.FileName);
+            await OnDownloaded.InvokeAsync(Localizer["Reports_PdfReady"].Value);
+        }
+        catch
+        {
+            _error = Localizer["Reports_PdfError"].Value;
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task Close()
+    {
+        if (!_busy) await OnClose.InvokeAsync();
+    }
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") await Close();
+    }
+
+    private sealed record PdfRequest(
+        [property: JsonPropertyName("month_id"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? MonthId,
+        [property: JsonPropertyName("from"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? From,
+        [property: JsonPropertyName("to"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? To,
+        [property: JsonPropertyName("display")] string Display,
+        [property: JsonPropertyName("chart_currency")] string ChartCurrency,
+        [property: JsonPropertyName("include_appendix")] bool IncludeAppendix,
+        [property: JsonPropertyName("language")] string Language,
+        [property: JsonPropertyName("today")] string Today);
+
+    private sealed record PdfResponse(
+        [property: JsonPropertyName("download_url")] string DownloadUrl,
+        [property: JsonPropertyName("file_name")] string FileName);
+}

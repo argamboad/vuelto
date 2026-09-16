@@ -2079,6 +2079,44 @@ bars using the space, captioned "budgeted ₡… · spent ₡…" per method. Sw
 (**20 · Reports → Category analysis (month)**) → `by_bank`, `by_method` and `by_card` arrays (the card one
 keyed `"none"` for the no-card bucket) and `spend_by_day` with three dates.
 
+### QA-REP-05 — Download the report as a PDF: same figures, same charts, the transactions appended ⚙️ Automated in CI 🟠 (Web / API)
+**Gherkin**
+```gherkin
+Given the June data above, in month mode, with "Show in" on both sides and the chart currency on ₡
+When I press PDF beside Export CSV
+Then a dialog offers "Include the transactions" (ticked) and says the amounts, charts and language it will use
+When I press Download
+Then a file "report-<first day>_<last day>.pdf" downloads (Android/Windows: the share sheet opens) and the page shows "PDF ready"
+And the PDF opens with the household, "June 2026", the period, the generated time and the buy/sell rate used
+And it has the four tiles with the same figures as the screen, the pace chart, the donuts, month by month, the method bars and the three category tables with the same budgets and red/green
+And its last pages are landscape and list every row the CSV export lists for June, in the same order, with readable class, method and source labels
+When I untick "Include the transactions" and download again
+Then the PDF has no transaction pages
+When I set "Show in" to $ and download
+Then every amount in the tiles, tables and appendix is in dollars and the charts are drawn in dollars
+When I switch the app to Spanish and download
+Then the PDF is in Spanish ("Informe de gastos", "₡5.000,00")
+When I switch Period to Date range and download
+Then there is no pace, no income or budget card and no month by month, and the tables show spend only
+```
+**Walkthrough:** **Reports** (month mode) → press **PDF** → **Expected:** the dialog with the
+transactions box ticked and three lines: amounts "₡ and $", charts "₡", language "English". Press
+**Download** → **Expected:** a file `report-2026-05-28_2026-06-24.pdf` (on Android/Windows the share sheet)
+and "PDF ready" on the page. Open it → **Expected:** the ¿Y el vuelto? lockup and the household on every
+page; page 1 with "Spending report", "June 2026", the period and "Exchange rate: buy … · sell … per $1";
+the four tiles matching the screen (a pair prints ₡ on one line and $ under it); the pace card; then the
+donuts two to a row, then **Month by month** and **Budgeted vs spent, by payment method**; then **By
+category** with the Budgeted table (budget column, red over / green under), Discretionary and Unplanned;
+then landscape **Transactions** pages with every CSV column. Compare its rows with **Export CSV** for the
+same month → **Expected:** the same rows in the same order. Untick the box → no Transactions pages. Set
+**Show in** to **$** → dollars only everywhere. Switch the app to **Español** → the PDF is in Spanish.
+**Date range** → no pace, income, budget or month-by-month pieces. A payee with an emoji still renders
+(the emoji prints as a box). Stop the exchange-rate provider (or test when none is cached) → the PDF says
+the rate is unavailable and leaves out income, budget and the plan line. Via Postman (**20 · Reports →
+Report as PDF (link)**) → 200 with `download_url` / `file_name` / `period` / `expires_in_seconds` 900;
+`display: "EUR"` → 400 `invalid_request`; both `month_id` and `from`/`to` → 400 `period_ambiguous`;
+another household's month → 404; opening `download_url` without a token downloads the PDF.
+
 ## 10l. Web — Email inboxes: connect, filters & readers (app slice EMAIL-2/3) 🟠
 
 > Your inbox, not the household's (ADR-V002): read-only consent on the account you're signed in with,
@@ -3399,7 +3437,7 @@ Then the sign-in succeeds
 | Expected refunds & realization (app LEDGER-3) | LED-05..06 + `Api.Tests` (`RefundSliceTests`, incl. the two-context concurrency proof) | `refund_expected` / `refund_percentage` on `POST/PUT /api/transactions`; `GET /api/months/{id}/refunds`; `PUT /api/refunds/{id}` (200; 400 `invalid_request`; 404; 409 `refund_status_conflict`) |
 | Budget lines: fixed + variable (app EXPENSES-1) | EXP-01..03 | `GET/POST /api/expenses/{fixed\|variable}`, `PUT …/{id}`, `PUT …/order` (400 `invalid_request`; 409 `expense_exists` / `expense_exists_inactive` + `existing_id` + `existing_name`; uniform 404) |
 | Dashboard (app DASH-1) | DASH-01..02 + `Core.Tests` (`DashboardSummaryServiceTests`, 45 donor cases) + `Api.Tests` (`DashboardSliceTests`) | `GET /api/months/{id}/summary` (200 `{month, exchange_rate, rate_source, rate_as_of, rate_unavailable, summary}`; 401 anonymous; uniform 404) |
-| Reports: category analysis + CSV export (app REPORTS-1/2) | REP-01..02 + `Core.Tests` (`CategoryAnalysisCalculatorTests`, `TransactionCsvWriterTests`) + `Api.Tests` (`ReportSliceTests`) | `GET /api/reports/category-analysis`, `POST /api/reports/transactions/export` (`month_id` \| `from`+`to`; 400 `period_required` / `period_ambiguous` / `period_incomplete` / `period_invalid`; uniform 404; export → signed `download_url` served by `GET /api/files/{token}`) |
+| Reports: category analysis + CSV export + PDF (app REPORTS-1/2/7) | REP-01..02, REP-05 + `Core.Tests` (`CategoryAnalysisCalculatorTests`, `TransactionCsvWriterTests`) + `Api.Tests` (`ReportSliceTests`, `ReportPdfChartsTests`, `ReportPdfModelBuilderTests`, `ReportPdfSliceTests`) + E2E `ReportPdfJourneyTests` | `GET /api/reports/category-analysis`, `POST /api/reports/transactions/export`, `POST /api/reports/pdf` (`month_id` \| `from`+`to`; 400 `period_required` / `period_ambiguous` / `period_incomplete` / `period_invalid`; uniform 404; export → signed `download_url` served by `GET /api/files/{token}`) |
 | Email inboxes: connect + readers (app EMAIL-2/3) | EMAIL-01..03 + `Api.Tests` (`MailConsentServiceTests`, `EmailReaderTests`, `EmailConnectionSliceTests`) | `GET /api/email/connections` (+ `/{id}`, `/{id}/folders` 409 `needs_reconsent`), `GET …/authorize?provider=` (400 `invalid_provider` / `provider_not_configured`), anonymous `GET …/callback` (→ `/email?connected=` \| `?email_error=`), `GET …/suggested-filters`, `POST …` (400 `use_consent_flow`), `PUT /{id}` (400 `filters_required` / `invalid_interval`), `DELETE /{id}`; uniform 404 |
 | Email ingestion: staging + dedup (app EMAIL-4) | EMAIL-04 + `Core.Tests` (`VoucherFingerprintTests`) + `Api.Tests` (`VoucherStagingSliceTests` incl. the poll job) | `POST /api/email/connections/{id}/sync` (200 `{staged, duplicates, unrecognized}`; 409 `needs_reconsent`; uniform 404); the `email-poll` scheduled job |
 | Email ingestion: merchant suggestions (app EMAIL-5) | EMAIL-05 + `Core.Tests` (`MerchantMatcherTests`) + `Api.Tests` (`MerchantMappingSliceTests` incl. the race, `VoucherStagingSliceTests` suggestion case, `ReviewEndpointTests`) + `Ui.Tests` (`MerchantMappingsPageTests`) | `GET/POST /api/merchant-mappings`, `PUT/DELETE …/{id}` (400 `invalid_request`; 409 `mapping_exists`; uniform 404) |
@@ -3609,6 +3647,7 @@ Record one row per executed case. Build = API/web commit SHA (`git rev-parse --s
 | QA-REP-02 | Web/API | | | | | |
 | QA-REP-03 | Web | | | | | |
 | QA-REP-04 | Web | | | | | |
+| QA-REP-05 | Web/API | | | | | |
 | QA-EMAIL-01 | Web/API | | | | | |
 | QA-EMAIL-02 | Web | | | | | |
 | QA-EMAIL-03 | Web/API | | | | | |
@@ -4011,6 +4050,14 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   TTL guard; interrupted links land on Settings' banner). New **QA-AND-15** (on-device kill test;
   renumbered from the branch's QA-AND-14 — that slot went to THEME-1's restart test in the interim).
   Suite 149 → **150** cases.
+- **Updated 2026-09-16** — **The report as a PDF (REPORTS-7, ADR-V022; owner request).** Reports gains a **PDF**
+  button beside Export CSV: a small dialog (include the transactions, ticked; the amounts, charts and language it
+  will use) and **Download**. The API renders it with QuestPDF (`POST /api/reports/pdf`, Nunito embedded) from the
+  very figures the page reads — tiles, pace, the donuts, month by month, the method bars, the category tables — plus
+  a landscape appendix of exactly the CSV export's rows, and delivers it through the CSV's 15-minute signed link and
+  launcher. New **QA-REP-05** (⚙️ — `ReportPdfJourneyTests` downloads a date-range PDF on every push); §15 names the
+  new tests and endpoint; Postman folder 20 gains **Report as PDF (link)**. **Case count 197 → 198** (the "191" in earlier entries
+  predates the GATES cases).
 - **Updated 2026-09-16** — **Android chrome, ported from JiggerJot's emulator pass.** The same platform
   shell code showed three defects on a real Android 16 device there: the status bar wore the platform
   template's sage green, the top inset was applied twice (an empty band under the status bar), and a theme

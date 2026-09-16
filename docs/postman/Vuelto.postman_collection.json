@@ -4328,7 +4328,7 @@
     },
     {
       "name": "20 · Reports",
-      "description": "REPORTS-1/2 (app slice P8, ADR-V004/V005/V006 + platform ADR-010): read-only reporting over the frozen transaction amounts. Category analysis groups the spending classes (budgeted / extraordinary / unplanned_essential — never inflow or envelope_contribution) by category; a single month also decorates budgeted entries with the catalog budget. The CSV export stores the file through IFileStorage and returns a 15-minute signed download_url (served anonymously by GET /api/files/{token}) — the same download affordance the household export uses, so web and MAUI share one path. Run 15 · Months first so {{monthId}} exists. Period: month_id (the month's anchor window — first week start to the LAST week's end date) OR from + to (yyyy-MM-dd, inclusive), never both, never neither → 400 period_required / period_ambiguous / period_incomplete / period_invalid. Unknown or another household's month_id → uniform 404.",
+      "description": "REPORTS-1/2/7 (app slice P8, ADR-V004/V005/V006 + platform ADR-010): read-only reporting over the frozen transaction amounts. Category analysis groups the spending classes (budgeted / extraordinary / unplanned_essential — never inflow or envelope_contribution) by category; a single month also decorates budgeted entries with the catalog budget. The CSV export stores the file through IFileStorage and returns a 15-minute signed download_url (served anonymously by GET /api/files/{token}) — the same download affordance the household export uses, so web and MAUI share one path. Run 15 · Months first so {{monthId}} exists. Period: month_id (the month's anchor window — first week start to the LAST week's end date) OR from + to (yyyy-MM-dd, inclusive), never both, never neither → 400 period_required / period_ambiguous / period_incomplete / period_invalid. Unknown or another household's month_id → uniform 404.",
       "item": [
         {
           "name": "Category analysis (month)",
@@ -4520,6 +4520,53 @@
                   "if (pm.response.code === 200) { const r = pm.response.json();",
                   "  pm.test(\"link + dated name\", () => { pm.expect(r.download_url).to.be.a('string'); pm.expect(r.file_name).to.match(/^transactions-\\d{4}-\\d{2}-\\d{2}\\.csv$/); });",
                   "  pm.environment.set('exportUrl', r.download_url); }"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Report as PDF (link)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"month_id\": \"{{monthId}}\",\n  \"display\": \"both\",\n  \"chart_currency\": \"CRC\",\n  \"include_appendix\": true,\n  \"language\": \"es\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/pdf",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "pdf"
+              ]
+            },
+            "description": "REPORTS-7 (ADR-V022). Any household member. Renders the report the Reports page shows as a branded PDF (QuestPDF, Nunito embedded): header with the household, period and the buy/sell pair used; the four KPI tiles; pace (month only); spend by class, income vs spend and income vs budget (month with a rate), month by month, by bank, by card (once a card was used), card vs account + budgeted vs spent by method; the category tables per class; and, when include_appendix is true (default), the transaction appendix on landscape pages — exactly the CSV export's rows for the period. Body (JSON, every field optional except the period): month_id OR from + to (yyyy-MM-dd, inclusive) — the shared rule, 400 period_required / period_ambiguous / period_incomplete / period_invalid (an empty body is allowed and means period_required); display CRC | USD | both (default both); chart_currency CRC | USD (default CRC); include_appendix (default true); language en | es (default en); today (yyyy-MM-dd, the device date for the pace marker; default the server's UTC date). An unknown display / chart_currency / language → 400 invalid_request. Unknown or another household's month_id → uniform 404. 200 { download_url, file_name \"report-<from>_<to>.pdf\", period, expires_in_seconds 900 }: the PDF is stored through IFileStorage (content type application/pdf) and download_url is the same 15-minute signed link as the CSV — open it WITHOUT a token. No rate today → the income, budget and plan pieces are left out and the PDF says so. Captures the link into {{reportPdfUrl}}."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200 (or 404 when no month yet)\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));",
+                  "if (pm.response.code === 200) { const r = pm.response.json();",
+                  "  pm.test(\"link + period name\", () => { pm.expect(r.download_url).to.be.a('string'); pm.expect(r.file_name).to.match(/^report-\\d{4}-\\d{2}-\\d{2}_\\d{4}-\\d{2}-\\d{2}\\.pdf$/); pm.expect(r.expires_in_seconds).to.eql(900); });",
+                  "  pm.environment.set('reportPdfUrl', r.download_url); }"
                 ],
                 "type": "text/javascript"
               }

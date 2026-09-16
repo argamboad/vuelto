@@ -1,0 +1,281 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+    <data name="Pdf_Title" xml:space="preserve">
+    <value>Spending report</value>
+  </data>
+  <data name="Pdf_Generated" xml:space="preserve">
+    <value>Generated {0} UTC</value>
+  </data>
+  <data name="Pdf_Rates" xml:space="preserve">
+    <value>Exchange rate: buy {0} · sell {1} per $1</value>
+  </data>
+  <data name="Pdf_NoRate" xml:space="preserve">
+    <value>Today's exchange rate isn't available — income and budget figures are left out.</value>
+  </data>
+  <data name="Pdf_Period" xml:space="preserve">
+    <value>{0} – {1}</value>
+  </data>
+  <data name="Pdf_ScopeMonth" xml:space="preserve">
+    <value>one budget month — budgets shown next to actuals</value>
+  </data>
+  <data name="Pdf_ScopeRange" xml:space="preserve">
+    <value>custom range — monthly budgets and income don't apply</value>
+  </data>
+  <data name="Pdf_KpiTotalSpend" xml:space="preserve">
+    <value>Total spend</value>
+  </data>
+  <data name="Pdf_KpiBudgeted" xml:space="preserve">
+    <value>Budgeted</value>
+  </data>
+  <data name="Pdf_KpiDiscretionary" xml:space="preserve">
+    <value>Discretionary</value>
+  </data>
+  <data name="Pdf_KpiUnplanned" xml:space="preserve">
+    <value>Unplanned</value>
+  </data>
+  <data name="Pdf_OfIncome" xml:space="preserve">
+    <value>{0}% of income</value>
+  </data>
+  <data name="Pdf_OfSpend" xml:space="preserve">
+    <value>{0}% of spend</value>
+  </data>
+  <data name="Pdf_Refundable" xml:space="preserve">
+    <value>{0} refundable</value>
+  </data>
+  <data name="Pdf_Pace" xml:space="preserve">
+    <value>Pace</value>
+  </data>
+  <data name="Pdf_PaceCaption" xml:space="preserve">
+    <value>{0}% of the month elapsed · {1}% of the plan spent</value>
+  </data>
+  <data name="Pdf_PaceNoRate" xml:space="preserve">
+    <value>The plan line needs today's exchange rate, which isn't available right now.</value>
+  </data>
+  <data name="Pdf_ClassSplit" xml:space="preserve">
+    <value>Spend by class</value>
+  </data>
+  <data name="Pdf_IncomeSplit" xml:space="preserve">
+    <value>Income vs spend</value>
+  </data>
+  <data name="Pdf_IncomeNoRate" xml:space="preserve">
+    <value>Income needs today's exchange rate, which isn't available right now.</value>
+  </data>
+  <data name="Pdf_OverBy" xml:space="preserve">
+    <value>Over income by {0}</value>
+  </data>
+  <data name="Pdf_BudgetSplit" xml:space="preserve">
+    <value>Income vs budget</value>
+  </data>
+  <data name="Pdf_BudgetOverBy" xml:space="preserve">
+    <value>Budget exceeds income by {0}</value>
+  </data>
+  <data name="Pdf_Trend" xml:space="preserve">
+    <value>Month by month</value>
+  </data>
+  <data name="Pdf_TrendSpend" xml:space="preserve">
+    <value>Spend</value>
+  </data>
+  <data name="Pdf_TrendIncome" xml:space="preserve">
+    <value>Income</value>
+  </data>
+  <data name="Pdf_TrendOver" xml:space="preserve">
+    <value>Spent more than the income</value>
+  </data>
+  <data name="Pdf_TrendNoRate" xml:space="preserve">
+    <value>Income tracks need today's exchange rate, which isn't available right now — the bars show spend only.</value>
+  </data>
+  <data name="Pdf_ByBank" xml:space="preserve">
+    <value>Spend by bank</value>
+  </data>
+  <data name="Pdf_ByCard" xml:space="preserve">
+    <value>Spend by card</value>
+  </data>
+  <data name="Pdf_ByMethod" xml:space="preserve">
+    <value>Card vs account</value>
+  </data>
+  <data name="Pdf_MethodBudget" xml:space="preserve">
+    <value>Budgeted vs spent, by payment method</value>
+  </data>
+  <data name="Pdf_MethodCaption" xml:space="preserve">
+    <value>budgeted {0} · spent {1}</value>
+  </data>
+  <data name="Pdf_Remaining" xml:space="preserve">
+    <value>Remaining</value>
+  </data>
+  <data name="Pdf_BudgetLines" xml:space="preserve">
+    <value>Budget lines</value>
+  </data>
+  <data name="Pdf_Uncommitted" xml:space="preserve">
+    <value>Uncommitted</value>
+  </data>
+  <data name="Pdf_UnknownBank" xml:space="preserve">
+    <value>Unknown bank</value>
+  </data>
+  <data name="Pdf_NoCard" xml:space="preserve">
+    <value>No card</value>
+  </data>
+  <data name="Pdf_Empty" xml:space="preserve">
+    <value>No spending in this period.</value>
+  </data>
+  <data name="Pdf_NoneInClass" xml:space="preserve">
+    <value>Nothing in this class for the period.</value>
+  </data>
+  <data name="Pdf_ByCategory" xml:space="preserve">
+    <value>By category</value>
+  </data>
+  <data name="Pdf_Total" xml:space="preserve">
+    <value>Total</value>
+  </data>
+  <data name="Pdf_ChartActual" xml:space="preserve">
+    <value>Actual</value>
+  </data>
+  <data name="Pdf_ChartPlan" xml:space="preserve">
+    <value>Plan</value>
+  </data>
+  <data name="Pdf_ChartToday" xml:space="preserve">
+    <value>Today</value>
+  </data>
+  <data name="Pdf_ChartBudget" xml:space="preserve">
+    <value>Budget</value>
+  </data>
+  <data name="Pdf_ChartOverBudget" xml:space="preserve">
+    <value>Over budget</value>
+  </data>
+  <data name="Pdf_ChartEmpty" xml:space="preserve">
+    <value>Nothing to draw for this period.</value>
+  </data>
+  <data name="Pdf_ClassBudgeted" xml:space="preserve">
+    <value>Budgeted</value>
+  </data>
+  <data name="Pdf_ClassExtraordinary" xml:space="preserve">
+    <value>Discretionary</value>
+  </data>
+  <data name="Pdf_ClassUnplanned" xml:space="preserve">
+    <value>Unplanned</value>
+  </data>
+  <data name="Pdf_ClassInflow" xml:space="preserve">
+    <value>Income (inflow)</value>
+  </data>
+  <data name="Pdf_ClassEnvelope" xml:space="preserve">
+    <value>Envelope contribution</value>
+  </data>
+  <data name="Pdf_MethodCreditCard" xml:space="preserve">
+    <value>Credit card</value>
+  </data>
+  <data name="Pdf_MethodBankAccount" xml:space="preserve">
+    <value>Bank account</value>
+  </data>
+  <data name="Pdf_SourceManual" xml:space="preserve">
+    <value>Manual</value>
+  </data>
+  <data name="Pdf_SourceEmail" xml:space="preserve">
+    <value>Email</value>
+  </data>
+  <data name="Pdf_SourceRefund" xml:space="preserve">
+    <value>Refund</value>
+  </data>
+  <data name="Pdf_ColCategory" xml:space="preserve">
+    <value>Category</value>
+  </data>
+  <data name="Pdf_ColCount" xml:space="preserve">
+    <value>#</value>
+  </data>
+  <data name="Pdf_ColBudgeted" xml:space="preserve">
+    <value>Budgeted (month)</value>
+  </data>
+  <data name="Pdf_ColActual" xml:space="preserve">
+    <value>Actual</value>
+  </data>
+  <data name="Pdf_ColSpent" xml:space="preserve">
+    <value>Spent</value>
+  </data>
+  <data name="Pdf_ColDate" xml:space="preserve">
+    <value>Date</value>
+  </data>
+  <data name="Pdf_ColPayee" xml:space="preserve">
+    <value>Payee</value>
+  </data>
+  <data name="Pdf_ColClass" xml:space="preserve">
+    <value>Class</value>
+  </data>
+  <data name="Pdf_ColRate" xml:space="preserve">
+    <value>Rate</value>
+  </data>
+  <data name="Pdf_ColMethod" xml:space="preserve">
+    <value>Method</value>
+  </data>
+  <data name="Pdf_ColBank" xml:space="preserve">
+    <value>Bank</value>
+  </data>
+  <data name="Pdf_ColSource" xml:space="preserve">
+    <value>Source</value>
+  </data>
+  <data name="Pdf_ColCard" xml:space="preserve">
+    <value>Card</value>
+  </data>
+  <data name="Pdf_ColNotes" xml:space="preserve">
+    <value>Notes</value>
+  </data>
+  <data name="Pdf_AppendixTitle" xml:space="preserve">
+    <value>Transactions</value>
+  </data>
+  <data name="Pdf_AppendixEmpty" xml:space="preserve">
+    <value>No transactions in this period.</value>
+  </data>
+  <data name="Pdf_FooterPage" xml:space="preserve">
+    <value>Page</value>
+  </data>
+  <data name="Pdf_FooterOf" xml:space="preserve">
+    <value>of</value>
+  </data>
+</root>

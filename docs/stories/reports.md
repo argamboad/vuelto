@@ -258,3 +258,67 @@ Scenario: Spend by card
   And GET /api/reports/category-analysis?month_id=… carries by_card = [{ <visa id>, "Allan's Visa", 8000, … }, { "none", "", 2000, … }]
   And the dashboard's "By card" table lists the same two rows with their transaction counts and a Total
 ```
+
+### REPORTS-7 — Generate a PDF report *(owner request, 2026-09-16)*
+
+**As a** household member
+**I want** a branded PDF of the report I am looking at — its figures, charts and tables, and the period's transactions
+**So that** I can keep, print or share the month without opening the app
+
+**Context / notes:** plan `docs/REPORTS_PDF_INCOME_PLAN.md`; decision record **ADR-V022**.
+- **Engine:** QuestPDF (Community licence), rendered server-side by the API; Nunito (OFL, static 400/600/700 cut from
+  the Google Fonts variable face) embedded, so the file looks the same wherever it is opened. Nunito carries ₡, so money
+  reads `₡1.500,00` (the owner's "CRC" fallback was not needed).
+- **API:** `POST /api/reports/pdf` with a JSON body — the period (`month_id` **or** `from` + `to`, the shared rule and
+  codes above), `display` (`CRC` | `USD` | `both`, default `both`), `chart_currency` (`CRC` | `USD`, default `CRC`),
+  `include_appendix` (default true), `language` (`en` | `es`, default `en`) and `today` (the device date for the pace
+  marker; default the server's UTC date). An unknown value → 400 `invalid_request`. The PDF is stored through
+  `IFileStorage` behind the same 15-minute signed link as the CSV and delivered by `IFileDownloadLauncher`; the response
+  is `{ download_url, file_name, period, expires_in_seconds }` (the CSV export's shape without a row count), `file_name` =
+  `report-<from>_<to>.pdf`.
+- **Same numbers as the screen:** the document is built from the category-analysis result, the months trend and the
+  month's pending refunds — the very figures the Reports page shows — by a pure `ReportPdfModelBuilder` (tested without
+  QuestPDF). No rate → the income, budget and plan pieces are left out and the PDF says why, exactly like the page.
+- **Content, in order:** header (logo, household, period, generated-at, the buy/sell pair used); the four KPI tiles; pace
+  (month mode); spend by class; income vs spend and income vs budget (month mode, with a rate); month by month (month
+  mode); by bank; by card (once a card was used); card vs account with the budgeted-vs-spent bars; the category table per
+  class (budget and actual for the budgeted class of a month, red over / green under in the line's own currency); and the
+  **transaction appendix** on landscape pages — exactly the CSV export's rows for the period (same order, every column),
+  with localized class, method and source labels.
+- **Charts:** drawn as SVG by the PDF's own builders (`PdfCharts`) with the web charts' geometry and the light theme's
+  literal colours — the web components stay untouched (the UI library does not reference Core; ADR-V022 records why).
+- **UI:** a **PDF** button beside **Export CSV** opens a small dialog — "Include the transactions" (checked), the currency
+  and language it will use, and **Download**. (REPORTS-8 adds **Email me** to the same dialog.)
+
+```gherkin
+Scenario: Download the month as a PDF
+  Given June has a ₡60,000 Supermarket line and ₡15,750 of discretionary spend at BAC
+  When I press PDF on Reports for June and choose Download
+  Then POST /api/reports/pdf { month_id: June } answers 200 with a signed download_url and file_name "report-2026-05-28_2026-06-24.pdf"
+  And the downloaded file is a PDF whose text contains the household name, the period, "Discretionary", the category name and "₡15.750,00" in Spanish or "₡15,750.00" in English
+  And its appendix lists the same rows the CSV export lists for June
+
+Scenario: The PDF follows the screen
+  Given "Show in" is $ and the chart currency is $
+  When I download the PDF
+  Then the tiles, tables and appendix show dollars only, and the charts are drawn in dollars
+
+Scenario: Without the transactions
+  When I untick "Include the transactions" and download
+  Then the PDF has no appendix pages
+
+Scenario: No rate today
+  Given no exchange rate can be resolved
+  When I download June's PDF
+  Then it has the spend figures and tables, no income or budget donuts and no plan line, and it says the rate is unavailable
+
+Scenario: A date range
+  When I download the PDF for 2026-06-01 to 2026-06-30
+  Then it has no pace, income, budget or month-by-month pieces, and the category tables show spend only
+
+Scenario: Guard rails
+  When I ask with display "EUR" → 400 invalid_request
+  When I ask with both month_id and from/to → 400 period_ambiguous
+  When I ask for another household's month → 404
+  When I am not signed in → 401
+```

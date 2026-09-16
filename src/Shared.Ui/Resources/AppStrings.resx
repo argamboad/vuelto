@@ -621,6 +621,16 @@
   <data name="Reports_Exporting" xml:space="preserve"><value>Preparing…</value></data>
   <data name="Reports_ExportReady" xml:space="preserve"><value>CSV ready — {0} rows. Your download has started.</value></data>
   <data name="Reports_ExportError" xml:space="preserve"><value>Couldn't export the CSV. Try again.</value></data>
+  <data name="Reports_Pdf" xml:space="preserve"><value>PDF</value></data>
+  <data name="Reports_PdfTitle" xml:space="preserve"><value>Download a PDF report</value></data>
+  <data name="Reports_PdfAppendix" xml:space="preserve"><value>Include the transactions</value></data>
+  <data name="Reports_PdfAmounts" xml:space="preserve"><value>Amounts in {0}, as on screen</value></data>
+  <data name="Reports_PdfCharts" xml:space="preserve"><value>Charts in {0}</value></data>
+  <data name="Reports_PdfLanguage" xml:space="preserve"><value>Language: {0}</value></data>
+  <data name="Reports_PdfBoth" xml:space="preserve"><value>₡ and $</value></data>
+  <data name="Reports_PdfDownload" xml:space="preserve"><value>Download</value></data>
+  <data name="Reports_PdfReady" xml:space="preserve"><value>PDF ready. Your download has started.</value></data>
+  <data name="Reports_PdfError" xml:space="preserve"><value>Couldn't create the PDF. Try again.</value></data>
   <data name="Reports_View" xml:space="preserve"><value>View</value></data>
   <data name="Reports_ViewTable" xml:space="preserve"><value>Table</value></data>
   <data name="Reports_ViewChart" xml:space="preserve"><value>Chart</value></data>

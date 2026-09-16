@@ -111,6 +111,27 @@ public sealed class ReportHandler(
     /// <summary>Every matching transaction (unpaginated), date desc then created desc, as a stored CSV behind a 15-minute signed link.</summary>
     public async Task<TransactionExportResponse> ExportAsync(ReportPeriod period, Guid? categoryId, string? transactionType, CancellationToken cancellationToken)
     {
+        var rows = await ExportRowsAsync(period, categoryId, transactionType, cancellationToken);
+        var csv = TransactionCsvWriter.Write(rows);
+
+        // The download filename is the key's basename (server-controlled); a per-export folder keeps two
+        // members exporting at the same second from overwriting each other's file.
+        var now = clock.GetUtcNow();
+        var fileName = $"transactions-{now:yyyy-MM-dd}.csv";
+        var key = $"exports/transactions/{now:yyyyMMddTHHmmssZ}-{Guid.CreateVersion7():N}/{fileName}";
+        using (var stream = new MemoryStream(Encoding.UTF8.GetBytes(csv)))
+            await files.PutAsync(key, stream, "text/csv; charset=utf-8", cancellationToken);
+        var url = await files.GetDownloadUrlAsync(key, LinkLifetime, cancellationToken);
+
+        return new TransactionExportResponse(url.ToString(), fileName, rows.Count, new ReportPeriodResponse(period.From, period.To), (int)LinkLifetime.TotalSeconds);
+    }
+
+    /// <summary>
+    /// The export's rows — every matching transaction, date desc then created desc, names from the all-states catalogs.
+    /// The CSV and the PDF appendix (REPORTS-7) both read exactly this, so the two files never disagree.
+    /// </summary>
+    public async Task<IReadOnlyList<TransactionExportRow>> ExportRowsAsync(ReportPeriod period, Guid? categoryId, string? transactionType, CancellationToken cancellationToken)
+    {
         var query = InPeriod(period);
         if (categoryId is { } cat) query = query.Where(t => t.CategoryId == cat);
         if (!string.IsNullOrWhiteSpace(transactionType))
@@ -124,21 +145,10 @@ public sealed class ReportHandler(
         var bankNames = await banks.Query().ToDictionaryAsync(b => b.Id, b => b.Name, cancellationToken);
         var cardNames = await cards.Query().ToDictionaryAsync(c => c.Id, c => c.Name, cancellationToken);
 
-        var csv = TransactionCsvWriter.Write(rows.Select(t => new TransactionExportRow(
+        return rows.Select(t => new TransactionExportRow(
             t.TransactionDate, t.Payee, categoryNames.GetValueOrDefault(t.CategoryId), t.TransactionType,
             t.AmountCrc, t.AmountUsd, t.ExchangeRateUsed, t.PaymentMethod, bankNames.GetValueOrDefault(t.BankId), t.Source,
-            t.CardId is { } cardId ? cardNames.GetValueOrDefault(cardId) : null, t.Notes)));
-
-        // The download filename is the key's basename (server-controlled); a per-export folder keeps two
-        // members exporting at the same second from overwriting each other's file.
-        var now = clock.GetUtcNow();
-        var fileName = $"transactions-{now:yyyy-MM-dd}.csv";
-        var key = $"exports/transactions/{now:yyyyMMddTHHmmssZ}-{Guid.CreateVersion7():N}/{fileName}";
-        using (var stream = new MemoryStream(Encoding.UTF8.GetBytes(csv)))
-            await files.PutAsync(key, stream, "text/csv; charset=utf-8", cancellationToken);
-        var url = await files.GetDownloadUrlAsync(key, LinkLifetime, cancellationToken);
-
-        return new TransactionExportResponse(url.ToString(), fileName, rows.Count, new ReportPeriodResponse(period.From, period.To), (int)LinkLifetime.TotalSeconds);
+            t.CardId is { } cardId ? cardNames.GetValueOrDefault(cardId) : null, t.Notes)).ToList();
     }
 
     private IQueryable<Transaction> InPeriod(ReportPeriod p) =>

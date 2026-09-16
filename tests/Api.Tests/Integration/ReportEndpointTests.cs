@@ -1,13 +1,14 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
+using UglyToad.PdfPig;
 using Vuelto.Api.Tests.Infrastructure;
 using Vuelto.Core.Entities;
 
 namespace Vuelto.Api.Tests.Integration;
 
 /// <summary>
-/// REPORTS-1/2 over HTTP through the real app (RLS enforced, real local file storage): 401 anonymous; 400
+/// REPORTS-1/2/7 over HTTP through the real app (RLS enforced, real local file storage): 401 anonymous; 400
 /// period codes; the analysis for a member's month; the export returns a signed link that downloads the CSV
 /// anonymously (the token IS the authorization, ADR-010); uniform 404.
 /// </summary>
@@ -22,6 +23,7 @@ public class ReportEndpointTests(IntegrationTestFactory factory)
         var anon = _factory.CreateClient();
         Assert.Equal(HttpStatusCode.Unauthorized, (await anon.GetAsync("/api/reports/category-analysis?from=2026-06-01&to=2026-06-30")).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await anon.PostAsync("/api/reports/transactions/export?from=2026-06-01&to=2026-06-30", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await anon.PostAsJsonAsync("/api/reports/pdf", new { from = "2026-06-01", to = "2026-06-30" })).StatusCode);
     }
 
     [Fact]
@@ -74,6 +76,76 @@ public class ReportEndpointTests(IntegrationTestFactory factory)
         Assert.Equal($"2026-06-10,\"Café, \"\"El\"\" Punto\",{category.Name},extraordinary,15750.00,31.50,500.0000,credit_card,{bank.Name},manual,,", lines[1]); // trailing card + notes columns, both empty here
     }
 
+    [Fact]
+    public async Task Member_DownloadsTheReportAsAPdf()
+    {
+        var member = await _factory.SeedUserAsync(TenantRoles.Member);
+        var client = _factory.CreateClientFor(member);
+        var category = (await client.GetFromJsonAsync<List<NamedDto>>("/api/categories"))![0];
+        var bank = (await client.GetFromJsonAsync<List<NamedDto>>("/api/banks"))![0];
+        var created = await client.PostAsJsonAsync("/api/transactions", new
+        {
+            payee = "Soda Tapia", bank_id = bank.Id, payment_method = "credit_card", original_amount = 15_750m, currency = "CRC",
+            transaction_date = "2026-06-10", category_id = category.Id, transaction_type = "extraordinary", exchange_rate = 500m,
+        });
+        var tx = (await created.Content.ReadFromJsonAsync<TxDto>())!;
+
+        var res = await client.PostAsJsonAsync("/api/reports/pdf", new { month_id = tx.MonthId, display = "CRC", language = "es", today = "2026-06-12" });
+        Assert.Equal(HttpStatusCode.OK, res.StatusCode);
+        var body = (await res.Content.ReadFromJsonAsync<PdfDto>())!;
+        Assert.Equal("report-2026-05-28_2026-06-24.pdf", body.FileName);
+        Assert.Equal((new DateOnly(2026, 5, 28), new DateOnly(2026, 6, 24)), (body.Period.From, body.Period.To));
+        Assert.Equal(900, body.ExpiresInSeconds);
+
+        var download = await _factory.CreateClient().GetAsync(body.DownloadUrl); // anonymous: the signed token authorizes
+        Assert.Equal(HttpStatusCode.OK, download.StatusCode);
+        Assert.Equal("application/pdf", download.Content.Headers.ContentType?.MediaType);
+        Assert.Equal(body.FileName, download.Content.Headers.ContentDisposition?.FileName?.Trim('"'));
+        using var pdf = PdfDocument.Open(await download.Content.ReadAsByteArrayAsync());
+        var text = string.Join(" ", pdf.GetPages().Select(p => string.Join(" ", p.GetWords().Select(w => w.Text))));
+        Assert.Contains("Informe de gastos", text);
+        Assert.Contains("₡15.750,00", text);
+        Assert.Contains("Soda Tapia", text);
+        Assert.DoesNotContain("$31,50", text); // "show in" ₡ only
+    }
+
+    [Fact]
+    public async Task Pdf_GuardRails()
+    {
+        var member = await _factory.SeedUserAsync(TenantRoles.Member);
+        var client = _factory.CreateClientFor(member);
+
+        async Task<(HttpStatusCode Status, string? Code)> Post(object body)
+        {
+            var res = await client.PostAsJsonAsync("/api/reports/pdf", body);
+            return (res.StatusCode, res.StatusCode == HttpStatusCode.OK ? null : (await res.Content.ReadFromJsonAsync<ErrorDto>())?.Error);
+        }
+
+        Assert.Equal((HttpStatusCode.BadRequest, "period_required"), await Post(new { }));
+        var noBody = await client.PostAsync("/api/reports/pdf", null); // an empty body is allowed and means "no period"
+        Assert.Equal(HttpStatusCode.BadRequest, noBody.StatusCode);
+        Assert.Equal("period_required", (await noBody.Content.ReadFromJsonAsync<ErrorDto>())!.Error);
+        Assert.Equal((HttpStatusCode.BadRequest, "period_ambiguous"), await Post(new { month_id = Guid.CreateVersion7(), from = "2026-06-01", to = "2026-06-30" }));
+        Assert.Equal((HttpStatusCode.BadRequest, "invalid_request"), await Post(new { from = "2026-06-01", to = "2026-06-30", display = "EUR" }));
+        Assert.Equal((HttpStatusCode.BadRequest, "invalid_request"), await Post(new { from = "2026-06-01", to = "2026-06-30", language = "fr" }));
+        Assert.Equal(HttpStatusCode.NotFound, (await Post(new { month_id = Guid.CreateVersion7() })).Status);
+
+        // Another household's month is the same uniform 404.
+        var other = _factory.CreateClientFor(await _factory.SeedUserAsync(TenantRoles.Owner));
+        var category = (await other.GetFromJsonAsync<List<NamedDto>>("/api/categories"))![0];
+        var bank = (await other.GetFromJsonAsync<List<NamedDto>>("/api/banks"))![0];
+        var theirs = (await (await other.PostAsJsonAsync("/api/transactions", new
+        {
+            payee = "Theirs", bank_id = bank.Id, payment_method = "credit_card", original_amount = 1_000m, currency = "CRC",
+            transaction_date = "2026-06-10", category_id = category.Id, transaction_type = "budgeted", exchange_rate = 500m,
+        })).Content.ReadFromJsonAsync<TxDto>())!;
+        Assert.Equal(HttpStatusCode.NotFound, (await Post(new { month_id = theirs.MonthId })).Status);
+
+        // A range renders.
+        Assert.Equal(HttpStatusCode.OK, (await Post(new { from = "2026-06-01", to = "2026-06-30", include_appendix = false })).Status);
+    }
+
+    private sealed record PdfDto([property: JsonPropertyName("download_url")] string DownloadUrl, [property: JsonPropertyName("file_name")] string FileName, [property: JsonPropertyName("period")] PeriodDto Period, [property: JsonPropertyName("expires_in_seconds")] int ExpiresInSeconds);
     private sealed record NamedDto([property: JsonPropertyName("id")] Guid Id, [property: JsonPropertyName("name")] string Name);
     private sealed record TxDto([property: JsonPropertyName("id")] Guid Id, [property: JsonPropertyName("month_id")] Guid MonthId);
     private sealed record ErrorDto([property: JsonPropertyName("error")] string Error, [property: JsonPropertyName("message")] string Message);

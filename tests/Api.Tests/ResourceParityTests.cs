@@ -15,6 +15,7 @@ public class ResourceParityTests
     {
         { "src/Shared.Ui/Resources/AppStrings.resx", "src/Shared.Ui/Resources/AppStrings.es.resx" },
         { "src/Infrastructure/Email/EmailStrings.resx", "src/Infrastructure/Email/EmailStrings.es.resx" },
+        { "src/Api/Features/Reports/Pdf/ReportPdfStrings.resx", "src/Api/Features/Reports/Pdf/ReportPdfStrings.es.resx" },
     };
 
     [Theory]

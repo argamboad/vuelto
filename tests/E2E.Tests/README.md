@@ -71,6 +71,7 @@ dev self-signed cert is accepted (`IgnoreHTTPSErrors`).
 | Member joins by pasting the invite code on /join (NATIVE-4b) | QA-INV-02 (code-entry variant) |
 | Invalid pasted code → inline error, form stays usable | — |
 | Owner requests the GDPR export → real browser download (.json) | QA-HH export case |
+| Member downloads a date-range report as a PDF (REPORTS-7) | QA-REP-05 |
 
 OAuth (Google/Microsoft), desktop, and Android are intentionally **not** automated here —
 they need external provider accounts / native runners. See `docs/QA_TEST_PLAN.md` for that

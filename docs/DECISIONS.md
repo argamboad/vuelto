@@ -1715,6 +1715,34 @@ identities and transactions move, the duplicate goes, the survivor shows the new
 number resolves to the card already known by those four digits, and a branded number that meets a `CARD`
 placeholder upgrades it in place (`CARD-1966` → `VISA-1966` while still auto-named) — one plastic, one card.
 
+**ADR-V022 — The report PDF is rendered by the API with QuestPDF, from the page's own figures, with its own SVG chart builders. (2026-09-16; owner decision, REPORTS-7)**
+
+The owner asked for "a nice PDF report, with tables and charts" of the Reports page, and for the same file to
+reach the inbox (REPORTS-8). **Decision:** the **API renders it with QuestPDF** (Community licence) and returns
+it through the CSV export's delivery — stored with `IFileStorage`, a 15-minute signed link, the shared
+`IFileDownloadLauncher` (browser download, native share sheet). *Alternatives rejected:* headless Chromium
+printing a server-rendered page (hundreds of MB and a browser process on the Render free tier's small
+instance) and the browser's Print-to-PDF (no branded header/footer, output varies by browser, nothing in the
+MAUI shells). *Same numbers as the screen:* a pure `ReportPdfModelBuilder` turns exactly what the page reads —
+the category analysis, the months trend, the month's pending refunds, and `ExportRowsAsync` (the CSV's rows,
+now shared by both files) — into formatted strings and SVG, mirroring `Reports.razor` rule for rule; QuestPDF
+only lays it out. *Charts:* the plan was to lift the web charts' geometry into Core and share it; the UI library
+references neither the API nor Core (its DTOs are hand-mirrored by design), and adding that link to share ~150
+lines of arc and bar math was not worth a new structural dependency, so the PDF has **its own builders**
+(`PdfCharts`) with the web geometry and literal light-theme colours — a PDF has no stylesheet, so no `var(`
+survives, and every label is XML-escaped (names are user data). Dashes are drawn as segments because the SVG
+engine paints `stroke-dasharray` gaps. *Fonts:* system fonts are off so every host renders the same file;
+Nunito (OFL) is embedded as static 400/600/700 faces cut from the variable font, and it **carries ₡**, so the
+owner's "write CRC if the symbol is missing" fallback was not needed; a glyph Nunito lacks (an emoji) falls back
+instead of failing the report. *Spike (2026-09-16):* QuestPDF 2026.9 renders in `mcr.microsoft.com/dotnet/aspnet:10.0.11`
+with **no extra apt package**; custom font names are no longer supported, so the faces carry the family name
+themselves. *Consequences:* `POST /api/reports/pdf` (JSON body: period, `display`, `chart_currency`,
+`include_appendix`, `language`, `today`; 400 `invalid_request` on an unknown value); the response has no page
+count (QuestPDF reports none without rendering twice); Letter portrait for the report, landscape for the
+appendix (every CSV column); new resx pair `ReportPdfStrings` under the resource-parity gate; the brand lockup is
+linked from `Shared.Ui/wwwroot/brand` so the brand keeps one file. REPORTS-8 mails the same bytes
+(`ReportPdfHandler.RenderAsync`) as an attachment through the platform's `IEmailSender` attachment seam.
+
 **ADR-027 — Pre-launch gates: billing and account creation are deployment configuration, not runtime switches (GATES-1/2). (2026-09-11)**
 A deployment must be able to run **private and free** before it is published: nothing offers to sell
 a tester anything, and a stranger who finds the URL cannot create an account. Hiding the deployment

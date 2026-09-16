@@ -18,6 +18,7 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <!-- Same TOTP library the app uses (MfaService), so integration tests can compute valid codes. -->
     <PackageReference Include="Otp.NET" />
+    <PackageReference Include="PdfPig" />
     <!-- Promote SSH.NET to a direct ref so the pinned patched 2026.0.0 overrides Testcontainers'
          transitive 2025.1.0 (GHSA-q939-rpr3-3284). Without this the vulnerable transitive version
          fails NU1903. -->

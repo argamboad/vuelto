@@ -318,6 +318,22 @@ Flow:
 
 Notes: downloads go through the platform's `IFileDownloadLauncher` seam so native shells work.
 
+### 17a. Download the report as a PDF *(REPORTS-7 · ADR-V022)*
+**Goal:** keep, print or share the month without the app.
+
+Flow:
+1. Reports → **PDF** (beside Export CSV) opens a dialog: "Include the transactions" (ticked) and the
+   amounts, charts and language the file will use — all taken from the screen.
+2. **Download** calls `POST /api/reports/pdf` with the shown period (`month_id` or `from`+`to`), the
+   "show in" side, the chart currency, the appendix choice, the app language and the device date. The API
+   renders the PDF (QuestPDF) and returns the CSV's 15-minute signed link; the launcher downloads it
+   (native shells: the share sheet).
+
+Notes: the PDF is built from the same figures the page reads — tiles, pace, the donuts, month by month, the
+method bars, the category tables — plus a landscape appendix of exactly the CSV export's rows. No rate
+today → income, budget and the plan line are left out and the PDF says so. A range has no month pieces.
+"Email me this report" is REPORTS-8.
+
 ### 18. Connect a mailbox *(US-026, US-027, US-035, US-037, WU-5 · ADR-V010)*
 **Goal:** let the app read voucher emails — and nothing else — from a member's inbox.
 

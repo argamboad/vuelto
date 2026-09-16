@@ -51,6 +51,7 @@ public class ReportsPageTests : ComponentTestBase
          "by_method":[{"key":"credit_card","label":"credit_card","total_crc":8000,"total_usd":16}],
          "spend_by_day":null}
         """;
+    private const string Pdf = """{"download_url":"/api/files/tok-pdf","file_name":"report-2026-06-25_2026-07-29.pdf","period":{"from":"2026-06-25","to":"2026-07-29"},"expires_in_seconds":900}""";
     private const string Export = """{"download_url":"/api/files/tok-1","file_name":"transactions-2026-09-03.csv","row_count":4,"period":{"from":"2026-06-25","to":"2026-07-29"},"expires_in_seconds":900}""";
 
     private IRenderedComponent<Reports> RenderMonth(string report = SingleMonth, DateOnly? today = null)
@@ -445,6 +446,84 @@ public class ReportsPageTests : ComponentTestBase
         Assert.Contains("Reports_ExportReady[4]", cut.Find("[data-testid='rep-notice']").TextContent);
     }
 
+    // ---------------------------------------------------------------- REPORTS-7: the PDF
+
+    private static async Task<System.Text.Json.JsonElement> PdfBodyAsync(HttpRequestMessage post) =>
+        System.Text.Json.JsonDocument.Parse(await post.Content!.ReadAsStringAsync()).RootElement;
+
+    [Fact]
+    public async Task Pdf_SendsTheShownMonth_AndTheScreensChoices_ThenLaunchesTheLink()
+    {
+        await SignInAsync();
+        Http.On(HttpMethod.Post, "/api/reports/pdf", Pdf);
+        var cut = RenderMonth(today: new DateOnly(2026, 7, 15));
+
+        cut.Find("[data-testid='rep-pdf']").Click();
+        var summary = cut.Find("[data-testid='rep-pdf-summary']").TextContent;
+        Assert.Contains("Reports_PdfAmounts[Reports_PdfBoth]", summary); // the "show in" default is both sides
+        Assert.Contains("Reports_PdfCharts[₡]", summary);
+        cut.Find("[data-testid='rep-pdf-appendix']").Change(false);
+        cut.Find("[data-testid='rep-pdf-download']").Click();
+
+        cut.WaitForElement("[data-testid='rep-notice']");
+        var body = await PdfBodyAsync(Assert.Single(Http.Requests, r => r.Method == HttpMethod.Post && r.RequestUri!.AbsolutePath == "/api/reports/pdf"));
+        Assert.Equal(M2, body.GetProperty("month_id").GetString());
+        Assert.False(body.TryGetProperty("from", out _));
+        Assert.Equal("both", body.GetProperty("display").GetString());
+        Assert.Equal("CRC", body.GetProperty("chart_currency").GetString());
+        Assert.False(body.GetProperty("include_appendix").GetBoolean());
+        Assert.Equal("en", body.GetProperty("language").GetString());
+        Assert.Equal("2026-07-15", body.GetProperty("today").GetString());
+        Assert.Equal(("http://localhost/api/files/tok-pdf", "report-2026-06-25_2026-07-29.pdf"), Assert.Single(Downloads.Launched));
+        Assert.Empty(cut.FindAll("[data-testid='rep-pdf-dialog']"));
+        Assert.Contains("Reports_PdfReady", cut.Find("[data-testid='rep-notice']").TextContent);
+    }
+
+    [Fact]
+    public async Task Pdf_ForARange_SendsTheDates_AndTheCurrencyShown()
+    {
+        await SignInAsync();
+        Http.On(HttpMethod.Post, "/api/reports/pdf", Pdf);
+        var cut = RenderMonth();
+        cut.Find("[data-testid='rep-cur-usd']").Click(); // "show in" $ — the charts follow
+        Http.On(HttpMethod.Get, "/api/reports/category-analysis", Range);
+        cut.Find("[data-testid='rep-mode']").Change("range");
+        Assert.True(cut.Find("[data-testid='rep-pdf']").HasAttribute("disabled")); // nothing loaded for the range yet
+        cut.Find("[data-testid='rep-from']").Change("2026-01-01");
+        cut.Find("[data-testid='rep-to']").Change("2026-06-30");
+        cut.Find("[data-testid='rep-load']").Click();
+        cut.WaitForElement("[data-testid='rep-category']");
+
+        cut.Find("[data-testid='rep-pdf']").Click();
+        Assert.Contains("Reports_PdfAmounts[$]", cut.Find("[data-testid='rep-pdf-summary']").TextContent);
+        cut.Find("[data-testid='rep-pdf-download']").Click();
+
+        cut.WaitForElement("[data-testid='rep-notice']");
+        var body = await PdfBodyAsync(Assert.Single(Http.Requests, r => r.Method == HttpMethod.Post && r.RequestUri!.AbsolutePath == "/api/reports/pdf"));
+        Assert.False(body.TryGetProperty("month_id", out _));
+        Assert.Equal(("2026-01-01", "2026-06-30"), (body.GetProperty("from").GetString(), body.GetProperty("to").GetString()));
+        Assert.Equal(("USD", "USD"), (body.GetProperty("display").GetString(), body.GetProperty("chart_currency").GetString()));
+        Assert.True(body.GetProperty("include_appendix").GetBoolean());
+    }
+
+    [Fact]
+    public async Task Pdf_Failure_KeepsTheDialogOpen_WithTheError_AndCancelCloses()
+    {
+        await SignInAsync();
+        Http.On(HttpMethod.Post, "/api/reports/pdf", "{}", HttpStatusCode.InternalServerError);
+        var cut = RenderMonth();
+
+        cut.Find("[data-testid='rep-pdf']").Click();
+        cut.Find("[data-testid='rep-pdf-download']").Click();
+
+        cut.WaitForElement("[data-testid='rep-pdf-error']");
+        Assert.Contains("Reports_PdfError", cut.Find("[data-testid='rep-pdf-error']").TextContent);
+        Assert.Empty(Downloads.Launched);
+        cut.Find("[data-testid='rep-pdf-cancel']").Click();
+        Assert.Empty(cut.FindAll("[data-testid='rep-pdf-dialog']"));
+        Assert.Empty(cut.FindAll("[data-testid='rep-notice']"));
+    }
+
     [Fact]
     public async Task NoMonths_DisablesExport_AndShowsTheEmptyHint()
     {
@@ -455,6 +534,7 @@ public class ReportsPageTests : ComponentTestBase
 
         cut.WaitForElement("[data-testid='rep-no-months']");
         Assert.True(cut.Find("[data-testid='rep-export']").HasAttribute("disabled"));
+        Assert.True(cut.Find("[data-testid='rep-pdf']").HasAttribute("disabled"));
         Assert.DoesNotContain(Http.Requests, r => r.RequestUri!.AbsolutePath == "/api/reports/category-analysis");
         Assert.Empty(cut.FindAll("[data-testid='rep-kpi-total']")); // nothing to add up yet
     }

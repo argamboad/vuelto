@@ -621,6 +621,16 @@
   <data name="Reports_Exporting" xml:space="preserve"><value>Preparando…</value></data>
   <data name="Reports_ExportReady" xml:space="preserve"><value>CSV listo: {0} filas. La descarga comenzó.</value></data>
   <data name="Reports_ExportError" xml:space="preserve"><value>No se pudo exportar el CSV. Intenta de nuevo.</value></data>
+  <data name="Reports_Pdf" xml:space="preserve"><value>PDF</value></data>
+  <data name="Reports_PdfTitle" xml:space="preserve"><value>Descargar un informe en PDF</value></data>
+  <data name="Reports_PdfAppendix" xml:space="preserve"><value>Incluir las transacciones</value></data>
+  <data name="Reports_PdfAmounts" xml:space="preserve"><value>Montos en {0}, como en pantalla</value></data>
+  <data name="Reports_PdfCharts" xml:space="preserve"><value>Gráficos en {0}</value></data>
+  <data name="Reports_PdfLanguage" xml:space="preserve"><value>Idioma: {0}</value></data>
+  <data name="Reports_PdfBoth" xml:space="preserve"><value>₡ y $</value></data>
+  <data name="Reports_PdfDownload" xml:space="preserve"><value>Descargar</value></data>
+  <data name="Reports_PdfReady" xml:space="preserve"><value>PDF listo. La descarga comenzó.</value></data>
+  <data name="Reports_PdfError" xml:space="preserve"><value>No se pudo crear el PDF. Intenta de nuevo.</value></data>
   <data name="Reports_View" xml:space="preserve"><value>Vista</value></data>
   <data name="Reports_ViewTable" xml:space="preserve"><value>Tabla</value></data>
   <data name="Reports_ViewChart" xml:space="preserve"><value>Gráfico</value></data>

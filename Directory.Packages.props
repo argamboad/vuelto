@@ -25,6 +25,8 @@
     <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.16.0" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.18.0" />
     <PackageVersion Include="Otp.NET" Version="1.4.1" />
+    <!-- PDF report (REPORTS-7, ADR-V022). Community licence: free under USD 1M annual revenue; set in code. -->
+    <PackageVersion Include="QuestPDF" Version="2026.9.0" />
     <PackageVersion Include="Swashbuckle.AspNetCore" Version="7.2.0" />
 
     <!-- Infrastructure -->
@@ -65,6 +67,8 @@
     <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.11" />
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.11" />
     <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.7.0" />
+    <!-- Reads the generated PDF text back in the REPORTS-7 tests (Apache-2.0). -->
+    <PackageVersion Include="PdfPig" Version="0.1.16" />
     <PackageVersion Include="bunit" Version="2.7.2" /> <!-- RCL component tests (v3 TOOL-2) -->
     <!-- bUnit 2.7.2 pulls AngleSharp 1.4.0 transitively, which has GHSA-pgww-w46g-26qg (mXSS, moderate);
          pin the patched 1.5.2 directly so the "0 vulnerable packages" bar (NU1902 as error) stays green. -->

@@ -173,3 +173,9 @@ Production reads the same keys from real environment variables, never a committe
 - **Retired from the donor:** `System.Net.Mail`/Brevo HTTP senders (platform outbox + MailKit),
   `AesEmailTokenEncryptor` (Data Protection), Serilog + Sentry (platform OpenTelemetry), Swashbuckle
   for the private API (Postman is canonical), `railway.json`/`vercel.json` (Render).
+- **`QuestPDF` 2026.9** — the Reports PDF (REPORTS-7 / ADR-V022), rendered server-side and confined to
+  `src/Api/Features/Reports/Pdf/`. **Community licence** (free for organisations under USD 1M annual revenue),
+  set in code; revisit the licence if Vuelto ever crosses that line. Its native Skia library runs in the
+  `aspnet` runtime image with no extra system package (verified in the spike). System fonts are off: the PDF
+  embeds **Nunito** (SIL OFL 1.1 — static 400/600/700 cut from the Google Fonts variable face, licence beside
+  the files; it carries ₡). **`PdfPig` 0.1.16** (Apache-2.0) is test-only — it reads the generated PDF's text back.
