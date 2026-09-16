@@ -147,7 +147,7 @@ public class CardSliceTests(PostgresFixture fixture) : PostgresTestBase(fixture)
         await c.Handler.UpdateAsync(original, new UpdateCardRequest("Allan's Visa", c.BankId, IsActive: true), default);
         var renewed = (await c.Handler.ResolveOrCreateAsync("VISA", "************5678", c.BankId, default))!.CardId;
         var category = new Category { TenantId = c.Tenant, Name = "Groceries", CreatedAt = T0, UpdatedAt = T0 };
-        var month = new Month { TenantId = c.Tenant, Year = 2026, MonthNumber = 9, WeekCount = 5, Week1StartDate = new DateOnly(2026, 8, 25), PrimaryIncomeCurrency = "USD", SecondaryIncomeCurrency = "USD", CreatedAt = T0, UpdatedAt = T0 };
+        var month = new Month { TenantId = c.Tenant, Year = 2026, MonthNumber = 9, WeekCount = 5, Week1StartDate = new DateOnly(2026, 8, 25), CreatedAt = T0, UpdatedAt = T0 };
         c.Db.AddRange(category, month,
             new Transaction { TenantId = c.Tenant, MonthId = month.Id, BankId = c.BankId, CategoryId = category.Id, CardId = renewed, Payee = "New plastic", OriginalAmount = 1m, TransactionDate = new DateOnly(2026, 9, 1), AmountCrc = 1m, AmountUsd = 0.01m, ExchangeRateUsed = 500m, CreatedAt = T0, UpdatedAt = T0 },
             new Transaction { TenantId = c.Tenant, MonthId = month.Id, BankId = c.BankId, CategoryId = category.Id, CardId = original, Payee = "Old plastic", OriginalAmount = 1m, TransactionDate = new DateOnly(2026, 9, 1), AmountCrc = 1m, AmountUsd = 0.01m, ExchangeRateUsed = 500m, CreatedAt = T0, UpdatedAt = T0 });
@@ -178,7 +178,7 @@ public class CardSliceTests(PostgresFixture fixture) : PostgresTestBase(fixture)
         Assert.Equal("credit", card!.Kind); // no kind given → credit, like every card from before this slice
 
         var category = new Category { TenantId = c.Tenant, Name = "Groceries", CreatedAt = T0, UpdatedAt = T0 };
-        var month = new Month { TenantId = c.Tenant, Year = 2026, MonthNumber = 9, WeekCount = 5, Week1StartDate = new DateOnly(2026, 8, 25), PrimaryIncomeCurrency = "USD", SecondaryIncomeCurrency = "USD", CreatedAt = T0, UpdatedAt = T0 };
+        var month = new Month { TenantId = c.Tenant, Year = 2026, MonthNumber = 9, WeekCount = 5, Week1StartDate = new DateOnly(2026, 8, 25), CreatedAt = T0, UpdatedAt = T0 };
         c.Db.AddRange(category, month,
             new Transaction { TenantId = c.Tenant, MonthId = month.Id, BankId = c.BankId, CategoryId = category.Id, CardId = card.Id, Payee = "Super", PaymentMethod = "credit_card", OriginalAmount = 1m, TransactionDate = new DateOnly(2026, 9, 1), AmountCrc = 1m, AmountUsd = 0.01m, ExchangeRateUsed = 500m, CreatedAt = T0, UpdatedAt = T0 });
         await c.Db.SaveChangesAsync();

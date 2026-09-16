@@ -30,9 +30,7 @@ public class BudgetSettingsDataContributor(IRepository<BudgetSettings> settings)
             .Where(s => s.TenantId == tenantId)
             .Select(s => new
             {
-                s.WeekStartWeekday, s.MonthAnchor,
-                s.PrimaryIncome4w, s.PrimaryIncome5w, s.PrimaryIncomeCurrency,
-                s.SecondaryIncome4w, s.SecondaryIncome5w, s.SecondaryIncomeCurrency,
+                s.WeekStartWeekday, s.MonthAnchor, // income exports with the Income slice (INCOME-1)
                 s.CreatedAt, s.UpdatedAt,
             })
             .FirstOrDefaultAsync(cancellationToken);

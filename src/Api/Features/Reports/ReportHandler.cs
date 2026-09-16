@@ -25,6 +25,7 @@ public sealed class ReportHandler(
     IRepository<Card> cards,
     IRepository<FixedExpense> fixedExpenses,
     IRepository<VariableExpense> variableExpenses,
+    IRepository<MonthIncome> monthIncomes,
     IFileStorage files,
     IExchangeRateResolver rates,
     TimeProvider clock)
@@ -83,7 +84,8 @@ public sealed class ReportHandler(
             var month = await months.Query().FirstOrDefaultAsync(m => m.Id == period.MonthId, cancellationToken);
             if (month is not null && await rates.ResolveAsync(cancellationToken) is { } resolved)
             {
-                income = IncomeCalculator.Calculate(month, rows, resolved.Rates).Total;
+                var incomeRows = await monthIncomes.Query().Where(r => r.MonthId == month.Id).ToListAsync(cancellationToken);
+                income = IncomeCalculator.Calculate(incomeRows, rows, resolved.Rates).Total;
                 budgetTotal = BudgetTotals.Planned(lines, resolved.Rates);
                 budgetByMethod = BudgetTotals.PlannedByMethod(lines, resolved.Rates);
                 pair = resolved.Rates;
@@ -102,9 +104,10 @@ public sealed class ReportHandler(
         var recent = await months.Query().OrderByDescending(m => m.Week1StartDate).Take(count).ToListAsync(cancellationToken);
         var ids = recent.Select(m => m.Id).ToList();
         var rows = await transactions.Query().Where(t => ids.Contains(t.MonthId)).ToListAsync(cancellationToken);
+        var incomeRows = await monthIncomes.Query().Where(r => ids.Contains(r.MonthId)).ToListAsync(cancellationToken);
         var resolved = recent.Count > 0 ? await rates.ResolveAsync(cancellationToken) : null;
 
-        var trend = MonthTrendCalculator.Calculate(recent, rows, resolved?.Rates);
+        var trend = MonthTrendCalculator.Calculate(recent, incomeRows, rows, resolved?.Rates);
         return new MonthsTrendResponse(trend.Select(MonthTrendResponse.From).ToList(), resolved is not null);
     }
 

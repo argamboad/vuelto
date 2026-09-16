@@ -69,6 +69,13 @@ Scenario: Dissolving the household removes its settings
   Then its BudgetSettings row is gone and the tenant export included a "budget_settings" section
 ```
 
+*Amended by INCOME-1 (2026-09-16, ADR-V023):* the income defaults left this card and the API. Budget settings are
+now the week start and the month anchor only; the scenarios above that mention incomes describe the original slice.
+The card adds a hint under the weekday: **for a weekly-paid household, the week starts on the day the money moves**,
+because with the default anchor the weekday decides whether a month has 4 or 5 paydays (September 2026 runs
+Aug 25 – Sep 28, five weeks, with Tuesday weeks, but Aug 27 – Sep 23, four weeks, with Thursday weeks). A link leads
+to the income page (`docs/stories/income.md`).
+
 **Out of scope:** using the settings to build months (P5); per-month income edits (P5); any
 validation that the two currencies differ (they may be equal).
 **Definition of done:** tests written first (TDD); Core.Tests (`WeekBoundaryService`, 14 theories

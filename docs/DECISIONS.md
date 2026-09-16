@@ -1362,6 +1362,8 @@ first use) and `TransactionService`/`MonthService` read it from the ambient tena
 taking a `User`. `User` stays a pure platform entity (locale, theme only).
 *Rationale:* budget structure is not a preference (ADR-C2); it fixes a latent donor bug and removes
 the largest foundational↔domain coupling in the donor code.
+*Superseded in part (2026-09-16):* the income defaults left `BudgetSettings` for household income lines — ADR-V023.
+The row keeps week start and month anchor.
 
 **ADR-V004 — Domain money is dual-currency fixed-point decimal; Stripe remains the source of truth for billing money only. (2026-09-02)**
 The platform models no money (its `Subscription` is a projection). This app does: amounts are
@@ -1381,6 +1383,8 @@ count), deleted with their weeks when the last transaction goes; there is **no m
 Month income is two incomes, each amount + currency, editable per month.
 *Rationale:* budget periods follow pay cycles; auto-lifecycle removes an entire class of "empty
 month" and "forgot to create the month" bugs; stored weeks give historical stability.
+*Superseded in part (2026-09-16):* a month's income is no longer two slots snapshotted from 4w/5w defaults but a list of
+rows snapshotted from the income lines by pay period — ADR-V023. The lifecycle rules above are unchanged.
 
 *As built (P5a / LEDGER-1/2, 2026-09-03).* `MonthHandler.GetOrCreateForDateAsync` only <em>stages</em>
 a new month and its weeks on the shared context; the transaction path validates everything, settles
@@ -1770,6 +1774,44 @@ through an app-registered rate-limit policy (`ReportEmailRateLimit`, added with 
 the platform's `AddApiRateLimiters`, which stays untouched; per user, fixed window, in memory — a restart resets it,
 acceptable for guarding the shared email quota against loops). A file over the 10 MiB attachment limit answers 400
 `report_too_large` before anything is queued.
+
+**ADR-V023 — Income is a list of household income lines with a pay period; each month snapshots them into its own editable rows. The old 4w/5w and primary/secondary fields are retired but kept. (2026-09-16; owner decision, INCOME-1)**
+
+The donor model gave a household exactly two incomes, each typed twice (a four-week and a five-week figure), and a month
+two amount-plus-currency slots. A household has members, each with their own incomes, paid on different rhythms: a weekly
+salary really is 4 or 5 transfers a month, a monthly salary is the same every month whatever the week count, and a
+quincena lands twice. The owner asked whether income should be transactions instead; **decision:** no — the budget needs
+the income *plan* before the money arrives, so income stays a planned figure per month, and money that actually comes in
+unplanned keeps being an `inflow` transaction folded into income (unchanged).
+**Model.** `IncomeLine` (household catalog, ADR-V008 rules: unique name case-insensitively, soft delete, 409 reactivation
+offer, ordered): name, optional member (no FK), currency, kind `fixed | variable` (variable = an estimate to correct),
+pay period `weekly | biweekly | monthly`, amount **per payment**, two pay days for biweekly only (default 15 and the last
+day, stored as 31 and clamped). `MonthIncome` rows belong to a month (cascade): label, member and currency **copied** from
+the line (a rename never rewrites history), an editable `amount`, and the `planned_amount` the pay period derived, null
+for a one-off row added to a single month. *Snapshot rule* (`IncomeSnapshot`, pure, Core): at month creation one row per
+active line; weekly × the month's stored week count, biweekly × the pay days inside [first week start, last week end],
+monthly × 1. *Month total* (`IncomeCalculator`): each row at the day's rate by the income direction (USD at buy, CRC at
+sell) plus inflows. **The payday is the week start:** the anchor is "last week-start day of the previous month", so for
+a weekly-paid household the week must start on the day the money moves for week count to equal transfer count — the
+settings card says so.
+**Migration, expand only (plan §4a).** `AddIncomeLines` creates the two tables with the RLS policy and copies: lines from
+`BudgetSettings` (5w = 4w → monthly; 5w/5 = 4w/4 → weekly at 4w/4; otherwise weekly at 4w/4 flagged `needs_review`, which
+any update clears; a zero slot makes no line) and one row per non-zero month slot with the stored amount copied
+**verbatim** into both `amount` and `planned_amount` — history is never re-derived. Deterministic ids and `NOT EXISTS`
+guards make it idempotent; the same SQL ships as `tools/backfill-income-lines.sql` (a test keeps them identical) for a
+pre-migration snapshot restored later, and `tools/check-income-parity.sql` compares old and new totals per month and
+currency. The migration sets `app.rls_bypass` itself, because Neon's owner role is not a superuser and FORCE RLS would
+otherwise hide every row. `Down` drops only the new tables.
+**Kept, not dropped.** The six `BudgetSettings` and four `Month` income columns stay mapped and untouched — the rollback
+baseline. An architecture test fails if any code other than the entities, their mappings, the backfill and the migrations
+names them. Dropping them is INCOME-3, a later owner-gated contract migration.
+*Consequences:* `/api/incomes` (list, create, update, `PUT /order`); `GET /api/months/{id}` carries `income_rows`;
+`PUT /api/months/{id}/income` takes the month's full row list (with an id updates, without one is a one-off, left out is
+removed); `budget-settings` lost its income fields; the dashboard summary reports `income_lines` + `income_inflows` instead
+of primary/secondary. The account-erasure contributor clears `member_user_id` on lines and rows, amounts kept.
+*Deviation from the plan:* a member who leaves is **skipped at snapshot time** (the member is no longer in the household)
+rather than having their lines deactivated in storage — the line keeps its member for history and can be reassigned; the
+edit form still shows the former member. *Supersedes:* ADR-V003's income defaults and ADR-V005's "two incomes per month".
 
 **ADR-027 — Pre-launch gates: billing and account creation are deployment configuration, not runtime switches (GATES-1/2). (2026-09-11)**
 A deployment must be able to run **private and free** before it is published: nothing offers to sell

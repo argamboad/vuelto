@@ -32,16 +32,16 @@ public class BudgetPageTests : ComponentTestBase
 
     private static readonly List<CategoryOption> Categories = [new(Guid.Parse(Cat1), "Housing"), new(Guid.Parse(Cat2), "Entertainment")];
 
-    /// <summary>Everything the page fetches: catalogs, both lists, the rate and the income defaults (1,000,000 CRC + 500 USD a month).</summary>
+    /// <summary>Everything the page fetches: catalogs, both lists, the rate and the income lines (₡250,000 weekly + $250 twice a month = ₡1,000,000 + $500 over four weeks).</summary>
     private void StubPage(string fixedList = Fixed, string variableList = Variable, bool rate = true, bool income = true)
     {
         Http.On(HttpMethod.Get, "/api/categories", $$"""[{"id":"{{Cat1}}","name":"Housing","is_active":true},{"id":"{{Cat2}}","name":"Entertainment","is_active":true}]""");
         Http.On(HttpMethod.Get, "/api/expenses/fixed", fixedList);
         Http.On(HttpMethod.Get, "/api/expenses/variable", variableList);
         if (rate) Http.On(HttpMethod.Get, "/api/exchange-rate", """{"rate":500,"source":"live","as_of":"2026-09-03T12:00:00+00:00"}""");
-        Http.On(HttpMethod.Get, "/api/budget-settings", income
-            ? """{"week_start_weekday":4,"month_anchor":"last_weekday_prev","primary_income_4w":1000000,"primary_income_5w":1250000,"primary_income_currency":"CRC","secondary_income_4w":500,"secondary_income_5w":625,"secondary_income_currency":"USD","is_default":false}"""
-            : """{"week_start_weekday":4,"month_anchor":"last_weekday_prev","primary_income_4w":0,"primary_income_5w":0,"primary_income_currency":"USD","secondary_income_4w":0,"secondary_income_5w":0,"secondary_income_currency":"USD","is_default":true}""");
+        Http.On(HttpMethod.Get, "/api/incomes", income
+            ? """[{"id":"11111111-0000-0000-0000-000000000001","name":"Salary","member_user_id":null,"currency":"CRC","kind":"fixed","pay_period":"weekly","amount":250000,"pay_days":null,"sort_order":0,"is_active":true,"needs_review":false},{"id":"11111111-0000-0000-0000-000000000002","name":"Side job","member_user_id":null,"currency":"USD","kind":"variable","pay_period":"biweekly","amount":250,"pay_days":[15,31],"sort_order":1,"is_active":true,"needs_review":false}]"""
+            : "[]");
     }
 
     private IRenderedComponent<Budget> RenderPage()
@@ -72,7 +72,7 @@ public class BudgetPageTests : ComponentTestBase
     }
 
     [Fact]
-    public async Task Header_WithoutIncomeDefaults_ShowsThePlannedTotalAndNoShare()
+    public async Task Header_WithoutIncomeLines_ShowsThePlannedTotalAndNoShare()
     {
         await SignInAsync();
         StubPage(income: false);

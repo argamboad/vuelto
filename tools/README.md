@@ -7,6 +7,8 @@ the scripts carry no data; the files they *produce* do, and stay on your machine
 | Tool | What it does | Proven by |
 |---|---|---|
 | [`snapshot-household.sql`](snapshot-household.sql) | Writes **one household** as a restorable SQL file, so a household built up on one server (typically your local machine) moves to another (staging, production) without starting over | `tests/Api.Tests/Tools/HouseholdSnapshotTests.cs` — a seed → snapshot → wipe → restore round-trip on real Postgres, plus a gate that every tenant-scoped table is listed |
+| [`check-income-parity.sql`](check-income-parity.sql) | After the INCOME-1 migration, compares every month's new income rows with the two old income fields they were copied from, per currency. **Must print no rows** | `tests/Api.Tests/IncomeMigrationTests.cs` — seeds old-shape households, migrates, and asserts the same parity on real Postgres |
+| [`backfill-income-lines.sql`](backfill-income-lines.sql) | The INCOME-1 copy on its own: old income defaults → income lines, old month incomes → month rows. Only needed after restoring a household snapshot **taken before** INCOME-1. Safe to re-run: it skips what already exists | `IncomeMigrationTests` — the script must equal the migration's SQL, and a second run adds nothing |
 | [`staging-rls.ps1`](staging-rls.ps1) | Puts a hosted database (Neon) into the **two-role RLS posture** in one command: provisions the fenced `app_runtime` role, sets its password, proves it can read but not create tables, and prints the exact values to paste into the host | The script runs its own checks (a read that must succeed, a `CREATE TABLE` that must fail) and stops on the first one that does not hold; the app's `Rls__EnforceRuntimeRole` guard re-checks at boot |
 
 ---
@@ -29,8 +31,8 @@ Ids are preserved, so every reference survives untouched.
 | Included (in foreign-key order) | Why |
 |---|---|
 | `Users` (the household's members), `Tenants`, `TenantMemberships`, `UserLogins` | so your next sign-in on the target lands in *this* household — same user id, same membership; a Google/Microsoft login link matches when the target uses the same app registration |
-| `BudgetSettings`, `Categories`, `Banks`, `Envelopes`, `FixedExpenses`, `VariableExpenses`, `MerchantCategoryMappings` | the catalog and the budget baseline |
-| `Months`, `Weeks`, `Transactions`, `Refunds` | the ledger — frozen rates, refund links and received dates included |
+| `BudgetSettings`, `Categories`, `Banks`, `Envelopes`, `IncomeLines`, `FixedExpenses`, `VariableExpenses`, `MerchantCategoryMappings` | the catalog and the budget baseline |
+| `Months`, `MonthIncomes`, `Weeks`, `Transactions`, `Refunds` | the ledger — each month's income rows, frozen rates, refund links and received dates included |
 | `PendingVouchers`, `IngestedVouchers` | the review queue and its dedup tombstones, so a re-sync on the target never re-stages what you already handled |
 
 | Excluded on purpose | Why |
@@ -104,6 +106,46 @@ tenant-scoped table is ever added without being named there.
 - `CLAUDE.md` — the status block's one-line pointer, next to the local seed routine.
 
 ---
+
+## Check and repeat the income copy (INCOME-1)
+
+### What this is, in plain words
+
+INCOME-1 replaced the two "4-week / 5-week" incomes with income lines, and each month's two income fields with a list
+of rows. The migration that ships it **only adds and copies**: it creates the two new tables, turns each household's
+old defaults into lines, and copies every month's two incomes into rows with the same amounts and currencies. The old
+fields stay where they were, untouched. These two scripts let you prove the copy and repeat it.
+
+### Check the copy
+
+Run it against the database the migration just touched, as the owner role, **before anyone edits a month's income**
+in the app (an edit legitimately makes old and new differ):
+
+```bash
+psql "<owner connection string>" -f tools/check-income-parity.sql
+```
+
+Locally, against the compose database:
+
+```bash
+docker exec -i vuelto-db-1 psql -U dev -d dev_db -f - < tools/check-income-parity.sql
+```
+
+**Expected:** `DO`, then an empty result, `(0 rows)`. Each row printed is a month and currency whose totals differ:
+the old total, the new total. Don't edit anything; roll the app back (the old fields are intact) and investigate.
+
+### Repeat the copy after restoring an old snapshot
+
+A household snapshot taken **before** INCOME-1 carries the old income fields but no lines and no rows. Restore it as
+usual, then run the copy once:
+
+```bash
+psql "<owner connection string>" -f tools/backfill-income-lines.sql
+```
+
+It skips any household that already has income lines and any month that already has income rows, so running it twice
+changes nothing. The same applies after "reset my data" with a seed file that only fills the old fields. Then run the
+check above.
 
 ## Switch a hosted database to the two-role RLS posture
 

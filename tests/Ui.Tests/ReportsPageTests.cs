@@ -598,7 +598,7 @@ public class ReportsPageTests : ComponentTestBase
     public async Task MonthPage_ExportButton_PostsThatMonth_AndLaunches()
     {
         await SignInAsync();
-        Http.On(HttpMethod.Get, $"/api/months/{M1}", $$"""{"id":"{{M1}}","year":2026,"month_number":6,"week_count":4,"week1_start_date":"2026-05-28","primary_income_amount":0,"primary_income_currency":"USD","secondary_income_amount":0,"secondary_income_currency":"USD","weeks":[{"week_number":1,"start_date":"2026-05-28","end_date":"2026-06-03"}]}""");
+        Http.On(HttpMethod.Get, $"/api/months/{M1}", $$"""{"id":"{{M1}}","year":2026,"month_number":6,"week_count":4,"week1_start_date":"2026-05-28","income_rows":[],"weeks":[{"week_number":1,"start_date":"2026-05-28","end_date":"2026-06-03"}]}""");
         Http.On(HttpMethod.Get, $"/api/months/{M1}/transactions", "[]");
         Http.On(HttpMethod.Get, $"/api/months/{M1}/refunds", "[]");
         Http.On(HttpMethod.Post, "/api/reports/transactions/export", Export);

@@ -60,7 +60,7 @@ public class ReportSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
         var groceries = new Category { TenantId = tenant, Name = "Groceries", CreatedAt = T0, UpdatedAt = T0 };
         var dining = new Category { TenantId = tenant, Name = "Dining (old)", IsActive = false, CreatedAt = T0, UpdatedAt = T0 };
         var bac = new Bank { TenantId = tenant, Name = "BAC", CreatedAt = T0, UpdatedAt = T0 };
-        Month month; List<Week> weeks;
+        Month month; List<Week> weeks; List<MonthIncome> income = [];
         if (firstOfMonthAnchor)
         {
             month = new Month { TenantId = tenant, Year = 2026, MonthNumber = 6, WeekCount = 5, Week1StartDate = new DateOnly(2026, 6, 1), CreatedAt = T0, UpdatedAt = T0 };
@@ -75,13 +75,17 @@ public class ReportSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
             month = new Month
             {
                 TenantId = tenant, Year = 2026, MonthNumber = 6, WeekCount = 4, Week1StartDate = new DateOnly(2026, 5, 28), CreatedAt = T0, UpdatedAt = T0,
-                PrimaryIncomeAmount = 3_000m, PrimaryIncomeCurrency = "USD", SecondaryIncomeAmount = 250_000m, SecondaryIncomeCurrency = "CRC",
             };
+            income =
+            [
+                new() { TenantId = tenant, MonthId = month.Id, Label = "Salary", Amount = 3_000m, Currency = "USD", SortOrder = 0, CreatedAt = T0, UpdatedAt = T0 },
+                new() { TenantId = tenant, MonthId = month.Id, Label = "Side job", Amount = 250_000m, Currency = "CRC", SortOrder = 1, CreatedAt = T0, UpdatedAt = T0 },
+            ];
             weeks = Enumerable.Range(0, 4).Select(i => W(i + 1, new DateOnly(2026, 5, 28).AddDays(7 * i), new DateOnly(2026, 6, 3).AddDays(7 * i))).ToList();
         }
         Week W(int n, DateOnly s, DateOnly e) => new() { TenantId = tenant, MonthId = month.Id, WeekNumber = n, StartDate = s, EndDate = e };
 
-        db.AddRange(groceries, dining, bac, month); db.AddRange(weeks);
+        db.AddRange(groceries, dining, bac, month); db.AddRange(weeks); db.AddRange(income);
         db.Add(new FixedExpense { TenantId = tenant, Name = "Supermarket", CategoryId = groceries.Id, BudgetCrc = 60_000m, PaymentMethod = "credit_card", CreatedAt = T0, UpdatedAt = T0 });
         await db.SaveChangesAsync();
         db.ChangeTracker.Clear();
@@ -90,7 +94,7 @@ public class ReportSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
         var handler = new ReportHandler(
             new EfRepository<Month>(db), new EfRepository<Week>(db), new EfRepository<Transaction>(db), new EfRepository<Category>(db),
             new EfRepository<Bank>(db), new EfRepository<Card>(db), new EfRepository<FixedExpense>(db), new EfRepository<VariableExpense>(db),
-            files, new FixedRate(rate), new FakeTimeProvider(T0));
+            new EfRepository<MonthIncome>(db), files, new FixedRate(rate), new FakeTimeProvider(T0));
         return new Ctx(db, tenant, handler, files, month.Id, groceries.Id, dining.Id, bac.Id);
     }
 
@@ -207,9 +211,10 @@ public class ReportSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
         var july = new Month
         {
             TenantId = c.Tenant, Year = 2026, MonthNumber = 7, WeekCount = 5, Week1StartDate = new DateOnly(2026, 6, 25), CreatedAt = T0, UpdatedAt = T0,
-            PrimaryIncomeAmount = 1_000m, PrimaryIncomeCurrency = "USD", SecondaryIncomeAmount = 0m, SecondaryIncomeCurrency = "USD",
         };
-        c.Db.Add(july); await c.Db.SaveChangesAsync(); c.Db.ChangeTracker.Clear();
+        c.Db.Add(july);
+        c.Db.Add(new MonthIncome { TenantId = c.Tenant, MonthId = july.Id, Label = "Salary", Amount = 1_000m, Currency = "USD", CreatedAt = T0, UpdatedAt = T0 });
+        await c.Db.SaveChangesAsync(); c.Db.ChangeTracker.Clear();
         await AddTxAsync(c, new DateOnly(2026, 6, 1), 5_000m);
         await AddTxAsync(c, new DateOnly(2026, 6, 10), 9_000m, "inflow");
         c.Db.Add(new Transaction

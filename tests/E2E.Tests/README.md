@@ -72,6 +72,7 @@ dev self-signed cert is accepted (`IgnoreHTTPSErrors`).
 | Invalid pasted code → inline error, form stays usable | — |
 | Owner requests the GDPR export → real browser download (.json) | QA-HH export case |
 | Member downloads a date-range report as a PDF, then emails it to themselves (REPORTS-7/8) | QA-REP-05, QA-REP-06 |
+| Member adds, reorders, deactivates and reactivates the household's income lines (INCOME-1) | QA-INC-01, QA-INC-02 |
 
 OAuth (Google/Microsoft), desktop, and Android are intentionally **not** automated here —
 they need external provider accounts / native runners. See `docs/QA_TEST_PLAN.md` for that

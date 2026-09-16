@@ -296,8 +296,8 @@
     /// <summary>Inflows (realized refunds, sales) are folded into income — say so, or the figure looks wrong.</summary>
     private string? IncomeSub(SummaryDto s)
     {
-        var other = s.IncomeTotal.Crc - s.IncomePrimary.Crc - s.IncomeSecondary.Crc;
-        return other == 0 ? null : Localizer["Dash_WfIncomeOther"] + ": " + Show(new MoneyDto(other, s.IncomeTotal.Usd - s.IncomePrimary.Usd - s.IncomeSecondary.Usd));
+        var inflows = s.IncomeInflows;
+        return inflows.Crc == 0 && inflows.Usd == 0 ? null : Localizer["Dash_WfIncomeOther"] + ": " + Show(inflows);
     }
 
     /// <summary>Expected refunds are NOT in the forecast (ADR-V007) — the one place that has to keep saying so.</summary>
@@ -584,8 +584,7 @@
     private sealed record BankDto([property: JsonPropertyName("bank_id")] Guid? BankId, [property: JsonPropertyName("bank_name")] string BankName, [property: JsonPropertyName("payment_method")] string PaymentMethod, [property: JsonPropertyName("actual")] MoneyDto Actual);
     private sealed record MethodDto([property: JsonPropertyName("payment_method")] string PaymentMethod, [property: JsonPropertyName("budget")] MoneyDto Budget, [property: JsonPropertyName("actual")] MoneyDto Actual);
     private sealed record SummaryDto(
-        [property: JsonPropertyName("income_primary")] MoneyDto IncomePrimary,
-        [property: JsonPropertyName("income_secondary")] MoneyDto IncomeSecondary,
+        [property: JsonPropertyName("income_inflows")] MoneyDto IncomeInflows,
         [property: JsonPropertyName("income_total")] MoneyDto IncomeTotal,
         [property: JsonPropertyName("expenses_card")] MoneyDto ExpensesCard,
         [property: JsonPropertyName("expenses_account")] MoneyDto ExpensesAccount,

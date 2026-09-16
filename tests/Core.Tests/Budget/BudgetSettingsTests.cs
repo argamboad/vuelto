@@ -15,10 +15,6 @@ public class BudgetSettingsTests
         Assert.Equal(tenant, s.TenantId);
         Assert.Equal(4, s.WeekStartWeekday);
         Assert.Equal(MonthAnchors.LastWeekdayPrev, s.MonthAnchor);
-        Assert.Equal(0m, s.PrimaryIncome4w);
-        Assert.Equal(0m, s.SecondaryIncome5w);
-        Assert.Equal(Currencies.Usd, s.PrimaryIncomeCurrency);
-        Assert.Equal(Currencies.Usd, s.SecondaryIncomeCurrency);
     }
 
     [Theory]

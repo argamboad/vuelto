@@ -82,9 +82,9 @@ public class ReportPdfSliceTests(PostgresFixture fixture) : PostgresTestBase(fix
         var month = new Month
         {
             TenantId = tenant, Year = 2026, MonthNumber = 6, WeekCount = 4, Week1StartDate = new DateOnly(2026, 5, 28), CreatedAt = T0, UpdatedAt = T0,
-            PrimaryIncomeAmount = 3_000m, PrimaryIncomeCurrency = "USD",
         };
         db.AddRange(groceries, bac, month);
+        db.Add(new MonthIncome { TenantId = tenant, MonthId = month.Id, Label = "Salary", Amount = 3_000m, Currency = "USD", CreatedAt = T0, UpdatedAt = T0 });
         db.AddRange(Enumerable.Range(0, 4).Select(i => new Week
         {
             TenantId = tenant, MonthId = month.Id, WeekNumber = i + 1,
@@ -99,7 +99,7 @@ public class ReportPdfSliceTests(PostgresFixture fixture) : PostgresTestBase(fix
         var reports = new ReportHandler(
             new EfRepository<Month>(db), new EfRepository<Week>(db), new EfRepository<Transaction>(db), new EfRepository<Category>(db),
             new EfRepository<Bank>(db), new EfRepository<Card>(db), new EfRepository<FixedExpense>(db), new EfRepository<VariableExpense>(db),
-            files, new FixedRate(rate), clock);
+            new EfRepository<MonthIncome>(db), files, new FixedRate(rate), clock);
         var email = new CapturingEmailSender();
         var pdf = new ReportPdfHandler(reports, new EfRepository<Month>(db), new EfRepository<Refund>(db),
             new TenantRepository(db), new UserRepository(db), new TestCurrentTenant { TenantId = tenant }, files, email, clock);

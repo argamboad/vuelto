@@ -25,7 +25,7 @@ public class DashboardPageTests : ComponentTestBase
         """;
 
     private const string Summary = """
-        {"income_primary":{"crc":1500000,"usd":3000},"income_secondary":{"crc":0,"usd":0},"income_total":{"crc":1500000,"usd":3000},
+        {"income_lines":[{"id":"dddddddd-0000-0000-0000-000000000001","label":"Salary","member_user_id":null,"currency":"USD","amount":3000,"planned_amount":3000,"pair":{"crc":1500000,"usd":3000}}],"income_inflows":{"crc":0,"usd":0},"income_total":{"crc":1500000,"usd":3000},
          "expenses_card":{"crc":10000,"usd":20},"expenses_account":{"crc":300000,"usd":600},"expenses_total":{"crc":310000,"usd":620},"expenses_remainder":{"crc":1190000,"usd":2380},
          "spent_budgeted":{"crc":300000,"usd":600},"spent_extraordinary":{"crc":0,"usd":0},"spent_unplanned":{"crc":10000,"usd":20},
          "fixed_expenses":[{"name":"Mortgage","budget":{"crc":350000,"usd":700},"actual":{"crc":300000,"usd":600}},{"name":"Water","budget":{"crc":15000,"usd":30},"actual":{"crc":18000,"usd":36}}],
@@ -157,9 +157,9 @@ public class DashboardPageTests : ComponentTestBase
     {
         // Primary 1,500,000 but total 1,550,000 → 50,000 arrived as inflows.
         var withInflow = Summary.Replace("""
-            "income_total":{"crc":1500000,"usd":3000}
+            "income_inflows":{"crc":0,"usd":0},"income_total":{"crc":1500000,"usd":3000}
             """.Trim(), """
-            "income_total":{"crc":1550000,"usd":3100}
+            "income_inflows":{"crc":50000,"usd":100},"income_total":{"crc":1550000,"usd":3100}
             """.Trim());
 
         var cut = await DashboardAsync(MidMonth, withInflow);

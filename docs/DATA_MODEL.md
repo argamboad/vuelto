@@ -118,10 +118,13 @@ stored.
 ### BudgetSettings *(ADR-V003 — new in the port; replaces six columns on the donor's `User`)*
 The household's budget structure. Exactly one row per tenant, created with defaults on first use.
 - `id`, `tenant_id` (**unique**)
-- `week_start_weekday` (int, 0 = Sunday … 6 = Saturday; default 4 = Thursday)
+- `week_start_weekday` (int, 0 = Sunday … 6 = Saturday; default 4 = Thursday) — for a weekly-paid household, **the day
+  the money moves**: with the anchor `last_weekday_prev`, the weekday decides where each month starts and therefore its
+  4 or 5 weeks, so week count = transfer count only when the week starts on the payday (INCOME-1)
 - `month_anchor` — `last_weekday_prev` (default) | `first_weekday_current` | `first_of_month`
-- `primary_income_4w`, `primary_income_5w`, `primary_income_currency` (`CRC` | `USD`, default USD)
-- `secondary_income_4w`, `secondary_income_5w`, `secondary_income_currency`
+- *legacy (INCOME-1, ADR-V023)* `primary_income_4w`, `primary_income_5w`, `primary_income_currency`,
+  `secondary_income_4w`, `secondary_income_5w`, `secondary_income_currency` — still mapped, read and written by nothing
+  (an architecture test guards it): the rollback baseline for `AddIncomeLines`, dropped by the owner-gated INCOME-3
 
 ### Category
 A spend bucket. Soft-deleted; names are case-insensitively unique per household.
@@ -163,12 +166,31 @@ A budget line the dashboard compares actuals against.
 - no bank (dropped 2026-09-14, `DropExpenseLineBank`): a plan is "pay by card / by account"; the transaction records the real bank
 - `is_active`, `sort_order`
 
+### IncomeLine *(INCOME-1, ADR-V023)*
+One of the household's incomes. A catalog entry (soft-deleted, case-insensitively unique per household, 409 reactivation
+offer); never seeded; any member edits any line.
+- `id`, `tenant_id`, `name` (≤ 100), `member_user_id` (nullable, **no FK** — a household member's id; cleared on account
+  erasure), `currency` (`CRC` | `USD`), `kind` — `fixed` | `variable`
+- `pay_period` — `weekly` | `biweekly` | `monthly`; `amount` (`NUMERIC(12,2)`, > 0) per payment
+- `pay_day1`, `pay_day2` — biweekly only (1–31, 31 = the month's last day; default 15 and 31), null otherwise
+- `is_active`, `sort_order`, `needs_review` (set only by the INCOME-1 migration; any update clears it), `created_at`, `updated_at`
+- unique on (`tenant_id`, `name`)
+
 ### Month
 A budget period. Exists **only** through transactions (auto-created, auto-deleted — ADR-V005).
 - `id`, `tenant_id`, `year`, `month_number`, `week_count` (4 | 5), `week1_start_date`
-- `primary_income_amount`, `primary_income_currency`, `secondary_income_amount`,
-  `secondary_income_currency` — snapshotted from `BudgetSettings` at creation, editable per month
+- its income is its `MonthIncome` rows (below)
+- *legacy (INCOME-1)* `primary_income_amount`, `primary_income_currency`, `secondary_income_amount`,
+  `secondary_income_currency` — still mapped, read and written by nothing; the rollback baseline, dropped by INCOME-3
 - unique on (`tenant_id`, `year`, `month_number`)
+
+### MonthIncome *(INCOME-1, ADR-V023)*
+One income of one month: snapshotted from an IncomeLine when the month is created, or added by hand for that month.
+- `id`, `tenant_id`, `month_id` (FK → Month, **cascade**), `income_line_id` (FK → IncomeLine, nullable, **set null**)
+- `label`, `member_user_id` (no FK), `currency` — copied from the line, so renaming a line never rewrites history
+- `amount` (`NUMERIC(12,2)`) — what the month counts; `planned_amount` (nullable) — what the pay period derived at
+  creation, null for a one-off
+- `sort_order`, `created_at`, `updated_at`
 
 ### Week
 A materialized week of a month (stored at creation, never recomputed — ADR-V005).
@@ -255,7 +277,8 @@ rows that replace the hand-written BAC/BN extractors. Designed when that epic st
 - LoginToken is keyed by email (no FK — the account is resolved at redemption) *(constant)*
 - Tenant 1 — 1 BudgetSettings
 - Tenant 1 — N Category / Bank / Card / Envelope / FixedExpense / VariableExpense / MerchantCategoryMapping; Card 1 — N CardIdentity
-- Tenant 1 — N Month 1 — N Week; Month 1 — N Transaction; Month 1 — N Refund
+- Tenant 1 — N Month 1 — N Week; Month 1 — N Transaction; Month 1 — N Refund; Month 1 — N MonthIncome
+- Tenant 1 — N IncomeLine 1 — N MonthIncome (set null); IncomeLine / MonthIncome N — 0..1 User via `member_user_id` (no FK)
 - Transaction N — 1 Category, N — 1 Bank, N — 0..1 Card, N — 0..1 Envelope; Transaction 1 — 0..1 Refund
 - Refund 0..1 — 0..1 Transaction (the realized inflow, set-null)
 - FixedExpense / VariableExpense N — 1 Category, N — 0..1 Bank
@@ -277,6 +300,9 @@ erDiagram
     TENANT ||--o{ FIXED_EXPENSE : ""
     TENANT ||--o{ VARIABLE_EXPENSE : ""
     TENANT ||--o{ MONTH : "auto-created from transactions"
+    TENANT ||--o{ INCOME_LINE : "INCOME-1"
+    MONTH ||--o{ MONTH_INCOME : "FK cascade - snapshotted at creation"
+    INCOME_LINE |o..o{ MONTH_INCOME : "income_line_id - set null"
     MONTH ||--|{ WEEK : "FK cascade - materialized at creation"
     MONTH ||--o{ TRANSACTION : "FK cascade"
     MONTH ||--o{ REFUND : "FK cascade"
@@ -298,11 +324,27 @@ erDiagram
 
     BUDGET_SETTINGS {
         guid tenant_id UK
-        int week_start_weekday "default 4 = Thursday"
+        int week_start_weekday "default 4 = Thursday - the payday"
         string month_anchor "last_weekday_prev | first_weekday_current | first_of_month"
-        decimal primary_income_4w
-        decimal primary_income_5w
-        string primary_income_currency
+    }
+    INCOME_LINE {
+        guid tenant_id
+        string name "unique with tenant"
+        guid member_user_id "nullable - no FK"
+        string currency "CRC | USD"
+        string kind "fixed | variable"
+        string pay_period "weekly | biweekly | monthly"
+        decimal amount "per payment"
+        int pay_day1 "biweekly only"
+        int pay_day2 "biweekly only"
+    }
+    MONTH_INCOME {
+        guid month_id FK
+        guid income_line_id FK "nullable - one-off"
+        string label "copied"
+        string currency
+        decimal amount "editable"
+        decimal planned_amount "derived at creation"
     }
     MONTH {
         guid tenant_id
@@ -310,7 +352,6 @@ erDiagram
         int month_number "unique with tenant + year"
         int week_count "4 | 5 - derived once, stored"
         date week1_start_date
-        decimal primary_income_amount "snapshot, editable"
     }
     TRANSACTION {
         guid tenant_id
@@ -453,11 +494,13 @@ donor test suite (`Core.Tests`).
 | **Week count** | Number of whole 7-day weeks that fit before the next anchor: 4 or 5. Stored on `Month` for queries; **weeks are materialized** at creation and never recomputed (a settings change must not re-slice history). | `WeekBoundaryService.GenerateWeeks` |
 | **Dual-currency amounts** | `amount_crc` / `amount_usd` = `original_amount` converted by `exchange_rate_used`, rounded to 2 dp with fixed-point arithmetic. Derived **once** at creation with the frozen rate; re-derived on edit only from that same rate. | `CurrencyMath.DeriveAmounts` |
 | **Rate resolution** | live quote (cached < 1 h counts as live) → stale cache flagged "as of" → most recent transaction's rate → unavailable. A provider rate ≤ 0 is unavailable. The quote is a buy/sell pair (BCCR compra/venta, ADR-V019); the side used follows the money: spending in USD → sell, in CRC → buy; income in USD → buy, in CRC → sell; budget lines like spending; a single-rate source is both sides equal. `exchange_rate_used` freezes the one side the transaction's currency selects. | `IExchangeRateResolver`, `FxRates` |
-| **Month existence** | A month exists ⇔ it has ≥ 1 transaction. Created on the first transaction in its window (income snapshotted from `BudgetSettings` 4w/5w by `week_count`); deleted with its weeks when the last transaction goes. Refunds never keep a month alive. | `TransactionService` |
+| **Month existence** | A month exists ⇔ it has ≥ 1 transaction. Created on the first transaction in its window (income rows snapshotted from the income lines — next row); deleted with its weeks and income rows when the last transaction goes. Refunds never keep a month alive. | `TransactionService` |
+| **Month income plan** (INCOME-1) | At month creation, one row per active income line whose member (if any) is still in the household: `planned_amount = amount ×` (weekly → `week_count`; biweekly → the pay days that fall in [first week's start, last week's end], day 31 clamped to the month's last day; monthly → 1), 2 dp. `amount` starts equal and stays editable. | `IncomeSnapshot` |
+| **Month income** | Σ each income row converted at the day's rate by the income direction rule (USD at buy, CRC at sell) + Σ inflow transactions' frozen amounts. | `IncomeCalculator` |
 | **Refund** | Exists ⇔ its `unplanned_essential` transaction was flagged with a percentage. `amount_* = percentage × transaction.amount_*` (inherits the frozen rate). Re-derived on transaction edit; removed when the flag or the transaction goes. | `TransactionService.SyncRefundAsync` |
 | **Refund realization** | `status = received` ⇔ a linked `inflow` transaction exists (same amounts/rate, the source's bank, `source = refund_realization`). Flipping is a conditional update; the inflow is created/removed symmetrically. | `TransactionService.ApplyRefundStatusAsync` |
 | **Envelope contribution** | A transaction of class `envelope_contribution` requires an `envelope_id` and `payment_method = bank_account`. Contributed-this-month = sum of such transactions per envelope; remaining = annual target − contributed. | `TransactionService`, `DashboardSummaryService` |
-| **Dashboard summary** | Income (two incomes + inflows), expense summary (card/account/total/remainder), budgeted-vs-actual per expense line + "other spending", weekly totals, unplanned subtotal, refunds, envelope reminders (by cadence and week count), bank × payment-method cells, balance figures — every one a CRC/USD pair. Actuals use frozen rates; projections use the resolved live rate. | `DashboardSummaryService.Calculate` |
+| **Dashboard summary** | Income (the month's income rows + inflows), expense summary (card/account/total/remainder), budgeted-vs-actual per expense line + "other spending", weekly totals, unplanned subtotal, refunds, envelope reminders (by cadence and week count), bank × payment-method cells, balance figures — every one a CRC/USD pair. Actuals use frozen rates; projections use the resolved live rate. | `DashboardSummaryService.Calculate` |
 | **Catalog uniqueness** | Names unique per household, case-insensitively; a clash with an inactive row is a reactivation offer, not an error. `is_active = false` ≠ deleted — inactive names still render on history. | catalog handlers |
 | **Voucher completeness** | A parsed voucher is complete ⇔ merchant, amount > 0, currency ∈ {CRC, USD}, date are all present; otherwise `missing_fields` names the blanks and the draft stages incomplete. | `VoucherParser` |
 | **Voucher fingerprint** | SHA-256 of `bank + (authorization ?? reference) + amount + date`; when both ids are absent, the provider message id; when that is absent too, no dedup (stage anyway — never silently drop). Dedup is **per household**. | `VoucherFingerprint.Compute` |

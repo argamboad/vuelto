@@ -14,7 +14,8 @@
 @* EXPENSES-1: the household's budget baseline — fixed and variable lines (ADR-V007), presented per SKIN-9: a
    commitment header stating what the plan takes of a typical income, two reorderable lists, and one dialog for
    creating and editing so the lists never jump. The header is a projection: lines in two currencies add up
-   only at today's rate, and a typical income is the four-week defaults from Settings → Budget. *@
+   only at today's rate, and a typical income is a four-week month of the active income lines (INCOME-1: weekly × 4,
+   biweekly × 2, monthly × 1). *@
 <div class="settings-wrapper" data-testid="budget-page">
     <div class="budget-head">
         <div>
@@ -66,7 +67,7 @@
     private IReadOnlyList<ExpenseLine> _variable = [];
     private ExpenseLinesSection? _fixedSection, _variableSection;
     private decimal? _rate;
-    private SettingsDto? _settings;
+    private List<IncomeLineDto>? _incomes;
     private string _display = MoneyDisplay.Both;
     private DialogState? _dialog;
 
@@ -86,17 +87,23 @@
         catch { _error = Localizer["Budget_LoadError"]; }
         finally { _loading = false; }
 
-        // The header's two projections are best-effort: no rate means no conversion, no defaults means no share.
+        // The header's two projections are best-effort: no rate means no conversion, no income lines means no share.
         try { var res = await Http.GetAsync("/api/exchange-rate"); if (res.IsSuccessStatusCode) _rate = (await res.Content.ReadFromJsonAsync<RateDto>())?.Rate; } catch { }
-        try { var res = await Http.GetAsync("/api/budget-settings"); if (res.IsSuccessStatusCode) _settings = await res.Content.ReadFromJsonAsync<SettingsDto>(); } catch { }
+        try { var res = await Http.GetAsync("/api/incomes"); if (res.IsSuccessStatusCode) _incomes = await res.Content.ReadFromJsonAsync<List<IncomeLineDto>>(); } catch { }
     }
 
-    /// <summary>The four-week income defaults, both incomes, on the display side at today's rate. Null without a rate or without defaults.</summary>
+    /// <summary>
+    /// A four-week month of the active income lines (weekly × 4, biweekly × 2, monthly × 1), on the display side at
+    /// today's rate. Null without a rate or without income.
+    /// </summary>
     private decimal? TypicalIncome()
     {
-        if (_settings is not { } s || _rate is not { } r || r <= 0) return null;
-        var crc = (s.PrimaryIncomeCurrency == MoneyDisplay.Crc ? s.PrimaryIncome4w : s.PrimaryIncome4w * r)
-                + (s.SecondaryIncomeCurrency == MoneyDisplay.Crc ? s.SecondaryIncome4w : s.SecondaryIncome4w * r);
+        if (_incomes is not { Count: > 0 } lines || _rate is not { } r || r <= 0) return null;
+        var crc = lines.Sum(l =>
+        {
+            var month = l.Amount * (l.PayPeriod switch { "weekly" => 4, "biweekly" => 2, _ => 1 });
+            return l.Currency == MoneyDisplay.Crc ? month : month * r;
+        });
         if (crc <= 0) return null;
         return _display == MoneyDisplay.Usd ? crc / r : crc;
     }
@@ -114,9 +121,8 @@
     }
 
     private sealed record RateDto([property: JsonPropertyName("rate")] decimal? Rate);
-    private sealed record SettingsDto(
-        [property: JsonPropertyName("primary_income_4w")] decimal PrimaryIncome4w,
-        [property: JsonPropertyName("primary_income_currency")] string PrimaryIncomeCurrency,
-        [property: JsonPropertyName("secondary_income_4w")] decimal SecondaryIncome4w,
-        [property: JsonPropertyName("secondary_income_currency")] string SecondaryIncomeCurrency);
+    private sealed record IncomeLineDto(
+        [property: JsonPropertyName("currency")] string Currency,
+        [property: JsonPropertyName("pay_period")] string PayPeriod,
+        [property: JsonPropertyName("amount")] decimal Amount);
 }

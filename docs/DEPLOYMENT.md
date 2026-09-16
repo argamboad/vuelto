@@ -388,6 +388,38 @@ notifications. Re-running the file is a no-op. `HouseholdSnapshotTests` proves t
 Postgres and fails the build if a tenant-scoped table is ever added without being listed as included
 or excluded in the script.
 
+## 9a. Deploying a change that copies data (INCOME-1)
+
+Staging applies migrations **on boot**, against the owner's real household, with no human step. A migration that
+copies data (the first is INCOME-1's `AddIncomeLines`: income defaults → income lines, month incomes → month rows)
+therefore gets a rehearsal and a restore point **before the PR is merged**, and a check right after the deploy.
+
+1. **Restore point.** In the Neon console, create a branch of the staging database (name it after the PR, e.g.
+   `before-income-lines`). Keep it until the owner confirms the numbers. Also take the household snapshot (§9) and
+   keep the file outside the repo.
+2. **Rehearse.** Create a second branch, point a local API at it (`ConnectionStrings__DefaultConnection`), and start
+   it: the migration runs. Then:
+
+   ```bash
+   psql "<rehearsal branch owner connection>" -f tools/check-income-parity.sql
+   ```
+
+   **Expected:** `(0 rows)`. Open Settings → Manage income, three past months and their dashboards: the income is
+   what production shows today.
+3. **Merge and deploy.** Name the restore branch, the snapshot file and the rehearsal result in the PR.
+4. **Check staging right after the deploy**, before anyone edits a month's income:
+
+   ```bash
+   psql "<staging owner connection>" -f tools/check-income-parity.sql
+   ```
+
+   Any row: roll the app back to the previous deploy on Render (the old income fields were never touched, so the
+   previous build reads them as before), then investigate. The new tables can stay; the old build ignores them.
+5. **Later, owner-gated (INCOME-3):** only after the numbers have been confirmed for a while does a separate PR drop
+   the old income fields. That PR repeats steps 1–4.
+
+Details on both scripts: [`tools/README.md`](../tools/README.md).
+
 ## 9. Native clients — an installable build pointed at a host
 
 The MAUI shells (Android, Windows; iOS/macCatalyst on a Mac) are the same app as the web client, so

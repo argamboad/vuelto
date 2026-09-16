@@ -105,6 +105,17 @@ account settings (owner question) and the app stopped sending it. The original p
 
 **As a** household member **I want** each income listed as its own line — whose it is, its currency, whether it is fixed or an estimate, and how often it is paid — **so that** a weekly salary, a monthly salary and a variable side income all land correctly in the month's plan without typing four-week and five-week figures.
 
+**As built (2026-09-16, ADR-V023):** the fields are `Amount` and `PayDay1`/`PayDay2` (31 = last day) plus a
+`NeedsReview` flag, instead of `AmountPerPeriod`/`BiweeklyPayDays` and a settings-page notice: the "check this" badge sits
+on the line itself and clears on its first save. The pure service is `IncomeSnapshot`. A member who leaves is **skipped
+at snapshot time** rather than having their lines deactivated, so the line keeps its member and stays editable (the
+form shows "a former member"). The income page uses the envelopes page's inline form rather than a dialog, with ↑/↓
+ordering. The dashboard summary did change shape: `income_primary`/`income_secondary` became `income_lines` and
+`income_inflows` (`income_total` unchanged). The migration sets the RLS bypass itself, because Neon's owner is not a
+superuser. An architecture test fails if anything but the entities, their mappings, the backfill and the migrations
+names the old income columns. The E2E journey adds lines, then creates a month through the transaction form and
+corrects a row. `tools/check-income-parity.sql` is the parity query below as a file; DEPLOYMENT §9a is the runbook.
+
 **Model** (`DATA_MODEL.md` first; both entities `ITenantScoped` with the RLS policy in the same migration, `IUserDataContributor`/tenant contributor wired):
 - `IncomeLine`: `Name` (unique per household, case-insensitive), `MemberUserId?`, `Currency`, `Kind` (`fixed|variable`), `PayPeriod` (`weekly|biweekly|monthly`), `AmountPerPeriod`, `BiweeklyPayDays` (two day-of-month values, default 15 + last; only for biweekly), `IsActive`, `SortOrder`. Stored-value constants `IncomeKinds`, `PayPeriods` in Core with `.All`.
 - `MonthIncome`: `MonthId`, `IncomeLineId?`, `Label`, `MemberUserId?`, `Currency`, `Amount` (editable), `PlannedAmount` (what the snapshot derived — so an edit is visible as such).

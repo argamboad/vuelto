@@ -22,8 +22,7 @@ public class BudgetSettingsSliceTests(PostgresFixture fixture) : PostgresTestBas
     private static BudgetSettingsHandler Handler(AppDbContext db, Guid tenantId, TimeProvider? clock = null) =>
         new(new EfRepository<BudgetSettings>(db), new TestCurrentTenant { TenantId = tenantId }, clock ?? new FakeTimeProvider(T0));
 
-    private static UpdateBudgetSettingsRequest Valid(int weekday = 1, string anchor = MonthAnchors.FirstOfMonth) =>
-        new(weekday, anchor, 1500.00m, 1800.00m, "USD", 400000m, 500000m, "crc");
+    private static UpdateBudgetSettingsRequest Valid(int weekday = 1, string anchor = MonthAnchors.FirstOfMonth) => new(weekday, anchor);
 
     [Fact]
     public async Task Get_BeforeAnySave_ReturnsDefaults_AndWritesNothing()
@@ -37,8 +36,6 @@ public class BudgetSettingsSliceTests(PostgresFixture fixture) : PostgresTestBas
         Assert.True(current!.IsDefault);
         Assert.Equal(4, current.WeekStartWeekday);
         Assert.Equal(MonthAnchors.LastWeekdayPrev, current.MonthAnchor);
-        Assert.Equal(0m, current.PrimaryIncome4w);
-        Assert.Equal(Currencies.Usd, current.SecondaryIncomeCurrency);
         Assert.Null(current.UpdatedAt);
         Assert.Equal(0, await db.BudgetSettings.IgnoreQueryFilters().CountAsync());
     }
@@ -55,7 +52,6 @@ public class BudgetSettingsSliceTests(PostgresFixture fixture) : PostgresTestBas
             Assert.Null(error);
             Assert.False(saved!.IsDefault);
             Assert.Equal(1, saved.WeekStartWeekday);
-            Assert.Equal("CRC", saved.SecondaryIncomeCurrency); // normalized from "crc"
             Assert.Equal(T0, saved.UpdatedAt);
         }
 
@@ -102,19 +98,15 @@ public class BudgetSettingsSliceTests(PostgresFixture fixture) : PostgresTestBas
     }
 
     [Theory]
-    [InlineData(7, MonthAnchors.FirstOfMonth, 1, "USD", "USD", "week_start_weekday")]
-    [InlineData(-1, MonthAnchors.FirstOfMonth, 1, "USD", "USD", "week_start_weekday")]
-    [InlineData(4, "middle_of_month", 1, "USD", "USD", "month_anchor")]
-    [InlineData(4, null, 1, "USD", "USD", "month_anchor")]
-    [InlineData(4, MonthAnchors.FirstOfMonth, -1, "USD", "USD", "negative")]
-    [InlineData(4, MonthAnchors.FirstOfMonth, 1, "EUR", "USD", "primary_income_currency")]
-    [InlineData(4, MonthAnchors.FirstOfMonth, 1, "USD", "", "secondary_income_currency")]
-    public async Task Update_InvalidInput_Is400_AndWritesNothing(
-        int weekday, string? anchor, decimal primary4w, string primaryCurrency, string secondaryCurrency, string expectedInMessage)
+    [InlineData(7, MonthAnchors.FirstOfMonth, "week_start_weekday")]
+    [InlineData(-1, MonthAnchors.FirstOfMonth, "week_start_weekday")]
+    [InlineData(4, "middle_of_month", "month_anchor")]
+    [InlineData(4, null, "month_anchor")]
+    public async Task Update_InvalidInput_Is400_AndWritesNothing(int weekday, string? anchor, string expectedInMessage)
     {
         var tenant = Guid.CreateVersion7();
         await using var db = Fixture.CreateContext(tenant);
-        var request = new UpdateBudgetSettingsRequest(weekday, anchor, primary4w, 0, primaryCurrency, 0, 0, secondaryCurrency);
+        var request = new UpdateBudgetSettingsRequest(weekday, anchor);
 
         var (saved, error) = await Handler(db, tenant).UpdateAsync(request, default);
 

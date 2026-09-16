@@ -151,20 +151,38 @@ Notes:
 > (§8). Every flow below is household-scoped unless it says otherwise.
 
 ### 7. Configure the household's budget structure *(US-003, US-015 · ADR-V003)*
-**Goal:** tell the app how this household's months and income work, once.
+**Goal:** tell the app how this household's months work, once.
 
 Flow:
 1. On Settings → Budget, a member sets the **week-start weekday** (default Thursday) and the
    **month anchor**: `last_weekday_prev` (default — the month starts on the last Thursday of the
    previous calendar month, matching a weekly pay cycle), `first_weekday_current`, or
-   `first_of_month` (monthly pay).
-2. They set two incomes (**primary**, **secondary**), each with a **4-week** and a **5-week**
-   default amount and **one currency** per income.
-3. `PUT /api/budget-settings` saves the single `BudgetSettings` row for the household.
+   `first_of_month` (monthly pay). For a weekly-paid household the week start is **the day the money
+   moves**: it decides where each month starts, so it decides whether a month has 4 or 5 paydays.
+2. `PUT /api/budget-settings` saves the single `BudgetSettings` row for the household.
+3. Income is no longer set here: it lives on its own page (§7b, INCOME-1).
 
 Notes:
 - Settings are **per household** (the donor kept them on the user; the port moves them — ADR-V003).
 - Changing settings affects **future** months only; existing months keep their stored weeks (§9).
+
+### 7b. Keep the household's income lines *(INCOME-1 · ADR-V023)*
+**Goal:** list every income once — whose it is and how it is paid — so each month starts with the right plan.
+
+Flow:
+1. On Settings → **Manage income** (`/incomes`), a member adds a line: a name, whose income it is (a member, or the
+   household), the currency, **fixed** or **variable** (an estimate), how often it is paid (**weekly**, **twice a
+   month** on two days — 15th and the last day by default — or **monthly**) and the amount per payment.
+2. Lines are ordered (up/down), deactivated rather than deleted, and a new line under an inactive line's name offers
+   to reactivate it (ADR-V008). Any member edits any line.
+3. When a month is created (§9) each active line becomes a **month income row**: weekly × the month's weeks, twice a
+   month × the pay days inside the month's window, monthly × 1. A line whose member left the household is skipped.
+4. On the month page each row's name, amount and currency can be corrected for that month only (the planned figure
+   stays beside an edited amount); a one-off income can be added and a row removed.
+
+Notes: the migration turned each household's old 4-week/5-week defaults into lines (a pair that fit no pay period is
+flagged "check this") and copied every existing month's two incomes verbatim into rows, so no past month changed. The
+old columns are kept, unused, until the owner retires them (INCOME-3).
 
 ### 8. Resolve the exchange rate *(US-014 · ADR-V006)*
 **Goal:** always have a defensible USD→CRC rate, and never fabricate one.
@@ -195,10 +213,11 @@ Flow:
    `category_id`, so the same two screens can name the budget line a purchase lands in.
 2. If no month covers the window, one is **auto-created**: `year`, `month_number`, `week_count`
    (4 or 5, whatever fits before the next anchor), `week1_start_date`, the **weeks** materialized
-   (7 days each, the last clamped), and the two incomes **snapshotted** from the 4w/5w defaults.
+   (7 days each, the last clamped), and the **income rows snapshotted** from the active income lines by
+   pay period (§7b).
 3. Deleting a month's **last** transaction deletes the month and its weeks.
 4. `GET /api/months` lists months newest first; the dashboard's month selector navigates them.
-   `PUT /api/months/{id}/income` edits that month's two incomes (amount + currency each).
+   `PUT /api/months/{id}/income` replaces that month's income rows (edit, add a one-off, remove).
 
 Notes: validation and rate resolution happen **before** get-or-create, so a rejected request
 never leaves an empty month. Refunds are transaction-bound and never keep a month alive.
@@ -288,7 +307,7 @@ Flow:
 1. `GET /api/months/{id}` returns month + weeks + the **dashboard summary**, computed by
    `DashboardSummaryService` (pure) from the month's transactions, the expense catalog, envelopes
    and the resolved rate.
-2. Sections: **income** (primary, secondary, inflows folded in, total); **expense summary**
+2. Sections: **income** (the month's income rows, inflows folded in, total); **expense summary**
    (card total, account total, grand total, remainder); **fixed** and **variable** tables
    (budgeted vs actual per line + "other spending"); **weekly breakdowns** (budgeted and
    extraordinary, per week with date ranges); **unplanned** slice with subtotal; **refunds**;
@@ -440,7 +459,7 @@ sequenceDiagram
     TS->>WB: GetBudgetMonthForDate(date, weekStart, anchor)
     WB-->>TS: (year, month) — the anchor window, not the calendar month
     TS->>UoW: BeginTransactionAsync
-    TS->>Db: Month for (year, month)? else create it + weeks + income snapshot (4w/5w by week_count)
+    TS->>Db: Month for (year, month)? else create it + weeks + income rows from the lines (by pay period)
     Note over TS,Db: unique (tenant, year, month) race → savepoint rollback → re-read, retry once
     TS->>TS: CurrencyMath.DeriveAmounts → amount_crc, amount_usd; freeze exchange_rate_used
     TS->>Db: add Transaction (source = manual)

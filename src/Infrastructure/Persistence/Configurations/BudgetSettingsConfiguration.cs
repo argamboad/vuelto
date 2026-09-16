@@ -16,6 +16,7 @@ public class BudgetSettingsConfiguration : IEntityTypeConfiguration<BudgetSettin
         b.HasKey(x => x.Id);
         b.HasIndex(x => x.TenantId).IsUnique();
         b.Property(x => x.MonthAnchor).HasMaxLength(32).IsRequired();
+        // Legacy income columns (INCOME-1): mapped unchanged so the rollback baseline stays in place; dropped by INCOME-3.
         b.Property(x => x.PrimaryIncomeCurrency).HasMaxLength(3).IsRequired();
         b.Property(x => x.SecondaryIncomeCurrency).HasMaxLength(3).IsRequired();
         b.Property(x => x.PrimaryIncome4w).HasPrecision(12, 2);

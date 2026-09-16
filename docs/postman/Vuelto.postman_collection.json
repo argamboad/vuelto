@@ -2705,7 +2705,7 @@
     },
     {
       "name": "11 · Budget settings",
-      "description": "BUDGET-1 (app slice): the household's budget structure — week-start weekday, month anchor, and the two incomes' 4-week / 5-week defaults. One row per household, created on the first PUT; before that GET serves the defaults with is_default=true. Any member may read and save (no owner gate). Error codes: 400 invalid_request (message names the field), 401 without a token.",
+      "description": "BUDGET-1 (app slice): the household's budget structure — week-start weekday (for a weekly-paid household, the day the money moves) and month anchor. Income moved to 25 · Income (INCOME-1, ADR-V023). One row per household, created on the first PUT; before that GET serves the defaults with is_default=true. Any member may read and save (no owner gate). Error codes: 400 invalid_request (message names the field), 401 without a token.",
       "item": [
         {
           "name": "Get budget settings",
@@ -2721,7 +2721,7 @@
                 "budget-settings"
               ]
             },
-            "description": "Returns the saved row, or the defaults (Thursday, last_weekday_prev, 0 USD × 2) flagged is_default=true when the household has never saved. Never writes."
+            "description": "Returns the saved row, or the defaults (Thursday, last_weekday_prev) flagged is_default=true when the household has never saved. Never writes. No income fields since INCOME-1."
           },
           "event": [
             {
@@ -2749,7 +2749,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"week_start_weekday\": 4,\n  \"month_anchor\": \"last_weekday_prev\",\n  \"primary_income_4w\": 1500.0,\n  \"primary_income_5w\": 1800.0,\n  \"primary_income_currency\": \"USD\",\n  \"secondary_income_4w\": 400000,\n  \"secondary_income_5w\": 500000,\n  \"secondary_income_currency\": \"CRC\"\n}"
+              "raw": "{\n  \"week_start_weekday\": 4,\n  \"month_anchor\": \"last_weekday_prev\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/budget-settings",
@@ -2761,7 +2761,7 @@
                 "budget-settings"
               ]
             },
-            "description": "Upserts the household's single row. week_start_weekday 0 (Sunday) … 6 (Saturday); month_anchor one of last_weekday_prev | first_weekday_current | first_of_month; amounts ≥ 0; currencies CRC or USD (case-insensitive, stored upper). 400 invalid_request otherwise; nothing is written on a 400."
+            "description": "Upserts the household's single row. week_start_weekday 0 (Sunday) … 6 (Saturday); month_anchor one of last_weekday_prev | first_weekday_current | first_of_month. 400 invalid_request otherwise; nothing is written on a 400. Income fields are no longer read (INCOME-1): incomes are lines under /api/incomes."
           },
           "event": [
             {
@@ -2788,7 +2788,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"week_start_weekday\": 9,\n  \"month_anchor\": \"last_weekday_prev\",\n  \"primary_income_4w\": 0,\n  \"primary_income_5w\": 0,\n  \"primary_income_currency\": \"USD\",\n  \"secondary_income_4w\": 0,\n  \"secondary_income_5w\": 0,\n  \"secondary_income_currency\": \"USD\"\n}"
+              "raw": "{\n  \"week_start_weekday\": 9,\n  \"month_anchor\": \"last_weekday_prev\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/budget-settings",
@@ -3334,7 +3334,7 @@
     },
     {
       "name": "15 · Months",
-      "description": "LEDGER-1 (app slice P5a, ADR-V005): pay-cycle budget months. There is NO create route — a month appears when the first transaction lands in its anchor window (weeks materialized, income snapshotted from Budget settings) and leaves with its last transaction. Resolve answers for any date without writing. Any member may read and edit income.",
+      "description": "LEDGER-1 (app slice P5a, ADR-V005): pay-cycle budget months. There is NO create route — a month appears when the first transaction lands in its anchor window (weeks materialized, income rows snapshotted from the household's income lines by their pay periods — INCOME-1) and leaves with its last transaction. Resolve answers for any date without writing. Any member may read and edit income.",
       "item": [
         {
           "name": "List months",
@@ -3417,15 +3417,16 @@
                 "{{monthId}}"
               ]
             },
-            "description": "The month with its materialized weeks (week_number, start_date, end_date). 404 not_found for another household's id or a month that left with its last transaction."
+            "description": "The month with its materialized weeks (week_number, start_date, end_date) and its income_rows (INCOME-1: id, income_line_id — null for a one-off —, label, member_user_id, currency, amount, planned_amount — what the line's pay period derived at creation, null for a one-off). Captures the first row id into {{monthIncomeRowId}}. 404 not_found for another household's id or a month that left with its last transaction."
           },
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test(\"200 or 404 when no month yet\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));",
-                  "if (pm.response.code === 200) pm.test(\"weeks\", () => pm.expect(pm.response.json().weeks.length).to.be.within(4, 5));"
+                  "pm.test(\"200 (or 404 when no month yet)\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));",
+                  "if (pm.response.code === 200) { const m = pm.response.json(); pm.test(\"income_rows is a list\", () => pm.expect(m.income_rows).to.be.an('array'));",
+                  "  if (m.income_rows.length) pm.environment.set('monthIncomeRowId', m.income_rows[0].id); }"
                 ],
                 "type": "text/javascript"
               }
@@ -3448,7 +3449,7 @@
                 "income"
               ]
             },
-            "description": "Both incomes stay editable after auto-creation (amount + currency each). 400 invalid_request for a negative amount or a currency other than CRC/USD; 404 for another household's id.",
+            "description": "INCOME-1: the month's FULL list of income rows, in order. A row with an id updates that row (label, member_user_id, currency, amount — its line link and planned_amount are kept); a row without one is a one-off for this month; a stored row left out is removed. 200 with the month and its income_rows. 400 invalid_request for a missing rows list, a blank label (> 100 chars too), a currency other than CRC/USD, a negative amount, a member_user_id not in the household, or an id repeated / not of this month; 404 for another household's month. Run Get month first so {{monthIncomeRowId}} exists (or drop that row from the body).",
             "header": [
               {
                 "key": "Content-Type",
@@ -3457,7 +3458,12 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"primary_income_amount\": 3750,\n  \"primary_income_currency\": \"USD\",\n  \"secondary_income_amount\": 312500,\n  \"secondary_income_currency\": \"CRC\"\n}"
+              "raw": "{\n  \"rows\": [\n    {\n      \"id\": \"{{monthIncomeRowId}}\",\n      \"label\": \"Allan salary\",\n      \"currency\": \"USD\",\n      \"amount\": 2300\n    },\n    {\n      \"label\": \"Sold the bike\",\n      \"currency\": \"CRC\",\n      \"amount\": 150000\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             }
           },
           "event": [
@@ -3488,7 +3494,7 @@
                 "income"
               ]
             },
-            "description": "A negative amount → 400 invalid_request (message names the rule). Same for an unknown currency.",
+            "description": "A negative amount → 400 invalid_request (message names the rule). Same for an unknown currency, a blank label or a missing rows list.",
             "header": [
               {
                 "key": "Content-Type",
@@ -3497,7 +3503,12 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"primary_income_amount\": -1,\n  \"primary_income_currency\": \"USD\",\n  \"secondary_income_amount\": 0,\n  \"secondary_income_currency\": \"USD\"\n}"
+              "raw": "{\n  \"rows\": [\n    {\n      \"label\": \"Salary\",\n      \"currency\": \"USD\",\n      \"amount\": -1\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             }
           },
           "event": [
@@ -5736,6 +5747,223 @@
                 "exec": [
                   "pm.test(\"400\", () => pm.response.to.have.status(400));",
                   "pm.test(\"error code\", () => pm.expect(pm.response.json().error).to.eql('invalid_request'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "25 · Income",
+      "description": "INCOME-1 (app slice, ADR-V023): the household's income lines — who earns what, in which currency, fixed or an estimate (variable), how often it is paid (weekly | biweekly | monthly) and how much per payment. Each new month snapshots the active lines into its income_rows (15 · Months): weekly × the month's week count, biweekly × the pay days inside the month's window, monthly × 1; a line whose member has left the household is skipped. Catalog rules (ADR-V008): unique name per household case-insensitively (409 income_exists / income_exists_inactive + existing_id + existing_name), soft delete via is_active, reorder of exactly the active set. Any member may read and edit. 404 for another household's id. Never seeded.",
+      "item": [
+        {
+          "name": "List income lines",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/incomes?include_inactive=false",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "incomes"
+              ],
+              "query": [
+                {
+                  "key": "include_inactive",
+                  "value": "false"
+                }
+              ]
+            },
+            "description": "Active lines in list order (include_inactive=true adds the rest). Each: id, name, member_user_id, currency, kind, pay_period, amount, pay_days (biweekly only), sort_order, is_active, needs_review (set by the INCOME-1 migration when an old 4w/5w pair didn't fit a pay period; any update clears it). A fresh household gets []."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "const list = pm.response.json(); pm.test(\"a list\", () => pm.expect(list).to.be.an('array'));",
+                  "if (list.length) pm.environment.set('incomeLineId', list[0].id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create income line",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/incomes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "incomes"
+              ]
+            },
+            "description": "201 with the line (sort_order appended). name ≤ 100; member_user_id optional and must be a current member of the household; currency CRC | USD; kind fixed | variable; pay_period weekly | biweekly | monthly; amount per payment > 0 (2 dp); pay_days only for biweekly — two different days 1–31 (31 = the month's last day), default [15, 31]. 400 invalid_request otherwise; 409 on a name clash. Captures {{incomeLineId}}.",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman salary\",\n  \"member_user_id\": null,\n  \"currency\": \"USD\",\n  \"kind\": \"fixed\",\n  \"pay_period\": \"weekly\",\n  \"amount\": 500\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"201 or 409 on re-run\", () => pm.expect(pm.response.code).to.be.oneOf([201, 409]));",
+                  "if (pm.response.code === 201) pm.environment.set('incomeLineId', pm.response.json().id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create income line — invalid (400)",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/incomes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "incomes"
+              ]
+            },
+            "description": "pay_days on a monthly line → 400 invalid_request (message names pay_days). Same for amount ≤ 0, an unknown currency, kind or pay_period, or a member who is not in the household.",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Bad line\",\n  \"member_user_id\": null,\n  \"currency\": \"USD\",\n  \"kind\": \"fixed\",\n  \"pay_period\": \"monthly\",\n  \"amount\": 500,\n  \"pay_days\": [\n    15,\n    31\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"400 invalid_request\", () => { pm.response.to.have.status(400); pm.expect(pm.response.json().error).to.eql('invalid_request'); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update income line",
+          "request": {
+            "method": "PUT",
+            "url": {
+              "raw": "{{baseUrl}}/api/incomes/{{incomeLineId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "incomes",
+                "{{incomeLineId}}"
+              ]
+            },
+            "description": "Changes every field but the order (is_active false deactivates; a later create with the same name gets the reactivation offer). Clears needs_review. A member who has since left may be kept on the line, but a NEW member must be current. 404 for another household's id; 409 income_exists when renaming onto another line.",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman salary\",\n  \"member_user_id\": null,\n  \"currency\": \"USD\",\n  \"kind\": \"variable\",\n  \"pay_period\": \"biweekly\",\n  \"amount\": 750,\n  \"pay_days\": [\n    15,\n    31\n  ],\n  \"is_active\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200 (or 404 without a line)\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reorder income lines",
+          "request": {
+            "method": "PUT",
+            "url": {
+              "raw": "{{baseUrl}}/api/incomes/order",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "incomes",
+                "order"
+              ]
+            },
+            "description": "204. ordered_ids must name EXACTLY the active lines, each once — 400 invalid_request otherwise. The new order lands atomically.",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ordered_ids\": [\n    \"{{incomeLineId}}\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"204 (or 400 when the list doesn't match the active set)\", () => pm.expect(pm.response.code).to.be.oneOf([204, 400]));"
                 ],
                 "type": "text/javascript"
               }

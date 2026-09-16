@@ -17,6 +17,7 @@ using Vuelto.Api.Features.Reports;
 using Vuelto.Api.Features.Reports.Pdf;
 using Vuelto.Api.Features.ExchangeRate;
 using Vuelto.Api.Features.Expenses;
+using Vuelto.Api.Features.Income;
 using Vuelto.Api.Features.Ledger;
 using Vuelto.Api.Observability;
 using Vuelto.Api.Services;
@@ -154,6 +155,9 @@ builder.Services.AddScoped<FixedExpenseHandler>();                              
 builder.Services.AddScoped<VariableExpenseHandler>();
 builder.Services.AddScoped<ITenantDataContributor, FixedExpenseDataContributor>();
 builder.Services.AddScoped<ITenantDataContributor, VariableExpenseDataContributor>();
+builder.Services.AddScoped<IncomeHandler>();                                            // INCOME-1
+builder.Services.AddScoped<ITenantDataContributor, IncomeDataContributor>();
+builder.Services.AddScoped<IUserDataContributor, IncomeUserDataContributor>();
 builder.Services.AddSingleton<IDashboardSummaryService, DashboardSummaryService>();    // DASH-1 (pure Core calc)
 builder.Services.AddScoped<DashboardHandler>();
 builder.Services.AddScoped<ReportHandler>();                                            // REPORTS-1/2
@@ -393,6 +397,7 @@ app.MapExchangeRate();   // FX-1
 app.MapEnvelopes();      // ENV-1
 app.MapLedger();         // LEDGER-1/2/3 (/api/months, /api/transactions, /api/refunds)
 app.MapExpenses();       // EXPENSES-1 (/api/expenses/fixed, /api/expenses/variable)
+app.MapIncomes();        // INCOME-1 (/api/incomes)
 app.MapDashboard();      // DASH-1 (/api/months/{id}/summary)
 app.MapReports();        // REPORTS-1/2/7/8 (/api/reports/category-analysis, /api/reports/transactions/export, /api/reports/pdf, /api/reports/pdf/email)
 app.MapEmail();          // EMAIL-2/3 (/api/email/connections — user-scoped; the consent callback is the one anonymous route)

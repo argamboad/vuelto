@@ -19,16 +19,30 @@ public record MonthResponse(
     [property: JsonPropertyName("month_number")] int MonthNumber,
     [property: JsonPropertyName("week_count")] int WeekCount,
     [property: JsonPropertyName("week1_start_date")] DateOnly Week1StartDate,
-    [property: JsonPropertyName("primary_income_amount")] decimal PrimaryIncomeAmount,
-    [property: JsonPropertyName("primary_income_currency")] string PrimaryIncomeCurrency,
-    [property: JsonPropertyName("secondary_income_amount")] decimal SecondaryIncomeAmount,
-    [property: JsonPropertyName("secondary_income_currency")] string SecondaryIncomeCurrency,
-    [property: JsonPropertyName("weeks")] IReadOnlyList<WeekResponse>? Weeks)
+    [property: JsonPropertyName("weeks")] IReadOnlyList<WeekResponse>? Weeks,
+    [property: JsonPropertyName("income_rows")] IReadOnlyList<MonthIncomeResponse>? IncomeRows = null)
 {
-    public static MonthResponse From(Month m, IReadOnlyList<Week>? weeks = null) => new(
+    /// <summary>The list carries neither weeks nor income rows; a single month carries both (INCOME-1).</summary>
+    public static MonthResponse From(Month m, IReadOnlyList<Week>? weeks = null, IReadOnlyList<MonthIncome>? incomeRows = null) => new(
         m.Id, m.Year, m.MonthNumber, m.WeekCount, m.Week1StartDate,
-        m.PrimaryIncomeAmount, m.PrimaryIncomeCurrency, m.SecondaryIncomeAmount, m.SecondaryIncomeCurrency,
-        weeks?.Select(WeekResponse.From).ToList());
+        weeks?.Select(WeekResponse.From).ToList(),
+        incomeRows?.OrderBy(r => r.SortOrder).Select(MonthIncomeResponse.From).ToList());
+}
+
+/// <summary>
+/// One income row of a month (INCOME-1): <c>planned_amount</c> is what the line's pay period derived when the month was
+/// created (null for a one-off, <c>income_line_id</c> null too); <c>amount</c> is what the month counts.
+/// </summary>
+public record MonthIncomeResponse(
+    [property: JsonPropertyName("id")] Guid Id,
+    [property: JsonPropertyName("income_line_id")] Guid? IncomeLineId,
+    [property: JsonPropertyName("label")] string Label,
+    [property: JsonPropertyName("member_user_id")] Guid? MemberUserId,
+    [property: JsonPropertyName("currency")] string Currency,
+    [property: JsonPropertyName("amount")] decimal Amount,
+    [property: JsonPropertyName("planned_amount")] decimal? PlannedAmount)
+{
+    public static MonthIncomeResponse From(MonthIncome r) => new(r.Id, r.IncomeLineId, r.Label, r.MemberUserId, r.Currency, r.Amount, r.PlannedAmount);
 }
 
 /// <summary>
@@ -44,11 +58,18 @@ public record MonthResolveResponse(
     [property: JsonPropertyName("is_new")] bool IsNew,
     [property: JsonPropertyName("week_number")] int? WeekNumber = null);
 
-public record UpdateMonthIncomeRequest(
-    [property: JsonPropertyName("primary_income_amount")] decimal PrimaryIncomeAmount,
-    [property: JsonPropertyName("primary_income_currency")] string? PrimaryIncomeCurrency,
-    [property: JsonPropertyName("secondary_income_amount")] decimal SecondaryIncomeAmount,
-    [property: JsonPropertyName("secondary_income_currency")] string? SecondaryIncomeCurrency);
+/// <summary>
+/// <c>PUT /api/months/{id}/income</c> (INCOME-1): the month's full list of income rows, in order. A row with an
+/// <c>id</c> updates that row; a row without one is a one-off for this month; a stored row left out is removed.
+/// </summary>
+public record UpdateMonthIncomeRequest([property: JsonPropertyName("rows")] List<MonthIncomeRowRequest>? Rows);
+
+public record MonthIncomeRowRequest(
+    [property: JsonPropertyName("id")] Guid? Id,
+    [property: JsonPropertyName("label")] string? Label,
+    [property: JsonPropertyName("member_user_id")] Guid? MemberUserId,
+    [property: JsonPropertyName("currency")] string? Currency,
+    [property: JsonPropertyName("amount")] decimal Amount);
 
 public record CreateTransactionRequest(
     [property: JsonPropertyName("payee")] string? Payee,

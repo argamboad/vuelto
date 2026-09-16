@@ -131,6 +131,7 @@ public class ArchitectureTests
             nameof(Refund),                                 // LedgerDataContributor (app slice LEDGER-3)
             nameof(FixedExpense),                           // FixedExpenseDataContributor (app slice EXPENSES-1)
             nameof(VariableExpense),                        // VariableExpenseDataContributor (app slice EXPENSES-1)
+            nameof(IncomeLine), nameof(MonthIncome),        // IncomeDataContributor (app slice INCOME-1)
             nameof(PendingVoucher), nameof(IngestedVoucher), // VoucherStagingDataContributor (app slice EMAIL-4)
             nameof(MerchantCategoryMapping),                // MerchantMappingDataContributor (app slice EMAIL-5)
             nameof(AuditEvent),                             // AuditDataContributor
@@ -550,6 +551,33 @@ public class ArchitectureTests
 
         Assert.True(offenders.Count == 0,
             $"Ad-hoc anonymous error shapes in the slice surface — use the shared ErrorResponse record: {string.Join(", ", offenders)}");
+    }
+
+    [Fact]
+    public void LegacyIncomeColumns_AreReadOrWrittenByNothing()
+    {
+        // INCOME-1 (ADR-V023, plan §4a): the old two-income columns on BudgetSettings / Months are the rollback baseline
+        // for the AddIncomeLines migration. They stay mapped until INCOME-3 drops them, but no code may read or write
+        // them — a new reader would silently diverge from the income rows, a writer would corrupt the baseline. Only the
+        // entities, their EF configurations, the migrations and the one-time backfill may name them.
+        var allowed = new[]
+        {
+            Path.Combine("Core", "Entities", "BudgetSettings.cs"),
+            Path.Combine("Core", "Entities", "Month.cs"),
+            Path.Combine("Configurations", "BudgetSettingsConfiguration.cs"),
+            Path.Combine("Configurations", "MonthConfiguration.cs"),
+            Path.Combine("Persistence", "IncomeBackfill.cs"),
+            $"{Path.DirectorySeparatorChar}Migrations{Path.DirectorySeparatorChar}",
+        };
+        var legacy = new Regex(@"\b(Primary|Secondary)Income(4w|5w|Amount|Currency)\b|\b(primary|secondary)_income_|\bincome_(primary|secondary)\b|\bIncome(Primary|Secondary)\b");
+        var offenders = SourceFiles(Path.Combine(RepoRoot(), "src"))
+            .Concat(SourceFiles(Path.Combine(RepoRoot(), "src"), "*.razor"))
+            .Where(f => !allowed.Any(a => f.Contains(a, StringComparison.Ordinal)))
+            .Where(f => legacy.IsMatch(File.ReadAllText(f)))
+            .Select(f => Path.GetRelativePath(RepoRoot(), f))
+            .ToList();
+
+        Assert.True(offenders.Count == 0, $"Code still names the legacy income columns: {string.Join(", ", offenders)}");
     }
 
     private static IEnumerable<string> SourceFiles(string dir, string pattern = "*.cs") =>

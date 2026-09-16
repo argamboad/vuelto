@@ -59,7 +59,7 @@ Everything in the product serves step 2 (capture faithfully) and step 3 (see the
 Everything the donor shipped (Slices 1–6 and 8 + hardening), re-homed as platform slices — see
 `FEATURES.md` for the flows and `DECISIONS.md` ADR-V001 for the port plan:
 - Multi-tenant foundation: tenants, users, tenant-scoped data, per-user preferences. *(constant)*
-- **Budget settings** per household: week-start weekday, month anchor, two incomes × 4w/5w × currency.
+- **Budget settings** per household: week-start weekday (the payday, for weekly pay) and month anchor. **Income lines** per household (INCOME-1): member, currency, fixed/variable, pay period, amount per payment.
 - **Catalogs**: categories and banks (soft delete, reactivation offer, seeded once in the user's
   locale); savings **envelopes** with a reminder cadence.
 - **Expense catalog**: fixed and variable budget lines (amount CRC/USD, payment method, optional

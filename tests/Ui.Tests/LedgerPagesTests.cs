@@ -103,7 +103,7 @@ public class LedgerPagesTests : ComponentTestBase
         // LEDGER-4: why it is expected (claim number and all — one field since 2026-09-14), edited where the refund already is.
         await SignInAsync();
         StubCatalogs();
-        Http.On(HttpMethod.Get, $"/api/months/{MonthId}", $$"""{"id":"{{MonthId}}","year":2026,"month_number":7,"week_count":5,"week1_start_date":"2026-06-25","primary_income_amount":3750,"primary_income_currency":"USD","secondary_income_amount":0,"secondary_income_currency":"CRC","weeks":[{"week_number":1,"start_date":"2026-06-25","end_date":"2026-07-01"}]}""");
+        Http.On(HttpMethod.Get, $"/api/months/{MonthId}", $$"""{"id":"{{MonthId}}","year":2026,"month_number":7,"week_count":5,"week1_start_date":"2026-06-25","income_rows":[{"id":"eeeeeeee-0000-0000-0000-000000000001","income_line_id":"ffffffff-0000-0000-0000-000000000001","label":"Primary","member_user_id":null,"currency":"USD","amount":3750,"planned_amount":3750}],"weeks":[{"week_number":1,"start_date":"2026-06-25","end_date":"2026-07-01"}]}""");
         Http.On(HttpMethod.Get, $"/api/months/{MonthId}/transactions", "[]");
         Http.On(HttpMethod.Get, $"/api/months/{MonthId}/refunds", $$"""
             [{"id":"{{RefundId}}","payee":"Clinic","transaction_date":"2026-07-10","percentage":50,"amount_crc":25000,"amount_usd":50,"status":"pending","notes":"CASE-2026-4471, lent to Diego"}]
@@ -224,7 +224,7 @@ public class LedgerPagesTests : ComponentTestBase
     public async Task MonthDetail_ListsWeeksIncomeAndTransactions_DeletesWithConfirmation_AndLeavesWhenTheMonthIsGone()
     {
         await SignInAsync();
-        Http.On(HttpMethod.Get, $"/api/months/{MonthId}", $$"""{"id":"{{MonthId}}","year":2026,"month_number":7,"week_count":5,"week1_start_date":"2026-06-25","primary_income_amount":3750,"primary_income_currency":"USD","secondary_income_amount":312500,"secondary_income_currency":"CRC","weeks":[{"week_number":1,"start_date":"2026-06-25","end_date":"2026-07-01"},{"week_number":2,"start_date":"2026-07-02","end_date":"2026-07-08"},{"week_number":3,"start_date":"2026-07-09","end_date":"2026-07-15"},{"week_number":4,"start_date":"2026-07-16","end_date":"2026-07-22"},{"week_number":5,"start_date":"2026-07-23","end_date":"2026-07-29"}]}""");
+        Http.On(HttpMethod.Get, $"/api/months/{MonthId}", $$"""{"id":"{{MonthId}}","year":2026,"month_number":7,"week_count":5,"week1_start_date":"2026-06-25","income_rows":[{"id":"eeeeeeee-0000-0000-0000-000000000002","income_line_id":"ffffffff-0000-0000-0000-000000000002","label":"Primary","member_user_id":null,"currency":"USD","amount":3750,"planned_amount":3750},{"id":"eeeeeeee-0000-0000-0000-000000000003","income_line_id":"ffffffff-0000-0000-0000-000000000003","label":"Secondary","member_user_id":null,"currency":"CRC","amount":312500,"planned_amount":312500}],"weeks":[{"week_number":1,"start_date":"2026-06-25","end_date":"2026-07-01"},{"week_number":2,"start_date":"2026-07-02","end_date":"2026-07-08"},{"week_number":3,"start_date":"2026-07-09","end_date":"2026-07-15"},{"week_number":4,"start_date":"2026-07-16","end_date":"2026-07-22"},{"week_number":5,"start_date":"2026-07-23","end_date":"2026-07-29"}]}""");
         Http.On(HttpMethod.Get, $"/api/months/{MonthId}/transactions", $$"""[{"id":"{{TxId}}","payee":"AutoMercado","transaction_date":"2026-07-10","category_name":"Groceries","bank_name":"Cash","payment_method":"credit_card","transaction_type":"budgeted","amount_crc":50000,"amount_usd":100,"source":"manual"}]""");
         Http.On(HttpMethod.Delete, $"/api/transactions/{TxId}", "", HttpStatusCode.NoContent);
 
@@ -232,7 +232,8 @@ public class LedgerPagesTests : ComponentTestBase
 
         cut.WaitForAssertion(() => Assert.Contains("July 2026", cut.Find("[data-testid='month-title']").TextContent));
         Assert.Equal(5, cut.Find("[data-testid='month-weeks']").Children.Length);
-        Assert.Equal("3750", cut.Find("[data-testid='inc-primary']").GetAttribute("value"));
+        Assert.Equal(["3750", "312500"], cut.FindAll("[data-testid='month-inc-amount']").Select(i => i.GetAttribute("value")));
+        Assert.Equal(["Primary", "Secondary"], cut.FindAll("[data-testid='month-inc-label']").Select(i => i.GetAttribute("value")));
         var row = Assert.Single(cut.FindAll("[data-testid='month-tx-row']"));
         Assert.Contains("AutoMercado", row.TextContent);
         Assert.Contains("Groceries", row.TextContent);
@@ -281,7 +282,7 @@ public class LedgerPagesTests : ComponentTestBase
     public async Task MonthDetail_SortsByAnyHeader_AndFiltersByDatePayeeCategoryBankAndClass()
     {
         await SignInAsync();
-        Http.On(HttpMethod.Get, $"/api/months/{MonthId}", $$"""{"id":"{{MonthId}}","year":2026,"month_number":7,"week_count":5,"week1_start_date":"2026-06-25","primary_income_amount":0,"primary_income_currency":"USD","secondary_income_amount":0,"secondary_income_currency":"USD","weeks":[{"week_number":1,"start_date":"2026-06-25","end_date":"2026-07-29"}]}""");
+        Http.On(HttpMethod.Get, $"/api/months/{MonthId}", $$"""{"id":"{{MonthId}}","year":2026,"month_number":7,"week_count":5,"week1_start_date":"2026-06-25","income_rows":[],"weeks":[{"week_number":1,"start_date":"2026-06-25","end_date":"2026-07-29"}]}""");
         Http.On(HttpMethod.Get, $"/api/months/{MonthId}/transactions", """
             [{"id":"dddddddd-0000-0000-0000-000000000001","payee":"Uber","transaction_date":"2026-07-20","category_name":"Transport","bank_name":"BAC","card_name":"VISA-1234","notes":"Airport run, reimbursed by work","payment_method":"credit_card","transaction_type":"extraordinary","amount_crc":5000,"amount_usd":10,"source":"manual"},
              {"id":"dddddddd-0000-0000-0000-000000000002","payee":"AutoMercado","transaction_date":"2026-07-10","category_name":"Groceries","bank_name":"Cash","payment_method":"credit_card","transaction_type":"budgeted","amount_crc":50000,"amount_usd":100,"source":"manual"},
@@ -350,9 +351,9 @@ public class LedgerPagesTests : ComponentTestBase
         // keeps the component alive with a new Id — the page must fetch the new month, not keep the old one.
         const string OtherId = "aaaaaaaa-0000-0000-0000-000000000007";
         await SignInAsync();
-        Http.On(HttpMethod.Get, $"/api/months/{MonthId}", $$"""{"id":"{{MonthId}}","year":2026,"month_number":6,"week_count":4,"week1_start_date":"2026-05-28","primary_income_amount":3000,"primary_income_currency":"USD","secondary_income_amount":0,"secondary_income_currency":"USD","weeks":[{"week_number":1,"start_date":"2026-05-28","end_date":"2026-06-03"}]}""");
+        Http.On(HttpMethod.Get, $"/api/months/{MonthId}", $$"""{"id":"{{MonthId}}","year":2026,"month_number":6,"week_count":4,"week1_start_date":"2026-05-28","income_rows":[{"id":"eeeeeeee-0000-0000-0000-000000000004","income_line_id":"ffffffff-0000-0000-0000-000000000004","label":"Primary","member_user_id":null,"currency":"USD","amount":3000,"planned_amount":3000}],"weeks":[{"week_number":1,"start_date":"2026-05-28","end_date":"2026-06-03"}]}""");
         Http.On(HttpMethod.Get, $"/api/months/{MonthId}/transactions", "[]");
-        Http.On(HttpMethod.Get, $"/api/months/{OtherId}", $$"""{"id":"{{OtherId}}","year":2026,"month_number":7,"week_count":5,"week1_start_date":"2026-06-25","primary_income_amount":3750,"primary_income_currency":"USD","secondary_income_amount":0,"secondary_income_currency":"USD","weeks":[{"week_number":1,"start_date":"2026-06-25","end_date":"2026-07-01"}]}""");
+        Http.On(HttpMethod.Get, $"/api/months/{OtherId}", $$"""{"id":"{{OtherId}}","year":2026,"month_number":7,"week_count":5,"week1_start_date":"2026-06-25","income_rows":[{"id":"eeeeeeee-0000-0000-0000-000000000005","income_line_id":"ffffffff-0000-0000-0000-000000000005","label":"Primary","member_user_id":null,"currency":"USD","amount":3750,"planned_amount":3750}],"weeks":[{"week_number":1,"start_date":"2026-06-25","end_date":"2026-07-01"}]}""");
         Http.On(HttpMethod.Get, $"/api/months/{OtherId}/transactions", "[]");
 
         var cut = Render<MonthDetail>(p => p.Add(x => x.Id, Guid.Parse(MonthId)));
@@ -369,7 +370,7 @@ public class LedgerPagesTests : ComponentTestBase
     public async Task MonthDetail_IncomeCard_ListsInflows_AndTheLinkFiltersToThem()
     {
         await SignInAsync();
-        Http.On(HttpMethod.Get, $"/api/months/{MonthId}", $$"""{"id":"{{MonthId}}","year":2026,"month_number":7,"week_count":5,"week1_start_date":"2026-06-25","primary_income_amount":3750,"primary_income_currency":"USD","secondary_income_amount":0,"secondary_income_currency":"CRC","weeks":[{"week_number":1,"start_date":"2026-06-25","end_date":"2026-07-01"},{"week_number":2,"start_date":"2026-07-02","end_date":"2026-07-29"}]}""");
+        Http.On(HttpMethod.Get, $"/api/months/{MonthId}", $$"""{"id":"{{MonthId}}","year":2026,"month_number":7,"week_count":5,"week1_start_date":"2026-06-25","income_rows":[{"id":"eeeeeeee-0000-0000-0000-000000000006","income_line_id":"ffffffff-0000-0000-0000-000000000006","label":"Primary","member_user_id":null,"currency":"USD","amount":3750,"planned_amount":3750}],"weeks":[{"week_number":1,"start_date":"2026-06-25","end_date":"2026-07-01"},{"week_number":2,"start_date":"2026-07-02","end_date":"2026-07-29"}]}""");
         Http.On(HttpMethod.Get, $"/api/months/{MonthId}/transactions", $$"""
             [{"id":"{{TxId}}","payee":"AutoMercado","transaction_date":"2026-07-10","category_name":"Groceries","bank_name":"Cash","payment_method":"credit_card","transaction_type":"budgeted","amount_crc":50000,"amount_usd":100,"source":"manual"},
              {"id":"dddddddd-0000-0000-0000-000000000002","payee":"Garage sale","transaction_date":"2026-07-12","category_name":"Other","bank_name":"Cash","payment_method":"bank_account","transaction_type":"inflow","amount_crc":30000,"amount_usd":60,"source":"manual"},
@@ -390,25 +391,56 @@ public class LedgerPagesTests : ComponentTestBase
     }
 
     [Fact]
-    public async Task MonthDetail_SavesIncome()
+    public async Task MonthDetail_EditsTheIncomeRows_AndPutsTheWholeList()
     {
+        // INCOME-1: correct a snapshotted row (its planned figure shows), drop another, add a one-off, save the list.
         await SignInAsync();
-        Http.On(HttpMethod.Get, $"/api/months/{MonthId}", $$"""{"id":"{{MonthId}}","year":2026,"month_number":6,"week_count":4,"week1_start_date":"2026-05-28","primary_income_amount":3000,"primary_income_currency":"USD","secondary_income_amount":0,"secondary_income_currency":"USD","weeks":[{"week_number":1,"start_date":"2026-05-28","end_date":"2026-06-03"}]}""");
+        const string Salary = "eeeeeeee-0000-0000-0000-00000000aaa1";
+        const string Son = "eeeeeeee-0000-0000-0000-00000000aaa2";
+        const string Member = "aaaaaaaa-0000-0000-0000-00000000aaa9";
+        Http.On(HttpMethod.Get, $"/api/months/{MonthId}", $$"""
+            {"id":"{{MonthId}}","year":2026,"month_number":6,"week_count":4,"week1_start_date":"2026-05-28","weeks":[{"week_number":1,"start_date":"2026-05-28","end_date":"2026-06-03"}],
+             "income_rows":[{"id":"{{Salary}}","income_line_id":"ffffffff-0000-0000-0000-00000000aaa1","label":"Salary","member_user_id":"{{Member}}","currency":"USD","amount":2000,"planned_amount":2000},
+                            {"id":"{{Son}}","income_line_id":"ffffffff-0000-0000-0000-00000000aaa2","label":"Son","member_user_id":null,"currency":"CRC","amount":600000,"planned_amount":600000}]}
+            """);
         Http.On(HttpMethod.Get, $"/api/months/{MonthId}/transactions", "[]");
-        Http.On(HttpMethod.Put, $"/api/months/{MonthId}/income", $$"""{"id":"{{MonthId}}","year":2026,"month_number":6,"week_count":4,"week1_start_date":"2026-05-28","primary_income_amount":1600000,"primary_income_currency":"CRC","secondary_income_amount":0,"secondary_income_currency":"USD","weeks":null}""");
+        Http.On(HttpMethod.Put, $"/api/months/{MonthId}/income", $$"""
+            {"id":"{{MonthId}}","year":2026,"month_number":6,"week_count":4,"week1_start_date":"2026-05-28","weeks":null,
+             "income_rows":[{"id":"{{Salary}}","income_line_id":"ffffffff-0000-0000-0000-00000000aaa1","label":"Salary","member_user_id":"{{Member}}","currency":"USD","amount":1800,"planned_amount":2000},
+                            {"id":"eeeeeeee-0000-0000-0000-00000000aaa3","income_line_id":null,"label":"Sold the bike","member_user_id":null,"currency":"CRC","amount":150000,"planned_amount":null}]}
+            """);
 
         var cut = Render<MonthDetail>(p => p.Add(x => x.Id, Guid.Parse(MonthId)));
 
         cut.WaitForElement("[data-testid='month-no-tx']");
-        cut.Find("[data-testid='inc-primary']").Change("1600000");
-        cut.Find("[data-testid='inc-primary-cur']").Change("CRC");
-        cut.Find("[data-testid='inc-save']").Click();
+        Assert.Equal(2, cut.FindAll("[data-testid='month-inc-row']").Count);
+        Assert.Empty(cut.FindAll("[data-testid='month-inc-planned']")); // untouched rows don't repeat their plan
+
+        cut.FindAll("[data-testid='month-inc-amount']")[0].Change("1800");
+        Assert.Contains("Month_IncomePlanned[$2,000.00]", cut.Find("[data-testid='month-inc-planned']").TextContent);
+        cut.FindAll("[data-testid='month-inc-remove']")[1].Click();
+        cut.Find("[data-testid='month-inc-add']").Click();
+        Assert.Contains("Month_IncomeOneOff", cut.FindAll("[data-testid='month-inc-row']")[1].TextContent);
+
+        // A nameless row is refused on the page, before any request.
+        cut.Find("[data-testid='month-inc-save']").Click();
+        Assert.Contains("Month_IncomeLabelRequired", cut.Find("[data-testid='month-error']").TextContent);
+        Assert.DoesNotContain(Http.Requests, r => r.Method == HttpMethod.Put);
+
+        cut.FindAll("[data-testid='month-inc-label']")[1].Change("Sold the bike");
+        cut.FindAll("[data-testid='month-inc-cur']")[1].Change("CRC");
+        cut.FindAll("[data-testid='month-inc-amount']")[1].Change("150000");
+        cut.Find("[data-testid='month-inc-save']").Click();
 
         cut.WaitForElement("[data-testid='month-notice']");
         var put = Assert.Single(Http.Requests, r => r.Method == HttpMethod.Put);
         var body = await put.Content!.ReadAsStringAsync();
-        Assert.Contains("\"primary_income_amount\":1600000", body);
-        Assert.Contains("\"primary_income_currency\":\"CRC\"", body);
+        Assert.Equal(
+            $$"""{"rows":[{"id":"{{Salary}}","label":"Salary","member_user_id":"{{Member}}","currency":"USD","amount":1800},{"id":null,"label":"Sold the bike","member_user_id":null,"currency":"CRC","amount":150000}]}""",
+            body);
+        // The saved rows come back from the response: the one-off now has an id and no plan.
+        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("[data-testid='month-inc-row']").Count));
+        Assert.Contains("Month_IncomeOneOff", cut.FindAll("[data-testid='month-inc-row']")[1].TextContent);
     }
 
     [Fact]

@@ -16,6 +16,7 @@ public class MonthConfiguration : IEntityTypeConfiguration<Month>
         b.HasKey(x => x.Id);
         b.HasIndex(x => new { x.TenantId, x.Year, x.MonthNumber }).IsUnique();
         b.HasIndex(x => new { x.TenantId, x.Week1StartDate });
+        // Legacy income columns (INCOME-1): mapped unchanged so the rollback baseline stays in place; dropped by INCOME-3.
         b.Property(x => x.PrimaryIncomeCurrency).HasMaxLength(3).IsRequired();
         b.Property(x => x.SecondaryIncomeCurrency).HasMaxLength(3).IsRequired();
         b.Property(x => x.PrimaryIncomeAmount).HasPrecision(12, 2);

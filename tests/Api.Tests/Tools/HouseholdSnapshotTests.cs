@@ -56,7 +56,7 @@ public class HouseholdSnapshotTests(PostgresFixture fixture) : PostgresTestBase(
         var tenant = Guid.CreateVersion7();
         var email = $"{Guid.NewGuid():N}@snapshot.test";
         var user = new User { Email = email, DisplayName = "Snapshot Owner", EmailVerified = true, CreatedAt = T0, UpdatedAt = T0 };
-        Guid categoryId, bankId, monthId, txId, refundId;
+        Guid categoryId, bankId, monthId, txId, refundId, lineId, rowId;
         await using (var db = Fixture.CreateContext(tenant))
         {
             db.Add(user);
@@ -73,10 +73,12 @@ public class HouseholdSnapshotTests(PostgresFixture fixture) : PostgresTestBase(
                 ExchangeRateUsed = 453.1262m, TransactionType = TransactionTypes.UnplannedEssential, Source = TransactionSources.Email, CreatedAt = T0, UpdatedAt = T0,
             };
             var refund = new Refund { TenantId = tenant, MonthId = month.Id, TransactionId = tx.Id, Payee = "Farmacia", TransactionDate = tx.TransactionDate, Percentage = 30m, AmountCrc = 6000m, AmountUsd = 13.24m, Status = RefundStatuses.Pending, CreatedAt = T0, UpdatedAt = T0 };
-            db.AddRange(category, bank, month, week, tx, refund);
+            var line = new IncomeLine { TenantId = tenant, Name = "Allan salary", MemberUserId = user.Id, Currency = "USD", PayPeriod = PayPeriods.Weekly, Amount = 1790m, CreatedAt = T0, UpdatedAt = T0 };
+            var row = new MonthIncome { TenantId = tenant, MonthId = month.Id, IncomeLineId = line.Id, Label = "Allan salary", MemberUserId = user.Id, Currency = "USD", Amount = 8950m, PlannedAmount = 8950m, CreatedAt = T0, UpdatedAt = T0 };
+            db.AddRange(category, bank, month, week, tx, refund, line, row);
             db.Add(new BudgetSettings { TenantId = tenant, WeekStartWeekday = 2, MonthAnchor = MonthAnchors.LastWeekdayPrev, PrimaryIncome4w = 7150m, PrimaryIncome5w = 8950m, PrimaryIncomeCurrency = "USD", SecondaryIncomeCurrency = "USD", CreatedAt = T0, UpdatedAt = T0 });
             await db.SaveChangesAsync();
-            categoryId = category.Id; bankId = bank.Id; monthId = month.Id; txId = tx.Id; refundId = refund.Id;
+            categoryId = category.Id; bankId = bank.Id; monthId = month.Id; txId = tx.Id; refundId = refund.Id; lineId = line.Id; rowId = row.Id;
         }
 
         // Snapshot on one open connection (pg_temp functions live for the session).
@@ -94,13 +96,15 @@ public class HouseholdSnapshotTests(PostgresFixture fixture) : PostgresTestBase(
         Assert.StartsWith("-- ¿Y el vuelto? household snapshot", snapshot);
         Assert.Contains("-- Transactions: 1 row(s)", snapshot);
         Assert.Contains("-- Refunds: 1 row(s)", snapshot);
+        Assert.Contains("-- IncomeLines: 1 row(s)", snapshot);
+        Assert.Contains("-- MonthIncomes: 1 row(s)", snapshot);
         Assert.Contains("-- PendingVouchers: 0 row(s)", snapshot);
         Assert.DoesNotContain("EmailConnections", snapshot);
 
         // Wipe the household — the "empty target" — then restore from the text alone.
         await using (var db = Fixture.CreateContext())
         {
-            foreach (var table in new[] { "Refunds", "Transactions", "Weeks", "Months", "BudgetSettings", "Banks", "Categories", "TenantMemberships" })
+            foreach (var table in new[] { "Refunds", "Transactions", "Weeks", "MonthIncomes", "Months", "IncomeLines", "BudgetSettings", "Banks", "Categories", "TenantMemberships" })
             {
                 var sql = "DELETE FROM \"" + table + "\" WHERE \"TenantId\" = {0}"; // fixed table names from the list above, not user input
 #pragma warning disable EF1002
@@ -132,6 +136,10 @@ public class HouseholdSnapshotTests(PostgresFixture fixture) : PostgresTestBase(
             Assert.Single(await db.Weeks.Where(w => w.MonthId == monthId).ToListAsync());
             var tx = await db.Transactions.SingleAsync(t => t.Id == txId);
             Assert.Equal((monthId, bankId, categoryId, 453.1262m, 20000m, 44.14m, TransactionSources.Email), (tx.MonthId, tx.BankId, tx.CategoryId, tx.ExchangeRateUsed, tx.AmountCrc, tx.AmountUsd, tx.Source));
+            var line = await db.IncomeLines.SingleAsync(l => l.Id == lineId);
+            Assert.Equal(("Allan salary", user.Id, PayPeriods.Weekly, 1790m), (line.Name, line.MemberUserId!.Value, line.PayPeriod, line.Amount));
+            var row = await db.MonthIncomes.SingleAsync(r => r.Id == rowId);
+            Assert.Equal((monthId, lineId, 8950m, 8950m), (row.MonthId, row.IncomeLineId!.Value, row.Amount, row.PlannedAmount!.Value));
             var refund = await db.Refunds.SingleAsync(r => r.Id == refundId);
             Assert.Equal((txId, 30m, 6000m, RefundStatuses.Pending), (refund.TransactionId, refund.Percentage, refund.AmountCrc, refund.Status));
         }
