@@ -48,7 +48,7 @@
 
 **As a** household member **I want** a branded PDF of the report I am looking at, with its tables and charts and the period's transactions **so that** I can keep, print or share the month without the app.
 
-**Step 0 — spike (first commit of the PR, timeboxed to a session).** Exit criteria: (a) QuestPDF renders a one-page document inside the compose API container (the Render image); note any `apt` package needed in the Dockerfile; (b) an embedded font renders `₡1.500,00` — Nunito if it carries U+20A1, else a bundled fallback for money cells; (c) an SVG string from the new Core donut builder renders in QuestPDF. Findings go into ADR-V022.
+**Step 0 — spike (the first step of commit 1, timeboxed to a session; its findings fold into that commit).** Exit criteria: (a) QuestPDF renders a one-page document inside the compose API container (the Render image); note any `apt` package needed in the Dockerfile; (b) an embedded font renders `₡1.500,00` — Nunito if it carries U+20A1, else a bundled fallback for money cells; (c) an SVG string from the new Core donut builder renders in QuestPDF. Findings go into ADR-V022.
 
 **Charts — one geometry, two renderers.** New pure builders in `src/Core/Charts/` (`DonutSvg`, `BarSvg`, `LineSvg`) that take the existing models (`DonutSlice`, `BarItem`, `LinePoint` move to Core) plus a **palette** (label → color string) and return the SVG markup. The Razor components become thin wrappers that pass the Bootstrap-token palette and keep every `data-testid` the Ui tests assert. The PDF passes a **print palette** of literal brand hex values and a font family name. Rule: no `var(` may appear in a PDF SVG (asserted).
 
@@ -95,9 +95,14 @@ Strings: new `ReportPdfStrings.resx` (+ `.es`) in Api, alongside `EmailStrings` 
 - `MonthIncome`: `MonthId`, `IncomeLineId?`, `Label`, `MemberUserId?`, `Currency`, `Amount` (editable), `PlannedAmount` (what the snapshot derived — so an edit is visible as such).
 - Snapshot rule (`IncomeSnapshotService`, pure, Core): at month creation, one row per active line; `weekly` → amount × `WeekCount`; `monthly` → amount; `biweekly` → amount × count of pay days inside `[Week1StartDate, last week end]`. Variable lines snapshot their estimate and are meant to be edited.
 - `IncomeCalculator` sums `MonthIncome` rows (+ inflows) → same `IncomeSummary`; **no dashboard/report shape change**.
-- Removed: the six `BudgetSettings` income columns and the four `Month` income columns.
+- **Kept, not removed:** the six `BudgetSettings` income columns and the four `Month` income columns stay in the schema, untouched and no longer read or written by code (marked obsolete on the entities). They are the rollback baseline. Dropping them is a separate, later slice (INCOME-3, §4b), never part of this batch.
 
-**Migration (data).** Per household: two lines "Primary income" / "Secondary income" (no member). 5w == 4w → `monthly` at that amount; 5w/5 == 4w/4 → `weekly` at 4w/4; otherwise `weekly` at 4w/4 and the household's settings page shows a one-time "check your income lines" notice (owner's household is the only real one — a one-minute check). Every existing month gets its two `MonthIncome` rows from its snapshot fields (label + amount + currency). Zero-amount slots produce no line.
+**Migration (data) — additive only, see §4a for the rules.** One migration, `AddIncomeLines`, that only **creates** `IncomeLines` and `MonthIncomes` (with their RLS policies) and **copies** into them; it drops, renames or rewrites nothing.
+- *Lines, per household* (from `BudgetSettings`): "Primary income" / "Secondary income", no member. 5w == 4w → `monthly` at that amount; 5w/5 == 4w/4 → `weekly` at 4w/4; otherwise `weekly` at 4w/4 and the settings page shows a one-time "check your income lines" notice. A slot whose 4w and 5w are both zero produces no line.
+- *Month rows, per month* (from `Month`): one row per non-zero slot, **copying the stored amount and currency verbatim** into both `Amount` and `PlannedAmount` — month history is never re-derived from the new pay-period rule, so every existing month's income stays exactly what it was. Rows link to the backfilled line of the same slot.
+- *Idempotent:* every insert is guarded by `NOT EXISTS`, so re-running the backfill is a no-op. The same SQL is also shipped as `tools/backfill-income-lines.sql` for the one case the migration cannot cover: a pre-migration household snapshot restored after the migration.
+- *Atomic:* the migration runs in one transaction (Npgsql default); a failed copy leaves the database as it was.
+- *Down:* drops only the two new tables. The old columns were never touched, so a rollback loses nothing but edits made to income lines after the deploy.
 
 **API.** `/api/incomes` (new unique prefix, R35): list / create / update / deactivate + reactivation 409 offer (ADR-V008 pattern, as expense lines) / `PUT /order`. `GET /api/months/{id}` returns `income_rows`; `PUT /api/months/{id}/income` takes the rows (amount per row; a row may be added ad hoc for that month only, `income_line_id` null). `budget-settings` loses the income fields. Postman updated.
 
@@ -123,24 +128,65 @@ Not on the form, on purpose: no 4w/5w amounts (the count comes from the month); 
 
 **Edges (decided in planning).** Member leaves / is removed → their lines deactivate (income no longer arrives), month rows stay as history. Account erasure → per-user contributor nulls `MemberUserId` on lines and rows, amounts kept. Any member edits any line (household budget is shared).
 
-**Tests.** Core: snapshot rule per period (weekly 4/5, monthly, biweekly 2/3 paydays incl. last-day-of-month), calculator on rows, migration mapping rules (pure function). Api: CRUD + uniqueness + 409 offer + order; month create snapshots rows; month income PUT; leave/remove deactivation; erasure nulling; RLS parity gate. Ui: income page + month rows. E2E: add a line, create a transaction, the month shows the derived plan. QA cases.
+**Tests.** Core: snapshot rule per period (weekly 4/5, monthly, biweekly 2/3 paydays incl. last-day-of-month), calculator on rows, migration mapping rules (pure function). Api: CRUD + uniqueness + 409 offer + order; month create snapshots rows; month income PUT; leave/remove deactivation; erasure nulling; RLS parity gate. **Migration (real Postgres, `MigrationsTests` harness):** seed old-shape data for several households (weekly-like, monthly-like, irregular, zero slot, CRC and USD, several months) at the migration before `AddIncomeLines`, apply it, and assert (1) row counts and inferred periods, (2) **income parity: for every month, the new `IncomeCalculator` total equals the old two-field total**, (3) old columns still hold their original values, (4) re-running the backfill SQL adds nothing, (5) `Down` leaves the old data intact; `HouseholdSnapshotTests` gate forces the two new tables into `tools/snapshot-household.sql`. Ui: income page + month rows. E2E: add a line, create a transaction, the month shows the derived plan. QA cases.
 
-**Docs.** ADR-V023; `docs/stories/income.md`; `DATA_MODEL.md`; `FEATURES.md`; `budget-settings.md` amended; Postman; QA; `my-seed.sql` re-authored for the new columns (owner).
+**Docs.** ADR-V023; `docs/stories/income.md`; `DATA_MODEL.md`; `FEATURES.md`; `budget-settings.md` amended; Postman; QA; `tools/snapshot-household.sql` + `tools/README.md` (new tables); `my-seed.sql` gains income lines (owner) — its old income columns keep working since they still exist.
 
 **Split.** INCOME-1 ships end-to-end without any new breakdown. **INCOME-2** adds "income by member" to the reports (analysis response + a donut) and turns the PDF's income block into a table with a member column. Small, additive, after INCOME-1.
 
-## 5. Order and PRs
+### 4a. Data-safety rules for every commit in this batch (owner, 2026-09-16)
 
-| Order | PR | Branch | Notes |
-|---|---|---|---|
-| 1 | REPORTS-7 PDF (spike commit + ADR-V022 + feature) | `feat/reports-pdf` | Blocks nothing; proves the engine on the Render image. |
-| 2 | Platform: email attachments | `perezosoft-platform` `feat/email-attachments` | Owner confirms first (platform backend). Can start in parallel with 1. |
-| 3 | Sync platform | `chore/sync-platform-NNN` | Mechanical. |
-| 4 | REPORTS-8 Email me | `feat/reports-pdf-email` | Needs 1 + 3. |
-| 5 | INCOME-1 income lines (+ ADR-V023) | `feat/income-lines` | Independent of 1–4; larger; schema + data migration. |
-| 6 | INCOME-2 income by member | `feat/income-by-member` | Touches reports + PDF; after 1 and 5. |
+Staging applies migrations **automatically on boot** (`Program.cs` → `Database.Migrate()`) and holds the owner's real household, so a merged migration runs against real data with no human step.
 
-Each PR: story first (Gherkin), failing tests, implementation, Postman, localization parity, QA-plan rows, docs. Commit/PR per `WAYS_OF_WORKING.md`; no git operations without the owner's go-ahead (C+P+PR).
+1. **Expand, never contract, in this batch.** Migrations only add tables, columns (nullable or defaulted) and indexes, and copy data. No `DropColumn`, `DropTable`, `RenameColumn`, type change, or `UPDATE`/`DELETE` of existing rows. REPORTS-7/8 and INCOME-2 are expected to need **no** migration; if the quota seam needs a row, it is additive.
+2. **History is copied, not recomputed.** Backfills carry stored values verbatim; new derivation rules apply only to months created after the deploy.
+3. **Prove parity on real Postgres** before the commit is shown: the migration test in INCOME-1 asserts per-month income equality old vs new.
+4. **Rehearse on a copy before merging the PR.** Take a Neon branch of staging (a free copy-of-staging DB), point a local API at it, let the migration run, run the parity query below, and walk the dashboard and a report for three past months. Only then merge.
+5. **Back up before the deploy.** Immediately before merging: a Neon branch kept as a restore point **and** `tools/snapshot-household.sql` for the owner's household (DEPLOYMENT §9), stored outside the repo. Both are named in the PR checklist.
+6. **Verify after the deploy.** Run the parity query against staging; any non-zero difference → roll back the app (old columns are intact) and investigate before anything else.
+
+Parity query (run on the rehearsal branch and after deploy; **must return no rows**). It compares, per month and per currency, the old two slots with the new rows, so mixed-currency months are checked too:
+```sql
+WITH old AS (
+    SELECT "Id" AS month_id, "PrimaryIncomeCurrency" AS currency, "PrimaryIncomeAmount" AS amount FROM "Months" WHERE "PrimaryIncomeAmount" <> 0
+    UNION ALL
+    SELECT "Id", "SecondaryIncomeCurrency", "SecondaryIncomeAmount" FROM "Months" WHERE "SecondaryIncomeAmount" <> 0
+), old_totals AS (
+    SELECT month_id, currency, SUM(amount) AS total FROM old GROUP BY month_id, currency
+), new_totals AS (
+    SELECT "MonthId" AS month_id, "Currency" AS currency, SUM("Amount") AS total FROM "MonthIncomes" GROUP BY "MonthId", "Currency"
+)
+SELECT COALESCE(o.month_id, n.month_id) AS month_id, COALESCE(o.currency, n.currency) AS currency, o.total AS old_total, n.total AS new_total
+FROM old_totals o FULL OUTER JOIN new_totals n ON n.month_id = o.month_id AND n.currency = o.currency
+WHERE o.total IS DISTINCT FROM n.total;
+```
+Run it right after the migration, before anyone edits a month's income in the new UI (an edit legitimately makes the two differ).
+
+### 4b. INCOME-3 — Retire the old income columns *(later, separate PR, owner-gated)*
+
+Only after INCOME-1 has run on staging for a while and the owner confirms the numbers: a contract migration drops the six `BudgetSettings` and four `Month` income columns. Preconditions: a fresh Neon restore branch + household snapshot, the parity query clean, `snapshot-household.sql` and `my-seed.sql` no longer referencing the columns. `Down` re-adds the columns **and** refills them from `MonthIncomes`/`IncomeLines` so it is a real rollback. Not part of this batch.
+
+## 5. Order, commits and the PR (owner, 2026-09-16)
+
+**One branch, one commit per slice, one PR at the end** — the mode used for the SKIN redesign (PR #63).
+Branch `feat/reports-pdf-and-income` off `develop`; each slice is shown working before the next one starts
+(the show-then-green-light rule), then lands as its own Conventional Commit; the PR is opened only when the
+whole work is done and reviewed as one.
+
+| Order | Commit (slice) | Notes |
+|---|---|---|
+| 1 | `feat(reports): PDF report (REPORTS-7)` — spike findings folded in, ADR-V022 | Proves the engine on the Render image first. |
+| 2 | `feat(reports): email me this report (REPORTS-8)` | Depends on the platform attachment seam being on `develop` (below). |
+| 3 | `feat(income): income lines (INCOME-1)` — ADR-V023, data migration | Independent of 1–2; the largest commit. |
+| 4 | `feat(income): income by member (INCOME-2)` | Touches reports + the PDF; after 1 and 3. |
+
+**The platform seam is the one exception.** Email attachments on `IEmailSender` live in `perezosoft-platform`,
+so they are their own upstream PR plus the usual `chore/sync-platform-NNN` PR here, and both must be merged
+into `develop` **before** commit 2 is written (the branch rebases onto the synced `develop`). Owner go-ahead
+for that platform PR is still open (§6).
+
+Each commit: story first (Gherkin, in `docs/stories/`), failing tests, implementation, Postman, localization
+parity, QA-plan rows, docs — and the §4a data-safety rules. The PR checklist names the Neon restore branch and the household snapshot taken before merge, and the post-deploy parity result. No git operations without the owner's go-ahead (C+P+PR).
 
 ## 6. Open items for the owner
 
