@@ -582,6 +582,7 @@ public class AuthService(
         var wasAuthenticated = IsAuthenticated;
         _accessToken = payload.AccessToken;
         _isStaff = null; // identity may have changed; re-probe on demand
+        ForgetRememberedPreferences(); // a new token carries the account's preferences as they stand
         if (sessionStore.UsesBodyTransport && !string.IsNullOrEmpty(payload.RefreshToken))
             await sessionStore.SaveRefreshTokenAsync(payload.RefreshToken);
 
@@ -594,6 +595,7 @@ public class AuthService(
         var wasAuthenticated = IsAuthenticated;
         _accessToken = null;
         _isStaff = null;
+        ForgetRememberedPreferences();
         if (sessionStore.UsesBodyTransport)
             await sessionStore.ClearAsync();
         if (wasAuthenticated)
@@ -618,11 +620,32 @@ public class AuthService(
     /// <summary>Tenant ("household") name from the JWT.</summary>
     public string? TenantName => Claim(AppClaims.TenantName);
 
-    /// <summary>The user's saved UI locale from the JWT (e.g. "es"), or null if unset.</summary>
-    public string? Locale => Claim(AppClaims.Locale);
+    /// <summary>The user's saved UI locale (e.g. "es") — one saved this session, else the JWT's — or null if unset.</summary>
+    public string? Locale => _accessToken is null ? null : _rememberedLocale ?? Claim(AppClaims.Locale);
 
-    /// <summary>The user's saved UI theme from the JWT ("light"/"dark"/"system"), or null when never chosen.</summary>
-    public string? Theme => Claim(AppClaims.Theme);
+    /// <summary>The user's saved UI theme ("light"/"dark"/"system") — one saved this session, else the JWT's —
+    /// or null when never chosen.</summary>
+    public string? Theme => _accessToken is null ? null : _rememberedTheme ?? Claim(AppClaims.Theme);
+
+    // A preference the user just saved to the account, which the access token in memory predates. The
+    // reconcile in MainLayout reads Theme/Locale, and the native app keeps this token across a WebView
+    // reload (a language change reloads), so without these it re-applied the OLD value (2026-09-16).
+    // Remembered rather than fetched: refreshing the session instead rotated the web's refresh cookie
+    // while a reload was already under way, which came back signed out. Dropped with the token.
+    private string? _rememberedTheme;
+    private string? _rememberedLocale;
+
+    /// <summary>Records a theme the account has just saved, so the session reports it before its next token.</summary>
+    public void RememberTheme(string theme) => _rememberedTheme = theme;
+
+    /// <summary>Records a locale the account has just saved, so the session reports it before its next token.</summary>
+    public void RememberLocale(string locale) => _rememberedLocale = locale;
+
+    private void ForgetRememberedPreferences()
+    {
+        _rememberedTheme = null;
+        _rememberedLocale = null;
+    }
 
     private string? Claim(string type)
     {
