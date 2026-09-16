@@ -2,8 +2,8 @@
 
 > Planning record for three owner-requested slices discussed on 2026-09-16. Nothing here is built.
 > Stories are generated per epic at build time (`docs/stories/reports.md`, new `docs/stories/income.md`);
-> this file is the plan they are generated from. Decisions marked **owner** were made in the planning
-> session; items under "Assumed" are recommendations the owner has not vetoed — say so and they change.
+> this file is the plan they are generated from. Every decision in §1 and every item in §2 is
+> owner-confirmed (2026-09-16); the plan has no open items.
 
 ## 1. Decisions (owner, 2026-09-16)
 
@@ -15,8 +15,11 @@
 | D4 | Income model | Keep planned income per pay-cycle month (not salary-as-transactions). Replace the two hard-coded slots with an **income catalog**: one line per source, per member, own currency, fixed or variable. |
 | D5 | Pay period | A line declares **how it is paid** (`weekly`, `biweekly`, `monthly`) and an amount per period; the month plan is **derived at snapshot** (weekly × week count; biweekly × paydays inside the window; monthly flat). The 4w/5w pair retires. |
 | D6 | Budget unit | Unchanged: **the pay-cycle month** (ADR-V005). Pay period only affects how a line contributes to the month's plan. |
+| D7 | Platform attachment PR | **Go-ahead given** for `EmailAttachment` on `IEmailSender` in `perezosoft-platform`, then a sync PR here. |
+| D8 | Colón symbol in the PDF | If the embedded font has no ₡ (U+20A1), the PDF writes the **ISO code instead: `CRC 1.500,00`** — across the whole document, no mixed fonts. The spike decides which case applies. |
+| D9 | Biweekly default pay days | **15th and last day of the month** confirmed. |
 
-## 2. Assumed unless the owner objects
+## 2. Proposed by the planner, confirmed by the owner (all ten, 2026-09-16)
 
 | # | Assumption | Why |
 |---|---|---|
@@ -48,7 +51,7 @@
 
 **As a** household member **I want** a branded PDF of the report I am looking at, with its tables and charts and the period's transactions **so that** I can keep, print or share the month without the app.
 
-**Step 0 — spike (the first step of commit 1, timeboxed to a session; its findings fold into that commit).** Exit criteria: (a) QuestPDF renders a one-page document inside the compose API container (the Render image); note any `apt` package needed in the Dockerfile; (b) an embedded font renders `₡1.500,00` — Nunito if it carries U+20A1, else a bundled fallback for money cells; (c) an SVG string from the new Core donut builder renders in QuestPDF. Findings go into ADR-V022.
+**Step 0 — spike (the first step of commit 1, timeboxed to a session; its findings fold into that commit).** Exit criteria: (a) QuestPDF renders a one-page document inside the compose API container (the Render image); note any `apt` package needed in the Dockerfile; (b) whether the embedded font (Nunito) carries ₡ (U+20A1) — if yes, money reads `₡1.500,00`; if not, the whole PDF writes `CRC 1.500,00` (D8); (c) an SVG string from the new Core donut builder renders in QuestPDF. Findings go into ADR-V022.
 
 **Charts — one geometry, two renderers.** New pure builders in `src/Core/Charts/` (`DonutSvg`, `BarSvg`, `LineSvg`) that take the existing models (`DonutSlice`, `BarItem`, `LinePoint` move to Core) plus a **palette** (label → color string) and return the SVG markup. The Razor components become thin wrappers that pass the Bootstrap-token palette and keep every `data-testid` the Ui tests assert. The PDF passes a **print palette** of literal brand hex values and a font family name. Rule: no `var(` may appear in a PDF SVG (asserted).
 
@@ -190,7 +193,5 @@ parity, QA-plan rows, docs — and the §4a data-safety rules. The PR checklist 
 
 ## 6. Open items for the owner
 
-1. Confirm A1–A10 (or edit them here).
-2. Green-light the platform PR (attachments on `IEmailSender`).
-3. Font: if Nunito lacks ₡, accept a fallback face for money cells only, or a different single face for the whole PDF?
-4. Biweekly default pay days 15 + last — right for the households you expect?
+None. Resolved 2026-09-16: A1–A10 confirmed; D7 platform PR go-ahead; D8 CRC-code fallback; D9 biweekly 15 + last.
+Next step: generate the stories and start commit 1 (REPORTS-7, spike first) on `feat/reports-pdf-and-income`, and the platform attachment PR in parallel.
