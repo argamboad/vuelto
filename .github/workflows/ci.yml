@@ -203,6 +203,10 @@ jobs:
       - name: Build the production image
         run: docker build -t vuelto-app:ci .
 
+      # The app runs as the non-root `app` user; local-disk file storage (/app/storage) must be writable by it.
+      - name: The app user can write its storage folder
+        run: docker run --rm --entrypoint sh vuelto-app:ci -c 'touch /app/storage/.write-probe && rm /app/storage/.write-probe'
+
   # Native (MAUI) build gate — NATIVE-1 (ADR-018). Compile-only (no emulator, no signing): a change that
   # breaks the native build fails the PR instead of rotting until a manual run. Android + Windows run on
   # every trigger (cheap runners); the Apple targets live in native-build-apple below (macOS = 10× billed

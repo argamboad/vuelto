@@ -42,6 +42,26 @@ public class EnforcementGateTests
     }
 
     [Fact]
+    public void Dockerfile_GivesTheAppUserAWritableStorageDir()
+    {
+        // Synced from perezosoft-platform #236. Local-disk file storage (ADR-010) defaults to ./storage under the app
+        // base dir = /app/storage. The runtime runs as the non-root `app` user and WORKDIR /app is created by root, so
+        // without this every stored file (CSV export, report PDF, household export) failed on staging with "Access to
+        // the path '/app/storage' is denied" (2026-09-17). The directory must exist, owned by `app`, BEFORE `USER app`.
+        var dockerfile = File.ReadAllText(Path.Combine(RepoRoot(), "Dockerfile"));
+        var runtime = dockerfile[dockerfile.IndexOf("AS runtime", StringComparison.Ordinal)..];
+        var userAt = runtime.IndexOf("USER app", StringComparison.Ordinal);
+        Assert.True(userAt > 0, "The runtime stage must switch to the non-root `app` user.");
+
+        var beforeUser = runtime[..userAt];
+        Assert.Matches(@"mkdir -p [^\n]*/app/storage", beforeUser);
+        Assert.Matches(@"chown [^\n]*app:app [^\n]*/app/storage", beforeUser);
+
+        // CI proves it on the built image.
+        Assert.Contains("/app/storage/.write-probe", File.ReadAllText(Path.Combine(RepoRoot(), ".github", "workflows", "ci.yml")));
+    }
+
+    [Fact]
     public void HostIndexHtml_ReferenceTheIdenticalRclScriptSet() // R68
     {
         // The RCL's js contracts (theme pre-paint, MFA QR) must load in BOTH hosts — a script added
