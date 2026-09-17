@@ -95,9 +95,22 @@ async function bootToLogin(device, attempt) {
   // a phone-sized window (same reasoning as the Windows leg).
   await page.getByTestId('sign-out').first().waitFor({ state: 'attached', timeout: 60_000 });
 
-  // One authorized page: Household loads its data — proves the native Bearer path.
-  await page.goto('https://0.0.0.1/household');
-  await page.getByTestId('household-rename-input').waitFor({ state: 'visible', timeout: 60_000 });
+  // One authorized page: Household loads its data — proves the native Bearer path. Navigate IN-APP (open the
+  // user menu, click the link) instead of page.goto: a goto reloads the whole WebView, and on a cold emulator
+  // that reload races the Blazor attach — runs 35250560206 attempt 1 ("Cannot access a disposed object:
+  // 'IServiceProvider'") and attempt 2 ("There is no browser renderer with ID 3") both died there, on an APK
+  // whose own develop run had passed. Client-side navigation exercises the same authorized API call without
+  // restarting the host. The goto stays as a fallback, once, if the menu link isn't reachable.
+  const household = page.getByTestId('household-rename-input');
+  try {
+    await page.getByTestId('user-menu').click({ timeout: 60_000 });
+    await page.getByTestId('nav-household').click({ timeout: 60_000 });
+    await household.waitFor({ state: 'visible', timeout: 60_000 });
+  } catch (e) {
+    console.error(`in-app navigation to Household failed (${e.message}); falling back to a full load once`);
+    await page.goto('https://0.0.0.1/household');
+    await household.waitFor({ state: 'visible', timeout: 60_000 });
+  }
   const members = await page.getByTestId('member-row').count();
   if (members !== 1) throw new Error(`expected 1 roster row for a fresh owner, saw ${members}`);
 
