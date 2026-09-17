@@ -1541,7 +1541,9 @@ Then it is gone from the month only
 **Expected:** the September 2026 page with an **Income this month** block: two rows in the income page's order,
 each an editable name, amount and currency, `600000` CRC and `2200` USD, no "Planned" line (nothing corrected
 yet) and a **Manage income** link. Change `2200` to `2000` → **Expected:** "Planned $2,200.00" appears under it.
-**Add income for this month** → name `Sold the bike`, `150000`, **CRC** → **Expected:** "Only this month" under it.
+**Add income for this month** → name `Sold the bike`, `150000`, **CRC** → **Expected:** "Only this month" under it;
+after saving, **Reports → Chart → Income by member** counts it under **your** name (a one-off is the income of whoever
+adds it).
 Leave a name blank → **Save income** → "Every income needs a name." and no request; fill it → **Save income** →
 **Expected:** "Income updated."; reload → the three rows as saved. **Dashboard** → the Income step's total is the
 three rows at today's rate. **Settings → Manage income** → **Edit** Son salary → set **Whose income** to yourself →
@@ -4193,6 +4195,8 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   TTL guard; interrupted links land on Settings' banner). New **QA-AND-15** (on-device kill test;
   renumbered from the branch's QA-AND-14 — that slot went to THEME-1's restart test in the interim).
   Suite 149 → **150** cases.
+- **Updated 2026-09-17** — **A one-off month income is the adder's (owner).** "Add income for this month" now makes
+  the row the signed-in member's income instead of the household's. **QA-INC-02** gains the check. Case count unchanged.
 - **Updated 2026-09-17** — **Whose income it is follows the line (owner).** Changing an income line's member also
   re-labels the month rows copied from it that still had the previous member, so migrated months can be attributed;
   amounts and names never change. **QA-INC-02** gains the step; the edit form says so. Case count unchanged.

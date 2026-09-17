@@ -34,7 +34,9 @@ without typing four-week and five-week figures
   alone. The edit form says so.
 - **Editing a month** (`PUT /api/months/{id}/income` with `rows`): the full list — an existing row by `id` changes its
   `label` / `amount` / `currency`; a row without `id` is a one-off for that month (`income_line_id` null,
-  `planned_amount` null); a row left out is removed. `GET /api/months/{id}` returns `income_rows`.
+  `planned_amount` null); a row left out is removed. `GET /api/months/{id}` returns `income_rows`. A one-off added on
+  the month page is **the income of the member who adds it** (the page sends their `member_user_id`; owner,
+  2026-09-17); an API caller that sends none gets a household row.
 - **Totals are unchanged in shape:** `IncomeCalculator` sums the month's rows (each converted at the day's rate by the
   ADR-V019 direction rule) plus inflows. The dashboard summary and the reports keep `income_total`; the dashboard's
   `income_primary` / `income_secondary` are replaced by `income_lines` (label, member, pair) and `income_inflows`.

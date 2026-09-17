@@ -180,7 +180,8 @@ Flow:
 4. When a month is created (§9) each active line becomes a **month income row**: weekly × the month's weeks, twice a
    month × the pay days inside the month's window, monthly × 1. A line whose member left the household is skipped.
 5. On the month page each row's name, amount and currency can be corrected for that month only (the planned figure
-   stays beside an edited amount); a one-off income can be added and a row removed.
+   stays beside an edited amount); a one-off income can be added — it counts as the income of the member who adds
+   it — and a row removed.
 
 Notes: the migration turned each household's old 4-week/5-week defaults into lines (a pair that fit no pay period is
 flagged "check this") and copied every existing month's two incomes verbatim into rows, so no past month changed. The

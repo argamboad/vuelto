@@ -394,6 +394,7 @@ public class LedgerPagesTests : ComponentTestBase
     public async Task MonthDetail_EditsTheIncomeRows_AndPutsTheWholeList()
     {
         // INCOME-1: correct a snapshotted row (its planned figure shows), drop another, add a one-off, save the list.
+        // The one-off is the income of whoever adds it — the signed-in member.
         await SignInAsync();
         const string Salary = "eeeeeeee-0000-0000-0000-00000000aaa1";
         const string Son = "eeeeeeee-0000-0000-0000-00000000aaa2";
@@ -436,7 +437,7 @@ public class LedgerPagesTests : ComponentTestBase
         var put = Assert.Single(Http.Requests, r => r.Method == HttpMethod.Put);
         var body = await put.Content!.ReadAsStringAsync();
         Assert.Equal(
-            $$"""{"rows":[{"id":"{{Salary}}","label":"Salary","member_user_id":"{{Member}}","currency":"USD","amount":1800},{"id":null,"label":"Sold the bike","member_user_id":null,"currency":"CRC","amount":150000}]}""",
+            $$"""{"rows":[{"id":"{{Salary}}","label":"Salary","member_user_id":"{{Member}}","currency":"USD","amount":1800},{"id":null,"label":"Sold the bike","member_user_id":"{{Auth.UserId}}","currency":"CRC","amount":150000}]}""",
             body);
         // The saved rows come back from the response: the one-off now has an id and no plan.
         cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("[data-testid='month-inc-row']").Count));

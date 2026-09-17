@@ -442,7 +442,12 @@
             Currency = r.Currency, Amount = r.Amount, PlannedAmount = r.PlannedAmount,
         }).ToList();
 
-    private void AddIncomeRow() => _incomeRows.Add(new IncomeRowState { Currency = _incomeRows.LastOrDefault()?.Currency ?? "USD" });
+    /// <summary>A one-off income is the income of whoever adds it (INCOME-2: it then counts under their name in the reports).</summary>
+    private void AddIncomeRow() => _incomeRows.Add(new IncomeRowState
+    {
+        Currency = _incomeRows.LastOrDefault()?.Currency ?? "USD",
+        MemberUserId = Auth.UserId,
+    });
 
     private static string Amount(decimal amount, string currency) =>
         (currency == "CRC" ? "₡" : "$") + amount.ToString("N2", CultureInfo.CurrentCulture);
