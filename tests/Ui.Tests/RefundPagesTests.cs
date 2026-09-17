@@ -74,7 +74,7 @@ public class RefundPagesTests : ComponentTestBase
     public async Task MonthDetail_ListsRefunds_AndMarksOneReceived()
     {
         await SignInAsync();
-        Http.On(HttpMethod.Get, $"/api/months/{MonthId}", $$"""{"id":"{{MonthId}}","year":2026,"month_number":6,"week_count":4,"week1_start_date":"2026-05-28","primary_income_amount":0,"primary_income_currency":"USD","secondary_income_amount":0,"secondary_income_currency":"USD","weeks":[{"week_number":1,"start_date":"2026-05-28","end_date":"2026-06-03"}]}""");
+        Http.On(HttpMethod.Get, $"/api/months/{MonthId}", $$"""{"id":"{{MonthId}}","year":2026,"month_number":6,"week_count":4,"week1_start_date":"2026-05-28","income_rows":[],"weeks":[{"week_number":1,"start_date":"2026-05-28","end_date":"2026-06-03"}]}""");
         Http.On(HttpMethod.Get, $"/api/months/{MonthId}/transactions", "[]");
         Http.On(HttpMethod.Get, $"/api/months/{MonthId}/refunds", $$"""[{"id":"{{RefundId}}","month_id":"{{MonthId}}","transaction_id":"dddddddd-0000-0000-0000-000000000004","payee":"Hospital","transaction_date":"2026-06-05","percentage":30,"amount_crc":15000,"amount_usd":30,"status":"pending","inflow_transaction_id":null}]""");
         Http.On(HttpMethod.Put, $"/api/refunds/{RefundId}", $$"""{"id":"{{RefundId}}","status":"received"}""");
@@ -108,7 +108,7 @@ public class RefundPagesTests : ComponentTestBase
     {
         const string JulyId = "aaaaaaaa-0000-0000-0000-000000000007";
         await SignInAsync();
-        Http.On(HttpMethod.Get, $"/api/months/{MonthId}", $$"""{"id":"{{MonthId}}","year":2026,"month_number":6,"week_count":4,"week1_start_date":"2026-05-28","primary_income_amount":0,"primary_income_currency":"USD","secondary_income_amount":0,"secondary_income_currency":"USD","weeks":[{"week_number":1,"start_date":"2026-05-28","end_date":"2026-06-03"}]}""");
+        Http.On(HttpMethod.Get, $"/api/months/{MonthId}", $$"""{"id":"{{MonthId}}","year":2026,"month_number":6,"week_count":4,"week1_start_date":"2026-05-28","income_rows":[],"weeks":[{"week_number":1,"start_date":"2026-05-28","end_date":"2026-06-03"}]}""");
         Http.On(HttpMethod.Get, $"/api/months/{MonthId}/transactions", "[]");
         Http.On(HttpMethod.Get, $"/api/months/{MonthId}/refunds", $$"""[{"id":"{{RefundId}}","month_id":"{{MonthId}}","transaction_id":"dddddddd-0000-0000-0000-000000000004","payee":"Hospital","transaction_date":"2026-06-05","percentage":30,"amount_crc":15000,"amount_usd":30,"status":"received","inflow_transaction_id":"dddddddd-0000-0000-0000-000000000009","received_date":"2026-07-03","inflow_month_id":"{{JulyId}}"}]""");
         Http.On(HttpMethod.Put, $"/api/refunds/{RefundId}", $$"""{"id":"{{RefundId}}","status":"pending"}""");
@@ -132,7 +132,7 @@ public class RefundPagesTests : ComponentTestBase
     public async Task MonthDetail_LostConcurrentFlip_ShowsTheConflictAndReloads()
     {
         await SignInAsync();
-        Http.On(HttpMethod.Get, $"/api/months/{MonthId}", $$"""{"id":"{{MonthId}}","year":2026,"month_number":6,"week_count":4,"week1_start_date":"2026-05-28","primary_income_amount":0,"primary_income_currency":"USD","secondary_income_amount":0,"secondary_income_currency":"USD","weeks":[{"week_number":1,"start_date":"2026-05-28","end_date":"2026-06-03"}]}""");
+        Http.On(HttpMethod.Get, $"/api/months/{MonthId}", $$"""{"id":"{{MonthId}}","year":2026,"month_number":6,"week_count":4,"week1_start_date":"2026-05-28","income_rows":[],"weeks":[{"week_number":1,"start_date":"2026-05-28","end_date":"2026-06-03"}]}""");
         Http.On(HttpMethod.Get, $"/api/months/{MonthId}/transactions", "[]");
         Http.On(HttpMethod.Get, $"/api/months/{MonthId}/refunds", $$"""[{"id":"{{RefundId}}","month_id":"{{MonthId}}","transaction_id":"dddddddd-0000-0000-0000-000000000004","payee":"Hospital","transaction_date":"2026-06-05","percentage":30,"amount_crc":15000,"amount_usd":30,"status":"pending","inflow_transaction_id":null}]""");
         Http.On(HttpMethod.Put, $"/api/refunds/{RefundId}", """{"error":"refund_status_conflict","message":"changed concurrently"}""", HttpStatusCode.Conflict);

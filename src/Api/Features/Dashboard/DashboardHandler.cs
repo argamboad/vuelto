@@ -23,6 +23,7 @@ public sealed class DashboardHandler(
     IRepository<Category> categories,
     IRepository<Bank> banks,
     IRepository<Card> cards,
+    IRepository<MonthIncome> monthIncomes,
     IDashboardSummaryService summary,
     IExchangeRateResolver rates,
     ICurrentTenant tenant)
@@ -42,6 +43,7 @@ public sealed class DashboardHandler(
             return new DashboardResponse(header, null, null, null, null, RateUnavailable: true, Summary: null);
 
         var monthTransactions = await transactions.Query().Where(t => t.MonthId == monthId).ToListAsync(cancellationToken);
+        var incomeRows = await monthIncomes.Query().Where(r => r.MonthId == monthId).ToListAsync(cancellationToken);
         var monthRefunds = await refunds.Query().Where(r => r.MonthId == monthId).ToListAsync(cancellationToken);
         var allEnvelopes = await envelopes.Query().ToListAsync(cancellationToken);
         var fixedLines = await fixedExpenses.Query().ToListAsync(cancellationToken);
@@ -50,7 +52,7 @@ public sealed class DashboardHandler(
         var bankNames = await banks.Query().ToDictionaryAsync(b => b.Id, b => b.Name, cancellationToken);         // all states
         var cardLabels = await cards.Query().ToDictionaryAsync(c => c.Id, c => new CardLabel(c.Name, c.Kind), cancellationToken); // all states (CARDS-2/3)
 
-        var calc = summary.Calculate(month, monthWeeks, monthTransactions, fixedLines, variableLines, monthRefunds, allEnvelopes, resolved.Rates, categoryNames, bankNames, cardLabels);
+        var calc = summary.Calculate(month, incomeRows, monthWeeks, monthTransactions, fixedLines, variableLines, monthRefunds, allEnvelopes, resolved.Rates, categoryNames, bankNames, cardLabels);
         return new DashboardResponse(header, resolved.Rate, resolved.Rates.Buy, resolved.Source, resolved.AsOf, RateUnavailable: false, DashboardSummaryResponse.From(calc));
     }
 }

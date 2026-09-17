@@ -1215,23 +1215,25 @@ And cancelling at the provider returns me to /billing/cancel — the same page w
 ```gherkin
 Given I am signed in to a household that has never saved budget settings
 When I open /settings
-Then the Budget card shows Thursday, "Last Thursday of the previous month", and 0 USD for both incomes
+Then the Budget card shows Thursday and "Last Thursday of the previous month"
+And a hint says a weekly-paid household should start the week on its payday, with a link to the income page
 ```
 **Walkthrough:** sign in with a fresh account (QA-ONB-01), open **Settings**. **Expected:** a
-**Budget** card between Preferences and Notifications: *Week starts on* = Thursday, *Month begins*
-= "Last Thursday of the previous month", both income rows 0 / 0 / USD. Nothing has been saved
-(`GET /api/budget-settings` returns `is_default: true`).
+**Budget** card between Preferences and Notifications: *Week starts on* = Thursday with the payday hint beneath it,
+*Month begins* = "Last Thursday of the previous month", no income fields — "Income now has its own page." with a
+**Manage income** link (INCOME-1). Nothing has been saved (`GET /api/budget-settings` returns `is_default: true`
+and no income fields).
 
 ### QA-BUD-02 — Save the household's budget structure and see it persist 🟠 (Web)
 **Gherkin**
 ```gherkin
 Given I am on /settings
-When I set Monday, "1st of the month", primary 1500 / 1800 USD, secondary 400000 / 500000 CRC and click Save
+When I set Monday and "1st of the month" and click Save
 Then the card confirms, and a reload (or another member's browser) shows the same values
 ```
 **Walkthrough**
 1. Change *Week starts on* to **Monday** — **Expected:** the anchor options re-label to "…Monday…".
-2. Pick **1st of the month**; enter the amounts; secondary currency **CRC**; **Save budget settings**.
+2. Pick **1st of the month**; **Save budget settings**.
 3. **Expected:** "Budget settings saved." Reload the page: the values persist. Sign in as another
    member of the same household (QA-INV-02): they see the same values (household-wide, not per user).
 4. Save again with a different weekday. **Expected:** still one row for the household
@@ -1241,13 +1243,12 @@ Then the card confirms, and a reload (or another member's browser) shows the sam
 **Gherkin**
 ```gherkin
 Given I am on /settings
-When I try to save a negative amount, or PUT weekday 9 / anchor "x" / currency "EUR" via the API
-Then the UI shows the "check the values" message and the API answers 400 invalid_request
+When I PUT weekday 9 or anchor "x" via the API
+Then the API answers 400 invalid_request, and a 400 shown in the card reads "Check the values…"
 And a GET still returns the previously saved values
 ```
-**Walkthrough:** in the card, type **-5** in an amount and Save → **Expected:** the red
-"Check the values…" message, no success banner. Via Postman (**11 · Budget settings → Update —
-invalid (400)**) → **Expected:** 400 `{ "error": "invalid_request", "message": "week_start_weekday …" }`;
+**Walkthrough:** the card only offers valid choices, so the refusal is checked through the API. Via Postman
+(**11 · Budget settings → Update — invalid (400)**) → **Expected:** 400 `{ "error": "invalid_request", "message": "week_start_weekday …" }`;
 a following **Get budget settings** is unchanged. Without a token → 401.
 
 ---
@@ -1483,6 +1484,118 @@ And a PUT to an envelope id from another household returns 404
 
 ---
 
+## 10g2. Web — Income lines (app slice INCOME-1) 🟠
+
+> Each income is a line (ADR-V023): whose it is (a member, or the household), its currency, **fixed** or
+> **variable** (an estimate), how often it is paid (**weekly**, **twice a month** on two days, **monthly**) and the
+> amount per payment. Catalog rules as the envelopes (ADR-V008). Every month created afterwards starts with one
+> income row per active line: weekly × the month's weeks, twice a month × the pay days inside the month's window,
+> monthly × 1. Never seeded. With the default settings (Thursday / last Thursday of the previous month)
+> **September 2026** runs **Aug 27 – Sep 23** (4 weeks) and holds the **Aug 31** and **Sep 15** pay days.
+
+### QA-INC-01 — Add, order, deactivate and reactivate income lines; the catalog rules hold ⚙️ Automated in CI 🟠 (Web / API)
+**Gherkin**
+```gherkin
+Given I am on Settings in a fresh household
+When I click Manage income
+Then I see the empty-state message
+When I add "My salary", mine, Weekly, $500 and Create
+And I add "Son salary", the household, Twice a month (15th and Last day), ₡300,000
+Then both rows show their amount, whose they are, Fixed or Variable, and how they are paid
+When I move "Son salary" up
+Then the order is saved and survives a reload
+When I edit "My salary" and switch Active off
+Then it shows Inactive and has no up/down buttons
+When I add "my SALARY", Weekly, $550
+Then I am offered Reactivate, and clicking it restores "My salary" (stored spelling) as active, weekly, with $550 — the typed details win
+And an amount of 0, or the same pay day twice, is refused before any request
+```
+**Walkthrough:** **Settings → Catalog → Manage income** → **Expected:** "No income yet…". **New income** → name
+`My salary`, **Whose income** = yourself, **Paid** = Weekly, `500`, **USD** → the hint under the form says a month
+counts one payment per week and points to the week start → **Create** → **Expected:** "Created." and the row
+(`$500.00`, your name · Fixed · Weekly). **New income** → `Son salary`, **Whose income** = "The household", **Paid** =
+Twice a month → **Expected:** two pay-day selects appear with **15** and **Last day** → `300000`, **CRC** → **Create**.
+Click **↑** on Son salary → **Expected:** it moves to the top; reload → still first. **Edit** My salary → **Active**
+off → **Save** → **Expected:** Inactive, no ↑/↓ on it. **New income** → `my SALARY`, **Paid** = Weekly, `550` → **Create** →
+**Expected:** the yellow "…already exists but is inactive" warning with **Reactivate** → click → **Expected:**
+"Updated.", **My salary** active at $550.00. Type `0` → **Create** → **Expected:** "Enter an amount greater than
+zero." and no request; Twice a month with both days **Last day** → "Pick two different pay days.". Via Postman
+(**25 · Income**): **Create income line** → 201, re-send → 409 `income_exists`; **Create income line — invalid (400)**
+→ `invalid_request` naming `pay_days`; a `member_user_id` from another household → 400; **Update income line** with an
+id from another household → 404; **Reorder income lines** with a list that isn't exactly the active lines → 400.
+
+### QA-INC-02 — A new month starts with the lines' plan; one month is corrected without touching the lines ⚙️ Automated in CI 🟠 (Web / API)
+**Gherkin**
+```gherkin
+Given the lines of QA-INC-01: "Son salary" ₡300,000 twice a month and "My salary" $550 weekly
+When I save the first transaction dated 2026-09-10
+Then September 2026 (4 weeks) lists "Son salary" ₡600,000 (two pay days) and "My salary" $2,200 (four weeks), in the lines' order
+When I set "My salary" to 2000, remove nothing, add "Sold the bike" ₡150,000 and click Save income
+Then "Income updated.", My salary shows "Planned $2,200.00" beneath it, the one-off says "Only this month"
+And the dashboard's income counts ₡600,000 + $2,000 + ₡150,000 at the day's rate, with inflows named separately
+And the income page still shows My salary at $550 weekly
+When I remove a row and Save
+Then it is gone from the month only
+```
+**Walkthrough:** **New transaction** → `10000` CRC, date `2026-09-10`, any payee, category and bank → **Save** →
+**Expected:** the September 2026 page with an **Income this month** block: two rows in the income page's order,
+each an editable name, amount and currency, `600000` CRC and `2200` USD, no "Planned" line (nothing corrected
+yet) and a **Manage income** link. Change `2200` to `2000` → **Expected:** "Planned $2,200.00" appears under it.
+**Add income for this month** → name `Sold the bike`, `150000`, **CRC** → **Expected:** "Only this month" under it;
+after saving, **Reports → Chart → Income by member** counts it under **your** name (a one-off is the income of whoever
+adds it).
+Leave a name blank → **Save income** → "Every income needs a name." and no request; fill it → **Save income** →
+**Expected:** "Income updated."; reload → the three rows as saved. **Dashboard** → the Income step's total is the
+three rows at today's rate. **Settings → Manage income** → **Edit** Son salary → set **Whose income** to yourself →
+**Save** → back on September → **Expected:** Son salary's row unchanged in name and amount, and **Reports → Chart →
+Income by member** now counts it under your name (the member follows the line; the amounts never do). **Settings →
+Manage income** → **Expected:** My salary still $550.00 weekly. Remove
+**Sold the bike** (×) → **Save income** → gone after reload. With Tuesday weeks (**Settings → Budget**, *Week starts
+on* Tuesday) a transaction in a month not yet created gets five weeks and five weekly payments (Sep 2026 would be
+Aug 25 – Sep 28 — use a later empty month on a household that already has September). Via Postman (**15 · Months →
+Get month**) → `income_rows` with `planned_amount`; **Update month income — invalid (400)** → `invalid_request`; the
+month id of another household → 404.
+
+### QA-INC-03 — The income migration keeps every month's income (rehearsal and after deploy) 🔴 (API / DB)
+**Gherkin**
+```gherkin
+Given a database copy taken before INCOME-1 (a Neon branch of staging, or the local database with old data)
+When the API starts and applies the AddIncomeLines migration
+Then tools/check-income-parity.sql returns no rows
+And each household's old defaults appear as income lines ("Primary income", "Secondary income"), the irregular ones flagged "Check this"
+And every existing month shows the same income on its page and on the dashboard as before the migration
+And the old income columns still hold their values
+```
+**Walkthrough:** before merging, create a Neon branch of staging (DEPLOYMENT §9) and take the household snapshot.
+Point a local API at the branch → it migrates on start. Run:
+```sh
+psql "$BRANCH_URL" -f tools/check-income-parity.sql
+```
+**Expected:** `(0 rows)`. Open **Settings → Manage income** → **Expected:** "Primary income" / "Secondary income" with
+the pay period the old figures implied; a pair that fit no period shows a **Check this** badge (hover: why), which
+clears on the first save. Open three past months and their dashboards → **Expected:** the same income totals as
+production before the deploy. Repeat the parity query on staging right after the deploy, **before anyone edits a
+month's income** → `(0 rows)`; any row → roll the app back (the old columns are intact) and investigate.
+
+### QA-INC-04 — The month report says whose the income is 🟠 (Web / API)
+**Gherkin**
+```gherkin
+Given September 2026 has income rows for me, a household row, a row of a member who left, and an inflow
+When I download the September PDF from Reports
+Then it has an "Income by member" table (Whose · Income · Share) listing my name, "The household", "Former members" and "Other income (inflows)", with a Total row equal to the month's income, all on one page
+And there is no "Income by member" chart, in the PDF or on the Reports page
+When I report a date range, or the rate is unavailable
+Then the PDF has no income by member table
+```
+**Walkthrough:** with the month of QA-INC-02 (add a household line and an inflow first, if needed), **Reports** → the
+month → **Chart** → **Expected:** no income by member card. **PDF → Download** → **Expected:** no income by member
+chart, and before "By category" the **Income by member** table whose shares add to 100% and whose total equals the
+income tile's basis; in Spanish (Settings → language) the labels read *Ingreso por miembro*, *El hogar*, *Exmiembros*. A
+date range → **Expected:** no table. Via Postman (**20 · Reports → Category analysis (month)**) → `income_by_member`
+with `kind` per slice, summing to `income`; the range request → `income_by_member: null`.
+
+---
+
 ## 10h. Web — Months & transactions (app slice LEDGER-1/2) 🟠
 
 > **The transaction form is presented per SKIN-7 (2026-09-12):** amount FIRST and at display size, with the
@@ -1501,8 +1614,8 @@ And a PUT to an envelope id from another household returns 404
 > red (over). The figures come from each month's summary after the grid is already on screen; a month whose
 > rate cannot resolve still shows as a card, with "Figures unavailable". A closed month's bar is solid and its
 > result is what was actually left. The **month page** opens with "← All months" and the Dashboard link, the
-> title, and one chip per week ("W1 · Jun 25"; hover for the full window); **income is one row** (two
-> amount + currency groups and **Save income**); the ledger is one table — Date, Payee, Category, Paid with,
+> title, and one chip per week ("W1 · Jun 25"; hover for the full window); **income is a short list of rows**
+> (INCOME-1: one editable name + amount + currency per income, **Add income for this month** and **Save income**); the ledger is one table — Date, Payee, Category, Paid with,
 > Class, Amount — with class CHIPS, a stacked **Amount** cell (the "Show in" currency on top, the other
 > muted beneath; one side only when a single currency is chosen) and **Paid with** = the bank with the
 > card's alias beneath it. Below tablet width Category and Paid with hide and the payee gains a muted
@@ -1519,7 +1632,7 @@ And a PUT to an envelope id from another household returns 404
 ### QA-LED-01 — The first transaction creates its month with weeks and an income snapshot 🟠 (Web / API)
 **Gherkin**
 ```gherkin
-Given a fresh household with no months, Budget settings saved with 5-week incomes 3750 USD / 312500 CRC
+Given a fresh household with no months, and income lines "Salary" $750 weekly and "Rent" ₡312,500 monthly
 When I open New transaction
 Then the AMOUNT is the first field, at display size, with the currency toggle inside its own input group and the conversion under it ("= $… at ₡… per $1 · frozen when you save")
 And the rest reads as two named groups — What it was (payee, category, class chips, notes) and How it was paid (bank, card, method, rate)
@@ -1529,11 +1642,11 @@ And I click "+ New" beside Category, type "Viajes" and Create
 Then "Viajes" is selected without leaving the form (it also appears under Settings → Categories); typing "viajes" again just selects it
 Then the date says "Goes to July 2026 — a new month will be created" and the rate is pre-filled
 When I Save
-Then I land on July 2026: five week chips (W1 · Jun 25 … W5 · Jul 23), the income row 3750 USD / 312500 CRC, one row whose Amount cell stacks ₡50,000.00 over $<50000 ÷ rate>, its class a "Budgeted" chip
+Then I land on July 2026: five week chips (W1 · Jun 25 … W5 · Jul 23), income rows Salary 3750 USD and Rent 312500 CRC, one row whose Amount cell stacks ₡50,000.00 over $<50000 ÷ rate>, its class a "Budgeted" chip
 And the transactions table sorts by Date, Payee, Category, Paid with or Class when I click the header (click again to flip; ▲/▼ marks the active one)
 And the filters above it narrow the rows by payee search, category, bank, card, class and date range, with "Showing n of m" and a Clear button; on a phone the search stays and the rest fold behind a Filters button
 ```
-**Walkthrough:** **Settings → Budget** → save 5-week incomes `3750` USD and `312500` CRC. **Dashboard →
+**Walkthrough:** **Settings → Manage income** → add `Salary` $750 weekly and `Rent` ₡312,500 monthly. **Dashboard →
 New transaction** (or nav **Months → New transaction**): fill the fields; beside **Category** click
 **+ New**, type `Viajes`, **Create** → **Expected:** the inline form closes and **Viajes** is selected
 (Enter also creates, Esc cancels; a blank name → "A name is required."; a name matching an inactive
@@ -1542,7 +1655,7 @@ created" (week 3: Jun 25 – Jul 1, Jul 2 – 8, Jul 9 – 15); with the date ba
 budgeted category that has a line, a second line reads "Groceries: ₡8,000.00 spent of ₡60,000.00 planned —
 after this, ₡58,000.00" (a dollar purchase against a colón line is converted at today's rate first); the **Exchange rate** field pre-filled (or, without a key, the red hint asking for one — type
 `500`). **Save** → **Expected:** the **July 2026** page with five week chips (hover one → its full window), the
-income row showing 3750 USD / 312500 CRC, and the row: a **Budgeted** chip and the amount stacked
+income rows Salary `3750` USD (5 weeks × $750) and Rent `312500` CRC, and the row: a **Budgeted** chip and the amount stacked
 (₡ on top, $ muted beneath — or one side only if **Show in** is set to a single currency on the
 dashboard). With a few rows in place: click **Payee** → **Expected:** A→Z with ▲; click again → Z→A ▼;
 **Date** flips newest/oldest; **Paid with** orders by bank. Type `auto` in **Search payee** →
@@ -1591,14 +1704,14 @@ id → **Expected:** 404 `not_found`.
 **Gherkin**
 ```gherkin
 Given a month exists
-When I change its primary income to 1600000 CRC and Save
+When I change its first income row to 1600000 CRC and Save
 Then "Income updated." and the values persist on reload
 When I PUT a negative amount or EUR via Postman
 Then 400 invalid_request
 When I PUT /api/months/{id}/income with an id from another household
 Then 404
 ```
-**Walkthrough:** on the month page's income row → primary `1600000`, its currency select
+**Walkthrough:** on the month page's income block → the first row's amount `1600000`, its currency select
 **CRC** → **Save income** → **Expected:** "Income updated."; reload → values kept. Via Postman (**15 ·
 Months → Update month income — invalid (400)**) → `invalid_request`. With an id copied from a
 *different* household's list → **Expected:** 404 (never 403 — no existence oracle). Also
@@ -1756,7 +1869,7 @@ Then both lists show "No lines yet" and the header reads "Planned every month �
 When I click + Add a line, keep Fixed, enter "Mortgage", 300000 CRC, category Housing, Bank account, and Create
 And "+ New" beside Category creates a category in place (it is then offered for either list)
 Then the dialog closes and the row reads Mortgage · ₡300,000.00 · Housing · "account", with a drag handle — no bank anywhere on a line (a plan is pay by card / by account; the transaction records the real bank)
-And the header's planned total is ₡300,000.00 and, if income defaults are saved, its share of a typical income
+And the header's planned total is ₡300,000.00 and, if income lines exist, its share of a typical four-week month of them
 When I add a line, switch to Variable, enter "Netflix", 13 USD, category Entertainment, Credit card
 Then it appears under Variable as $13.00 · Entertainment · "card", and the header adds it at today's rate
 When I add a fixed "Rent" with category Housing
@@ -2078,6 +2191,89 @@ bars using the space, captioned "budgeted ₡… · spent ₡…" per method. Sw
 **Expected:** pace and trend gone, the two donuts still there, the method bars gone. Via Postman
 (**20 · Reports → Category analysis (month)**) → `by_bank`, `by_method` and `by_card` arrays (the card one
 keyed `"none"` for the no-card bucket) and `spend_by_day` with three dates.
+
+### QA-REP-05 — Download the report as a PDF: same figures, same charts, the transactions appended ⚙️ Automated in CI 🟠 (Web / API)
+**Gherkin**
+```gherkin
+Given the June data above, in month mode, with "Show in" on both sides and the chart currency on ₡
+When I press PDF beside Export CSV
+Then a dialog offers "Include the transactions" (ticked) and says the amounts, charts and language it will use
+When I press Download
+Then a file "report-<first day>_<last day>.pdf" downloads (Android/Windows: the share sheet opens) and the page shows "PDF ready"
+And the PDF opens with the household, "June 2026", the period, the generated time and the buy/sell rate used
+And it has the four tiles with the same figures as the screen, the pace chart, the donuts, month by month, the method bars and the three category tables with the same budgets and red/green
+And its last pages are landscape and list every row the CSV export lists for June, in the same order, with readable class, method and source labels
+When I untick "Include the transactions" and download again
+Then the PDF has no transaction pages
+When I set "Show in" to $ and download
+Then every amount in the tiles, tables and appendix is in dollars and the charts are drawn in dollars
+When I switch the app to Spanish and download
+Then the PDF is in Spanish ("Informe de gastos", "₡5.000,00")
+When I switch Period to Date range and download
+Then there is no pace, no income or budget card and no month by month, and the tables show spend only
+```
+**Walkthrough:** **Reports** (month mode) → press **PDF** → **Expected:** the dialog with the
+transactions box ticked and three lines: amounts "₡ and $", charts "₡", language "English". Press
+**Download** → **Expected:** a file `report-2026-05-28_2026-06-24.pdf` (on Android/Windows the share sheet)
+and "PDF ready" on the page. Open it → **Expected:** the ¿Y el vuelto? lockup and the household on every
+page; page 1 with "Spending report", "June 2026", the period and "Exchange rate: buy … · sell … per $1";
+the four tiles matching the screen (a pair prints ₡ on one line and $ under it); the pace card; then the
+donuts two to a row, then **Month by month** and **Budgeted vs spent, by payment method**; then **By
+category** with the Budgeted table (budget column, red over / green under), Discretionary and Unplanned;
+then landscape **Transactions** pages with every CSV column. Compare its rows with **Export CSV** for the
+same month → **Expected:** the same rows in the same order. Untick the box → no Transactions pages. Set
+**Show in** to **$** → dollars only everywhere. Switch the app to **Español** → the PDF is in Spanish.
+**Date range** → no pace, income, budget or month-by-month pieces. A payee with an emoji still renders
+(the emoji prints as a box). Stop the exchange-rate provider (or test when none is cached) → the PDF says
+the rate is unavailable and leaves out income, budget and the plan line. Via Postman (**20 · Reports →
+Report as PDF (link)**) → 200 with `download_url` / `file_name` / `period` / `expires_in_seconds` 900;
+`display: "EUR"` → 400 `invalid_request`; both `month_id` and `from`/`to` → 400 `period_ambiguous`;
+another household's month → 404; opening `download_url` without a token downloads the PDF.
+
+### QA-REP-06 — Email me this report: the same PDF, attached, to my own inbox, in my saved language ⚙️ Automated in CI 🟠 (Web / API)
+**Gherkin**
+```gherkin
+Given I am signed in with Spanish saved in Settings → Preferences, on Reports for June
+When I press PDF and then "Enviármelo"
+Then the dialog closes and the page says "Enviado a <my address>, con el PDF adjunto."
+And my inbox (Mailpit locally) receives one email in Spanish, "Tu informe de gastos: Junio 2026", naming the period, the household and the total spend
+And it carries report-<first day>_<last day>.pdf — the same file Download gives, in Spanish
+When I switch my saved language to English and press "Email me" again
+Then the email and its PDF are in English
+When I press "Email me" an eleventh time in the same day
+Then the dialog stays open and says today's maximum was reached, and no email is sent
+```
+**Walkthrough:** **Settings → Preferences** → Español. **Reports** (June) → **PDF** → **Enviármelo** →
+**Expected:** the dialog closes and the page says "Enviado a …, con el PDF adjunto." Open Mailpit
+(`http://localhost:8026`) or the inbox → **Expected:** one email "Tu informe de gastos: Junio 2026", the brand
+header, a sentence with the period, the household and the total spend, and the PDF attached; open it →
+**Expected:** the same report as **Descargar** gives. Switch to English and send again → **Expected:** English
+subject, body and PDF. Keep pressing **Email me** → **Expected:** from the eleventh send of the day the dialog shows
+the daily-limit message and nothing more arrives. Via Postman (**20 · Reports → Email the report to me (PDF
+attached)**) → 202 `{ sent_to, file_name, period }`; a month of another household → 404 and no email; `display:
+"EUR"` → 400 `invalid_request` and no email; **Report as PDF (link)** without `language` follows the saved
+language, with `"language": "en"` it is English.
+
+### QA-REP-07 — Choose the transaction columns the PDF prints ⚙️ Automated in CI 🟢 (Web / API)
+**Gherkin**
+```gherkin
+Given I am on Reports for June with transactions
+When I press PDF
+Then under "Include the transactions" nine columns are listed, all ticked, with "Date and payee always print"
+When I untick Exchange rate, Source, Card and Class and press Download
+Then the appendix prints Date, Payee, Category, the amounts, Payment method, Bank and Notes, in that order
+When I open the dialog again
+Then every column is ticked again
+When I untick "Include the transactions"
+Then the column list disappears and the PDF has no appendix
+```
+**Walkthrough:** **Reports** (June) → **PDF** → **Expected:** the **Columns** list under the transactions checkbox,
+nine boxes ticked. Untick **Exchange rate**, **Source**, **Card**, **Class** → **Download** → open the file →
+**Expected:** the landscape "Transactions" page with only the listed columns, in order, still readable. **PDF** again
+→ **Expected:** all nine ticked. **Email me** with a lean choice → the attachment matches. Untick **Include the
+transactions** → **Expected:** the list hides. Via Postman (**20 · Reports → Report as PDF (link)**) with
+`"appendix_columns": ["notes", "amount"]` → 200, the appendix prints Date, Payee, the amounts, Notes;
+`["tip"]` → 400 `invalid_request` naming it.
 
 ## 10l. Web — Email inboxes: connect, filters & readers (app slice EMAIL-2/3) 🟠
 
@@ -3395,11 +3591,12 @@ Then the sign-in succeeds
 | Catalog: categories + banks (app CATALOG-1/2) | CAT-01..04 | `GET/POST /api/categories`, `PUT /api/categories/{id}`, same under `/api/banks` (409 `*_exists` / `*_exists_inactive` + `existing_id` + `existing_name`; uniform 404) |
 | Exchange rate (app FX-1) | FX-01..02 + `Api.Tests` (`ExchangeRateApiClientTests`, `ExchangeRateResolverTests`) | `GET /api/exchange-rate` (200 `{rate, source: live\|cache\|transaction, as_of}`; 503 `exchange_rate_unavailable`; 401 anonymous) |
 | Envelopes (app ENV-1) | ENV-01..02 | `GET/POST /api/envelopes`, `PUT /api/envelopes/{id}` (400 `invalid_request`; 409 `envelope_exists` / `envelope_exists_inactive` + `existing_id` + `existing_name`; uniform 404) |
+| Income lines + month income rows + income by member (app INCOME-1/2 · ADR-V023) | INC-01..04 (04: `Core.Tests` `IncomeByMemberTests`, `Api.Tests` `ReportSliceTests` / `ReportPdfModelBuilderTests` / `ReportPdfRendererTests`, `Ui.Tests` `ReportsPageTests`) (01–02 ⚙️ E2E `IncomeJourneyTests`) + `Core.Tests` (`IncomeSnapshotTests`, `IncomeCalculatorTests`) + `Api.Tests` (`IncomeSliceTests`, `IncomeEndpointTests`, `IncomeMigrationTests` on real Postgres, `ArchitectureTests.LegacyIncomeColumns_AreReadOrWrittenByNothing`) + `Ui.Tests` (`IncomesPageTests`, `LedgerPagesTests`) | `GET/POST /api/incomes`, `PUT /api/incomes/{id}`, `PUT /api/incomes/order` (400 `invalid_request`; 409 `income_exists` / `income_exists_inactive` + `existing_id` + `existing_name`; uniform 404); `GET /api/months/{id}` → `income_rows`; `PUT /api/months/{id}/income` `{rows:[…]}`; `tools/check-income-parity.sql` |
 | Months & transactions (app LEDGER-1/2) | LED-01..04 + `Api.Tests` (`LedgerSliceTests`) | `GET /api/months`, `GET /api/months/resolve?date=`, `GET /api/months/{id}`, `PUT /api/months/{id}/income`, `GET /api/months/{id}/transactions`; `POST /api/transactions`, `GET/PUT/DELETE /api/transactions/{id}` (400 `invalid_request` / `exchange_rate_unavailable` / `derived_transaction`; uniform 404) |
 | Expected refunds & realization (app LEDGER-3) | LED-05..06 + `Api.Tests` (`RefundSliceTests`, incl. the two-context concurrency proof) | `refund_expected` / `refund_percentage` on `POST/PUT /api/transactions`; `GET /api/months/{id}/refunds`; `PUT /api/refunds/{id}` (200; 400 `invalid_request`; 404; 409 `refund_status_conflict`) |
 | Budget lines: fixed + variable (app EXPENSES-1) | EXP-01..03 | `GET/POST /api/expenses/{fixed\|variable}`, `PUT …/{id}`, `PUT …/order` (400 `invalid_request`; 409 `expense_exists` / `expense_exists_inactive` + `existing_id` + `existing_name`; uniform 404) |
 | Dashboard (app DASH-1) | DASH-01..02 + `Core.Tests` (`DashboardSummaryServiceTests`, 45 donor cases) + `Api.Tests` (`DashboardSliceTests`) | `GET /api/months/{id}/summary` (200 `{month, exchange_rate, rate_source, rate_as_of, rate_unavailable, summary}`; 401 anonymous; uniform 404) |
-| Reports: category analysis + CSV export (app REPORTS-1/2) | REP-01..02 + `Core.Tests` (`CategoryAnalysisCalculatorTests`, `TransactionCsvWriterTests`) + `Api.Tests` (`ReportSliceTests`) | `GET /api/reports/category-analysis`, `POST /api/reports/transactions/export` (`month_id` \| `from`+`to`; 400 `period_required` / `period_ambiguous` / `period_incomplete` / `period_invalid`; uniform 404; export → signed `download_url` served by `GET /api/files/{token}`) |
+| Reports: category analysis + CSV export + PDF + email + appendix columns (app REPORTS-1/2/7/8/9) | REP-01..02, REP-05..07 + `Core.Tests` (`CategoryAnalysisCalculatorTests`, `TransactionCsvWriterTests`) + `Api.Tests` (`ReportSliceTests`, `ReportPdfChartsTests`, `ReportPdfModelBuilderTests`, `ReportPdfSliceTests`) + E2E `ReportPdfJourneyTests` | `GET /api/reports/category-analysis`, `POST /api/reports/transactions/export`, `POST /api/reports/pdf`, `POST /api/reports/pdf/email` (`month_id` \| `from`+`to`; 400 `period_required` / `period_ambiguous` / `period_incomplete` / `period_invalid`; uniform 404; export → signed `download_url` served by `GET /api/files/{token}`) |
 | Email inboxes: connect + readers (app EMAIL-2/3) | EMAIL-01..03 + `Api.Tests` (`MailConsentServiceTests`, `EmailReaderTests`, `EmailConnectionSliceTests`) | `GET /api/email/connections` (+ `/{id}`, `/{id}/folders` 409 `needs_reconsent`), `GET …/authorize?provider=` (400 `invalid_provider` / `provider_not_configured`), anonymous `GET …/callback` (→ `/email?connected=` \| `?email_error=`), `GET …/suggested-filters`, `POST …` (400 `use_consent_flow`), `PUT /{id}` (400 `filters_required` / `invalid_interval`), `DELETE /{id}`; uniform 404 |
 | Email ingestion: staging + dedup (app EMAIL-4) | EMAIL-04 + `Core.Tests` (`VoucherFingerprintTests`) + `Api.Tests` (`VoucherStagingSliceTests` incl. the poll job) | `POST /api/email/connections/{id}/sync` (200 `{staged, duplicates, unrecognized}`; 409 `needs_reconsent`; uniform 404); the `email-poll` scheduled job |
 | Email ingestion: merchant suggestions (app EMAIL-5) | EMAIL-05 + `Core.Tests` (`MerchantMatcherTests`) + `Api.Tests` (`MerchantMappingSliceTests` incl. the race, `VoucherStagingSliceTests` suggestion case, `ReviewEndpointTests`) + `Ui.Tests` (`MerchantMappingsPageTests`) | `GET/POST /api/merchant-mappings`, `PUT/DELETE …/{id}` (400 `invalid_request`; 409 `mapping_exists`; uniform 404) |
@@ -3588,6 +3785,10 @@ Record one row per executed case. Build = API/web commit SHA (`git rev-parse --s
 | QA-FX-02 | Web/API | | | | | |
 | QA-ENV-01 | Web/API | | | | | |
 | QA-ENV-02 | Web/API | | | | | |
+| QA-INC-01 | Web/API | | | | | |
+| QA-INC-02 | Web/API | | | | | |
+| QA-INC-03 | API/DB | | | | | |
+| QA-INC-04 | Web/API | | | | | |
 | QA-LED-01 | Web/API | | | | | |
 | QA-LED-02 | Web/API | | | | | |
 | QA-LED-03 | Web/API | | | | | |
@@ -3609,6 +3810,9 @@ Record one row per executed case. Build = API/web commit SHA (`git rev-parse --s
 | QA-REP-02 | Web/API | | | | | |
 | QA-REP-03 | Web | | | | | |
 | QA-REP-04 | Web | | | | | |
+| QA-REP-05 | Web/API | | | | | |
+| QA-REP-06 | Web/API | | | | | |
+| QA-REP-07 | Web/API | | | | | |
 | QA-EMAIL-01 | Web/API | | | | | |
 | QA-EMAIL-02 | Web | | | | | |
 | QA-EMAIL-03 | Web/API | | | | | |
@@ -4011,6 +4215,44 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   TTL guard; interrupted links land on Settings' banner). New **QA-AND-15** (on-device kill test;
   renumbered from the branch's QA-AND-14 — that slot went to THEME-1's restart test in the interim).
   Suite 149 → **150** cases.
+- **Updated 2026-09-17** — **No income-by-member chart (owner).** The "Income by member" donut is gone from the Reports
+  page and from the PDF; the PDF keeps its income by member table. **QA-INC-04** rewritten. Case count unchanged.
+- **Updated 2026-09-17** — **Choose the PDF's transaction columns (REPORTS-9; owner request).** The PDF dialog lists
+  the appendix's nine optional columns under "Include the transactions", all ticked each time; date and payee always
+  print. Both PDF endpoints take `appendix_columns`. New **QA-REP-07** (⚙️ — `ReportPdfJourneyTests` unticks a column
+  before downloading). **Case count 203 → 204.**
+- **Updated 2026-09-17** — **A one-off month income is the adder's (owner).** "Add income for this month" now makes
+  the row the signed-in member's income instead of the household's. **QA-INC-02** gains the check. Case count unchanged.
+- **Updated 2026-09-17** — **Whose income it is follows the line (owner).** Changing an income line's member also
+  re-labels the month rows copied from it that still had the previous member, so migrated months can be attributed;
+  amounts and names never change. **QA-INC-02** gains the step; the edit form says so. Case count unchanged.
+- **Updated 2026-09-16** — **Income by member (INCOME-2).** The month report cuts its income by whose it is — each
+  member by name, the household, former members, inflows: `income_by_member` on the category analysis, an **Income by
+  member** donut in the chart view, and in the PDF the same donut plus a table with shares and a total. New
+  **QA-INC-04**; Postman's category-analysis description names the field. **Case count 202 → 203.**
+- **Updated 2026-09-16** — **Income lines (INCOME-1, ADR-V023; owner decision).** Income is no longer two 4-week /
+  5-week defaults on the budget settings: **Settings → Manage income** keeps a list of lines (whose, currency,
+  fixed/variable, weekly / twice a month / monthly, amount per payment), and each new month starts with one editable
+  income row per line, derived by its pay period; a month can add a one-off or drop a row. The migration copied every
+  household's defaults into lines and every month's two incomes verbatim into rows (`tools/check-income-parity.sql`
+  proves it). New §10g2 with **QA-INC-01** and **QA-INC-02** (⚙️ — `IncomeJourneyTests`) and **QA-INC-03** (the
+  migration rehearsal and post-deploy parity check); QA-BUD-01..03, QA-LED-01 and QA-LED-04 and QA-EXP-01 follow the
+  new shape; Postman gains folder **25 · Income**. **Case count 199 → 202.**
+- **Updated 2026-09-16** — **Email me this report (REPORTS-8; owner request).** The PDF dialog gains **Email me**:
+  `POST /api/reports/pdf/email` renders the same file and queues one email through the outbox to the caller's own
+  address with the PDF attached (the platform's JOBS-4 attachment seam, synced from perezosoft-platform #235), capped
+  at 10 a day per person (429). Both PDF endpoints now speak the **language saved in the account** unless the request
+  names one; the app no longer sends it. New **QA-REP-06** (⚙️ — `ReportPdfJourneyTests` now also emails the PDF and
+  finds it attached in Mailpit); Postman folder 20 gains **Email the report to me (PDF attached)**. **Case count 198 →
+  199.**
+- **Updated 2026-09-16** — **The report as a PDF (REPORTS-7, ADR-V022; owner request).** Reports gains a **PDF**
+  button beside Export CSV: a small dialog (include the transactions, ticked; the amounts, charts and language it
+  will use) and **Download**. The API renders it with QuestPDF (`POST /api/reports/pdf`, Nunito embedded) from the
+  very figures the page reads — tiles, pace, the donuts, month by month, the method bars, the category tables — plus
+  a landscape appendix of exactly the CSV export's rows, and delivers it through the CSV's 15-minute signed link and
+  launcher. New **QA-REP-05** (⚙️ — `ReportPdfJourneyTests` downloads a date-range PDF on every push); §15 names the
+  new tests and endpoint; Postman folder 20 gains **Report as PDF (link)**. **Case count 197 → 198** (the "191" in earlier entries
+  predates the GATES cases).
 - **Updated 2026-09-16** — **Android chrome, ported from JiggerJot's emulator pass.** The same platform
   shell code showed three defects on a real Android 16 device there: the status bar wore the platform
   template's sage green, the top inset was applied twice (an empty band under the status bar), and a theme

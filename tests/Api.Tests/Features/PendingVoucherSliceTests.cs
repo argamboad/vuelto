@@ -58,7 +58,7 @@ public class PendingVoucherSliceTests(PostgresFixture fixture) : PostgresTestBas
     {
         var current = new TestCurrentTenant { TenantId = tenant };
         var clock = new FakeTimeProvider(T0);
-        var months = new MonthHandler(new EfRepository<Month>(db), new EfRepository<Week>(db), new EfRepository<Transaction>(db), new EfRepository<BudgetSettings>(db), new WeekBoundaryService(), current, clock);
+        var months = new MonthHandler(new EfRepository<Month>(db), new EfRepository<Week>(db), new EfRepository<Transaction>(db), new EfRepository<BudgetSettings>(db), new EfRepository<IncomeLine>(db), new EfRepository<MonthIncome>(db), new TenantRepository(db), new WeekBoundaryService(), current, clock);
         var transactions = new TransactionHandler(new EfRepository<Transaction>(db), new EfRepository<Refund>(db), new EfRepository<Category>(db), new EfRepository<Bank>(db), new EfRepository<Envelope>(db), new EfRepository<Card>(db), months, resolver, current, clock, NullLogger<TransactionHandler>.Instance);
         var mappings = new MerchantMappingHandler(new EfRepository<MerchantCategoryMapping>(db), new EfRepository<Category>(db), current, clock, NullLogger<MerchantMappingHandler>.Instance);
         var cards = new CardHandler(new EfRepository<Card>(db), new EfRepository<Vuelto.Core.Entities.CardIdentity>(db), new EfRepository<Transaction>(db), new EfRepository<Bank>(db), current, clock);

@@ -5,13 +5,11 @@ using Xunit;
 
 namespace Vuelto.Ui.Tests;
 
-/// <summary>BUDGET-1 card: renders what the API returns, saves the wire-shaped body, and surfaces failures.</summary>
+/// <summary>BUDGET-1 card: renders what the API returns, saves the wire-shaped body, and surfaces failures. Income left for its own page (INCOME-1).</summary>
 public class BudgetSettingsCardTests : ComponentTestBase
 {
     private const string Saved = """
-        {"week_start_weekday":1,"month_anchor":"first_of_month","primary_income_4w":1500.5,"primary_income_5w":1800,
-         "primary_income_currency":"USD","secondary_income_4w":400000,"secondary_income_5w":500000,
-         "secondary_income_currency":"CRC","is_default":false,"updated_at":"2026-09-02T12:00:00Z"}
+        {"week_start_weekday":1,"month_anchor":"first_of_month","is_default":false,"updated_at":"2026-09-02T12:00:00Z"}
         """;
 
     [Fact]
@@ -26,9 +24,11 @@ public class BudgetSettingsCardTests : ComponentTestBase
         {
             Assert.Equal("1", cut.Find("[data-testid='budget-weekday']").GetAttribute("value"));
             Assert.Equal("first_of_month", cut.Find("[data-testid='budget-anchor']").GetAttribute("value"));
-            Assert.Equal("1500.5", cut.Find("[data-testid='budget-p4w']").GetAttribute("value"));
-            Assert.Equal("CRC", cut.Find("[data-testid='budget-scur']").GetAttribute("value"));
         });
+        // No income fields any more: a hint about the payday and a link to the income page instead.
+        Assert.Empty(cut.FindAll("input[type='number']"));
+        Assert.Contains("BudgetSettings_WeekStartHint", cut.Find("[data-testid='budget-weekday-hint']").TextContent);
+        Assert.Equal("/incomes", cut.Find("[data-testid='budget-income-link'] a").GetAttribute("href"));
         // The anchor options are labelled with the selected weekday's name (Monday for 1).
         Assert.Contains("Monday", cut.Find("[data-testid='budget-anchor']").TextContent);
     }
@@ -43,15 +43,15 @@ public class BudgetSettingsCardTests : ComponentTestBase
         var cut = Render<BudgetSettingsCard>();
         cut.WaitForElement("[data-testid='budget-save']");
         cut.Find("[data-testid='budget-weekday']").Change("5");
-        cut.Find("[data-testid='budget-p4w']").Change("2000");
+        cut.Find("[data-testid='budget-anchor']").Change("last_weekday_prev");
         cut.Find("[data-testid='budget-save']").Click();
 
         cut.WaitForElement("[data-testid='budget-saved']");
         var put = Assert.Single(Http.Requests, r => r.Method == HttpMethod.Put);
         var body = await put.Content!.ReadAsStringAsync();
         Assert.Contains("\"week_start_weekday\":5", body);
-        Assert.Contains("\"primary_income_4w\":2000", body);
-        Assert.Contains("\"secondary_income_currency\":\"CRC\"", body);
+        Assert.Contains("\"month_anchor\":\"last_weekday_prev\"", body);
+        Assert.DoesNotContain("income", body);
     }
 
     [Fact]

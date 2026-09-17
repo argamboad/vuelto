@@ -24,9 +24,14 @@ public class DashboardSummaryServiceTests
     {
         Id = MonthId, TenantId = TenantId, Year = 2026, MonthNumber = 6, WeekCount = 4,
         Week1StartDate = new DateOnly(2026, 5, 28),
-        PrimaryIncomeAmount = 3000m, PrimaryIncomeCurrency = "USD",
-        SecondaryIncomeAmount = 500m, SecondaryIncomeCurrency = "USD"
     };
+
+    /// <summary>The month's income: $3,000 and $500 (INCOME-1 rows).</summary>
+    private static List<MonthIncome> GetIncome(decimal primary = 3000m, string primaryCurrency = "USD") =>
+    [
+        new() { TenantId = TenantId, MonthId = MonthId, Label = "Primary income", Amount = primary, Currency = primaryCurrency, SortOrder = 0 },
+        new() { TenantId = TenantId, MonthId = MonthId, Label = "Secondary income", Amount = 500m, Currency = "USD", SortOrder = 1 },
+    ];
 
     private static List<Week> GetWeeks() =>
     [
@@ -61,12 +66,12 @@ public class DashboardSummaryServiceTests
     private static List<VariableExpense> GetVariableExpenses() =>
         [new() { TenantId = TenantId, Name = "Groceries", BudgetCrc = 150_000m, PaymentMethod = "credit_card", CategoryId = GroceriesCat, SortOrder = 1 }];
 
-    private DashboardSummary Calculate() => _service.Calculate(GetMonth(), GetWeeks(), GetTransactions(), GetFixedExpenses(), GetVariableExpenses(), [], [], 500m);
+    private DashboardSummary Calculate() => _service.Calculate(GetMonth(), GetIncome(), GetWeeks(), GetTransactions(), GetFixedExpenses(), GetVariableExpenses(), [], [], 500m);
 
     private DashboardSummary With(List<Transaction>? transactions = null, List<FixedExpense>? fixedLines = null, List<VariableExpense>? variableLines = null,
-        List<Refund>? refunds = null, List<Envelope>? envelopes = null, decimal rate = 500m, Month? month = null,
+        List<Refund>? refunds = null, List<Envelope>? envelopes = null, decimal rate = 500m, Month? month = null, List<MonthIncome>? income = null,
         IReadOnlyDictionary<Guid, string>? categories = null, IReadOnlyDictionary<Guid, string>? banks = null, IReadOnlyDictionary<Guid, CardLabel>? cards = null) =>
-        _service.Calculate(month ?? GetMonth(), GetWeeks(), transactions ?? [], fixedLines ?? [], variableLines ?? [], refunds ?? [], envelopes ?? [], rate, categories, banks, cards);
+        _service.Calculate(month ?? GetMonth(), income ?? GetIncome(), GetWeeks(), transactions ?? [], fixedLines ?? [], variableLines ?? [], refunds ?? [], envelopes ?? [], rate, categories, banks, cards);
 
     private static Refund RefundExpected(decimal crc, decimal usd, string status) => new()
     {
@@ -111,7 +116,7 @@ public class DashboardSummaryServiceTests
     public void Refunds_NeverTouchBalanceOrExpenses()
     {
         var baseline = Calculate();
-        var withRefunds = _service.Calculate(GetMonth(), GetWeeks(), GetTransactions(), GetFixedExpenses(), GetVariableExpenses(), [RefundExpected(88_888m, 170m, "pending")], [], 500m);
+        var withRefunds = _service.Calculate(GetMonth(), GetIncome(), GetWeeks(), GetTransactions(), GetFixedExpenses(), GetVariableExpenses(), [RefundExpected(88_888m, 170m, "pending")], [], 500m);
 
         Assert.Equal(baseline.Balance.CurrentBalance, withRefunds.Balance.CurrentBalance);
         Assert.Equal(baseline.Expenses.GrandTotal, withRefunds.Expenses.GrandTotal);
@@ -162,9 +167,9 @@ public class DashboardSummaryServiceTests
     {
         // ADR-V019 with the BCCR pair (compra 448.27 / venta 453.69): dollar income is worth colones at compra;
         // a $ budget line costs colones at venta; a ₡ budget line is worth dollars at compra.
-        var summary = _service.Calculate(GetMonth(), GetWeeks(), GetTransactions(), GetFixedExpenses(), GetVariableExpenses(), [], [], new FxRates(Buy: 448.27m, Sell: 453.69m));
+        var summary = _service.Calculate(GetMonth(), GetIncome(), GetWeeks(), GetTransactions(), GetFixedExpenses(), GetVariableExpenses(), [], [], new FxRates(Buy: 448.27m, Sell: 453.69m));
 
-        Assert.Equal((1_344_810m, 3000m), (summary.Income.Primary.Crc, summary.Income.Primary.Usd));
+        Assert.Equal((1_344_810m, 3000m), (summary.Income.Rows[0].Pair.Crc, summary.Income.Rows[0].Pair.Usd));
         Assert.Equal((1_568_945m, 3500m), (summary.Income.Total.Crc, summary.Income.Total.Usd));
         var mortgage = summary.FixedExpenses.Single(l => l.Name == "Mortgage");
         var carLoan = summary.FixedExpenses.Single(l => l.Name == "Car loan");
@@ -178,20 +183,18 @@ public class DashboardSummaryServiceTests
     public void Income_ConvertsUsdToCrcAtPassedInRate()
     {
         var summary = Calculate();
-        Assert.Equal((3000m, 1_500_000m), (summary.Income.Primary.Usd, summary.Income.Primary.Crc));
-        Assert.Equal((500m, 250_000m), (summary.Income.Secondary.Usd, summary.Income.Secondary.Crc));
+        Assert.Equal((3000m, 1_500_000m), (summary.Income.Rows[0].Pair.Usd, summary.Income.Rows[0].Pair.Crc));
+        Assert.Equal((500m, 250_000m), (summary.Income.Rows[1].Pair.Usd, summary.Income.Rows[1].Pair.Crc));
         Assert.Equal((3500m, 1_750_000m), (summary.Income.Total.Usd, summary.Income.Total.Crc));
     }
 
     [Fact]
     public void Income_CrcDenominatedIncome_ConvertsToUsdAtPassedInRate()
     {
-        var month = GetMonth();
-        month.PrimaryIncomeAmount = 1_500_000m; month.PrimaryIncomeCurrency = "CRC";
-        var summary = With(month: month);
+        var summary = With(income: GetIncome(1_500_000m, "CRC"));
 
-        Assert.Equal((1_500_000m, 3000m), (summary.Income.Primary.Crc, summary.Income.Primary.Usd));
-        Assert.Equal((250_000m, 500m), (summary.Income.Secondary.Crc, summary.Income.Secondary.Usd));
+        Assert.Equal((1_500_000m, 3000m), (summary.Income.Rows[0].Pair.Crc, summary.Income.Rows[0].Pair.Usd));
+        Assert.Equal((250_000m, 500m), (summary.Income.Rows[1].Pair.Crc, summary.Income.Rows[1].Pair.Usd));
         Assert.Equal((1_750_000m, 3500m), (summary.Income.Total.Crc, summary.Income.Total.Usd));
     }
 
@@ -385,9 +388,8 @@ public class DashboardSummaryServiceTests
     [Fact]
     public void AllAmounts_RoundedToTwoDecimals()
     {
-        var month = GetMonth();
-        month.PrimaryIncomeAmount = 1234.56m; month.SecondaryIncomeAmount = 0m;
-        var summary = With(month: month, rate: 511.37m);
+        List<MonthIncome> income = [new() { TenantId = TenantId, MonthId = MonthId, Label = "Salary", Amount = 1234.56m, Currency = "USD" }];
+        var summary = With(income: income, rate: 511.37m);
 
         Assert.Equal(631_316.95m, summary.Income.Total.Crc); // 1234.56 × 511.37 = 631,316.9472
         Assert.Equal(decimal.Round(summary.Balance.CurrentBalance.Crc, 2), summary.Balance.CurrentBalance.Crc);

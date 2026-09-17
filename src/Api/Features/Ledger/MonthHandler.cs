@@ -12,18 +12,25 @@ namespace Vuelto.Api.Features.Ledger;
 /// own — <see cref="GetOrCreateForDateAsync"/> is called by the transaction path and only <em>stages</em>
 /// the new month and its weeks on the shared context, so the caller's single <c>SaveChanges</c> lands
 /// month, weeks and transaction atomically (or nothing). Boundaries come from the household's
-/// <see cref="BudgetSettings"/> (or the defaults) at creation and are stored; income is snapshotted
-/// from the matching 4-/5-week default and stays editable.
+/// <see cref="BudgetSettings"/> (or the defaults) at creation and are stored; the month's income rows are snapshotted
+/// from the household's active <see cref="IncomeLine"/>s by their pay periods (INCOME-1, <see cref="IncomeSnapshot"/>)
+/// and stay editable.
 /// </summary>
 public sealed class MonthHandler(
     IRepository<Month> months,
     IRepository<Week> weeks,
     IRepository<Transaction> transactions,
     IRepository<BudgetSettings> settings,
+    IRepository<IncomeLine> incomeLines,
+    IRepository<MonthIncome> monthIncomes,
+    ITenantRepository tenants,
     IWeekBoundaryService boundaries,
     ICurrentTenant tenant,
     TimeProvider clock)
 {
+    /// <summary>Income rows staged with a new month in this request, so <see cref="Unstage"/> can undo them too.</summary>
+    private readonly Dictionary<Guid, IReadOnlyList<MonthIncome>> _stagedIncome = [];
+
     public async Task<IReadOnlyList<MonthResponse>?> ListAsync(CancellationToken cancellationToken)
     {
         if (tenant.TenantId is null) return null;
@@ -39,7 +46,8 @@ public sealed class MonthHandler(
         var month = await months.Query().FirstOrDefaultAsync(m => m.Id == id, cancellationToken);
         if (month is null) return null;
         var monthWeeks = await weeks.Query().Where(w => w.MonthId == id).OrderBy(w => w.WeekNumber).ToListAsync(cancellationToken);
-        return MonthResponse.From(month, monthWeeks);
+        var rows = await monthIncomes.Query().Where(r => r.MonthId == id).ToListAsync(cancellationToken);
+        return MonthResponse.From(month, monthWeeks, rows);
     }
 
     /// <summary>Which month a date belongs to — the existing one, or the one that would be auto-created (<c>is_new</c>). Never writes.</summary>
@@ -63,28 +71,64 @@ public sealed class MonthHandler(
         return new MonthResolveResponse(null, year, monthNumber, IsNew: true, WeekNumber: prospective);
     }
 
+    /// <summary>
+    /// Replaces the month's income rows with <paramref name="request"/>'s list (INCOME-1): rows with an id are updated
+    /// (their line link and plan kept), rows without one are one-offs, stored rows left out are removed — all in one save.
+    /// </summary>
     public async Task<(MonthResponse? Month, ErrorResponse? Error)> UpdateIncomeAsync(Guid id, UpdateMonthIncomeRequest request, CancellationToken cancellationToken)
     {
-        if (tenant.TenantId is null) return (null, new ErrorResponse("invalid_token", "No household on the token"));
-        if (request.PrimaryIncomeAmount < 0 || request.SecondaryIncomeAmount < 0)
-            return (null, new ErrorResponse("invalid_request", "income amounts cannot be negative"));
-        var primary = Currencies.Normalize(request.PrimaryIncomeCurrency);
-        var secondary = Currencies.Normalize(request.SecondaryIncomeCurrency);
-        if (primary is null || secondary is null)
-            return (null, new ErrorResponse("invalid_request", "income currencies must be CRC or USD"));
+        if (tenant.TenantId is not { } tenantId) return (null, new ErrorResponse("invalid_token", "No household on the token"));
+        if (request.Rows is null) return (null, Invalid("rows is required"));
 
         var month = await months.Query().FirstOrDefaultAsync(m => m.Id == id, cancellationToken);
         if (month is null) return (null, new ErrorResponse("not_found", "month not found"));
 
-        month.PrimaryIncomeAmount = CurrencyMath.Round2(request.PrimaryIncomeAmount);
-        month.PrimaryIncomeCurrency = primary;
-        month.SecondaryIncomeAmount = CurrencyMath.Round2(request.SecondaryIncomeAmount);
-        month.SecondaryIncomeCurrency = secondary;
-        month.UpdatedAt = clock.GetUtcNow();
+        var stored = await monthIncomes.Query().Where(r => r.MonthId == id).ToListAsync(cancellationToken);
+        var members = await MemberIdsAsync(tenantId, cancellationToken);
+        var seen = new HashSet<Guid>();
+        foreach (var row in request.Rows)
+        {
+            if (string.IsNullOrWhiteSpace(row.Label)) return (null, Invalid("every row needs a label"));
+            if (row.Label.Trim().Length > 100) return (null, Invalid("labels must be 100 characters or fewer"));
+            if (Currencies.Normalize(row.Currency) is null) return (null, Invalid("row currencies must be CRC or USD"));
+            if (row.Amount < 0) return (null, Invalid("income amounts cannot be negative"));
+            if (row.MemberUserId is { } member && !members.Contains(member)) return (null, Invalid("member_user_id is not a member of this household"));
+            if (row.Id is { } rowId && (!seen.Add(rowId) || stored.All(r => r.Id != rowId)))
+                return (null, Invalid("a row id is repeated or does not belong to this month"));
+        }
+
+        var now = clock.GetUtcNow();
+        var order = 0;
+        foreach (var row in request.Rows)
+        {
+            var target = row.Id is { } rowId ? stored.Single(r => r.Id == rowId) : null;
+            if (target is null)
+            {
+                target = new MonthIncome { TenantId = tenantId, MonthId = id, Label = "", CreatedAt = now };
+                await monthIncomes.AddAsync(target, cancellationToken);
+            }
+            else monthIncomes.Update(target);
+            target.Label = row.Label!.Trim();
+            target.MemberUserId = row.MemberUserId;
+            target.Currency = Currencies.Normalize(row.Currency)!;
+            target.Amount = CurrencyMath.Round2(row.Amount);
+            target.SortOrder = order++;
+            target.UpdatedAt = now;
+        }
+        foreach (var gone in stored.Where(r => !seen.Contains(r.Id))) monthIncomes.Remove(gone);
+        month.UpdatedAt = now;
         months.Update(month);
-        await months.SaveChangesAsync(cancellationToken);
-        return (MonthResponse.From(month), null);
+        await months.SaveChangesAsync(cancellationToken); // rows and month land together
+
+        var rows = await monthIncomes.Query().Where(r => r.MonthId == id).ToListAsync(cancellationToken);
+        return (MonthResponse.From(month, incomeRows: rows), null);
     }
+
+    private static ErrorResponse Invalid(string message) => new("invalid_request", message);
+
+    /// <summary>The household's current members — a line or row may only name one of them.</summary>
+    private async Task<HashSet<Guid>> MemberIdsAsync(Guid tenantId, CancellationToken cancellationToken) =>
+        (await tenants.GetMembersAsync(tenantId, cancellationToken)).Select(m => m.UserId).ToHashSet();
 
     /// <summary>The month whose stored window contains the date, or null.</summary>
     public async Task<Month?> FindContainingAsync(DateOnly date, CancellationToken cancellationToken)
@@ -112,7 +156,6 @@ public sealed class MonthHandler(
         var s = await SettingsAsync(cancellationToken);
         var (year, monthNumber) = boundaries.GetBudgetMonthForDate(date, s.WeekStartWeekday, s.MonthAnchor);
         var bounds = boundaries.GenerateWeeks(year, monthNumber, s.WeekStartWeekday, s.MonthAnchor);
-        var fiveWeeks = bounds.Count == 5;
         var now = clock.GetUtcNow();
 
         var month = new Month
@@ -122,10 +165,6 @@ public sealed class MonthHandler(
             MonthNumber = monthNumber,
             WeekCount = bounds.Count,
             Week1StartDate = bounds[0].StartDate,
-            PrimaryIncomeAmount = fiveWeeks ? s.PrimaryIncome5w : s.PrimaryIncome4w,
-            PrimaryIncomeCurrency = s.PrimaryIncomeCurrency,
-            SecondaryIncomeAmount = fiveWeeks ? s.SecondaryIncome5w : s.SecondaryIncome4w,
-            SecondaryIncomeCurrency = s.SecondaryIncomeCurrency,
             CreatedAt = now,
             UpdatedAt = now,
         };
@@ -134,8 +173,14 @@ public sealed class MonthHandler(
             TenantId = tenantId, MonthId = month.Id, WeekNumber = b.WeekNumber, StartDate = b.StartDate, EndDate = b.EndDate,
         }).ToList();
 
+        // The month's income plan: the active lines by their pay periods, skipping a member who has left (INCOME-1).
+        var lines = await incomeLines.Query().Where(l => l.IsActive).ToListAsync(cancellationToken);
+        var income = IncomeSnapshot.Rows(lines, tenantId, month.Id, bounds, await MemberIdsAsync(tenantId, cancellationToken), now);
+
         await months.AddAsync(month, cancellationToken);
         foreach (var w in staged) await weeks.AddAsync(w, cancellationToken);
+        foreach (var r in income) await monthIncomes.AddAsync(r, cancellationToken);
+        _stagedIncome[month.Id] = income;
         return (month, staged);
     }
 
@@ -143,6 +188,8 @@ public sealed class MonthHandler(
     public void Unstage(Month month, IReadOnlyList<Week> staged)
     {
         if (staged.Count == 0) return; // the month pre-existed; nothing was staged
+        if (_stagedIncome.Remove(month.Id, out var income))
+            foreach (var r in income) monthIncomes.Remove(r);
         foreach (var w in staged) weeks.Remove(w);
         months.Remove(month);
     }
@@ -159,6 +206,7 @@ public sealed class MonthHandler(
         var month = await months.Query().FirstOrDefaultAsync(m => m.Id == monthId, cancellationToken);
         if (month is null) return false;
         foreach (var w in await weeks.Query().Where(w => w.MonthId == monthId).ToListAsync(cancellationToken)) weeks.Remove(w);
+        foreach (var r in await monthIncomes.Query().Where(r => r.MonthId == monthId).ToListAsync(cancellationToken)) monthIncomes.Remove(r);
         months.Remove(month);
         return true;
     }

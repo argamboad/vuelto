@@ -41,7 +41,11 @@ public class LedgerSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
 
     public sealed record Ctx(AppDbContext Db, Guid Tenant, MonthHandler Months, TransactionHandler Transactions, Guid CategoryId, Guid BankId, Guid EnvelopeId);
 
-    private async Task<Ctx> ContextAsync(Guid? tenantId = null, decimal? rate = 500m, bool withSettings = false, FxRates? pair = null)
+    /// <summary>
+    /// <paramref name="withIncome"/> seeds the household's income lines (INCOME-1): $750 a week, ₡62,500 a week, a monthly
+    /// line whose member has left (never snapshotted) and an inactive one.
+    /// </summary>
+    private async Task<Ctx> ContextAsync(Guid? tenantId = null, decimal? rate = 500m, bool withIncome = false, FxRates? pair = null)
     {
         var tenant = tenantId ?? Guid.CreateVersion7();
         var db = Fixture.CreateContext(tenant);
@@ -49,14 +53,18 @@ public class LedgerSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
         var bank = new Bank { TenantId = tenant, Name = "Cash", CreatedAt = T0, UpdatedAt = T0 };
         var envelope = new Envelope { TenantId = tenant, Name = "Marchamo", CreatedAt = T0, UpdatedAt = T0 };
         db.Categories.Add(category); db.Banks.Add(bank); db.Envelopes.Add(envelope);
-        if (withSettings)
-            db.BudgetSettings.Add(new BudgetSettings { TenantId = tenant, PrimaryIncome4w = 3000m, PrimaryIncome5w = 3750m, PrimaryIncomeCurrency = "USD", SecondaryIncome4w = 250_000m, SecondaryIncome5w = 312_500m, SecondaryIncomeCurrency = "CRC", CreatedAt = T0, UpdatedAt = T0 });
+        if (withIncome)
+            db.AddRange(
+                new IncomeLine { TenantId = tenant, Name = "Salary", Currency = "USD", PayPeriod = PayPeriods.Weekly, Amount = 750m, SortOrder = 0, CreatedAt = T0, UpdatedAt = T0 },
+                new IncomeLine { TenantId = tenant, Name = "Side job", Currency = "CRC", PayPeriod = PayPeriods.Weekly, Amount = 62_500m, SortOrder = 1, CreatedAt = T0, UpdatedAt = T0 },
+                new IncomeLine { TenantId = tenant, Name = "Left the house", MemberUserId = Guid.CreateVersion7(), Currency = "USD", PayPeriod = PayPeriods.Monthly, Amount = 900m, SortOrder = 2, CreatedAt = T0, UpdatedAt = T0 },
+                new IncomeLine { TenantId = tenant, Name = "Old job", Currency = "USD", PayPeriod = PayPeriods.Monthly, Amount = 100m, IsActive = false, SortOrder = 3, CreatedAt = T0, UpdatedAt = T0 });
         await db.SaveChangesAsync();
         db.ChangeTracker.Clear();
 
         var current = new TestCurrentTenant { TenantId = tenant };
         var clock = new FakeTimeProvider(T0);
-        var months = new MonthHandler(new EfRepository<Month>(db), new EfRepository<Week>(db), new EfRepository<Transaction>(db), new EfRepository<BudgetSettings>(db), new WeekBoundaryService(), current, clock);
+        var months = new MonthHandler(new EfRepository<Month>(db), new EfRepository<Week>(db), new EfRepository<Transaction>(db), new EfRepository<BudgetSettings>(db), new EfRepository<IncomeLine>(db), new EfRepository<MonthIncome>(db), new TenantRepository(db), new WeekBoundaryService(), current, clock);
         var transactions = new TransactionHandler(new EfRepository<Transaction>(db), new EfRepository<Refund>(db), new EfRepository<Category>(db), new EfRepository<Bank>(db), new EfRepository<Envelope>(db), new EfRepository<Card>(db), months, pair is null ? new FixedRate(rate) : new PairRate(pair), current, clock, NullLogger<TransactionHandler>.Instance);
         return new Ctx(db, tenant, months, transactions, category.Id, bank.Id, envelope.Id);
     }
@@ -72,7 +80,7 @@ public class LedgerSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
     [Fact]
     public async Task Create_UncoveredDate_AutoCreatesTheMonthWithWeeks_AndSnapshotsFiveWeekIncome()
     {
-        var c = await ContextAsync(withSettings: true);
+        var c = await ContextAsync(withIncome: true);
 
         var (tx, error) = await c.Transactions.CreateAsync(Create(c, Jul10), default);
 
@@ -82,23 +90,28 @@ public class LedgerSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
         Assert.Equal(new DateOnly(2026, 6, 25), month.Week1StartDate);
         Assert.Equal(5, await c.Db.Weeks.CountAsync(w => w.MonthId == month.Id));
         Assert.Equal(new DateOnly(2026, 7, 29), await c.Db.Weeks.Where(w => w.MonthId == month.Id).MaxAsync(w => w.EndDate));
-        Assert.Equal((3750m, "USD", 312_500m, "CRC"), (month.PrimaryIncomeAmount, month.PrimaryIncomeCurrency, month.SecondaryIncomeAmount, month.SecondaryIncomeCurrency));
+        var income = await c.Db.MonthIncomes.Where(r => r.MonthId == month.Id).OrderBy(r => r.SortOrder).ToListAsync();
+        Assert.Equal(["Salary", "Side job"], income.Select(r => r.Label)); // the departed member's and the inactive line don't snapshot
+        Assert.Equal((3750m, 3750m, "USD"), (income[0].Amount, income[0].PlannedAmount!.Value, income[0].Currency)); // $750 × 5 weeks
+        Assert.Equal((312_500m, "CRC"), (income[1].Amount, income[1].Currency));
         Assert.Equal(month.Id, tx!.MonthId);
     }
 
     [Fact]
     public async Task Create_FourWeekMonth_SnapshotsFourWeekIncome_AndDefaultsWhenNoSettingsRow()
     {
-        var withSettings = await ContextAsync(withSettings: true);
-        await withSettings.Transactions.CreateAsync(Create(withSettings, Jun5), default);
-        var june = await withSettings.Db.Months.SingleAsync();
-        Assert.Equal((6, 4, 3000m, 250_000m), (june.MonthNumber, june.WeekCount, june.PrimaryIncomeAmount, june.SecondaryIncomeAmount));
+        var withIncome = await ContextAsync(withIncome: true);
+        await withIncome.Transactions.CreateAsync(Create(withIncome, Jun5), default);
+        var june = await withIncome.Db.Months.SingleAsync();
+        Assert.Equal((6, 4), (june.MonthNumber, june.WeekCount));
+        Assert.Equal([3000m, 250_000m], await withIncome.Db.MonthIncomes.Where(r => r.MonthId == june.Id).OrderBy(r => r.SortOrder).Select(r => r.Amount).ToListAsync());
         Assert.Equal(new DateOnly(2026, 5, 28), june.Week1StartDate);
 
-        var noSettings = await ContextAsync();
-        await noSettings.Transactions.CreateAsync(Create(noSettings, Jun5), default);
-        var defaults = await noSettings.Db.Months.SingleAsync();
-        Assert.Equal((4, 0m, "USD"), (defaults.WeekCount, defaults.PrimaryIncomeAmount, defaults.PrimaryIncomeCurrency)); // BudgetSettings.Defaults
+        var noLines = await ContextAsync();
+        await noLines.Transactions.CreateAsync(Create(noLines, Jun5), default);
+        var bare = await noLines.Db.Months.SingleAsync();
+        Assert.Equal(4, bare.WeekCount); // BudgetSettings.Defaults
+        Assert.Equal(0, await noLines.Db.MonthIncomes.CountAsync()); // no lines, no income rows — never seeded
     }
 
     [Fact]
@@ -256,13 +269,65 @@ public class LedgerSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
         await c.Transactions.CreateAsync(Create(c, Jun5), default);
         var monthId = (await c.Db.Months.SingleAsync()).Id;
 
-        var (updated, error) = await c.Months.UpdateIncomeAsync(monthId, new(1_600_000m, "crc", 700.004m, "USD"), default);
-        Assert.Null(error);
-        Assert.Equal((1_600_000m, "CRC", 700m, "USD"), (updated!.PrimaryIncomeAmount, updated.PrimaryIncomeCurrency, updated.SecondaryIncomeAmount, updated.SecondaryIncomeCurrency));
+        static UpdateMonthIncomeRequest Rows(params MonthIncomeRowRequest[] rows) => new([.. rows]);
+        static MonthIncomeRowRequest Row(Guid? id, string? label, Guid? member, string? currency, decimal amount) => new(id, label, member, currency, amount);
 
-        Assert.Equal("invalid_request", (await c.Months.UpdateIncomeAsync(monthId, new(-1m, "USD", 0m, "USD"), default)).Error!.Error);
-        Assert.Equal("invalid_request", (await c.Months.UpdateIncomeAsync(monthId, new(1m, "EUR", 0m, "USD"), default)).Error!.Error);
-        Assert.Equal("not_found", (await c.Months.UpdateIncomeAsync(Guid.CreateVersion7(), new(1m, "USD", 0m, "USD"), default)).Error!.Error);
+        var (updated, error) = await c.Months.UpdateIncomeAsync(monthId, Rows(Row(null, " Salary ", null, "crc", 1_600_000m), Row(null, "Bonus", null, "USD", 700.004m)), default);
+        Assert.Null(error);
+        Assert.Equal([("Salary", "CRC", 1_600_000m, (decimal?)null), ("Bonus", "USD", 700m, null)],
+            updated!.IncomeRows!.Select(r => (r.Label, r.Currency, r.Amount, r.PlannedAmount)));
+
+        Assert.Equal("invalid_request", (await c.Months.UpdateIncomeAsync(monthId, Rows(Row(null, "x", null, "USD", -1m)), default)).Error!.Error);
+        Assert.Equal("invalid_request", (await c.Months.UpdateIncomeAsync(monthId, Rows(Row(null, "x", null, "EUR", 1m)), default)).Error!.Error);
+        Assert.Equal("invalid_request", (await c.Months.UpdateIncomeAsync(monthId, Rows(Row(null, " ", null, "USD", 1m)), default)).Error!.Error);
+        Assert.Equal("invalid_request", (await c.Months.UpdateIncomeAsync(monthId, Rows(Row(null, "x", Guid.CreateVersion7(), "USD", 1m)), default)).Error!.Error);
+        Assert.Equal("invalid_request", (await c.Months.UpdateIncomeAsync(monthId, Rows(Row(Guid.CreateVersion7(), "x", null, "USD", 1m)), default)).Error!.Error);
+        Assert.Equal("invalid_request", (await c.Months.UpdateIncomeAsync(monthId, new(null), default)).Error!.Error);
+        Assert.Equal("not_found", (await c.Months.UpdateIncomeAsync(Guid.CreateVersion7(), Rows(), default)).Error!.Error);
+    }
+
+    [Fact]
+    public async Task UpdateIncome_KeepsThePlanOnEditedRows_AddsOneOffs_AndRemovesWhatIsLeftOut()
+    {
+        var c = await ContextAsync(withIncome: true);
+        await c.Transactions.CreateAsync(Create(c, Jun5), default);
+        var monthId = (await c.Db.Months.SingleAsync()).Id;
+        var month = (await c.Months.GetAsync(monthId, default))!;
+        var salary = month.IncomeRows!.Single(r => r.Label == "Salary");
+
+        var (updated, error) = await c.Months.UpdateIncomeAsync(monthId, new(
+        [
+            new(null, "Sold the bike", null, "CRC", 150_000m),
+            new(salary.Id, "Salary (short week)", null, "USD", 2_800m),
+            // "Side job" is left out → removed
+        ]), default);
+
+        Assert.Null(error);
+        var rows = updated!.IncomeRows!;
+        Assert.Equal(["Sold the bike", "Salary (short week)"], rows.Select(r => r.Label)); // request order
+        Assert.Equal((salary.Id, salary.IncomeLineId, 2_800m, (decimal?)3_000m), (rows[1].Id, rows[1].IncomeLineId, rows[1].Amount, rows[1].PlannedAmount));
+        Assert.Null(rows[0].IncomeLineId);
+        Assert.Null(rows[0].PlannedAmount);
+        Assert.Equal(2, await c.Db.MonthIncomes.CountAsync(r => r.MonthId == monthId));
+
+        // The same row twice is refused and nothing changes.
+        var (_, repeated) = await c.Months.UpdateIncomeAsync(monthId, new([new(salary.Id, "a", null, "USD", 1m), new(salary.Id, "b", null, "USD", 1m)]), default);
+        Assert.Equal("invalid_request", repeated!.Error);
+        Assert.Equal(2_800m, (await c.Db.MonthIncomes.AsNoTracking().SingleAsync(r => r.Id == salary.Id)).Amount);
+    }
+
+    [Fact]
+    public async Task EmptyingAMonth_TakesItsIncomeRowsWithIt()
+    {
+        var c = await ContextAsync(withIncome: true);
+        var (tx, _) = await c.Transactions.CreateAsync(Create(c, Jun5), default);
+        Assert.Equal(2, await c.Db.MonthIncomes.CountAsync());
+
+        Assert.Null(await c.Transactions.DeleteAsync(tx!.Id, default));
+
+        Assert.Equal(0, await c.Db.Months.CountAsync());
+        Assert.Equal(0, await c.Db.MonthIncomes.CountAsync());
+        Assert.Equal(4, await c.Db.IncomeLines.CountAsync()); // the lines stay
     }
 
     // ---- LEDGER-2: transaction rules ----

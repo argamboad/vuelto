@@ -68,25 +68,13 @@ public class BudgetSettingsHandler(IRepository<BudgetSettings> settings, ICurren
             return new ErrorResponse("invalid_request", "week_start_weekday must be between 0 (Sunday) and 6 (Saturday)");
         if (r.MonthAnchor is null || !MonthAnchors.All.Contains(r.MonthAnchor))
             return new ErrorResponse("invalid_request", $"month_anchor must be one of: {string.Join(", ", MonthAnchors.All)}");
-        if (r.PrimaryIncome4w < 0 || r.PrimaryIncome5w < 0 || r.SecondaryIncome4w < 0 || r.SecondaryIncome5w < 0)
-            return new ErrorResponse("invalid_request", "income amounts cannot be negative");
-        if (Currencies.Normalize(r.PrimaryIncomeCurrency) is null)
-            return new ErrorResponse("invalid_request", "primary_income_currency must be CRC or USD");
-        if (Currencies.Normalize(r.SecondaryIncomeCurrency) is null)
-            return new ErrorResponse("invalid_request", "secondary_income_currency must be CRC or USD");
         return null;
     }
 
     private static void Apply(BudgetSettings row, UpdateBudgetSettingsRequest r, DateTimeOffset now)
     {
         row.WeekStartWeekday = r.WeekStartWeekday;
-        row.MonthAnchor = r.MonthAnchor!;
-        row.PrimaryIncome4w = r.PrimaryIncome4w;
-        row.PrimaryIncome5w = r.PrimaryIncome5w;
-        row.PrimaryIncomeCurrency = Currencies.Normalize(r.PrimaryIncomeCurrency)!;
-        row.SecondaryIncome4w = r.SecondaryIncome4w;
-        row.SecondaryIncome5w = r.SecondaryIncome5w;
-        row.SecondaryIncomeCurrency = Currencies.Normalize(r.SecondaryIncomeCurrency)!;
+        row.MonthAnchor = r.MonthAnchor!; // the legacy income columns are left exactly as they were (INCOME-1)
         row.UpdatedAt = now;
     }
 }

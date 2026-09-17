@@ -16,7 +16,12 @@
 --   • Run the restore as the owner / migrations role: the runtime role is fenced by RLS (ADR-020).
 --   • Included (FK order): Users (the members), Tenants, TenantMemberships, UserLogins,
 --     BudgetSettings, Categories, Banks, Cards, CardIdentities, Envelopes, FixedExpenses, VariableExpenses,
---     MerchantCategoryMappings, Months, Weeks, Transactions, Refunds, PendingVouchers, IngestedVouchers.
+--     MerchantCategoryMappings, IncomeLines, Months, MonthIncomes, Weeks, Transactions, Refunds, PendingVouchers,
+--     IngestedVouchers.
+--   • A table the source database doesn't have yet (an older schema — e.g. staging before INCOME-1 has no
+--     IncomeLines / MonthIncomes) is skipped with a comment, so the script can snapshot a database before a deploy.
+--     After restoring such a snapshot on a migrated target, run tools/backfill-income-lines.sql once (same owner
+--     role) to copy its old income columns.
 --   • Excluded on purpose: EmailConnections (OAuth tokens are bound to the source server's Data
 --     Protection key ring — reconnect the inbox on the target), Subscriptions (billing state belongs to
 --     the target's Stripe), ApiKeys, AuditEvents, OutboxMessages, TenantInvitations, UsageCounters,
@@ -38,7 +43,8 @@ DECLARE
         ['Users', 'members'], ['Tenants', 'tenant'], ['TenantMemberships', 'tenantid'], ['UserLogins', 'members'],
         ['BudgetSettings', 'tenantid'], ['Categories', 'tenantid'], ['Banks', 'tenantid'], ['Cards', 'tenantid'], ['CardIdentities', 'tenantid'], ['Envelopes', 'tenantid'],
         ['FixedExpenses', 'tenantid'], ['VariableExpenses', 'tenantid'], ['MerchantCategoryMappings', 'tenantid'],
-        ['Months', 'tenantid'], ['Weeks', 'tenantid'], ['Transactions', 'tenantid'], ['Refunds', 'tenantid'],
+        ['IncomeLines', 'tenantid'], ['Months', 'tenantid'], ['MonthIncomes', 'tenantid'],
+        ['Weeks', 'tenantid'], ['Transactions', 'tenantid'], ['Refunds', 'tenantid'],
         ['PendingVouchers', 'tenantid'], ['IngestedVouchers', 'tenantid']];
     i int;
 BEGIN
@@ -58,6 +64,10 @@ BEGIN
     FOR i IN 1 .. array_length(v_tables, 1) LOOP
         v_table := v_tables[i][1];
         v_kind  := v_tables[i][2];
+        IF to_regclass(format('%I', v_table)) IS NULL THEN
+            v_out := v_out || format(E'-- %s: not in this database (older schema) — skipped\n', v_table);
+            CONTINUE;
+        END IF;
         v_cond := CASE v_kind
             WHEN 'tenantid' THEN format('t."TenantId" = %L', v_tenant)
             WHEN 'tenant'   THEN format('t."Id" = %L', v_tenant)

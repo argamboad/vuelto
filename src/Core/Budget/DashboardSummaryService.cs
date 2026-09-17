@@ -12,6 +12,7 @@ public interface IDashboardSummaryService
 {
     DashboardSummary Calculate(
         Month month,
+        IReadOnlyList<MonthIncome> incomeRows, // the month's income rows (INCOME-1)
         IReadOnlyList<Week> weeks,
         IReadOnlyList<Transaction> transactions,
         IReadOnlyList<FixedExpense> fixedExpenses,
@@ -30,13 +31,13 @@ public sealed class DashboardSummaryService : IDashboardSummaryService
     private static bool Is(string type, string expected) => string.Equals(type, expected, StringComparison.Ordinal);
 
     public DashboardSummary Calculate(
-        Month month, IReadOnlyList<Week> weeks, IReadOnlyList<Transaction> transactions,
+        Month month, IReadOnlyList<MonthIncome> incomeRows, IReadOnlyList<Week> weeks, IReadOnlyList<Transaction> transactions,
         IReadOnlyList<FixedExpense> fixedExpenses, IReadOnlyList<VariableExpense> variableExpenses,
         IReadOnlyList<Refund> refunds, IReadOnlyList<Envelope> envelopes, FxRates rate,
         IReadOnlyDictionary<Guid, string>? categoryNames = null, IReadOnlyDictionary<Guid, string>? bankNames = null,
         IReadOnlyDictionary<Guid, CardLabel>? cardLabels = null)
     {
-        var income = CalculateIncome(month, transactions, rate);
+        var income = IncomeCalculator.Calculate(incomeRows, transactions, rate);
         var expenses = CalculateExpenseSummary(income, transactions);
 
         var activeFixed = fixedExpenses.Where(f => f.IsActive).OrderBy(f => f.SortOrder).ToList();
@@ -61,10 +62,8 @@ public sealed class DashboardSummaryService : IDashboardSummaryService
             CardSpend.Calculate(transactions, cardLabels)); // CARDS-2: the month's spend by card, "no card" last
     }
 
-    // Income (configured incomes at the passed-in rate + inflows' frozen amounts) is the shared
+    // Income (the month's income rows at the passed-in rate + inflows' frozen amounts) is the shared
     // IncomeCalculator, so the reports' income donut and this dashboard agree to the cent.
-    private static IncomeSummary CalculateIncome(Month month, IReadOnlyList<Transaction> transactions, FxRates rate) =>
-        IncomeCalculator.Calculate(month, transactions, rate);
 
     private static ExpenseSummary CalculateExpenseSummary(IncomeSummary income, IReadOnlyList<Transaction> transactions)
     {

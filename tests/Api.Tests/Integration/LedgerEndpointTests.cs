@@ -53,7 +53,7 @@ public class LedgerEndpointTests(IntegrationTestFactory factory)
         var rows = (await client.GetFromJsonAsync<List<RowDto>>($"/api/months/{month.Id}/transactions"))!;
         Assert.Equal(("AutoMercado", category.Name, bank.Name, "First big shop of the month"), (Assert.Single(rows).Payee, rows[0].CategoryName, rows[0].BankName, rows[0].Notes));
 
-        var income = await client.PutAsJsonAsync($"/api/months/{month.Id}/income", new { primary_income_amount = 3750m, primary_income_currency = "USD", secondary_income_amount = 0m, secondary_income_currency = "CRC" });
+        var income = await client.PutAsJsonAsync($"/api/months/{month.Id}/income", new { rows = new[] { new { label = "Salary", currency = "USD", amount = 3750m } } });
         Assert.Equal(HttpStatusCode.OK, income.StatusCode);
 
         var invalid = await client.PostAsJsonAsync("/api/transactions", new { payee = "x", bank_id = bank.Id, original_amount = 1m, currency = "EUR", transaction_date = "2026-07-10", category_id = category.Id, transaction_type = "budgeted", exchange_rate = 500m });
@@ -75,7 +75,7 @@ public class LedgerEndpointTests(IntegrationTestFactory factory)
         Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/api/transactions/{id}")).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await client.DeleteAsync($"/api/transactions/{id}")).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/api/months/{id}/transactions")).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await client.PutAsJsonAsync($"/api/months/{id}/income", new { primary_income_amount = 1m, primary_income_currency = "USD", secondary_income_amount = 0m, secondary_income_currency = "USD" })).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.PutAsJsonAsync($"/api/months/{id}/income", new { rows = Array.Empty<object>() })).StatusCode);
     }
 
     private sealed record NamedDto([property: JsonPropertyName("id")] Guid Id, [property: JsonPropertyName("name")] string Name);

@@ -53,6 +53,13 @@
 
 **Step 0 — spike (the first step of commit 1, timeboxed to a session; its findings fold into that commit).** Exit criteria: (a) QuestPDF renders a one-page document inside the compose API container (the Render image); note any `apt` package needed in the Dockerfile; (b) whether the embedded font (Nunito) carries ₡ (U+20A1) — if yes, money reads `₡1.500,00`; if not, the whole PDF writes `CRC 1.500,00` (D8); (c) an SVG string from the new Core donut builder renders in QuestPDF. Findings go into ADR-V022.
 
+**As built (2026-09-16, recorded in ADR-V022):** the spike passed with no extra system package; Nunito carries ₡, so
+D8's CRC fallback was not needed; the chart builders live in the API's PDF folder (`PdfCharts`) rather than Core,
+because the UI library references neither the API nor Core and sharing ~150 lines of geometry was not worth adding
+that link; the response has no `page_count` (QuestPDF reports none without rendering twice); the appendix is on
+landscape pages so it can carry every CSV column; the header uses the light brand lockup linked from
+`Shared.Ui/wwwroot/brand`. The original plan text follows.
+
 **Charts — one geometry, two renderers.** New pure builders in `src/Core/Charts/` (`DonutSvg`, `BarSvg`, `LineSvg`) that take the existing models (`DonutSlice`, `BarItem`, `LinePoint` move to Core) plus a **palette** (label → color string) and return the SVG markup. The Razor components become thin wrappers that pass the Bootstrap-token palette and keep every `data-testid` the Ui tests assert. The PDF passes a **print palette** of literal brand hex values and a font family name. Rule: no `var(` may appear in a PDF SVG (asserted).
 
 **API.** `POST /api/reports/pdf` under the existing `/api/reports` feature group. Body: period (`month_id` **or** `from`/`to`), `display` (`crc|usd|both`), `chart_currency`, `include_appendix`. Response mirrors `TransactionExportResponse`: `download_url`, `file_name` (`report-<period>.pdf`), `page_count`, `period`, `expires_in_seconds`. Errors reuse the analysis endpoint's (`rate_unavailable` sections degrade exactly as on screen: no rate → no income donuts / plan line, and the PDF says so). Postman collection updated in the same PR (parity gate).
@@ -79,6 +86,11 @@ Strings: new `ReportPdfStrings.resx` (+ `.es`) in Api, alongside `EmailStrings` 
 
 ### REPORTS-8 — Email me this report *(owner request, 2026-09-16)*
 
+**As built (2026-09-16, ADR-V022 amendment):** platform #235 synced inside this commit (no separate PR); the body is
+the platform's generic `BrandedEmail.Notification` (no new platform template); the cap is an app-registered rate-limit
+policy, not the monthly plan quota (which is plan-based and inert); both PDF endpoints now read the language from the
+account settings (owner question) and the app stopped sending it. The original plan text follows.
+
 **As a** household member **I want** the PDF I just configured sent to my own inbox **so that** the month's report is in my mail where I keep things.
 
 **API.** `POST /api/reports/pdf/email` — same body as REPORTS-7; builds the same PDF, queues one outbox email to the **caller's** address with the PDF attached and a short branded body (`BrandedEmail.Report(...)`, EN/ES, period + one-line summary + "attached"), returns **202** with the period and file name. Quota: A9 daily cap → 429 `quota_exceeded` (existing error shape). No file stored (attachment travels in the outbox payload). Postman updated.
@@ -92,6 +104,17 @@ Strings: new `ReportPdfStrings.resx` (+ `.es`) in Api, alongside `EmailStrings` 
 ### INCOME-1 — Income lines: who earns what, how it is paid *(owner decision, 2026-09-16)*
 
 **As a** household member **I want** each income listed as its own line — whose it is, its currency, whether it is fixed or an estimate, and how often it is paid — **so that** a weekly salary, a monthly salary and a variable side income all land correctly in the month's plan without typing four-week and five-week figures.
+
+**As built (2026-09-16, ADR-V023):** the fields are `Amount` and `PayDay1`/`PayDay2` (31 = last day) plus a
+`NeedsReview` flag, instead of `AmountPerPeriod`/`BiweeklyPayDays` and a settings-page notice: the "check this" badge sits
+on the line itself and clears on its first save. The pure service is `IncomeSnapshot`. A member who leaves is **skipped
+at snapshot time** rather than having their lines deactivated, so the line keeps its member and stays editable (the
+form shows "a former member"). The income page uses the envelopes page's inline form rather than a dialog, with ↑/↓
+ordering. The dashboard summary did change shape: `income_primary`/`income_secondary` became `income_lines` and
+`income_inflows` (`income_total` unchanged). The migration sets the RLS bypass itself, because Neon's owner is not a
+superuser. An architecture test fails if anything but the entities, their mappings, the backfill and the migrations
+names the old income columns. The E2E journey adds lines, then creates a month through the transaction form and
+corrects a row. `tools/check-income-parity.sql` is the parity query below as a file; DEPLOYMENT §9a is the runbook.
 
 **Model** (`DATA_MODEL.md` first; both entities `ITenantScoped` with the RLS policy in the same migration, `IUserDataContributor`/tenant contributor wired):
 - `IncomeLine`: `Name` (unique per household, case-insensitive), `MemberUserId?`, `Currency`, `Kind` (`fixed|variable`), `PayPeriod` (`weekly|biweekly|monthly`), `AmountPerPeriod`, `BiweeklyPayDays` (two day-of-month values, default 15 + last; only for biweekly), `IsActive`, `SortOrder`. Stored-value constants `IncomeKinds`, `PayPeriods` in Core with `.All`.
@@ -134,6 +157,11 @@ Not on the form, on purpose: no 4w/5w amounts (the count comes from the month); 
 **Tests.** Core: snapshot rule per period (weekly 4/5, monthly, biweekly 2/3 paydays incl. last-day-of-month), calculator on rows, migration mapping rules (pure function). Api: CRUD + uniqueness + 409 offer + order; month create snapshots rows; month income PUT; leave/remove deactivation; erasure nulling; RLS parity gate. **Migration (real Postgres, `MigrationsTests` harness):** seed old-shape data for several households (weekly-like, monthly-like, irregular, zero slot, CRC and USD, several months) at the migration before `AddIncomeLines`, apply it, and assert (1) row counts and inferred periods, (2) **income parity: for every month, the new `IncomeCalculator` total equals the old two-field total**, (3) old columns still hold their original values, (4) re-running the backfill SQL adds nothing, (5) `Down` leaves the old data intact; `HouseholdSnapshotTests` gate forces the two new tables into `tools/snapshot-household.sql`. Ui: income page + month rows. E2E: add a line, create a transaction, the month shows the derived plan. QA cases.
 
 **Docs.** ADR-V023; `docs/stories/income.md`; `DATA_MODEL.md`; `FEATURES.md`; `budget-settings.md` amended; Postman; QA; `tools/snapshot-household.sql` + `tools/README.md` (new tables); `my-seed.sql` gains income lines (owner) — its old income columns keep working since they still exist.
+
+**As built (2026-09-16, INCOME-2):** the PDF had no income block to convert, so it gains an "Income by member" table
+(whose · income · share, with a total) before the category tables. A donut drawn on the page and in the PDF was removed on 2026-09-17 (owner). The cut is a pure
+Core rule (`IncomeByMember`) with four kinds — member, household, former member, inflows — so the slices add up to the
+income; no migration, no new endpoint.
 
 **Split.** INCOME-1 ships end-to-end without any new breakdown. **INCOME-2** adds "income by member" to the reports (analysis response + a donut) and turns the PDF's income block into a table with a member column. Small, additive, after INCOME-1.
 
@@ -183,10 +211,9 @@ whole work is done and reviewed as one.
 | 3 | `feat(income): income lines (INCOME-1)` — ADR-V023, data migration | Independent of 1–2; the largest commit. |
 | 4 | `feat(income): income by member (INCOME-2)` | Touches reports + the PDF; after 1 and 3. |
 
-**The platform seam is the one exception.** Email attachments on `IEmailSender` live in `perezosoft-platform`,
-so they are their own upstream PR plus the usual `chore/sync-platform-NNN` PR here, and both must be merged
-into `develop` **before** commit 2 is written (the branch rebases onto the synced `develop`). Owner go-ahead
-for that platform PR is still open (§6).
+**No exceptions (owner, 2026-09-16).** The platform's email-attachment seam (merged upstream as
+perezosoft-platform #235) is brought in **inside the REPORTS-8 commit**, the slice that needs it — no separate
+sync PR. Every slice is one commit on this branch; the only PR is the final one.
 
 Each commit: story first (Gherkin, in `docs/stories/`), failing tests, implementation, Postman, localization
 parity, QA-plan rows, docs — and the §4a data-safety rules. The PR checklist names the Neon restore branch and the household snapshot taken before merge, and the post-deploy parity result. No git operations without the owner's go-ahead (C+P+PR).

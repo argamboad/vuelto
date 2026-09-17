@@ -1,0 +1,197 @@
+@using System.Globalization
+@using System.Net.Http.Json
+@using System.Text.Json.Serialization
+@inject HttpClient Http
+@inject IFileDownloadLauncher DownloadLauncher
+@inject IStringLocalizer<AppStrings> Localizer
+
+@* REPORTS-7/8 · the PDF of the report on screen. The API renders it with the same period, the same "show in" side and
+   chart currency and this device's date, in the language saved in the account (the app sends none; the API reads it).
+   Download (POST /api/reports/pdf) returns the CSV's signed link and leaves through the same IFileDownloadLauncher (a
+   browser download, or the native share sheet); Email me (POST /api/reports/pdf/email) mails the file to the signed-in
+   address. The choices offered are whether to add the transactions and, if so, which of their columns (REPORTS-9: all
+   ticked, date and payee always print); everything else follows the screen, and the dialog says so. Bootstrap modal markup rendered by Blazor, like the budget-line dialog (no Bootstrap JS). *@
+<div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="pdf-dialog-title"
+     data-testid="rep-pdf-dialog" @onkeydown="OnKeyDown">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title fs-5" id="pdf-dialog-title">@Localizer["Reports_PdfTitle"]</h2>
+                <button type="button" class="btn-close" aria-label="@Localizer["Common_Cancel"]" disabled="@_busy" @onclick="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="pdf-appendix" data-testid="rep-pdf-appendix" disabled="@_busy" @bind="_appendix" />
+                    <label class="form-check-label" for="pdf-appendix">@Localizer["Reports_PdfAppendix"]</label>
+                </div>
+                @if (_appendix)
+                {
+                    <fieldset class="ms-4 mb-3" data-testid="rep-pdf-columns" disabled="@_busy">
+                        <legend class="small fw-medium mb-1">@Localizer["Reports_PdfColumns"]</legend>
+                        <p class="small text-muted mb-2">@Localizer["Reports_PdfColumnsHint"]</p>
+                        <div class="row row-cols-2 g-1">
+                            @foreach (var (key, label) in Columns())
+                            {
+                                <div class="col">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="pdf-col-@key" data-testid="rep-pdf-col-@key"
+                                               checked="@_columns.Contains(key)" @onchange="e => Toggle(key, e.Value is true)" />
+                                        <label class="form-check-label small" for="pdf-col-@key">@label</label>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </fieldset>
+                }
+                <ul class="list-unstyled small text-muted mb-0" data-testid="rep-pdf-summary">
+                    <li>@Localizer["Reports_PdfAmounts", AmountsLabel(Display)]</li>
+                    <li>@Localizer["Reports_PdfCharts", AmountsLabel(ChartCurrency)]</li>
+                    <li>@Localizer["Reports_PdfLanguage", LanguageName]</li>
+                </ul>
+                @if (_error is not null)
+                {
+                    <div class="alert alert-danger py-2 mt-3 mb-0" data-testid="rep-pdf-error">@_error</div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-testid="rep-pdf-cancel" disabled="@_busy" @onclick="Close">@Localizer["Common_Cancel"]</button>
+                <button type="button" class="btn btn-outline-primary" data-testid="rep-pdf-email" disabled="@_busy" @onclick="EmailAsync">
+                    @(_action == "email" ? Localizer["Reports_PdfSending"] : Localizer["Reports_PdfEmail"])
+                </button>
+                <button type="button" class="btn btn-primary" data-testid="rep-pdf-download" disabled="@_busy" @onclick="DownloadAsync">
+                    @(_action == "download" ? Localizer["Reports_Exporting"] : Localizer["Reports_PdfDownload"])
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="modal-backdrop fade show" @onclick="Close"></div>
+
+@code {
+    /// <summary>The period on screen: a month, or an inclusive range.</summary>
+    [Parameter, EditorRequired] public ReportPdfPeriod Period { get; set; } = default!;
+
+    /// <summary>The tables' "show in" (CRC | USD | both) and the one currency the charts draw.</summary>
+    [Parameter] public string Display { get; set; } = MoneyDisplay.Both;
+    [Parameter] public string ChartCurrency { get; set; } = MoneyDisplay.Crc;
+
+    /// <summary>The device's date — the pace marker, as on screen.</summary>
+    [Parameter] public DateOnly Today { get; set; } = DateOnly.FromDateTime(DateTime.Today);
+
+    /// <summary>Raised with the page notice once the file was handed to the launcher, or the email was queued.</summary>
+    [Parameter] public EventCallback<string> OnDone { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private bool _appendix = true;
+
+    /// <summary>The appendix's optional columns, in print order (the API's keys) — all ticked to start.</summary>
+    private static readonly string[] ColumnKeys = ["category", "class", "amount", "rate", "method", "bank", "source", "card", "notes"];
+    private readonly HashSet<string> _columns = [.. ColumnKeys];
+
+    private IEnumerable<(string Key, string Label)> Columns() =>
+    [
+        ("category", Localizer["Tx_Category"].Value), ("class", Localizer["Tx_Class"].Value), ("amount", Localizer["Tx_Amount"].Value),
+        ("rate", Localizer["Reports_PdfColRate"].Value), ("method", Localizer["Tx_PaymentMethod"].Value), ("bank", Localizer["Tx_Bank"].Value),
+        ("source", Localizer["Reports_PdfColSource"].Value), ("card", Localizer["Tx_Card"].Value), ("notes", Localizer["Tx_Notes"].Value),
+    ];
+
+    private void Toggle(string key, bool on)
+    {
+        if (on) _columns.Add(key); else _columns.Remove(key);
+    }
+    private string? _action; // "download" | "email" while a request is out
+    private bool _busy => _action is not null;
+    private string? _error;
+
+    /// <summary>
+    /// The language the PDF will speak, as shown: the app's, which the sign-in reconcile keeps equal to the account's
+    /// saved language (the one the API uses). The PDF ships English and Spanish; anything else reads as English.
+    /// </summary>
+    private static string LanguageName
+    {
+        get
+        {
+            var culture = CultureInfo.GetCultureInfo(CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "es" ? "es" : "en");
+            return culture.TextInfo.ToTitleCase(culture.NativeName);
+        }
+    }
+
+    private PdfRequest Body() => new(Period.MonthId, Period.From?.ToString("yyyy-MM-dd"), Period.To?.ToString("yyyy-MM-dd"),
+        Display, ChartCurrency, _appendix, Today.ToString("yyyy-MM-dd"),
+        _appendix ? ColumnKeys.Where(_columns.Contains).ToList() : null);
+
+    private string AmountsLabel(string side) => side switch
+    {
+        MoneyDisplay.Crc => "₡",
+        MoneyDisplay.Usd => "$",
+        _ => Localizer["Reports_PdfBoth"].Value,
+    };
+
+    private async Task DownloadAsync()
+    {
+        if (_busy) return;
+        _action = "download"; _error = null;
+        try
+        {
+            var res = await Http.PostAsJsonAsync("/api/reports/pdf", Body());
+            res.EnsureSuccessStatusCode();
+            var file = (await res.Content.ReadFromJsonAsync<PdfResponse>())!;
+            await DownloadLauncher.LaunchAsync(new Uri(Http.BaseAddress!, file.DownloadUrl).ToString(), file.FileName);
+            await OnDone.InvokeAsync(Localizer["Reports_PdfReady"].Value);
+        }
+        catch
+        {
+            _error = Localizer["Reports_PdfError"].Value;
+        }
+        finally { _action = null; }
+    }
+
+    private async Task EmailAsync()
+    {
+        if (_busy) return;
+        _action = "email"; _error = null;
+        try
+        {
+            var res = await Http.PostAsJsonAsync("/api/reports/pdf/email", Body());
+            if (res.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+            {
+                _error = Localizer["Reports_PdfEmailLimit"].Value;
+                return;
+            }
+            res.EnsureSuccessStatusCode();
+            var sent = (await res.Content.ReadFromJsonAsync<EmailResponse>())!;
+            await OnDone.InvokeAsync(Localizer["Reports_PdfSent", sent.SentTo].Value);
+        }
+        catch
+        {
+            _error = Localizer["Reports_PdfEmailError"].Value;
+        }
+        finally { _action = null; }
+    }
+
+    private async Task Close()
+    {
+        if (!_busy) await OnClose.InvokeAsync();
+    }
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") await Close();
+    }
+
+    private sealed record PdfRequest(
+        [property: JsonPropertyName("month_id"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? MonthId,
+        [property: JsonPropertyName("from"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? From,
+        [property: JsonPropertyName("to"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? To,
+        [property: JsonPropertyName("display")] string Display,
+        [property: JsonPropertyName("chart_currency")] string ChartCurrency,
+        [property: JsonPropertyName("include_appendix")] bool IncludeAppendix,
+        [property: JsonPropertyName("today")] string Today,
+        [property: JsonPropertyName("appendix_columns"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] List<string>? AppendixColumns);
+
+    private sealed record EmailResponse([property: JsonPropertyName("sent_to")] string SentTo);
+
+    private sealed record PdfResponse(
+        [property: JsonPropertyName("download_url")] string DownloadUrl,
+        [property: JsonPropertyName("file_name")] string FileName);
+}

@@ -17,9 +17,15 @@ public sealed class OutboxEmailSender(IOutbox outbox, AppDbContext db) : IEmailS
     public const string MessageType = "email";
 
     public async Task SendAsync(string to, string subject, string htmlBody,
-        IReadOnlyList<EmailInlineImage>? inlineImages = null, CancellationToken cancellationToken = default)
+        IReadOnlyList<EmailInlineImage>? inlineImages = null, IReadOnlyList<EmailAttachment>? attachments = null,
+        CancellationToken cancellationToken = default)
     {
-        var payload = JsonSerializer.Serialize(new EmailOutboxPayload(to, subject, htmlBody, inlineImages));
+        // Reject before enqueueing: an oversize/malformed attachment would otherwise sit in the outbox
+        // and fail every dispatch attempt until it dead-letters (JOBS-4).
+        EmailAttachment.Validate(attachments);
+
+        var payload = JsonSerializer.Serialize(
+            new EmailOutboxPayload(to, subject, htmlBody, inlineImages, attachments));
         await outbox.EnqueueAsync(MessageType, payload, cancellationToken: cancellationToken);
 
         // The email call sites aren't wrapped in an explicit unit of work, so flush now to make the
@@ -29,6 +35,11 @@ public sealed class OutboxEmailSender(IOutbox outbox, AppDbContext db) : IEmailS
     }
 }
 
-/// <summary>Serialized form of an email on the outbox. <c>byte[]</c> image content is base64 in JSON.</summary>
+/// <summary>
+/// Serialized form of an email on the outbox. <c>byte[]</c> image/attachment content is base64 in JSON.
+/// <see cref="Attachments"/> is nullable and defaulted so payloads enqueued before JOBS-4 (which have
+/// no <c>Attachments</c> property) still deserialize and send.
+/// </summary>
 public sealed record EmailOutboxPayload(
-    string To, string Subject, string HtmlBody, IReadOnlyList<EmailInlineImage>? InlineImages);
+    string To, string Subject, string HtmlBody, IReadOnlyList<EmailInlineImage>? InlineImages,
+    IReadOnlyList<EmailAttachment>? Attachments = null);

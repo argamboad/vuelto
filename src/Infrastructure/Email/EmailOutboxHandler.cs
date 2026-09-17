@@ -22,6 +22,7 @@ public sealed class EmailOutboxHandler(IEmailSender smtpSender) : IOutboxHandler
         var payload = JsonSerializer.Deserialize<EmailOutboxPayload>(message.Payload)
             ?? throw new InvalidOperationException($"Outbox message {message.Id} has an unreadable email payload.");
 
-        await smtpSender.SendAsync(payload.To, payload.Subject, payload.HtmlBody, payload.InlineImages, cancellationToken);
+        await smtpSender.SendAsync(payload.To, payload.Subject, payload.HtmlBody, payload.InlineImages,
+            payload.Attachments, cancellationToken);
     }
 }

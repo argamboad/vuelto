@@ -258,3 +258,149 @@ Scenario: Spend by card
   And GET /api/reports/category-analysis?month_id=… carries by_card = [{ <visa id>, "Allan's Visa", 8000, … }, { "none", "", 2000, … }]
   And the dashboard's "By card" table lists the same two rows with their transaction counts and a Total
 ```
+
+### REPORTS-7 — Generate a PDF report *(owner request, 2026-09-16)*
+
+**As a** household member
+**I want** a branded PDF of the report I am looking at — its figures, charts and tables, and the period's transactions
+**So that** I can keep, print or share the month without opening the app
+
+**Context / notes:** plan `docs/REPORTS_PDF_INCOME_PLAN.md`; decision record **ADR-V022**.
+- **Engine:** QuestPDF (Community licence), rendered server-side by the API; Nunito (OFL, static 400/600/700 cut from
+  the Google Fonts variable face) embedded, so the file looks the same wherever it is opened. Nunito carries ₡, so money
+  reads `₡1.500,00` (the owner's "CRC" fallback was not needed).
+- **API:** `POST /api/reports/pdf` with a JSON body — the period (`month_id` **or** `from` + `to`, the shared rule and
+  codes above), `display` (`CRC` | `USD` | `both`, default `both`), `chart_currency` (`CRC` | `USD`, default `CRC`),
+  `include_appendix` (default true), `language` (`en` | `es`, default: the language saved in the account settings — REPORTS-8) and `today` (the device date for the pace
+  marker; default the server's UTC date). An unknown value → 400 `invalid_request`. The PDF is stored through
+  `IFileStorage` behind the same 15-minute signed link as the CSV and delivered by `IFileDownloadLauncher`; the response
+  is `{ download_url, file_name, period, expires_in_seconds }` (the CSV export's shape without a row count), `file_name` =
+  `report-<from>_<to>.pdf`.
+- **Same numbers as the screen:** the document is built from the category-analysis result, the months trend and the
+  month's pending refunds — the very figures the Reports page shows — by a pure `ReportPdfModelBuilder` (tested without
+  QuestPDF). No rate → the income, budget and plan pieces are left out and the PDF says why, exactly like the page.
+- **Content, in order:** header (logo, household, period, generated-at, the buy/sell pair used); the four KPI tiles; pace
+  (month mode); spend by class; income vs spend and income vs budget (month mode, with a rate); month by month (month
+  mode); by bank; by card (once a card was used); card vs account with the budgeted-vs-spent bars; the category table per
+  class (budget and actual for the budgeted class of a month, red over / green under in the line's own currency); and the
+  **transaction appendix** on landscape pages — exactly the CSV export's rows for the period (same order, every column),
+  with localized class, method and source labels.
+- **Charts:** drawn as SVG by the PDF's own builders (`PdfCharts`) with the web charts' geometry and the light theme's
+  literal colours — the web components stay untouched (the UI library does not reference Core; ADR-V022 records why).
+- **UI:** a **PDF** button beside **Export CSV** opens a small dialog — "Include the transactions" (checked), the currency
+  and language it will use, and **Download**. (REPORTS-8 adds **Email me** to the same dialog.)
+
+```gherkin
+Scenario: Download the month as a PDF
+  Given June has a ₡60,000 Supermarket line and ₡15,750 of discretionary spend at BAC
+  When I press PDF on Reports for June and choose Download
+  Then POST /api/reports/pdf { month_id: June } answers 200 with a signed download_url and file_name "report-2026-05-28_2026-06-24.pdf"
+  And the downloaded file is a PDF whose text contains the household name, the period, "Discretionary", the category name and "₡15.750,00" in Spanish or "₡15,750.00" in English
+  And its appendix lists the same rows the CSV export lists for June
+
+Scenario: The PDF follows the screen
+  Given "Show in" is $ and the chart currency is $
+  When I download the PDF
+  Then the tiles, tables and appendix show dollars only, and the charts are drawn in dollars
+
+Scenario: Without the transactions
+  When I untick "Include the transactions" and download
+  Then the PDF has no appendix pages
+
+Scenario: No rate today
+  Given no exchange rate can be resolved
+  When I download June's PDF
+  Then it has the spend figures and tables, no income or budget donuts and no plan line, and it says the rate is unavailable
+
+Scenario: A date range
+  When I download the PDF for 2026-06-01 to 2026-06-30
+  Then it has no pace, income, budget or month-by-month pieces, and the category tables show spend only
+
+Scenario: Guard rails
+  When I ask with display "EUR" → 400 invalid_request
+  When I ask with both month_id and from/to → 400 period_ambiguous
+  When I ask for another household's month → 404
+  When I am not signed in → 401
+```
+
+### REPORTS-8 — Email me this report *(owner request, 2026-09-16)*
+
+**As a** household member
+**I want** the PDF I just configured sent to my own inbox
+**So that** the month's report sits in my mail with everything else I keep
+
+**Context / notes:** plan `docs/REPORTS_PDF_INCOME_PLAN.md` (A1–A3, A9); ADR-V022 (amended). Needs the platform's
+attachment seam (JOBS-4, perezosoft-platform #235), synced in this slice.
+- **API:** `POST /api/reports/pdf/email` — the REPORTS-7 body and rules (period, `display`, `chart_currency`,
+  `include_appendix`, `today`; same 400/404 codes). It renders the same PDF and queues **one** email through the
+  outbox to the **caller's own address** — no recipient field, so it can't be pointed at anyone else — with the PDF
+  attached (`report-<from>_<to>.pdf`, `application/pdf`) and a short branded body in the account's language: the
+  period, the household and the total spend. Answers **202** `{ sent_to, file_name, period }`. A file over the
+  10 MiB attachment limit → 400 `report_too_large` (drop the transactions and try again).
+- **Language (both endpoints, owner question):** the PDF and the email follow the **language saved in the account's
+  settings** (`User.Locale`; `es` → Spanish, anything else → English). An explicit `language` in the body still wins
+  (API callers); the app no longer sends one.
+- **Cap (A9):** at most **10 report emails per person per day** (fixed window, per user; 429 past it) so a loop can't
+  drain the free email quota. In-memory — a restart resets the count, which is acceptable for its purpose.
+- **UI:** the PDF dialog gains **Email me** beside Download; success says "Sent to {address}" and closes the dialog;
+  a 429 says the daily limit was reached; any other failure keeps the dialog open with an error.
+
+```gherkin
+Scenario: Email me the month
+  Given I am signed in as ana@example.com with Spanish saved in my settings
+  When I open the PDF dialog on Reports for June and press "Email me"
+  Then POST /api/reports/pdf/email answers 202 { sent_to: "ana@example.com", file_name: "report-2026-05-28_2026-06-24.pdf" }
+  And one email is queued to ana@example.com in Spanish, with that PDF attached, naming the period, the household and the total spend
+  And the page says "Enviado a ana@example.com"
+
+Scenario: The account's language, not the device's
+  Given my settings say Spanish
+  When I call POST /api/reports/pdf without a language
+  Then the PDF is in Spanish
+  When I call it with language "en"
+  Then the PDF is in English
+
+Scenario: The daily cap
+  Given I have emailed myself 10 reports today
+  When I press "Email me" again
+  Then the API answers 429 and the dialog says the daily limit was reached
+
+Scenario: Guard rails
+  When I am not signed in → 401
+  When I name another household's month → 404, and nothing is queued
+  When I send display "EUR" → 400 invalid_request, and nothing is queued
+```
+
+*Extended by INCOME-2 (2026-09-16, `docs/stories/income.md`):* for a single month with a rate the category analysis also returns `income_by_member` (the month's income cut by member, household, former members and inflows); the PDF prints it as an "Income by member" table (no chart — owner, 2026-09-17).
+
+### REPORTS-9 — Choose the transaction columns in the PDF *(owner request, 2026-09-17)*
+
+**As a** household member
+**I want** to pick which columns the PDF's transactions table prints
+**So that** I can get a leaner appendix when I don't need every detail
+
+**Context / notes:** ADR-V022 (amended).
+- **API:** both PDF endpoints accept `appendix_columns` — any of `category`, `class`, `amount`, `rate`, `method`,
+  `bank`, `source`, `card`, `notes`, in any order and case; the appendix prints them in its usual order. **Date and
+  payee always print** (a row means nothing without them; sending them is allowed and changes nothing). Absent, or
+  every column named, is the full appendix as before. An unknown key → 400 `invalid_request` naming it. `amount` is
+  the "show in" side(s), as before.
+- **UI:** under "Include the transactions" the dialog lists the nine columns as checkboxes, **all ticked each time it
+  opens**, with "Date and payee always print"; unticking the transactions hides the list and sends no columns. Download
+  and Email me send the same choice.
+
+```gherkin
+Scenario: A leaner appendix
+  Given the PDF dialog is open with "Include the transactions" ticked
+  Then all nine columns are ticked
+  When I untick Exchange rate, Source, Card and Class and download
+  Then the appendix prints Date, Payee, Category, the amounts, Payment method, Bank and Notes, in that order
+
+Scenario: The API's rules
+  When I send appendix_columns ["notes", "AMOUNT"]
+  Then the appendix prints Date, Payee, the amounts and Notes
+  When I send appendix_columns []
+  Then it prints Date and Payee only
+  When I send appendix_columns ["tip"]
+  Then I receive 400 invalid_request naming "tip", and nothing is rendered
+```

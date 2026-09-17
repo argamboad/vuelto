@@ -42,7 +42,8 @@ public class DashboardSliceTests(PostgresFixture fixture) : PostgresTestBase(fix
         var housing = new Category { TenantId = tenant, Name = "Housing", CreatedAt = T0, UpdatedAt = T0 };
         var dining = new Category { TenantId = tenant, Name = "Dining (old)", IsActive = false, CreatedAt = T0, UpdatedAt = T0 };
         var bac = new Bank { TenantId = tenant, Name = "BAC", CreatedAt = T0, UpdatedAt = T0 };
-        var month = new Month { TenantId = tenant, Year = 2026, MonthNumber = 6, WeekCount = 4, Week1StartDate = new DateOnly(2026, 5, 28), PrimaryIncomeAmount = 3000m, PrimaryIncomeCurrency = "USD", SecondaryIncomeAmount = 0m, SecondaryIncomeCurrency = "USD", CreatedAt = T0, UpdatedAt = T0 };
+        var month = new Month { TenantId = tenant, Year = 2026, MonthNumber = 6, WeekCount = 4, Week1StartDate = new DateOnly(2026, 5, 28), CreatedAt = T0, UpdatedAt = T0 };
+        var salary = new MonthIncome { TenantId = tenant, MonthId = month.Id, Label = "Salary", Amount = 3000m, PlannedAmount = 3000m, Currency = "USD", CreatedAt = T0, UpdatedAt = T0 };
         var weeks = Enumerable.Range(0, 4).Select(i => new Week { TenantId = tenant, MonthId = month.Id, WeekNumber = i + 1, StartDate = new DateOnly(2026, 5, 28).AddDays(7 * i), EndDate = new DateOnly(2026, 6, 3).AddDays(7 * i) });
         var mortgage = new Transaction { TenantId = tenant, MonthId = month.Id, BankId = bac.Id, CategoryId = housing.Id, Payee = "Bank", PaymentMethod = "bank_account", OriginalAmount = 300_000m, Currency = "CRC", TransactionDate = new DateOnly(2026, 6, 5), AmountCrc = 300_000m, AmountUsd = 600m, ExchangeRateUsed = 500m, TransactionType = "budgeted", CreatedAt = T0, UpdatedAt = T0 };
         var lunch = new Transaction { TenantId = tenant, MonthId = month.Id, BankId = bac.Id, CategoryId = dining.Id, Payee = "Soda", PaymentMethod = "credit_card", OriginalAmount = 10_000m, Currency = "CRC", TransactionDate = new DateOnly(2026, 6, 12), AmountCrc = 10_000m, AmountUsd = 20m, ExchangeRateUsed = 500m, TransactionType = "unplanned_essential", CreatedAt = T0, UpdatedAt = T0 };
@@ -50,7 +51,7 @@ public class DashboardSliceTests(PostgresFixture fixture) : PostgresTestBase(fix
         var line = new FixedExpense { TenantId = tenant, Name = "Mortgage", BudgetCrc = 350_000m, PaymentMethod = "bank_account", CategoryId = housing.Id, CreatedAt = T0, UpdatedAt = T0 };
         var envelope = new Envelope { TenantId = tenant, Name = "Marchamo", AnnualTargetCrc = 718_000m, CreatedAt = T0, UpdatedAt = T0 };
 
-        db.AddRange(housing, dining, bac, month); db.AddRange(weeks); db.AddRange(mortgage, lunch, refund, line, envelope);
+        db.AddRange(housing, dining, bac, month); db.AddRange(weeks); db.AddRange(mortgage, lunch, refund, line, envelope, salary);
         await db.SaveChangesAsync();
         db.ChangeTracker.Clear();
 
@@ -58,7 +59,7 @@ public class DashboardSliceTests(PostgresFixture fixture) : PostgresTestBase(fix
         var handler = new DashboardHandler(
             new EfRepository<Month>(db), new EfRepository<Week>(db), new EfRepository<Transaction>(db), new EfRepository<Refund>(db),
             new EfRepository<Envelope>(db), new EfRepository<FixedExpense>(db), new EfRepository<VariableExpense>(db),
-            new EfRepository<Category>(db), new EfRepository<Bank>(db), new EfRepository<Card>(db), new DashboardSummaryService(), pair is null ? new FixedRate(rate) : new PairRate(pair), current);
+            new EfRepository<Category>(db), new EfRepository<Bank>(db), new EfRepository<Card>(db), new EfRepository<MonthIncome>(db), new DashboardSummaryService(), pair is null ? new FixedRate(rate) : new PairRate(pair), current);
         return new Ctx(db, tenant, month.Id, handler);
     }
 
@@ -86,6 +87,9 @@ public class DashboardSliceTests(PostgresFixture fixture) : PostgresTestBase(fix
         Assert.Equal((500m, "cache", false), (dash.ExchangeRate, dash.RateSource, dash.RateUnavailable));
         var s = dash.Summary!;
         Assert.Equal((1_500_000m, 3000m), (s.IncomeTotal.Crc, s.IncomeTotal.Usd));
+        var salary = Assert.Single(s.IncomeLines); // INCOME-1: the rows, not two slots
+        Assert.Equal(("Salary", "USD", 3000m, (decimal?)3000m, 1_500_000m), (salary.Label, salary.Currency, salary.Amount, salary.PlannedAmount, salary.Pair.Crc));
+        Assert.Equal((0m, 0m), (s.IncomeInflows.Crc, s.IncomeInflows.Usd));
         Assert.Equal((300_000m, 10_000m, 310_000m), (s.ExpensesAccount.Crc, s.ExpensesCard.Crc, s.ExpensesTotal.Crc));
         var mortgage = Assert.Single(s.FixedExpenses);
         Assert.Equal(("Mortgage", 350_000m, 700m, 300_000m), (mortgage.Name, mortgage.Budget.Crc, mortgage.Budget.Usd, mortgage.Actual.Crc));

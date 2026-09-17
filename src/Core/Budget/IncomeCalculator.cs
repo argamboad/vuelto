@@ -3,20 +3,23 @@ using Vuelto.Core.Entities;
 namespace Vuelto.Core.Budget;
 
 /// <summary>
-/// The month's income as a dual-currency pair (ADR-V006): each configured income converted at the
-/// rate passed in, plus every <c>inflow</c> transaction's frozen amounts (money in — realized refunds,
-/// sales). One definition shared by the dashboard (DASH-1) and the reports (REPORTS-3), so "income" can
-/// never mean two different numbers on two pages. Pure, no I/O; outputs 2 dp.
+/// The month's income as a dual-currency pair (ADR-V006, ADR-V023): each of the month's income rows converted at the
+/// rate passed in, plus every <c>inflow</c> transaction's frozen amounts (money in — realized refunds, sales). One
+/// definition shared by the dashboard (DASH-1), the reports (REPORTS-3/4) and the PDF, so "income" can never mean two
+/// different numbers on two pages. Pure, no I/O; outputs 2 dp.
 /// </summary>
 public static class IncomeCalculator
 {
-    public static IncomeSummary Calculate(Month month, IReadOnlyList<Transaction> transactions, FxRates rates)
+    public static IncomeSummary Calculate(IReadOnlyList<MonthIncome> rows, IReadOnlyList<Transaction> transactions, FxRates rates)
     {
-        var primary = IncomePair(month.PrimaryIncomeAmount, month.PrimaryIncomeCurrency, rates);
-        var secondary = IncomePair(month.SecondaryIncomeAmount, month.SecondaryIncomeCurrency, rates);
+        var lines = rows
+            .OrderBy(r => r.SortOrder)
+            .Select(r => new IncomeRowSummary(r.Id, r.Label, r.MemberUserId, r.Currency, r.Amount, r.PlannedAmount, IncomePair(r.Amount, r.Currency, rates)))
+            .ToList();
         var inflows = transactions.Where(t => string.Equals(t.TransactionType, TransactionTypes.Inflow, StringComparison.Ordinal)).ToList();
-        var total = Pair(primary.Crc + secondary.Crc + inflows.Sum(t => t.AmountCrc), primary.Usd + secondary.Usd + inflows.Sum(t => t.AmountUsd));
-        return new IncomeSummary(primary, secondary, total);
+        var inflowPair = Pair(inflows.Sum(t => t.AmountCrc), inflows.Sum(t => t.AmountUsd));
+        var total = Pair(lines.Sum(l => l.Pair.Crc) + inflowPair.Crc, lines.Sum(l => l.Pair.Usd) + inflowPair.Usd);
+        return new IncomeSummary(lines, inflowPair, total);
     }
 
     // Income converts at the rate the household would GET (ADR-V019): dollars sold at Buy, colones buying dollars at Sell.

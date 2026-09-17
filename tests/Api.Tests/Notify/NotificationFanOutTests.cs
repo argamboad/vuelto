@@ -147,10 +147,15 @@ internal sealed class CapturingEmailSender : IEmailSender
 {
     public List<(string To, string Subject, string Html)> Sent { get; } = [];
 
+    /// <summary>Attachments per sent mail, index-aligned with <see cref="Sent"/> (null when none were passed).</summary>
+    public List<IReadOnlyList<EmailAttachment>?> Attachments { get; } = [];
+
     public Task SendAsync(string to, string subject, string htmlBody,
-        IReadOnlyList<EmailInlineImage>? inlineImages = null, CancellationToken cancellationToken = default)
+        IReadOnlyList<EmailInlineImage>? inlineImages = null, IReadOnlyList<EmailAttachment>? attachments = null,
+        CancellationToken cancellationToken = default)
     {
         Sent.Add((to, subject, htmlBody));
+        Attachments.Add(attachments);
         return Task.CompletedTask;
     }
 }

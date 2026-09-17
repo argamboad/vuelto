@@ -63,9 +63,19 @@ public record CardSpendResponse(
     [property: JsonPropertyName("count")] int Count,
     [property: JsonPropertyName("kind")] string Kind = "credit");
 
+/// <summary>INCOME-1: one of the month's income rows as the dashboard shows it — its label, member and pair at the day's rate.</summary>
+public record IncomeLineSummaryResponse(
+    [property: JsonPropertyName("id")] Guid Id,
+    [property: JsonPropertyName("label")] string Label,
+    [property: JsonPropertyName("member_user_id")] Guid? MemberUserId,
+    [property: JsonPropertyName("currency")] string Currency,
+    [property: JsonPropertyName("amount")] decimal Amount,
+    [property: JsonPropertyName("planned_amount")] decimal? PlannedAmount,
+    [property: JsonPropertyName("pair")] MoneyPairResponse Pair);
+
 public record DashboardSummaryResponse(
-    [property: JsonPropertyName("income_primary")] MoneyPairResponse IncomePrimary,
-    [property: JsonPropertyName("income_secondary")] MoneyPairResponse IncomeSecondary,
+    [property: JsonPropertyName("income_lines")] IReadOnlyList<IncomeLineSummaryResponse> IncomeLines,
+    [property: JsonPropertyName("income_inflows")] MoneyPairResponse IncomeInflows,
     [property: JsonPropertyName("income_total")] MoneyPairResponse IncomeTotal,
     [property: JsonPropertyName("expenses_card")] MoneyPairResponse ExpensesCard,
     [property: JsonPropertyName("expenses_account")] MoneyPairResponse ExpensesAccount,
@@ -91,7 +101,8 @@ public record DashboardSummaryResponse(
     [property: JsonPropertyName("by_card")] IReadOnlyList<CardSpendResponse> ByCard)
 {
     public static DashboardSummaryResponse From(DashboardSummary s) => new(
-        MoneyPairResponse.From(s.Income.Primary), MoneyPairResponse.From(s.Income.Secondary), MoneyPairResponse.From(s.Income.Total),
+        s.Income.Rows.Select(r => new IncomeLineSummaryResponse(r.Id, r.Label, r.MemberUserId, r.Currency, r.Amount, r.PlannedAmount, MoneyPairResponse.From(r.Pair))).ToList(),
+        MoneyPairResponse.From(s.Income.Inflows), MoneyPairResponse.From(s.Income.Total),
         MoneyPairResponse.From(s.Expenses.Card), MoneyPairResponse.From(s.Expenses.Account), MoneyPairResponse.From(s.Expenses.GrandTotal), MoneyPairResponse.From(s.Expenses.Remainder),
         MoneyPairResponse.From(s.Expenses.Budgeted), MoneyPairResponse.From(s.Expenses.Extraordinary), MoneyPairResponse.From(s.Expenses.UnplannedEssential),
         s.FixedExpenses.Select(l => new ExpenseLineResponse(l.Name, MoneyPairResponse.From(l.Budget), MoneyPairResponse.From(l.Actual), l.BudgetCurrency, l.CategoryId)).ToList(),

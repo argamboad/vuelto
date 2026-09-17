@@ -41,8 +41,7 @@ public class BudgetSettingsEndpointTests(IntegrationTestFactory factory)
         Assert.False(after!.IsDefault);
         Assert.Equal(1, after.WeekStartWeekday);
         Assert.Equal("first_of_month", after.MonthAnchor);
-        Assert.Equal(1500.00m, after.PrimaryIncome4w);
-        Assert.Equal("CRC", after.SecondaryIncomeCurrency);
+        Assert.False(after.Extra.ContainsKey("primary_income_4w")); // INCOME-1: income left the settings
     }
 
     [Fact]
@@ -59,20 +58,18 @@ public class BudgetSettingsEndpointTests(IntegrationTestFactory factory)
         Assert.Contains("week_start_weekday", error.Message);
     }
 
-    private static Body ValidBody() => new(1, "first_of_month", 1500.00m, 1800.00m, "USD", 400000m, 500000m, "CRC");
+    private static Body ValidBody() => new(1, "first_of_month");
 
     // Wire-shaped on purpose (snake_case) — this test is the contract the Postman collection documents.
-    private sealed record Body(
-        int week_start_weekday, string month_anchor,
-        decimal primary_income_4w, decimal primary_income_5w, string primary_income_currency,
-        decimal secondary_income_4w, decimal secondary_income_5w, string secondary_income_currency);
+    private sealed record Body(int week_start_weekday, string month_anchor);
 
     private sealed record SettingsDto(
         [property: JsonPropertyName("week_start_weekday")] int WeekStartWeekday,
         [property: JsonPropertyName("month_anchor")] string MonthAnchor,
-        [property: JsonPropertyName("primary_income_4w")] decimal PrimaryIncome4w,
-        [property: JsonPropertyName("secondary_income_currency")] string SecondaryIncomeCurrency,
-        [property: JsonPropertyName("is_default")] bool IsDefault);
+        [property: JsonPropertyName("is_default")] bool IsDefault)
+    {
+        [JsonExtensionData] public Dictionary<string, System.Text.Json.JsonElement> Extra { get; init; } = [];
+    }
 
     private sealed record ErrorDto(
         [property: JsonPropertyName("error")] string Error,

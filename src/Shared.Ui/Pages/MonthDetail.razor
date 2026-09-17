@@ -14,7 +14,7 @@
 <PageTitle>@(_month is null ? Localizer["Months_Title"] : MonthLabel(_month.Year, _month.MonthNumber))</PageTitle>
 
 @* LEDGER-1/2: one budget month — its weeks, editable income, and its transactions (ADR-V005/V007), presented per
-   SKIN-8: income collapses into one row, the ledger is one table with class chips and a stacked amount, and below md
+   SKIN-8: income is a short list of rows (INCOME-1), the ledger is one table with class chips and a stacked amount, and below md
    it hides columns instead of scrolling sideways. Sort and filter stay on the rows already loaded — no request. *@
 <div class="settings-wrapper" data-testid="month-page">
     @if (_loading)
@@ -59,24 +59,44 @@
             <div class="alert alert-danger py-2" data-testid="month-error">@_error</div>
         }
 
-        @* Income is one row: two amount-plus-currency groups and the save, wrapping field by field on phone. *@
+        @* INCOME-1: the month's income rows — snapshotted from the income lines when the month was created, each with its
+           label, amount and currency editable here; a row can be removed or a one-off added, and Save sends the whole
+           list. The planned figure shows when the amount was corrected. Each row wraps field by field on phone. *@
         <section class="month-card month-income" data-testid="month-income">
-            <div class="income-row">
-                <div class="income-field">
-                    <label class="form-label" for="inc-primary">@Localizer["Month_PrimaryIncome"]</label>
-                    <div class="input-group">
-                        <input class="form-control" type="number" step="0.01" min="0" id="inc-primary" data-testid="inc-primary" disabled="@_saving" @bind="_primaryAmount" />
-                        <select class="form-select income-cur" aria-label="@Localizer["Tx_Currency"]" data-testid="inc-primary-cur" disabled="@_saving" @bind="_primaryCurrency"><option>CRC</option><option>USD</option></select>
+            <div class="income-head">
+                <h2>@Localizer["Month_Income"]</h2>
+                <a class="small" href="/incomes" data-testid="month-inc-lines">@Localizer["Income_SettingsLink"]</a>
+            </div>
+            @if (_incomeRows.Count == 0)
+            {
+                <p class="small text-muted mb-2" data-testid="month-inc-empty">@Localizer["Month_IncomeEmpty"]</p>
+            }
+            @foreach (var row in _incomeRows)
+            {
+                <div class="income-row" data-testid="month-inc-row">
+                    <div class="income-field income-label">
+                        <input class="form-control" maxlength="100" aria-label="@Localizer["Month_IncomeLabel"]" placeholder="@Localizer["Month_IncomeLabel"]" data-testid="month-inc-label" disabled="@_saving" @bind="row.Label" />
                     </div>
-                </div>
-                <div class="income-field">
-                    <label class="form-label" for="inc-secondary">@Localizer["Month_SecondaryIncome"]</label>
-                    <div class="input-group">
-                        <input class="form-control" type="number" step="0.01" min="0" id="inc-secondary" data-testid="inc-secondary" disabled="@_saving" @bind="_secondaryAmount" />
-                        <select class="form-select income-cur" aria-label="@Localizer["Tx_Currency"]" data-testid="inc-secondary-cur" disabled="@_saving" @bind="_secondaryCurrency"><option>CRC</option><option>USD</option></select>
+                    <div class="income-field">
+                        <div class="input-group">
+                            <input class="form-control" type="number" step="0.01" min="0" aria-label="@Localizer["Tx_Amount"]" data-testid="month-inc-amount" disabled="@_saving" @bind="row.Amount" />
+                            <select class="form-select income-cur" aria-label="@Localizer["Tx_Currency"]" data-testid="month-inc-cur" disabled="@_saving" @bind="row.Currency"><option>CRC</option><option>USD</option></select>
+                        </div>
+                        @if (row.PlannedAmount is { } planned && planned != row.Amount)
+                        {
+                            <div class="income-planned" data-testid="month-inc-planned">@Localizer["Month_IncomePlanned", Amount(planned, row.Currency)]</div>
+                        }
+                        else if (row.IncomeLineId is null)
+                        {
+                            <div class="income-planned" data-testid="month-inc-oneoff">@Localizer["Month_IncomeOneOff"]</div>
+                        }
                     </div>
+                    <button type="button" class="btn btn-outline-secondary income-remove" data-testid="month-inc-remove" aria-label="@Localizer["Month_IncomeRemove"]" title="@Localizer["Month_IncomeRemove"]" disabled="@_saving" @onclick="() => _incomeRows.Remove(row)">×</button>
                 </div>
-                <button class="btn btn-outline-primary income-save" data-testid="inc-save" disabled="@_saving" @onclick="SaveIncome">@(_saving ? Localizer["Catalog_Saving"] : Localizer["Month_SaveIncome"])</button>
+            }
+            <div class="income-actions">
+                <button type="button" class="btn btn-outline-secondary" data-testid="month-inc-add" disabled="@_saving" @onclick="AddIncomeRow">@Localizer["Month_IncomeAdd"]</button>
+                <button class="btn btn-outline-primary" data-testid="month-inc-save" disabled="@_saving" @onclick="SaveIncome">@(_saving ? Localizer["Catalog_Saving"] : Localizer["Month_SaveIncome"])</button>
             </div>
             @* Money that came in as transactions (realized refunds, sales…) — counted in the dashboard's Income, listed here so the row and the dashboard agree. *@
             @{ var inflows = _transactions.Where(t => t.TransactionType == TransactionClasses.Inflow).ToList(); }
@@ -332,10 +352,7 @@
     /// <summary>The date to book a pending refund on — today unless the user picked one (never before the purchase).</summary>
     private DateOnly ReceivedDateFor(RefundDto r) => _receivedDates.TryGetValue(r.Id, out var d) ? d : DateOnly.FromDateTime(DateTime.Today);
     private Guid? _confirmDelete;
-    private decimal _primaryAmount;
-    private string _primaryCurrency = "USD";
-    private decimal _secondaryAmount;
-    private string _secondaryCurrency = "USD";
+    private List<IncomeRowState> _incomeRows = new();
 
     private Guid? _loadedId;
 
@@ -365,8 +382,7 @@
             if (res.StatusCode == HttpStatusCode.NotFound) { _month = null; return; }
             res.EnsureSuccessStatusCode();
             _month = await res.Content.ReadFromJsonAsync<MonthDto>();
-            _primaryAmount = _month!.PrimaryIncomeAmount; _primaryCurrency = _month.PrimaryIncomeCurrency;
-            _secondaryAmount = _month.SecondaryIncomeAmount; _secondaryCurrency = _month.SecondaryIncomeCurrency;
+            ApplyIncome(_month!.IncomeRows);
             _transactions = await Http.GetFromJsonAsync<List<TxDto>>($"/api/months/{Id}/transactions") ?? new();
             _refunds = await Http.GetFromJsonAsync<List<RefundDto>>($"/api/months/{Id}/refunds") ?? new();
         }
@@ -419,17 +435,41 @@
         finally { _saving = false; }
     }
 
+    private void ApplyIncome(List<IncomeRowDto>? rows) =>
+        _incomeRows = (rows ?? new()).Select(r => new IncomeRowState
+        {
+            Id = r.Id, IncomeLineId = r.IncomeLineId, MemberUserId = r.MemberUserId, Label = r.Label,
+            Currency = r.Currency, Amount = r.Amount, PlannedAmount = r.PlannedAmount,
+        }).ToList();
+
+    /// <summary>A one-off income is the income of whoever adds it (INCOME-2: it then counts under their name in the reports).</summary>
+    private void AddIncomeRow() => _incomeRows.Add(new IncomeRowState
+    {
+        Currency = _incomeRows.LastOrDefault()?.Currency ?? "USD",
+        MemberUserId = Auth.UserId,
+    });
+
+    private static string Amount(decimal amount, string currency) =>
+        (currency == "CRC" ? "₡" : "$") + amount.ToString("N2", CultureInfo.CurrentCulture);
+
+    /// <summary>Sends the whole list: a row with an id updates it, one without is a one-off, a removed row goes.</summary>
     private async Task SaveIncome()
     {
-        _notice = null; _error = null; _saving = true;
+        _notice = null; _error = null;
+        if (_incomeRows.Any(r => string.IsNullOrWhiteSpace(r.Label))) { _error = Localizer["Month_IncomeLabelRequired"]; return; }
+        if (_incomeRows.Any(r => r.Amount < 0)) { _error = Localizer["Month_IncomeNegative"]; return; }
+        _saving = true;
         try
         {
             var res = await Http.PutAsJsonAsync($"/api/months/{Id}/income", new
             {
-                primary_income_amount = _primaryAmount, primary_income_currency = _primaryCurrency,
-                secondary_income_amount = _secondaryAmount, secondary_income_currency = _secondaryCurrency,
+                rows = _incomeRows.Select(r => new { id = r.Id, label = r.Label.Trim(), member_user_id = r.MemberUserId, currency = r.Currency, amount = r.Amount }).ToList(),
             });
-            if (res.IsSuccessStatusCode) _notice = Localizer["Month_IncomeSaved"];
+            if (res.IsSuccessStatusCode)
+            {
+                if (await res.Content.ReadFromJsonAsync<MonthDto>() is { } saved) ApplyIncome(saved.IncomeRows);
+                _notice = Localizer["Month_IncomeSaved"];
+            }
             else _error = (await res.Content.ReadFromJsonAsync<ErrorDto>())?.Message ?? Localizer["Month_IncomeError"];
         }
         catch { _error = Localizer["Month_IncomeError"]; }
@@ -537,11 +577,29 @@
         [property: JsonPropertyName("year")] int Year,
         [property: JsonPropertyName("month_number")] int MonthNumber,
         [property: JsonPropertyName("week_count")] int WeekCount,
-        [property: JsonPropertyName("primary_income_amount")] decimal PrimaryIncomeAmount,
-        [property: JsonPropertyName("primary_income_currency")] string PrimaryIncomeCurrency,
-        [property: JsonPropertyName("secondary_income_amount")] decimal SecondaryIncomeAmount,
-        [property: JsonPropertyName("secondary_income_currency")] string SecondaryIncomeCurrency,
-        [property: JsonPropertyName("weeks")] List<WeekDto>? Weeks);
+        [property: JsonPropertyName("weeks")] List<WeekDto>? Weeks,
+        [property: JsonPropertyName("income_rows")] List<IncomeRowDto>? IncomeRows = null);
+
+    private sealed record IncomeRowDto(
+        [property: JsonPropertyName("id")] Guid Id,
+        [property: JsonPropertyName("income_line_id")] Guid? IncomeLineId,
+        [property: JsonPropertyName("label")] string Label,
+        [property: JsonPropertyName("member_user_id")] Guid? MemberUserId,
+        [property: JsonPropertyName("currency")] string Currency,
+        [property: JsonPropertyName("amount")] decimal Amount,
+        [property: JsonPropertyName("planned_amount")] decimal? PlannedAmount);
+
+    /// <summary>An income row as edited on the page; a new one-off has no id, no line and no planned amount.</summary>
+    private sealed class IncomeRowState
+    {
+        public Guid? Id { get; init; }
+        public Guid? IncomeLineId { get; init; }
+        public Guid? MemberUserId { get; init; }
+        public string Label { get; set; } = "";
+        public string Currency { get; set; } = "USD";
+        public decimal Amount { get; set; }
+        public decimal? PlannedAmount { get; init; }
+    }
 
     private sealed record TxDto(
         [property: JsonPropertyName("id")] Guid Id,

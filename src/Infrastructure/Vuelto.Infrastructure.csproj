@@ -9,6 +9,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- SmtpEmailSender.BuildMessage is internal; the MIME shape is unit-tested without an SMTP server. -->
+    <InternalsVisibleTo Include="Vuelto.Api.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Brand logo embedded for CID inline-embedding in branded emails (BrandedEmail). -->
     <EmbeddedResource Include="Email\Assets\logo.png" />
   </ItemGroup>

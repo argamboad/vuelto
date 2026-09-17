@@ -65,12 +65,44 @@
     background: var(--card-bg);
 }
 
-/* ---------------------------------------------------------------- income, one row */
+/* ---------------------------------------------------------------- income, a row per income (INCOME-1) */
+.income-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 9px;
+    margin-bottom: 9px;
+}
+
+.income-head h2 {
+    margin: 0;
+    font-size: 13px;
+    font-weight: var(--w-control);
+}
+
 .income-row {
     display: flex;
-    align-items: flex-end;
+    align-items: flex-start;
     flex-wrap: wrap;
     gap: 9px 13px;
+    margin-bottom: 9px;
+}
+
+.income-label { flex: 2 1 200px; }
+
+.income-planned {
+    margin-top: 3px;
+    font-size: 11px;
+    color: var(--ink-3);
+    font-variant-numeric: tabular-nums;
+}
+
+.income-remove { flex: 0 0 auto; }
+
+.income-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 9px;
 }
 
 .income-field {
@@ -90,8 +122,6 @@
     width: auto;
     font-weight: var(--w-control);
 }
-
-.income-save { flex: 0 0 auto; }
 
 .income-other {
     margin-top: 11px;

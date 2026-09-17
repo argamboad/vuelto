@@ -23,12 +23,22 @@
     <PackageReference Include="OpenTelemetry.Instrumentation.Http" />
     <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" />
     <PackageReference Include="Otp.NET" />
+    <PackageReference Include="QuestPDF" />
     <PackageReference Include="Swashbuckle.AspNetCore" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Core\Vuelto.Core.csproj" />
     <ProjectReference Include="..\Infrastructure\Vuelto.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <!-- REPORTS-7: the PDF typeface (Nunito, SIL OFL 1.1, licence beside the files) and the light-background brand lockup,
+       linked from the UI library's brand folder so the brand keeps a single source file. -->
+  <ItemGroup>
+    <EmbeddedResource Include="Features/Reports/Pdf/Assets/Nunito-Regular.ttf" LogicalName="Vuelto.Reports.Pdf.Nunito-Regular.ttf" />
+    <EmbeddedResource Include="Features/Reports/Pdf/Assets/Nunito-SemiBold.ttf" LogicalName="Vuelto.Reports.Pdf.Nunito-SemiBold.ttf" />
+    <EmbeddedResource Include="Features/Reports/Pdf/Assets/Nunito-Bold.ttf" LogicalName="Vuelto.Reports.Pdf.Nunito-Bold.ttf" />
+    <EmbeddedResource Include="../Shared.Ui/wwwroot/brand/lockup_light.svg" Link="Features/Reports/Pdf/Assets/lockup_light.svg" LogicalName="Vuelto.Reports.Pdf.lockup_light.svg" />
   </ItemGroup>
 
   <ItemGroup>

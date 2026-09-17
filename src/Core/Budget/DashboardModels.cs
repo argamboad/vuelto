@@ -9,7 +9,11 @@ public record MoneyPair(decimal Crc, decimal Usd)
     public static readonly MoneyPair Zero = new(0m, 0m);
 }
 
-public record IncomeSummary(MoneyPair Primary, MoneyPair Secondary, MoneyPair Total);
+/// <summary>The month's income (INCOME-1): each income row as a pair, the inflows, and the total of both.</summary>
+public record IncomeSummary(IReadOnlyList<IncomeRowSummary> Rows, MoneyPair Inflows, MoneyPair Total);
+
+/// <summary>One income row of the month: its stored amount and currency, the plan it started from, and the pair at the day's rate.</summary>
+public record IncomeRowSummary(Guid Id, string Label, Guid? MemberUserId, string Currency, decimal Amount, decimal? PlannedAmount, MoneyPair Pair);
 
 /// <summary>Spend so far, cut two ways: by payment method (Card/Account) and by class (Budgeted/Extraordinary/UnplannedEssential — the waterfall's rows). Both cuts add up to <paramref name="GrandTotal"/>.</summary>
 public record ExpenseSummary(MoneyPair Card, MoneyPair Account, MoneyPair GrandTotal, MoneyPair Remainder, MoneyPair Budgeted, MoneyPair Extraordinary, MoneyPair UnplannedEssential);

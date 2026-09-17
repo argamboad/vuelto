@@ -37,7 +37,7 @@ public class RefundSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
     {
         var current = new TestCurrentTenant { TenantId = tenant };
         var clock = new FakeTimeProvider(T0);
-        var months = new MonthHandler(new EfRepository<Month>(db), new EfRepository<Week>(db), new EfRepository<Transaction>(db), new EfRepository<BudgetSettings>(db), new WeekBoundaryService(), current, clock);
+        var months = new MonthHandler(new EfRepository<Month>(db), new EfRepository<Week>(db), new EfRepository<Transaction>(db), new EfRepository<BudgetSettings>(db), new EfRepository<IncomeLine>(db), new EfRepository<MonthIncome>(db), new TenantRepository(db), new WeekBoundaryService(), current, clock);
         var transactions = new TransactionHandler(new EfRepository<Transaction>(db), new EfRepository<Refund>(db), new EfRepository<Category>(db), new EfRepository<Bank>(db), new EfRepository<Envelope>(db), new EfRepository<Card>(db), months, new FixedRate(), current, clock, NullLogger<TransactionHandler>.Instance);
         var refunds = new RefundHandler(new EfRepository<Refund>(db), new EfRepository<Transaction>(db), months, new EfUnitOfWork(db), current, clock, NullLogger<RefundHandler>.Instance);
         return new Ctx(db, tenant, transactions, refunds, categoryId, bankId);

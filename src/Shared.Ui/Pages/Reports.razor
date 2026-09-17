@@ -49,6 +49,9 @@
             <button class="btn btn-outline-primary btn-sm" data-testid="rep-export" @onclick="ExportAsync" disabled="@(_exporting || _period is null)">
                 @(_exporting ? Localizer["Reports_Exporting"] : Localizer["Reports_ExportCsv"])
             </button>
+            <button class="btn btn-outline-primary btn-sm" data-testid="rep-pdf" @onclick="() => _pdfOpen = true" disabled="@(_pdfPeriod is null)">
+                @Localizer["Reports_Pdf"]
+            </button>
         </div>
     </header>
 
@@ -257,6 +260,12 @@
     }
 </div>
 
+@if (_pdfOpen && _pdfPeriod is not null)
+{
+    <ReportPdfDialog Period="_pdfPeriod" Display="@_display" ChartCurrency="@_chartCurrency" Today="Today"
+                     OnDone="PdfDone" OnClose="() => _pdfOpen = false" />
+}
+
 @code {
     private string _mode = "month";
     private List<MonthDto> _months = new();
@@ -272,6 +281,16 @@
 
     /// <summary>The period currently shown, as query string — the export always targets exactly what is on screen.</summary>
     private string? _period;
+
+    /// <summary>The same period for the PDF (REPORTS-7), and whether its dialog is open.</summary>
+    private ReportPdfPeriod? _pdfPeriod;
+    private bool _pdfOpen;
+
+    private void PdfDone(string notice)
+    {
+        _pdfOpen = false;
+        _notice = notice; _noticeOk = true;
+    }
 
     /// <summary>"table" | "chart", and the one currency a chart can draw — both remembered per device (never account data).</summary>
     private string _view = "table";
@@ -467,7 +486,7 @@
     private async Task OnModeChanged(ChangeEventArgs e)
     {
         _mode = e.Value?.ToString() ?? "month";
-        _report = null; _period = null; _notice = null; _refunds = null;
+        _report = null; _period = null; _pdfPeriod = null; _notice = null; _refunds = null;
         if (_mode == "month" && _monthId != Guid.Empty) await LoadAsync($"month_id={_monthId}");
     }
 
@@ -496,14 +515,15 @@
             {
                 var err = await res.Content.ReadFromJsonAsync<ErrorDto>();
                 Fail(err?.Message ?? Localizer["Reports_LoadError"]);
-                _report = null; _period = null;
+                _report = null; _period = null; _pdfPeriod = null;
                 return;
             }
             res.EnsureSuccessStatusCode();
             _report = await res.Content.ReadFromJsonAsync<ReportDto>();
             _period = period;
+            _pdfPeriod = period.StartsWith("month_id=", StringComparison.Ordinal) ? new(_monthId, null, null) : new(null, _from, _to);
         }
-        catch { Fail(Localizer["Reports_LoadError"]); _report = null; _period = null; }
+        catch { Fail(Localizer["Reports_LoadError"]); _report = null; _period = null; _pdfPeriod = null; }
         finally { _loading = false; }
 
         // The refundable figure is the month's (the summary's refunds total); best-effort, and only for a month.

@@ -84,8 +84,32 @@ public static class Mailpit
         return match.Success ? match.Groups[1].Value : null;
     }
 
+    /// <summary>
+    /// Waits for a message to <paramref name="toEmail"/> that carries an attachment (REPORTS-8) and returns its
+    /// subject and first attachment's name and type — the delivered email, as the recipient's client would see it.
+    /// </summary>
+    public static async Task<(string Subject, string FileName, string ContentType)> WaitForAttachmentAsync(string toEmail, TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (DateTime.UtcNow < deadline)
+        {
+            var list = await Http.GetFromJsonAsync<MessageList>("/api/v1/messages?limit=50");
+            var summary = list?.Messages?.FirstOrDefault(m =>
+                m.Attachments > 0 && m.To.Any(t => string.Equals(t.Address, toEmail, StringComparison.OrdinalIgnoreCase)));
+            if (summary is not null)
+            {
+                var detail = await Http.GetFromJsonAsync<MessageDetail>($"/api/v1/message/{summary.ID}");
+                var file = detail?.Attachments?.FirstOrDefault();
+                if (file is not null) return (summary.Subject ?? "", file.FileName, file.ContentType);
+            }
+            await Task.Delay(500);
+        }
+        throw new TimeoutException($"No email with an attachment arrived for {toEmail} within {timeout}.");
+    }
+
     private sealed record MessageList(List<MessageSummary>? Messages);
-    private sealed record MessageSummary(string ID, List<EmailAddress> To, string? Subject);
+    private sealed record MessageSummary(string ID, List<EmailAddress> To, string? Subject, int Attachments = 0);
     private sealed record EmailAddress(string Address);
-    private sealed record MessageDetail(string? Text, string? HTML);
+    private sealed record MessageDetail(string? Text, string? HTML, List<AttachmentInfo>? Attachments = null);
+    private sealed record AttachmentInfo(string FileName, string ContentType);
 }

@@ -129,7 +129,7 @@ public class MonthPagesShapeTests : ComponentTestBase
 
     private void StubMonth(string transactions = "[]", string refunds = "[]")
     {
-        Http.On(HttpMethod.Get, $"/api/months/{CurrentId}", $$"""{"id":"{{CurrentId}}","year":2026,"month_number":7,"week_count":2,"week1_start_date":"2026-06-25","primary_income_amount":3750,"primary_income_currency":"USD","secondary_income_amount":312500,"secondary_income_currency":"CRC","weeks":[{"week_number":1,"start_date":"2026-06-25","end_date":"2026-07-01"},{"week_number":2,"start_date":"2026-07-02","end_date":"2026-07-08"}]}""");
+        Http.On(HttpMethod.Get, $"/api/months/{CurrentId}", $$"""{"id":"{{CurrentId}}","year":2026,"month_number":7,"week_count":2,"week1_start_date":"2026-06-25","income_rows":[{"id":"eeeeeeee-0000-0000-0000-000000000009","income_line_id":"ffffffff-0000-0000-0000-000000000009","label":"Primary","member_user_id":null,"currency":"USD","amount":3750,"planned_amount":3750},{"id":"eeeeeeee-0000-0000-0000-000000000010","income_line_id":"ffffffff-0000-0000-0000-000000000010","label":"Secondary","member_user_id":null,"currency":"CRC","amount":312500,"planned_amount":312500}],"weeks":[{"week_number":1,"start_date":"2026-06-25","end_date":"2026-07-01"},{"week_number":2,"start_date":"2026-07-02","end_date":"2026-07-08"}]}""");
         Http.On(HttpMethod.Get, $"/api/months/{CurrentId}/transactions", transactions);
         Http.On(HttpMethod.Get, $"/api/months/{CurrentId}/refunds", refunds);
     }
@@ -140,7 +140,7 @@ public class MonthPagesShapeTests : ComponentTestBase
         """;
 
     [Fact]
-    public async Task MonthDetail_Header_HasTheAllMonthsLink_WeekChips_AndAOneRowIncome()
+    public async Task MonthDetail_Header_HasTheAllMonthsLink_WeekChips_AndTheIncomeRows()
     {
         await SignInAsync();
         StubMonth();
@@ -153,8 +153,9 @@ public class MonthPagesShapeTests : ComponentTestBase
         Assert.Equal(2, chips.Length);
         Assert.Equal("Month_WeekChip[1, Jun 25]", chips[0].TextContent.Trim()); // "W1 · Jun 25" — the start day is the scanning cue
         Assert.Contains("Jul 1", chips[0].GetAttribute("title")); // the full window is one hover away
-        Assert.Contains("Month_SaveIncome", cut.Find("[data-testid='inc-save']").TextContent);
-        Assert.Equal("3750", cut.Find("[data-testid='inc-primary']").GetAttribute("value"));
+        Assert.Contains("Month_SaveIncome", cut.Find("[data-testid='month-inc-save']").TextContent);
+        Assert.Equal("3750", cut.FindAll("[data-testid='month-inc-amount']")[0].GetAttribute("value"));
+        Assert.Equal("/incomes", cut.Find("[data-testid='month-inc-lines']").GetAttribute("href"));
         Assert.Equal($"/dashboard/{CurrentId}", cut.Find("[data-testid='month-dashboard-link']").GetAttribute("href"));
     }
 

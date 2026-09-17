@@ -456,6 +456,22 @@ the reference `ExpiredTokenCleanupJob` deletes expired login/refresh tokens hour
 single-instance per the baseline; Hangfire/Quartz remains the documented multi-node swap-in. The JOBS
 epic (outbox, inbox, scheduler) is now done — **BILLING is unblocked.**
 
+*Amendment (2026-09-16) — JOBS-4: file attachments ride the email outbox, capped at 10 MiB.* A
+downstream app needs to email a generated PDF. `IEmailSender.SendAsync` gains
+`IReadOnlyList<EmailAttachment>? attachments = null` (new Core record `EmailAttachment(FileName,
+Content, MediaType)`), placed after `inlineImages` and before the `CancellationToken` — so the token
+must now be passed **by name** (a positional token no longer compiles, which is the point: it can't
+silently rebind). The attachment bytes travel **inside the outbox payload** (base64 in the JSON
+`EmailOutboxPayload.Attachments`) rather than via `IFileStorage` + a key: one-row atomicity is kept,
+and the handler stays storage-free. That is only acceptable because the size is bounded:
+`EmailAttachment.MaxTotalBytes` = 10 MiB (Brevo's limit), checked by `EmailAttachment.Validate`
+**before enqueueing** in `OutboxEmailSender` (an oversize mail would otherwise sit in the outbox failing
+until it dead-letters) and again in `SmtpEmailSender`; a blank file name / media type is refused the
+same way. Violations throw `ArgumentException` (a programming error in the caller, not a delivery
+failure — so not `EmailSendException`). `EmailOutboxPayload.Attachments` is nullable **and defaulted**,
+so payloads enqueued by the previous build still replay. *Revisit* if an app needs attachments past the
+cap: that is the point to switch to storage-key references in the payload.
+
 **ADR-008 — Observability (structured logging + OpenTelemetry + health checks) and a tenant-scoped audit log. Implementation DEFERRED. (2026-06-25)**
 Two complementary concerns shipped as one slice group.
 **(a) Operational observability** — structured (JSON) logging with per-request scopes enriched with
@@ -1346,6 +1362,8 @@ first use) and `TransactionService`/`MonthService` read it from the ambient tena
 taking a `User`. `User` stays a pure platform entity (locale, theme only).
 *Rationale:* budget structure is not a preference (ADR-C2); it fixes a latent donor bug and removes
 the largest foundational↔domain coupling in the donor code.
+*Superseded in part (2026-09-16):* the income defaults left `BudgetSettings` for household income lines — ADR-V023.
+The row keeps week start and month anchor.
 
 **ADR-V004 — Domain money is dual-currency fixed-point decimal; Stripe remains the source of truth for billing money only. (2026-09-02)**
 The platform models no money (its `Subscription` is a projection). This app does: amounts are
@@ -1365,6 +1383,8 @@ count), deleted with their weeks when the last transaction goes; there is **no m
 Month income is two incomes, each amount + currency, editable per month.
 *Rationale:* budget periods follow pay cycles; auto-lifecycle removes an entire class of "empty
 month" and "forgot to create the month" bugs; stored weeks give historical stability.
+*Superseded in part (2026-09-16):* a month's income is no longer two slots snapshotted from 4w/5w defaults but a list of
+rows snapshotted from the income lines by pay period — ADR-V023. The lifecycle rules above are unchanged.
 
 *As built (P5a / LEDGER-1/2, 2026-09-03).* `MonthHandler.GetOrCreateForDateAsync` only <em>stages</em>
 a new month and its weeks on the shared context; the transaction path validates everything, settles
@@ -1714,6 +1734,98 @@ identities and transactions move, the duplicate goes, the survivor shows the new
 *Brandless vouchers:* BN payments print no brand and drafts staged before brand capture carry none, so a brandless
 number resolves to the card already known by those four digits, and a branded number that meets a `CARD`
 placeholder upgrades it in place (`CARD-1966` → `VISA-1966` while still auto-named) — one plastic, one card.
+
+**ADR-V022 — The report PDF is rendered by the API with QuestPDF, from the page's own figures, with its own SVG chart builders. (2026-09-16; owner decision, REPORTS-7)**
+
+The owner asked for "a nice PDF report, with tables and charts" of the Reports page, and for the same file to
+reach the inbox (REPORTS-8). **Decision:** the **API renders it with QuestPDF** (Community licence) and returns
+it through the CSV export's delivery — stored with `IFileStorage`, a 15-minute signed link, the shared
+`IFileDownloadLauncher` (browser download, native share sheet). *Alternatives rejected:* headless Chromium
+printing a server-rendered page (hundreds of MB and a browser process on the Render free tier's small
+instance) and the browser's Print-to-PDF (no branded header/footer, output varies by browser, nothing in the
+MAUI shells). *Same numbers as the screen:* a pure `ReportPdfModelBuilder` turns exactly what the page reads —
+the category analysis, the months trend, the month's pending refunds, and `ExportRowsAsync` (the CSV's rows,
+now shared by both files) — into formatted strings and SVG, mirroring `Reports.razor` rule for rule; QuestPDF
+only lays it out. *Charts:* the plan was to lift the web charts' geometry into Core and share it; the UI library
+references neither the API nor Core (its DTOs are hand-mirrored by design), and adding that link to share ~150
+lines of arc and bar math was not worth a new structural dependency, so the PDF has **its own builders**
+(`PdfCharts`) with the web geometry and literal light-theme colours — a PDF has no stylesheet, so no `var(`
+survives, and every label is XML-escaped (names are user data). Dashes are drawn as segments because the SVG
+engine paints `stroke-dasharray` gaps. *Fonts:* system fonts are off so every host renders the same file;
+Nunito (OFL) is embedded as static 400/600/700 faces cut from the variable font, and it **carries ₡**, so the
+owner's "write CRC if the symbol is missing" fallback was not needed; a glyph Nunito lacks (an emoji) falls back
+instead of failing the report. *Spike (2026-09-16):* QuestPDF 2026.9 renders in `mcr.microsoft.com/dotnet/aspnet:10.0.11`
+with **no extra apt package**; custom font names are no longer supported, so the faces carry the family name
+themselves. *Consequences:* `POST /api/reports/pdf` (JSON body: period, `display`, `chart_currency`,
+`include_appendix`, `language`, `today`; 400 `invalid_request` on an unknown value); the response has no page
+count (QuestPDF reports none without rendering twice); Letter portrait for the report, landscape for the
+appendix (every CSV column); new resx pair `ReportPdfStrings` under the resource-parity gate; the brand lockup is
+linked from `Shared.Ui/wwwroot/brand` so the brand keeps one file. REPORTS-8 mails the same bytes
+(`ReportPdfHandler.RenderAsync`) as an attachment through the platform's `IEmailSender` attachment seam.
+
+*Amendment (2026-09-17, REPORTS-9, owner):* the appendix's columns are the reader's choice — `appendix_columns` on both
+PDF endpoints, any of category, class, amount, rate, method, bank, source, card, notes, printed in the usual order;
+date and payee always print; absent means all (the file is unchanged for existing callers); an unknown key is a 400.
+The dialog ticks every column each time it opens rather than remembering a choice — a leaner file is a per-report
+decision, and a remembered one would silently drop columns from the next report.
+*Amendment (2026-09-16, REPORTS-8 as built):* **"Email me"** is `POST /api/reports/pdf/email` — one email, queued through
+the outbox, to the caller's own address (no recipient input), the PDF attached, the body the platform's generic branded
+notification (`BrandedEmail.Notification`, HTML-encoded) naming the period, the household and the total spend; nothing is
+stored. The attachment seam (JOBS-4, platform #235) was synced inside the same commit. **Language, owner question:** both
+PDF endpoints speak the language **saved in the account settings** (`User.Locale`, English when unset or unsupported);
+an explicit `language` still wins for API callers, and the app stopped sending one — so the file follows the setting on
+every client, including a device whose UI hasn't reconciled yet. **Cap (plan A9):** 10 report emails per person per day
+through an app-registered rate-limit policy (`ReportEmailRateLimit`, added with `Configure<RateLimiterOptions>` on top of
+the platform's `AddApiRateLimiters`, which stays untouched; per user, fixed window, in memory — a restart resets it,
+acceptable for guarding the shared email quota against loops). A file over the 10 MiB attachment limit answers 400
+`report_too_large` before anything is queued.
+
+**ADR-V023 — Income is a list of household income lines with a pay period; each month snapshots them into its own editable rows. The old 4w/5w and primary/secondary fields are retired but kept. (2026-09-16; owner decision, INCOME-1)**
+
+The donor model gave a household exactly two incomes, each typed twice (a four-week and a five-week figure), and a month
+two amount-plus-currency slots. A household has members, each with their own incomes, paid on different rhythms: a weekly
+salary really is 4 or 5 transfers a month, a monthly salary is the same every month whatever the week count, and a
+quincena lands twice. The owner asked whether income should be transactions instead; **decision:** no — the budget needs
+the income *plan* before the money arrives, so income stays a planned figure per month, and money that actually comes in
+unplanned keeps being an `inflow` transaction folded into income (unchanged).
+**Model.** `IncomeLine` (household catalog, ADR-V008 rules: unique name case-insensitively, soft delete, 409 reactivation
+offer, ordered): name, optional member (no FK), currency, kind `fixed | variable` (variable = an estimate to correct),
+pay period `weekly | biweekly | monthly`, amount **per payment**, two pay days for biweekly only (default 15 and the last
+day, stored as 31 and clamped). `MonthIncome` rows belong to a month (cascade): label, member and currency **copied** from
+the line (a rename never rewrites history), an editable `amount`, and the `planned_amount` the pay period derived, null
+for a one-off row added to a single month. *Snapshot rule* (`IncomeSnapshot`, pure, Core): at month creation one row per
+active line; weekly × the month's stored week count, biweekly × the pay days inside [first week start, last week end],
+monthly × 1. *Month total* (`IncomeCalculator`): each row at the day's rate by the income direction (USD at buy, CRC at
+sell) plus inflows. **The payday is the week start:** the anchor is "last week-start day of the previous month", so for
+a weekly-paid household the week must start on the day the money moves for week count to equal transfer count — the
+settings card says so.
+**Migration, expand only (plan §4a).** `AddIncomeLines` creates the two tables with the RLS policy and copies: lines from
+`BudgetSettings` (5w = 4w → monthly; 5w/5 = 4w/4 → weekly at 4w/4; otherwise weekly at 4w/4 flagged `needs_review`, which
+any update clears; a zero slot makes no line) and one row per non-zero month slot with the stored amount copied
+**verbatim** into both `amount` and `planned_amount` — history is never re-derived. Deterministic ids and `NOT EXISTS`
+guards make it idempotent; the same SQL ships as `tools/backfill-income-lines.sql` (a test keeps them identical) for a
+pre-migration snapshot restored later, and `tools/check-income-parity.sql` compares old and new totals per month and
+currency. The migration sets `app.rls_bypass` itself, because Neon's owner role is not a superuser and FORCE RLS would
+otherwise hide every row. `Down` drops only the new tables.
+**Kept, not dropped.** The six `BudgetSettings` and four `Month` income columns stay mapped and untouched — the rollback
+baseline. An architecture test fails if any code other than the entities, their mappings, the backfill and the migrations
+names them. Dropping them is INCOME-3, a later owner-gated contract migration.
+*Consequences:* `/api/incomes` (list, create, update, `PUT /order`); `GET /api/months/{id}` carries `income_rows`;
+`PUT /api/months/{id}/income` takes the month's full row list (with an id updates, without one is a one-off, left out is
+removed); `budget-settings` lost its income fields; the dashboard summary reports `income_lines` + `income_inflows` instead
+of primary/secondary. The account-erasure contributor clears `member_user_id` on lines and rows, amounts kept.
+*Amendment (2026-09-17, owner):* **whose income it is follows the line.** A month's rows stay copies for their
+label, amount and currency, but when a line's member changes, the rows copied from it that still carry its previous
+member take the new one, in the same save. Without this, the migrated rows (no member) could never be attributed —
+the month page edits no member — and the reports' income by member read "the household" for every past month. A row
+whose member differs from the line's previous member is left alone.
+*Amendment (2026-09-16, INCOME-2):* the reports cut the month's income by whose it is (`IncomeByMember` in Core; the
+analysis response's `income_by_member`, printed as a table in the PDF; the first cut's donut on the page and in the PDF
+was removed on 2026-09-17 at the owner's request — the table says it). Rows of a member who left
+form one "former members" slice with no name — a departed member's name is not kept in this household's reports.
+*Deviation from the plan:* a member who leaves is **skipped at snapshot time** (the member is no longer in the household)
+rather than having their lines deactivated in storage — the line keeps its member for history and can be reassigned; the
+edit form still shows the former member. *Supersedes:* ADR-V003's income defaults and ADR-V005's "two incomes per month".
 
 **ADR-027 — Pre-launch gates: billing and account creation are deployment configuration, not runtime switches (GATES-1/2). (2026-09-11)**
 A deployment must be able to run **private and free** before it is published: nothing offers to sell

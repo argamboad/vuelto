@@ -550,6 +550,73 @@ namespace Vuelto.Infrastructure.Persistence.Migrations
                     b.ToTable("InboxMessages");
                 });
 
+            modelBuilder.Entity("Vuelto.Core.Entities.IncomeLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid?>("MemberUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<bool>("NeedsReview")
+                        .HasColumnType("boolean");
+
+                    b.Property<int?>("PayDay1")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("PayDay2")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("PayPeriod")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Name")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "SortOrder");
+
+                    b.ToTable("IncomeLines");
+                });
+
             modelBuilder.Entity("Vuelto.Core.Entities.IngestedVoucher", b =>
                 {
                     b.Property<Guid>("Id")
@@ -737,6 +804,62 @@ namespace Vuelto.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("Months");
+                });
+
+            modelBuilder.Entity("Vuelto.Core.Entities.MonthIncome", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)");
+
+                    b.Property<Guid?>("IncomeLineId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid?>("MemberUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("MonthId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal?>("PlannedAmount")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IncomeLineId");
+
+                    b.HasIndex("MonthId");
+
+                    b.HasIndex("TenantId", "MonthId", "SortOrder");
+
+                    b.ToTable("MonthIncomes");
                 });
 
             modelBuilder.Entity("Vuelto.Core.Entities.Notification", b =>
@@ -1692,6 +1815,20 @@ namespace Vuelto.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("CategoryId")
                         .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Vuelto.Core.Entities.MonthIncome", b =>
+                {
+                    b.HasOne("Vuelto.Core.Entities.IncomeLine", null)
+                        .WithMany()
+                        .HasForeignKey("IncomeLineId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Vuelto.Core.Entities.Month", null)
+                        .WithMany()
+                        .HasForeignKey("MonthId")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 

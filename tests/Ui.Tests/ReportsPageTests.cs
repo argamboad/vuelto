@@ -30,7 +30,10 @@ public class ReportsPageTests : ComponentTestBase
          "by_bank":[{"key":"cccccccc-0000-0000-0000-000000000001","label":"BAC","total_crc":90000,"total_usd":180},{"key":"cccccccc-0000-0000-0000-000000000002","label":"","total_crc":9704.87,"total_usd":24.19}],
          "by_method":[{"key":"credit_card","label":"credit_card","total_crc":80000,"total_usd":160},{"key":"bank_account","label":"bank_account","total_crc":19704.87,"total_usd":44.19}],
          "spend_by_day":[{"date":"2026-06-26","total_crc":8000,"total_usd":16},{"date":"2026-07-03","total_crc":70000,"total_usd":140},{"date":"2026-07-20","total_crc":21704.87,"total_usd":48.19}],
-         "by_card":[{"key":"eeeeeeee-0000-0000-0000-000000000005","label":"Allan's Visa","total_crc":80000,"total_usd":160},{"key":"none","label":"","total_crc":19704.87,"total_usd":44.19}]}
+         "by_card":[{"key":"eeeeeeee-0000-0000-0000-000000000005","label":"Allan's Visa","total_crc":80000,"total_usd":160},{"key":"none","label":"","total_crc":19704.87,"total_usd":44.19}],
+         "income_by_member":[{"kind":"member","member_user_id":"dddddddd-0000-0000-0000-000000000001","name":"Allan","amount":{"crc":150000,"usd":300}},
+                             {"kind":"household","member_user_id":null,"name":null,"amount":{"crc":40000,"usd":80}},
+                             {"kind":"inflows","member_user_id":null,"name":null,"amount":{"crc":10000,"usd":20}}]}
         """;
     private const string Trend = """
         {"months":[{"month_id":"aaaaaaaa-0000-0000-0000-000000000000","year":2026,"month_number":5,"income":{"crc":200000,"usd":400},"spend":{"crc":250000,"usd":500}},
@@ -51,6 +54,7 @@ public class ReportsPageTests : ComponentTestBase
          "by_method":[{"key":"credit_card","label":"credit_card","total_crc":8000,"total_usd":16}],
          "spend_by_day":null}
         """;
+    private const string Pdf = """{"download_url":"/api/files/tok-pdf","file_name":"report-2026-06-25_2026-07-29.pdf","period":{"from":"2026-06-25","to":"2026-07-29"},"expires_in_seconds":900}""";
     private const string Export = """{"download_url":"/api/files/tok-1","file_name":"transactions-2026-09-03.csv","row_count":4,"period":{"from":"2026-06-25","to":"2026-07-29"},"expires_in_seconds":900}""";
 
     private IRenderedComponent<Reports> RenderMonth(string report = SingleMonth, DateOnly? today = null)
@@ -264,6 +268,18 @@ public class ReportsPageTests : ComponentTestBase
     }
 
     [Fact]
+    public async Task ChartView_HasNoIncomeByMemberCard()
+    {
+        // Owner, 2026-09-17: whose the income is lives in the PDF's table, not in a chart on this page.
+        await SignInAsync();
+        var cut = RenderMonth();
+        ChartView(cut);
+
+        cut.WaitForElement("[data-testid='rep-income-donut']");
+        Assert.Empty(cut.FindAll("[data-testid='rep-members-card']"));
+    }
+
+    [Fact]
     public async Task ChartView_IncomeDonut_Overspent_HasNoRemainingSlice_AndSaysByHowMuch()
     {
         await SignInAsync();
@@ -445,6 +461,172 @@ public class ReportsPageTests : ComponentTestBase
         Assert.Contains("Reports_ExportReady[4]", cut.Find("[data-testid='rep-notice']").TextContent);
     }
 
+    // ---------------------------------------------------------------- REPORTS-7: the PDF
+
+    private static async Task<System.Text.Json.JsonElement> PdfBodyAsync(HttpRequestMessage post) =>
+        System.Text.Json.JsonDocument.Parse(await post.Content!.ReadAsStringAsync()).RootElement;
+
+    [Fact]
+    public async Task Pdf_SendsTheShownMonth_AndTheScreensChoices_ThenLaunchesTheLink()
+    {
+        await SignInAsync();
+        Http.On(HttpMethod.Post, "/api/reports/pdf", Pdf);
+        var cut = RenderMonth(today: new DateOnly(2026, 7, 15));
+
+        cut.Find("[data-testid='rep-pdf']").Click();
+        var summary = cut.Find("[data-testid='rep-pdf-summary']").TextContent;
+        Assert.Contains("Reports_PdfAmounts[Reports_PdfBoth]", summary); // the "show in" default is both sides
+        Assert.Contains("Reports_PdfCharts[₡]", summary);
+        Assert.NotEmpty(cut.FindAll("[data-testid='rep-pdf-columns']"));
+        cut.Find("[data-testid='rep-pdf-appendix']").Change(false);
+        Assert.Empty(cut.FindAll("[data-testid='rep-pdf-columns']")); // no transactions, no columns to pick
+        cut.Find("[data-testid='rep-pdf-download']").Click();
+
+        cut.WaitForElement("[data-testid='rep-notice']");
+        var body = await PdfBodyAsync(Assert.Single(Http.Requests, r => r.Method == HttpMethod.Post && r.RequestUri!.AbsolutePath == "/api/reports/pdf"));
+        Assert.Equal(M2, body.GetProperty("month_id").GetString());
+        Assert.False(body.TryGetProperty("from", out _));
+        Assert.Equal("both", body.GetProperty("display").GetString());
+        Assert.Equal("CRC", body.GetProperty("chart_currency").GetString());
+        Assert.False(body.GetProperty("include_appendix").GetBoolean());
+        Assert.False(body.TryGetProperty("appendix_columns", out _));
+        Assert.False(body.TryGetProperty("language", out _)); // the API reads the language saved in the account
+        Assert.Equal("2026-07-15", body.GetProperty("today").GetString());
+        Assert.Equal(("http://localhost/api/files/tok-pdf", "report-2026-06-25_2026-07-29.pdf"), Assert.Single(Downloads.Launched));
+        Assert.Empty(cut.FindAll("[data-testid='rep-pdf-dialog']"));
+        Assert.Contains("Reports_PdfReady", cut.Find("[data-testid='rep-notice']").TextContent);
+    }
+
+    [Fact]
+    public async Task Pdf_Columns_AllTickedByDefault_AndALeanerChoiceIsSent_ToDownloadAndEmail()
+    {
+        await SignInAsync();
+        Http.On(HttpMethod.Post, "/api/reports/pdf", Pdf);
+        Http.On(HttpMethod.Post, "/api/reports/pdf/email",
+            """{"sent_to":"ana@example.com","file_name":"r.pdf","period":{"from":"2026-06-25","to":"2026-07-29"}}""", HttpStatusCode.Accepted);
+        var cut = RenderMonth();
+
+        cut.Find("[data-testid='rep-pdf']").Click();
+        var boxes = cut.FindAll("[data-testid='rep-pdf-columns'] input[type='checkbox']");
+        Assert.Equal(9, boxes.Count);
+        Assert.All(boxes, b => Assert.True(b.HasAttribute("checked")));
+        Assert.Contains("Reports_PdfColumnsHint", cut.Find("[data-testid='rep-pdf-columns']").TextContent);
+        cut.Find("[data-testid='rep-pdf-download']").Click();
+        cut.WaitForElement("[data-testid='rep-notice']");
+        var all = await PdfBodyAsync(Http.Requests.Last(r => r.RequestUri!.AbsolutePath == "/api/reports/pdf"));
+        Assert.Equal(["category", "class", "amount", "rate", "method", "bank", "source", "card", "notes"],
+            all.GetProperty("appendix_columns").EnumerateArray().Select(e => e.GetString()));
+
+        cut.Find("[data-testid='rep-pdf']").Click();
+        foreach (var key in new[] { "rate", "source", "card", "class" })
+            cut.Find($"[data-testid='rep-pdf-col-{key}']").Change(false);
+        Assert.False(cut.Find("[data-testid='rep-pdf-col-rate']").HasAttribute("checked"));
+        cut.Find("[data-testid='rep-pdf-email']").Click();
+        cut.WaitForAssertion(() => Assert.Contains(Http.Requests, r => r.RequestUri!.AbsolutePath == "/api/reports/pdf/email"));
+        var lean = await PdfBodyAsync(Http.Requests.Last(r => r.RequestUri!.AbsolutePath == "/api/reports/pdf/email"));
+        Assert.Equal(["category", "amount", "method", "bank", "notes"], lean.GetProperty("appendix_columns").EnumerateArray().Select(e => e.GetString()));
+    }
+
+    [Fact]
+    public async Task Pdf_ForARange_SendsTheDates_AndTheCurrencyShown()
+    {
+        await SignInAsync();
+        Http.On(HttpMethod.Post, "/api/reports/pdf", Pdf);
+        var cut = RenderMonth();
+        cut.Find("[data-testid='rep-cur-usd']").Click(); // "show in" $ — the charts follow
+        Http.On(HttpMethod.Get, "/api/reports/category-analysis", Range);
+        cut.Find("[data-testid='rep-mode']").Change("range");
+        Assert.True(cut.Find("[data-testid='rep-pdf']").HasAttribute("disabled")); // nothing loaded for the range yet
+        cut.Find("[data-testid='rep-from']").Change("2026-01-01");
+        cut.Find("[data-testid='rep-to']").Change("2026-06-30");
+        cut.Find("[data-testid='rep-load']").Click();
+        cut.WaitForElement("[data-testid='rep-category']");
+
+        cut.Find("[data-testid='rep-pdf']").Click();
+        Assert.Contains("Reports_PdfAmounts[$]", cut.Find("[data-testid='rep-pdf-summary']").TextContent);
+        cut.Find("[data-testid='rep-pdf-download']").Click();
+
+        cut.WaitForElement("[data-testid='rep-notice']");
+        var body = await PdfBodyAsync(Assert.Single(Http.Requests, r => r.Method == HttpMethod.Post && r.RequestUri!.AbsolutePath == "/api/reports/pdf"));
+        Assert.False(body.TryGetProperty("month_id", out _));
+        Assert.Equal(("2026-01-01", "2026-06-30"), (body.GetProperty("from").GetString(), body.GetProperty("to").GetString()));
+        Assert.Equal(("USD", "USD"), (body.GetProperty("display").GetString(), body.GetProperty("chart_currency").GetString()));
+        Assert.True(body.GetProperty("include_appendix").GetBoolean());
+    }
+
+    [Fact]
+    public async Task Pdf_Failure_KeepsTheDialogOpen_WithTheError_AndCancelCloses()
+    {
+        await SignInAsync();
+        Http.On(HttpMethod.Post, "/api/reports/pdf", "{}", HttpStatusCode.InternalServerError);
+        var cut = RenderMonth();
+
+        cut.Find("[data-testid='rep-pdf']").Click();
+        cut.Find("[data-testid='rep-pdf-download']").Click();
+
+        cut.WaitForElement("[data-testid='rep-pdf-error']");
+        Assert.Contains("Reports_PdfError", cut.Find("[data-testid='rep-pdf-error']").TextContent);
+        Assert.Empty(Downloads.Launched);
+        cut.Find("[data-testid='rep-pdf-cancel']").Click();
+        Assert.Empty(cut.FindAll("[data-testid='rep-pdf-dialog']"));
+        Assert.Empty(cut.FindAll("[data-testid='rep-notice']"));
+    }
+
+    // ---------------------------------------------------------------- REPORTS-8: email me
+
+    [Fact]
+    public async Task EmailMe_SendsTheSameChoices_AndSaysWhereItWent()
+    {
+        await SignInAsync();
+        Http.On(HttpMethod.Post, "/api/reports/pdf/email",
+            """{"sent_to":"ana@example.com","file_name":"report-2026-06-25_2026-07-29.pdf","period":{"from":"2026-06-25","to":"2026-07-29"}}""",
+            HttpStatusCode.Accepted);
+        var cut = RenderMonth(today: new DateOnly(2026, 7, 15));
+
+        cut.Find("[data-testid='rep-pdf']").Click();
+        cut.Find("[data-testid='rep-pdf-appendix']").Change(false);
+        cut.Find("[data-testid='rep-pdf-email']").Click();
+
+        cut.WaitForElement("[data-testid='rep-notice']");
+        var body = await PdfBodyAsync(Assert.Single(Http.Requests, r => r.Method == HttpMethod.Post && r.RequestUri!.AbsolutePath == "/api/reports/pdf/email"));
+        Assert.Equal(M2, body.GetProperty("month_id").GetString());
+        Assert.False(body.GetProperty("include_appendix").GetBoolean());
+        Assert.Equal("2026-07-15", body.GetProperty("today").GetString());
+        Assert.False(body.TryGetProperty("language", out _));
+        Assert.Empty(Downloads.Launched); // nothing downloads: it went to the inbox
+        Assert.Empty(cut.FindAll("[data-testid='rep-pdf-dialog']"));
+        Assert.Contains("Reports_PdfSent[ana@example.com]", cut.Find("[data-testid='rep-notice']").TextContent);
+    }
+
+    [Fact]
+    public async Task EmailMe_PastTheDailyCap_SaysSo_AndKeepsTheDialog()
+    {
+        await SignInAsync();
+        Http.On(HttpMethod.Post, "/api/reports/pdf/email", "", HttpStatusCode.TooManyRequests);
+        var cut = RenderMonth();
+
+        cut.Find("[data-testid='rep-pdf']").Click();
+        cut.Find("[data-testid='rep-pdf-email']").Click();
+
+        cut.WaitForElement("[data-testid='rep-pdf-error']");
+        Assert.Contains("Reports_PdfEmailLimit", cut.Find("[data-testid='rep-pdf-error']").TextContent);
+        Assert.NotEmpty(cut.FindAll("[data-testid='rep-pdf-dialog']"));
+    }
+
+    [Fact]
+    public async Task EmailMe_Failure_KeepsTheDialog_WithTheError()
+    {
+        await SignInAsync();
+        Http.On(HttpMethod.Post, "/api/reports/pdf/email", """{"error":"report_too_large","message":"x"}""", HttpStatusCode.BadRequest);
+        var cut = RenderMonth();
+
+        cut.Find("[data-testid='rep-pdf']").Click();
+        cut.Find("[data-testid='rep-pdf-email']").Click();
+
+        cut.WaitForElement("[data-testid='rep-pdf-error']");
+        Assert.Contains("Reports_PdfEmailError", cut.Find("[data-testid='rep-pdf-error']").TextContent);
+    }
+
     [Fact]
     public async Task NoMonths_DisablesExport_AndShowsTheEmptyHint()
     {
@@ -455,6 +637,7 @@ public class ReportsPageTests : ComponentTestBase
 
         cut.WaitForElement("[data-testid='rep-no-months']");
         Assert.True(cut.Find("[data-testid='rep-export']").HasAttribute("disabled"));
+        Assert.True(cut.Find("[data-testid='rep-pdf']").HasAttribute("disabled"));
         Assert.DoesNotContain(Http.Requests, r => r.RequestUri!.AbsolutePath == "/api/reports/category-analysis");
         Assert.Empty(cut.FindAll("[data-testid='rep-kpi-total']")); // nothing to add up yet
     }
@@ -463,7 +646,7 @@ public class ReportsPageTests : ComponentTestBase
     public async Task MonthPage_ExportButton_PostsThatMonth_AndLaunches()
     {
         await SignInAsync();
-        Http.On(HttpMethod.Get, $"/api/months/{M1}", $$"""{"id":"{{M1}}","year":2026,"month_number":6,"week_count":4,"week1_start_date":"2026-05-28","primary_income_amount":0,"primary_income_currency":"USD","secondary_income_amount":0,"secondary_income_currency":"USD","weeks":[{"week_number":1,"start_date":"2026-05-28","end_date":"2026-06-03"}]}""");
+        Http.On(HttpMethod.Get, $"/api/months/{M1}", $$"""{"id":"{{M1}}","year":2026,"month_number":6,"week_count":4,"week1_start_date":"2026-05-28","income_rows":[],"weeks":[{"week_number":1,"start_date":"2026-05-28","end_date":"2026-06-03"}]}""");
         Http.On(HttpMethod.Get, $"/api/months/{M1}/transactions", "[]");
         Http.On(HttpMethod.Get, $"/api/months/{M1}/refunds", "[]");
         Http.On(HttpMethod.Post, "/api/reports/transactions/export", Export);

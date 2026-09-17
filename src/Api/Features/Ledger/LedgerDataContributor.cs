@@ -51,8 +51,7 @@ public sealed class LedgerDataContributor(
         {
             months = monthRows.Select(m => new
             {
-                m.Id, m.Year, m.MonthNumber, m.WeekCount, m.Week1StartDate,
-                m.PrimaryIncomeAmount, m.PrimaryIncomeCurrency, m.SecondaryIncomeAmount, m.SecondaryIncomeCurrency, m.CreatedAt, m.UpdatedAt,
+                m.Id, m.Year, m.MonthNumber, m.WeekCount, m.Week1StartDate, m.CreatedAt, m.UpdatedAt, // income rows export with the Income slice
                 weeks = weekRows.Where(w => w.MonthId == m.Id).Select(w => new { w.WeekNumber, w.StartDate, w.EndDate }),
             }),
             transactions = txRows,

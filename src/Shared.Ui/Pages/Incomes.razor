@@ -1,0 +1,404 @@
+@page "/incomes"
+@using System.Globalization
+@using System.Net
+@using System.Net.Http.Json
+@using System.Text.Json.Serialization
+@using Vuelto.Shared.Ui.Auth
+@inject AuthService Auth
+@inject NavigationManager Nav
+@inject HttpClient Http
+@inject IStringLocalizer<AppStrings> Localizer
+
+<PageTitle>@Localizer["Income_Title"]</PageTitle>
+
+@* INCOME-1 (ADR-V023): the household's income lines — whose each income is, its currency, fixed or an estimate, how
+   often it is paid and how much per payment. Every new month takes its income plan from the active lines (weekly ×
+   the month's weeks, biweekly × the pay days in it, monthly × 1); the month page corrects a single month. Same catalog
+   shape as the envelopes page: an inline form, the reactivation offer, deactivate instead of delete; plus up/down
+   ordering. Any member edits any line. *@
+<div class="settings-wrapper" data-testid="incomes-page">
+    <PageHead Title="@Localizer["Income_Title"]" Subtitle="@Localizer["Income_Subtitle"]">
+        <button class="btn btn-primary" data-testid="inc-new" disabled="@(_form is not null || _loading)" @onclick="OpenNew">@Localizer["Income_New"]</button>
+    </PageHead>
+
+    @if (_notice is not null)
+    {
+        <div class="alert alert-success py-2" data-testid="inc-notice">@_notice</div>
+    }
+    @if (_error is not null)
+    {
+        <div class="alert alert-danger py-2" data-testid="inc-error">@_error</div>
+    }
+
+    @if (_form is { } form)
+    {
+        <div class="card shadow-sm mb-3" data-testid="inc-form">
+            <div class="card-body">
+                <h2 class="h6 fw-bold mb-3">@(form.Editing is null ? Localizer["Income_NewTitle"] : Localizer["Income_EditTitle"])</h2>
+                <div class="row g-3">
+                    <div class="col-12 col-md-6">
+                        <label class="form-label small fw-medium mb-1" for="inc-name">@Localizer["Catalog_Name"]</label>
+                        <input class="form-control" id="inc-name" data-testid="inc-name" maxlength="100" disabled="@_saving" @bind="form.Name" @bind:event="oninput" />
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label class="form-label small fw-medium mb-1" for="inc-member">@Localizer["Income_Member"]</label>
+                        <select class="form-select" id="inc-member" data-testid="inc-member" disabled="@_saving" @bind="form.MemberId">
+                            <option value="">@Localizer["Income_MemberHousehold"]</option>
+                            @foreach (var m in _members)
+                            {
+                                <option value="@m.UserId">@MemberName(m)</option>
+                            }
+                            @if (form.MemberId is { Length: > 0 } kept && _members.All(m => m.UserId.ToString() != kept))
+                            {
+                                <option value="@kept">@Localizer["Income_MemberLeft"]</option>
+                            }
+                        </select>
+                        @if (form.Editing is not null)
+                        {
+                            <div class="form-text" data-testid="inc-member-hint">@Localizer["Income_MemberFollowsHint"]</div>
+                        }
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <label class="form-label small fw-medium mb-1" for="inc-kind">@Localizer["Income_Kind"]</label>
+                        <select class="form-select" id="inc-kind" data-testid="inc-kind" disabled="@_saving" @bind="form.Kind">
+                            <option value="fixed">@Localizer["Income_KindFixed"]</option>
+                            <option value="variable">@Localizer["Income_KindVariable"]</option>
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <label class="form-label small fw-medium mb-1" for="inc-period">@Localizer["Income_PayPeriod"]</label>
+                        <select class="form-select" id="inc-period" data-testid="inc-period" disabled="@_saving" @bind="form.PayPeriod">
+                            <option value="weekly">@Localizer["Income_PeriodWeekly"]</option>
+                            <option value="biweekly">@Localizer["Income_PeriodBiweekly"]</option>
+                            <option value="monthly">@Localizer["Income_PeriodMonthly"]</option>
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label class="form-label small fw-medium mb-1" for="inc-amount">@Localizer["Income_Amount"]</label>
+                        <div class="input-group">
+                            <input class="form-control" type="number" step="0.01" min="0" id="inc-amount" data-testid="inc-amount" disabled="@_saving" @bind="form.Amount" />
+                            <select class="form-select" style="flex: 0 0 auto; width: auto;" aria-label="@Localizer["Tx_Currency"]" data-testid="inc-currency" disabled="@_saving" @bind="form.Currency">
+                                <option value="USD">USD ($)</option>
+                                <option value="CRC">CRC (₡)</option>
+                            </select>
+                        </div>
+                    </div>
+                    @if (form.PayPeriod == "biweekly")
+                    {
+                        <div class="col-6 col-md-3">
+                            <label class="form-label small fw-medium mb-1" for="inc-day1">@Localizer["Income_PayDay1"]</label>
+                            <select class="form-select" id="inc-day1" data-testid="inc-day1" disabled="@_saving" @bind="form.PayDay1">
+                                @DayOptions()
+                            </select>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label small fw-medium mb-1" for="inc-day2">@Localizer["Income_PayDay2"]</label>
+                            <select class="form-select" id="inc-day2" data-testid="inc-day2" disabled="@_saving" @bind="form.PayDay2">
+                                @DayOptions()
+                            </select>
+                        </div>
+                    }
+                    @if (form.Editing is not null)
+                    {
+                        <div class="col-12 col-md-6 d-flex align-items-end">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="inc-active" data-testid="inc-active" disabled="@_saving" @bind="form.IsActive" />
+                                <label class="form-check-label" for="inc-active">@Localizer["Catalog_ActiveToggle"]</label>
+                            </div>
+                        </div>
+                    }
+                </div>
+                <p class="form-text mt-2 mb-0" data-testid="inc-hint">@PeriodHint(form.PayPeriod) @(form.Kind == "variable" ? Localizer["Income_KindHint"] : "")</p>
+
+                @if (form.Conflict is not null)
+                {
+                    <div class="alert alert-warning py-2 mt-3 d-flex align-items-center justify-content-between gap-2" data-testid="inc-conflict">
+                        <span>@form.Conflict.Message</span>
+                        <button class="btn btn-warning btn-sm" data-testid="inc-reactivate" disabled="@_saving" @onclick="Reactivate">@Localizer["Catalog_Reactivate"]</button>
+                    </div>
+                }
+                else if (form.Error is not null)
+                {
+                    <div class="alert alert-danger py-2 mt-3" data-testid="inc-form-error">@form.Error</div>
+                }
+
+                <div class="d-flex gap-2 mt-3">
+                    <button class="btn btn-primary" data-testid="inc-save" disabled="@_saving" @onclick="Save">
+                        @(_saving ? Localizer["Catalog_Saving"] : form.Editing is null ? Localizer["Catalog_Create"] : Localizer["Catalog_Save"])
+                    </button>
+                    <button class="btn btn-outline-secondary" data-testid="inc-cancel" disabled="@_saving" @onclick="() => _form = null">@Localizer["Catalog_Cancel"]</button>
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (_loading)
+    {
+        <div class="text-muted"><span class="spinner-border spinner-border-sm me-2"></span>@Localizer["Common_Loading"]</div>
+    }
+    else if (_items.Count == 0)
+    {
+        <p class="text-muted" data-testid="inc-empty">@Localizer["Income_Empty"]</p>
+    }
+    else
+    {
+        var active = _items.Where(i => i.IsActive).ToList();
+        <div class="card shadow-sm">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0" data-testid="inc-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">@Localizer["Catalog_Name"]</th>
+                            <th scope="col" class="fold-md">@Localizer["Income_Member"]</th>
+                            <th scope="col" class="text-end">@Localizer["Income_Amount"]</th>
+                            <th scope="col" class="fold-md">@Localizer["Income_PayPeriod"]</th>
+                            <th scope="col" class="fold-md">@Localizer["Catalog_Status"]</th>
+                            <th scope="col" class="text-end"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in _items)
+                        {
+                            var position = active.IndexOf(item);
+                            <tr data-testid="inc-row" class="@(item.IsActive ? null : "text-muted")">
+                                <td>
+                                    <span class="fw-semibold" data-testid="inc-row-name">@item.Name</span>
+                                    @if (item.NeedsReview)
+                                    {
+                                        <StatusChip Tone="warn" TestId="inc-row-review"><span title="@Localizer["Income_NeedsReviewHint"]">@Localizer["Income_NeedsReview"]</span></StatusChip>
+                                    }
+                                    <span class="sub-line" data-testid="inc-row-sub">@SubLine(item)</span>
+                                </td>
+                                <td class="fold-md" data-testid="inc-row-member">@MemberLabel(item.MemberUserId)</td>
+                                <td class="text-end" data-testid="inc-row-amount">@Amount(item.Amount, item.Currency)</td>
+                                <td class="fold-md" data-testid="inc-row-period">@PeriodLabel(item) · @KindLabel(item)</td>
+                                <td class="fold-md"><StatusChip Tone="@(item.IsActive ? "good" : "neutral")" TestId="inc-row-status">@(item.IsActive ? Localizer["Catalog_Active"] : Localizer["Catalog_Inactive"])</StatusChip></td>
+                                <td class="text-end text-nowrap">
+                                    @if (item.IsActive)
+                                    {
+                                        <button class="btn btn-outline-secondary btn-sm" data-testid="inc-up" aria-label="@Localizer["Income_MoveUp"]" title="@Localizer["Income_MoveUp"]"
+                                                disabled="@(_saving || _form is not null || position == 0)" @onclick="() => Move(item, -1)">↑</button>
+                                        <button class="btn btn-outline-secondary btn-sm" data-testid="inc-down" aria-label="@Localizer["Income_MoveDown"]" title="@Localizer["Income_MoveDown"]"
+                                                disabled="@(_saving || _form is not null || position == active.Count - 1)" @onclick="() => Move(item, 1)">↓</button>
+                                    }
+                                    <button class="btn btn-outline-primary btn-sm" data-testid="inc-edit" disabled="@(_form is not null)" @onclick="() => OpenEdit(item)">@Localizer["Catalog_Edit"]</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+    <p class="mt-3"><a href="/settings">← @Localizer["Catalog_BackToSettings"]</a></p>
+</div>
+
+@code {
+    private const string Endpoint = "/api/incomes";
+
+    private bool _loading = true;
+    private bool _saving;
+    private string? _error;
+    private string? _notice;
+    private List<IncomeDto> _items = new();
+    private List<MemberDto> _members = new();
+    private FormState? _form;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
+        try { _members = (await Http.GetFromJsonAsync<HouseholdDto>("/api/household"))?.Members ?? new(); } catch { /* the picker offers "Household" only */ }
+        await Load();
+    }
+
+    private async Task Load()
+    {
+        _loading = true;
+        try
+        {
+            var all = await Http.GetFromJsonAsync<List<IncomeDto>>($"{Endpoint}?include_inactive=true") ?? new();
+            _items = all.OrderBy(i => i.IsActive ? 0 : 1).ThenBy(i => i.SortOrder).ToList();
+        }
+        catch { _error = Localizer["Income_LoadError"]; }
+        finally { _loading = false; }
+    }
+
+    private static string MemberName(MemberDto m) => string.IsNullOrWhiteSpace(m.DisplayName) ? m.Email : m.DisplayName!;
+
+    private string MemberLabel(Guid? id) => id is not { } member ? Localizer["Income_MemberHousehold"]
+        : _members.FirstOrDefault(m => m.UserId == member) is { } found ? MemberName(found) : Localizer["Income_MemberLeft"];
+
+    private static string Amount(decimal amount, string currency) =>
+        (currency == "CRC" ? "₡" : "$") + amount.ToString("N2", CultureInfo.CurrentCulture);
+
+    private string DayLabel(int day) => day == 31 ? Localizer["Income_LastDay"] : day.ToString(CultureInfo.CurrentCulture);
+
+    private string PeriodLabel(IncomeDto item) => item.PayPeriod switch
+    {
+        "weekly" => Localizer["Income_PeriodWeekly"],
+        "biweekly" when item.PayDays is [var d1, var d2] => $"{Localizer["Income_PeriodBiweekly"]} ({DayLabel(d1)}, {DayLabel(d2)})",
+        "biweekly" => Localizer["Income_PeriodBiweekly"],
+        _ => Localizer["Income_PeriodMonthly"],
+    };
+
+    private string KindLabel(IncomeDto item) => item.Kind == "variable" ? Localizer["Income_KindVariable"] : Localizer["Income_KindFixed"];
+
+    private string SubLine(IncomeDto item) =>
+        $"{MemberLabel(item.MemberUserId)} · {KindLabel(item)} · {PeriodLabel(item)}"
+        + (item.IsActive ? "" : " · " + Localizer["Catalog_Inactive"]);
+
+    private string PeriodHint(string period) => period switch
+    {
+        "weekly" => Localizer["Income_HintWeekly"],
+        "biweekly" => Localizer["Income_HintBiweekly"],
+        _ => Localizer["Income_HintMonthly"],
+    };
+
+    private RenderFragment DayOptions() => __builder =>
+    {
+        for (var d = 1; d <= 31; d++)
+        {
+            var day = d;
+            <option value="@day">@DayLabel(day)</option>
+        }
+    };
+
+    private void OpenNew() { _notice = null; _form = new FormState(null) { Currency = "USD", Kind = "fixed", PayPeriod = "monthly" }; }
+
+    private void OpenEdit(IncomeDto item)
+    {
+        _notice = null;
+        _form = new FormState(item)
+        {
+            Name = item.Name, MemberId = item.MemberUserId?.ToString() ?? "", Currency = item.Currency, Kind = item.Kind,
+            PayPeriod = item.PayPeriod, Amount = item.Amount, IsActive = item.IsActive,
+            PayDay1 = item.PayDays is [var d1, _] ? d1 : 15, PayDay2 = item.PayDays is [_, var d2] ? d2 : 31,
+        };
+    }
+
+    private static object Payload(FormState form, string name, bool isActive) => new
+    {
+        name,
+        member_user_id = Guid.TryParse(form.MemberId, out var member) ? member : (Guid?)null,
+        currency = form.Currency,
+        kind = form.Kind,
+        pay_period = form.PayPeriod,
+        amount = form.Amount,
+        pay_days = form.PayPeriod == "biweekly" ? new[] { form.PayDay1, form.PayDay2 } : null,
+        is_active = isActive,
+    };
+
+    private async Task Save()
+    {
+        if (_form is not { } form) return;
+        form.Error = null; form.Conflict = null;
+        if (string.IsNullOrWhiteSpace(form.Name)) { form.Error = Localizer["Catalog_NameRequired"]; return; }
+        if (form.Amount <= 0) { form.Error = Localizer["Income_AmountRequired"]; return; }
+        if (form.PayPeriod == "biweekly" && form.PayDay1 == form.PayDay2) { form.Error = Localizer["Income_PayDaysDifferent"]; return; }
+
+        _saving = true;
+        try
+        {
+            var res = form.Editing is null
+                ? await Http.PostAsJsonAsync(Endpoint, Payload(form, form.Name, true))
+                : await Http.PutAsJsonAsync($"{Endpoint}/{form.Editing.Id}", Payload(form, form.Name, form.IsActive));
+
+            if (res.IsSuccessStatusCode)
+            {
+                _notice = form.Editing is null ? Localizer["Catalog_Saved"] : Localizer["Catalog_Updated"];
+                _form = null;
+                await Load();
+            }
+            else if (res.StatusCode == HttpStatusCode.Conflict)
+            {
+                var conflict = await res.Content.ReadFromJsonAsync<ConflictDto>();
+                if (conflict?.ExistingId is not null) form.Conflict = conflict;
+                else form.Error = conflict?.Message ?? Localizer["Catalog_NameExists"];
+            }
+            else if (res.StatusCode == HttpStatusCode.BadRequest)
+            {
+                form.Error = (await res.Content.ReadFromJsonAsync<ConflictDto>())?.Message ?? Localizer["Catalog_SaveError"];
+            }
+            else form.Error = Localizer["Catalog_SaveError"];
+        }
+        catch { form.Error = Localizer["Catalog_SaveError"]; }
+        finally { _saving = false; }
+    }
+
+    /// <summary>Restores the existing line under its stored name, with the details just typed.</summary>
+    private async Task Reactivate()
+    {
+        if (_form is not { Conflict: { ExistingId: { } id } conflict } form) return;
+        _saving = true;
+        try
+        {
+            var res = await Http.PutAsJsonAsync($"{Endpoint}/{id}", Payload(form, conflict.ExistingName ?? form.Name, true));
+            if (res.IsSuccessStatusCode) { _notice = Localizer["Catalog_Updated"]; _form = null; await Load(); }
+            else { form.Conflict = null; form.Error = Localizer["Catalog_ReactivateError"]; }
+        }
+        catch { form.Conflict = null; form.Error = Localizer["Catalog_ReactivateError"]; }
+        finally { _saving = false; }
+    }
+
+    /// <summary>Swaps a line with its neighbour among the active ones; the API takes the whole active order at once.</summary>
+    private async Task Move(IncomeDto item, int direction)
+    {
+        var order = _items.Where(i => i.IsActive).ToList();
+        var index = order.IndexOf(item);
+        var target = index + direction;
+        if (index < 0 || target < 0 || target >= order.Count) return;
+        (order[index], order[target]) = (order[target], order[index]);
+
+        _saving = true; _notice = null; _error = null;
+        try
+        {
+            var res = await Http.PutAsJsonAsync($"{Endpoint}/order", new { ordered_ids = order.Select(i => i.Id).ToArray() });
+            if (res.IsSuccessStatusCode) await Load();
+            else _error = Localizer["Catalog_SaveError"];
+        }
+        catch { _error = Localizer["Catalog_SaveError"]; }
+        finally { _saving = false; }
+    }
+
+    private sealed class FormState(IncomeDto? editing)
+    {
+        public IncomeDto? Editing { get; } = editing;
+        public string Name { get; set; } = "";
+        public string MemberId { get; set; } = "";
+        public string Currency { get; set; } = "USD";
+        public string Kind { get; set; } = "fixed";
+        public string PayPeriod { get; set; } = "monthly";
+        public decimal Amount { get; set; }
+        public int PayDay1 { get; set; } = 15;
+        public int PayDay2 { get; set; } = 31;
+        public bool IsActive { get; set; } = true;
+        public string? Error { get; set; }
+        public ConflictDto? Conflict { get; set; }
+    }
+
+    private sealed record IncomeDto(
+        [property: JsonPropertyName("id")] Guid Id,
+        [property: JsonPropertyName("name")] string Name,
+        [property: JsonPropertyName("member_user_id")] Guid? MemberUserId,
+        [property: JsonPropertyName("currency")] string Currency,
+        [property: JsonPropertyName("kind")] string Kind,
+        [property: JsonPropertyName("pay_period")] string PayPeriod,
+        [property: JsonPropertyName("amount")] decimal Amount,
+        [property: JsonPropertyName("pay_days")] List<int>? PayDays,
+        [property: JsonPropertyName("sort_order")] int SortOrder,
+        [property: JsonPropertyName("is_active")] bool IsActive,
+        [property: JsonPropertyName("needs_review")] bool NeedsReview);
+
+    private sealed record ConflictDto(
+        [property: JsonPropertyName("error")] string Error,
+        [property: JsonPropertyName("message")] string Message,
+        [property: JsonPropertyName("existing_id")] Guid? ExistingId,
+        [property: JsonPropertyName("existing_name")] string? ExistingName);
+
+    private sealed record HouseholdDto([property: JsonPropertyName("members")] List<MemberDto> Members);
+
+    private sealed record MemberDto(
+        [property: JsonPropertyName("user_id")] Guid UserId,
+        [property: JsonPropertyName("display_name")] string? DisplayName,
+        [property: JsonPropertyName("email")] string Email);
+}

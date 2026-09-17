@@ -308,7 +308,7 @@
   <data name="Household_ConfirmLeave" xml:space="preserve"><value>¿Salir de este hogar?</value></data>
   <data name="Household_ConfirmDissolve" xml:space="preserve"><value>Esto eliminará permanentemente el hogar y sus datos. ¿Continuar?</value></data>
   <data name="BudgetSettings_Title" xml:space="preserve"><value>Presupuesto</value></data>
-  <data name="BudgetSettings_Subtitle" xml:space="preserve"><value>Cómo se dividen las semanas y los meses de tu hogar, y con qué ingresos empieza cada mes. Lo comparte todo el hogar.</value></data>
+  <data name="BudgetSettings_Subtitle" xml:space="preserve"><value>Cómo se dividen las semanas y los meses de tu hogar. Lo comparte todo el hogar.</value></data>
   <data name="BudgetSettings_WeekStartDay" xml:space="preserve"><value>La semana empieza el</value></data>
   <data name="BudgetSettings_MonthAnchor" xml:space="preserve"><value>El mes empieza</value></data>
   <data name="BudgetSettings_MonthAnchorHint" xml:space="preserve"><value>Si te pagan por semana, normalmente el mes empieza con el último pago del mes anterior.</value></data>
@@ -316,18 +316,11 @@
   <data name="BudgetSettings_Anchor_FirstWeekdayCurrent" xml:space="preserve"><value>Primer {0} del mes</value></data>
   <data name="BudgetSettings_Anchor_FirstOfMonth" xml:space="preserve"><value>El 1.º del mes</value></data>
   <data name="BudgetSettings_ChangeNote" xml:space="preserve"><value>Los cambios aplican a los meses que se creen de ahora en adelante; los meses existentes conservan sus semanas.</value></data>
-  <data name="BudgetSettings_IncomeTitle" xml:space="preserve"><value>Ingresos por defecto</value></data>
-  <data name="BudgetSettings_IncomeHint" xml:space="preserve"><value>Se usan cuando un mes se crea automáticamente a partir de una transacción. Los meses de 5 semanas suelen traer un pago extra.</value></data>
-  <data name="BudgetSettings_Primary" xml:space="preserve"><value>Ingreso principal</value></data>
-  <data name="BudgetSettings_Secondary" xml:space="preserve"><value>Ingreso secundario</value></data>
-  <data name="BudgetSettings_Amount4w" xml:space="preserve"><value>Meses de 4 semanas</value></data>
-  <data name="BudgetSettings_Amount5w" xml:space="preserve"><value>Meses de 5 semanas</value></data>
-  <data name="BudgetSettings_Currency" xml:space="preserve"><value>Moneda</value></data>
   <data name="BudgetSettings_Save" xml:space="preserve"><value>Guardar presupuesto</value></data>
   <data name="BudgetSettings_Saved" xml:space="preserve"><value>Configuración del presupuesto guardada.</value></data>
   <data name="BudgetSettings_ErrLoad" xml:space="preserve"><value>No se pudo cargar la configuración del presupuesto. Recarga para intentarlo de nuevo.</value></data>
   <data name="BudgetSettings_ErrSave" xml:space="preserve"><value>No se pudo guardar la configuración del presupuesto. Inténtalo de nuevo.</value></data>
-  <data name="BudgetSettings_ErrInvalid" xml:space="preserve"><value>Revisa los valores: el día debe ser de domingo a sábado, los montos no pueden ser negativos y las monedas deben ser CRC o USD.</value></data>
+  <data name="BudgetSettings_ErrInvalid" xml:space="preserve"><value>Revisa los valores: el día debe ser de domingo a sábado y el inicio del mes una de las opciones de la lista.</value></data>
   <data name="Catalog_Categories_Title" xml:space="preserve"><value>Categorías</value></data>
   <data name="Catalog_Categories_Subtitle" xml:space="preserve"><value>Donde se clasifican tus transacciones y líneas de presupuesto. Lo comparte todo el hogar.</value></data>
   <data name="Catalog_Categories_New" xml:space="preserve"><value>Nueva categoría</value></data>
@@ -424,8 +417,6 @@
   <data name="Month_Window" xml:space="preserve"><value>{0} semanas · {1} – {2}</value></data>
   <data name="Month_Week" xml:space="preserve"><value>Semana {0}</value></data>
   <data name="Month_Income" xml:space="preserve"><value>Ingresos de este mes</value></data>
-  <data name="Month_PrimaryIncome" xml:space="preserve"><value>Ingreso principal</value></data>
-  <data name="Month_SecondaryIncome" xml:space="preserve"><value>Ingreso secundario</value></data>
   <data name="Month_OtherIncome" xml:space="preserve"><value>Otros ingresos del mes (entradas, contadas en el Ingreso del panel)</value></data>
   <data name="Month_OtherIncomeShow" xml:space="preserve"><value>ver las {0} transacciones</value></data>
   <data name="Month_IncomeSaved" xml:space="preserve"><value>Ingresos actualizados.</value></data>
@@ -621,6 +612,21 @@
   <data name="Reports_Exporting" xml:space="preserve"><value>Preparando…</value></data>
   <data name="Reports_ExportReady" xml:space="preserve"><value>CSV listo: {0} filas. La descarga comenzó.</value></data>
   <data name="Reports_ExportError" xml:space="preserve"><value>No se pudo exportar el CSV. Intenta de nuevo.</value></data>
+  <data name="Reports_Pdf" xml:space="preserve"><value>PDF</value></data>
+  <data name="Reports_PdfTitle" xml:space="preserve"><value>Descargar un informe en PDF</value></data>
+  <data name="Reports_PdfAppendix" xml:space="preserve"><value>Incluir las transacciones</value></data>
+  <data name="Reports_PdfAmounts" xml:space="preserve"><value>Montos en {0}, como en pantalla</value></data>
+  <data name="Reports_PdfCharts" xml:space="preserve"><value>Gráficos en {0}</value></data>
+  <data name="Reports_PdfLanguage" xml:space="preserve"><value>Idioma: {0}</value></data>
+  <data name="Reports_PdfBoth" xml:space="preserve"><value>₡ y $</value></data>
+  <data name="Reports_PdfDownload" xml:space="preserve"><value>Descargar</value></data>
+  <data name="Reports_PdfReady" xml:space="preserve"><value>PDF listo. La descarga comenzó.</value></data>
+  <data name="Reports_PdfError" xml:space="preserve"><value>No se pudo crear el PDF. Intenta de nuevo.</value></data>
+  <data name="Reports_PdfEmail" xml:space="preserve"><value>Enviármelo</value></data>
+  <data name="Reports_PdfSending" xml:space="preserve"><value>Enviando…</value></data>
+  <data name="Reports_PdfSent" xml:space="preserve"><value>Enviado a {0}, con el PDF adjunto.</value></data>
+  <data name="Reports_PdfEmailLimit" xml:space="preserve"><value>Ya te enviaste el máximo de informes de hoy. Descárgalo o intenta mañana.</value></data>
+  <data name="Reports_PdfEmailError" xml:space="preserve"><value>No se pudo enviar el informe. Intenta de nuevo o quita las transacciones.</value></data>
   <data name="Reports_View" xml:space="preserve"><value>Vista</value></data>
   <data name="Reports_ViewTable" xml:space="preserve"><value>Tabla</value></data>
   <data name="Reports_ViewChart" xml:space="preserve"><value>Gráfico</value></data>
@@ -829,4 +835,51 @@
   <data name="Dash_WfRefundsExpected" xml:space="preserve"><value>Reembolsos esperados</value></data>
   <data name="Dash_RefundsNote" xml:space="preserve"><value>no cuentan hasta que entren como ingreso</value></data>
   <data name="Dash_BudgetedNoLine" xml:space="preserve"><value>Marcado como presupuestado, sin línea</value></data>
+  <data name="Income_Title" xml:space="preserve"><value>Ingresos</value></data>
+  <data name="Income_Subtitle" xml:space="preserve"><value>Quién gana qué, cada cuánto se paga y cuánto por pago. Cada mes nuevo empieza con estos; la página del mes corrige un mes puntual. Lo comparte todo el hogar.</value></data>
+  <data name="Income_New" xml:space="preserve"><value>Nuevo ingreso</value></data>
+  <data name="Income_NewTitle" xml:space="preserve"><value>Nuevo ingreso</value></data>
+  <data name="Income_EditTitle" xml:space="preserve"><value>Editar ingreso</value></data>
+  <data name="Income_SettingsLink" xml:space="preserve"><value>Administrar ingresos</value></data>
+  <data name="Income_Member" xml:space="preserve"><value>De quién es</value></data>
+  <data name="Income_MemberHousehold" xml:space="preserve"><value>Del hogar (de nadie en particular)</value></data>
+  <data name="Income_MemberLeft" xml:space="preserve"><value>Un exmiembro</value></data>
+  <data name="Income_Kind" xml:space="preserve"><value>Tipo</value></data>
+  <data name="Income_KindFixed" xml:space="preserve"><value>Fijo</value></data>
+  <data name="Income_KindVariable" xml:space="preserve"><value>Variable (un estimado)</value></data>
+  <data name="Income_KindHint" xml:space="preserve"><value>Un ingreso variable es tu mejor estimado; corrige cada mes en su página cuando sepas la cifra real.</value></data>
+  <data name="Income_PayPeriod" xml:space="preserve"><value>Se paga</value></data>
+  <data name="Income_PeriodWeekly" xml:space="preserve"><value>Semanal</value></data>
+  <data name="Income_PeriodBiweekly" xml:space="preserve"><value>Quincenal</value></data>
+  <data name="Income_PeriodMonthly" xml:space="preserve"><value>Mensual</value></data>
+  <data name="Income_HintWeekly" xml:space="preserve"><value>Un mes cuenta un pago por semana: los meses de 4 semanas reciben 4 y los de 5 reciben 5. En Configuración → Presupuesto, haz que la semana empiece el día de pago.</value></data>
+  <data name="Income_HintBiweekly" xml:space="preserve"><value>Un mes cuenta los días de pago que caen dentro de él.</value></data>
+  <data name="Income_HintMonthly" xml:space="preserve"><value>Cada mes cuenta un pago, tenga 4 o 5 semanas.</value></data>
+  <data name="Income_Amount" xml:space="preserve"><value>Monto por pago</value></data>
+  <data name="Income_AmountRequired" xml:space="preserve"><value>Ingresa un monto mayor que cero.</value></data>
+  <data name="Income_PayDay1" xml:space="preserve"><value>Primer día de pago</value></data>
+  <data name="Income_PayDay2" xml:space="preserve"><value>Segundo día de pago</value></data>
+  <data name="Income_PayDaysDifferent" xml:space="preserve"><value>Elige dos días de pago distintos.</value></data>
+  <data name="Income_LastDay" xml:space="preserve"><value>Último día</value></data>
+  <data name="Income_Empty" xml:space="preserve"><value>Aún no hay ingresos. Agrega cada salario u otro ingreso regular para que cada mes nuevo empiece con él.</value></data>
+  <data name="Income_LoadError" xml:space="preserve"><value>No se pudieron cargar los ingresos. Actualiza para intentarlo de nuevo.</value></data>
+  <data name="Income_NeedsReview" xml:space="preserve"><value>Revisar</value></data>
+  <data name="Income_NeedsReviewHint" xml:space="preserve"><value>Se copió de la configuración anterior de 4 y 5 semanas, que no calzaba exactamente con un periodo de pago. Confirma el monto y cada cuánto se paga, y guarda.</value></data>
+  <data name="Income_MoveUp" xml:space="preserve"><value>Subir</value></data>
+  <data name="Income_MoveDown" xml:space="preserve"><value>Bajar</value></data>
+  <data name="BudgetSettings_WeekStartHint" xml:space="preserve"><value>Si te pagan cada semana, elige el día en que llega el dinero: decide si un mes tiene 4 o 5 pagos.</value></data>
+  <data name="BudgetSettings_IncomeMoved" xml:space="preserve"><value>Los ingresos ahora tienen su propia página.</value></data>
+  <data name="Month_IncomeEmpty" xml:space="preserve"><value>Este mes no tiene ingresos registrados.</value></data>
+  <data name="Month_IncomeLabel" xml:space="preserve"><value>Nombre del ingreso</value></data>
+  <data name="Month_IncomePlanned" xml:space="preserve"><value>Planeado {0}</value></data>
+  <data name="Month_IncomeOneOff" xml:space="preserve"><value>Solo este mes</value></data>
+  <data name="Month_IncomeRemove" xml:space="preserve"><value>Quitar este ingreso del mes</value></data>
+  <data name="Month_IncomeAdd" xml:space="preserve"><value>Agregar un ingreso a este mes</value></data>
+  <data name="Month_IncomeLabelRequired" xml:space="preserve"><value>Cada ingreso necesita un nombre.</value></data>
+  <data name="Month_IncomeNegative" xml:space="preserve"><value>Los montos no pueden ser negativos.</value></data>
+  <data name="Income_MemberFollowsHint" xml:space="preserve"><value>Cambiar de quién es este ingreso también actualiza los meses que ya lo tienen. Sus montos no cambian.</value></data>
+  <data name="Reports_PdfColumns" xml:space="preserve"><value>Columnas</value></data>
+  <data name="Reports_PdfColumnsHint" xml:space="preserve"><value>La fecha y el comercio siempre se imprimen.</value></data>
+  <data name="Reports_PdfColRate" xml:space="preserve"><value>Tipo de cambio</value></data>
+  <data name="Reports_PdfColSource" xml:space="preserve"><value>Origen</value></data>
 </root>
