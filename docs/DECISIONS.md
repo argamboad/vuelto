@@ -1809,6 +1809,11 @@ names them. Dropping them is INCOME-3, a later owner-gated contract migration.
 `PUT /api/months/{id}/income` takes the month's full row list (with an id updates, without one is a one-off, left out is
 removed); `budget-settings` lost its income fields; the dashboard summary reports `income_lines` + `income_inflows` instead
 of primary/secondary. The account-erasure contributor clears `member_user_id` on lines and rows, amounts kept.
+*Amendment (2026-09-17, owner):* **whose income it is follows the line.** A month's rows stay copies for their
+label, amount and currency, but when a line's member changes, the rows copied from it that still carry its previous
+member take the new one, in the same save. Without this, the migrated rows (no member) could never be attributed —
+the month page edits no member — and the reports' income by member read "the household" for every past month. A row
+whose member differs from the line's previous member is left alone.
 *Amendment (2026-09-16, INCOME-2):* the reports cut the month's income by whose it is (`IncomeByMember` in Core; the
 analysis response's `income_by_member`, a donut on the page, a donut and a table in the PDF). Rows of a member who left
 form one "former members" slice with no name — a departed member's name is not kept in this household's reports.

@@ -175,9 +175,11 @@ Flow:
    month** on two days — 15th and the last day by default — or **monthly**) and the amount per payment.
 2. Lines are ordered (up/down), deactivated rather than deleted, and a new line under an inactive line's name offers
    to reactivate it (ADR-V008). Any member edits any line.
-3. When a month is created (§9) each active line becomes a **month income row**: weekly × the month's weeks, twice a
+3. Changing whose income a line is also re-labels the months that already have it (their rows that still carried the
+   previous member); amounts and names in those months stay as they were.
+4. When a month is created (§9) each active line becomes a **month income row**: weekly × the month's weeks, twice a
    month × the pay days inside the month's window, monthly × 1. A line whose member left the household is skipped.
-4. On the month page each row's name, amount and currency can be corrected for that month only (the planned figure
+5. On the month page each row's name, amount and currency can be corrected for that month only (the planned figure
    stays beside an edited amount); a one-off income can be added and a row removed.
 
 Notes: the migration turned each household's old 4-week/5-week defaults into lines (a pair that fit no pay period is

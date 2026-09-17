@@ -1544,7 +1544,10 @@ yet) and a **Manage income** link. Change `2200` to `2000` → **Expected:** "Pl
 **Add income for this month** → name `Sold the bike`, `150000`, **CRC** → **Expected:** "Only this month" under it.
 Leave a name blank → **Save income** → "Every income needs a name." and no request; fill it → **Save income** →
 **Expected:** "Income updated."; reload → the three rows as saved. **Dashboard** → the Income step's total is the
-three rows at today's rate. **Settings → Manage income** → **Expected:** My salary still $550.00 weekly. Remove
+three rows at today's rate. **Settings → Manage income** → **Edit** Son salary → set **Whose income** to yourself →
+**Save** → back on September → **Expected:** Son salary's row unchanged in name and amount, and **Reports → Chart →
+Income by member** now counts it under your name (the member follows the line; the amounts never do). **Settings →
+Manage income** → **Expected:** My salary still $550.00 weekly. Remove
 **Sold the bike** (×) → **Save income** → gone after reload. With Tuesday weeks (**Settings → Budget**, *Week starts
 on* Tuesday) a transaction in a month not yet created gets five weeks and five weekly payments (Sep 2026 would be
 Aug 25 – Sep 28 — use a later empty month on a household that already has September). Via Postman (**15 · Months →
@@ -4190,6 +4193,9 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   TTL guard; interrupted links land on Settings' banner). New **QA-AND-15** (on-device kill test;
   renumbered from the branch's QA-AND-14 — that slot went to THEME-1's restart test in the interim).
   Suite 149 → **150** cases.
+- **Updated 2026-09-17** — **Whose income it is follows the line (owner).** Changing an income line's member also
+  re-labels the month rows copied from it that still had the previous member, so migrated months can be attributed;
+  amounts and names never change. **QA-INC-02** gains the step; the edit form says so. Case count unchanged.
 - **Updated 2026-09-16** — **Income by member (INCOME-2).** The month report cuts its income by whose it is — each
   member by name, the household, former members, inflows: `income_by_member` on the category analysis, an **Income by
   member** donut in the chart view, and in the PDF the same donut plus a table with shares and a total. New

@@ -5897,7 +5897,7 @@
                 "{{incomeLineId}}"
               ]
             },
-            "description": "Changes every field but the order (is_active false deactivates; a later create with the same name gets the reactivation offer). Clears needs_review. A member who has since left may be kept on the line, but a NEW member must be current. 404 for another household's id; 409 income_exists when renaming onto another line.",
+            "description": "Changes every field but the order (is_active false deactivates; a later create with the same name gets the reactivation offer). Clears needs_review. A member who has since left may be kept on the line, but a NEW member must be current. 404 for another household's id; 409 income_exists when renaming onto another line. A changed member_user_id also re-labels the month income rows copied from this line that still carry its previous member (amounts, labels and currencies untouched).",
             "header": [
               {
                 "key": "Content-Type",

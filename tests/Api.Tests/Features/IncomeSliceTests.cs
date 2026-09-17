@@ -35,7 +35,7 @@ public class IncomeSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
         db.Add(new TenantMembership { TenantId = tenant, UserId = user.Id, Role = TenantRoles.Owner, JoinedAt = T0 });
         await db.SaveChangesAsync();
         db.ChangeTracker.Clear();
-        var handler = new IncomeHandler(new EfRepository<IncomeLine>(db), new TenantRepository(db), new TestCurrentTenant { TenantId = tenant }, new FakeTimeProvider(T0));
+        var handler = new IncomeHandler(new EfRepository<IncomeLine>(db), new EfRepository<MonthIncome>(db), new TenantRepository(db), new TestCurrentTenant { TenantId = tenant }, new FakeTimeProvider(T0));
         return new Ctx(db, tenant, user.Id, handler);
     }
 
@@ -140,6 +140,69 @@ public class IncomeSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
         var (monthly, _) = await c.Handler.UpdateAsync(line.Id, new("Allan salary", c.Member, "CRC", "fixed", "monthly", 900_000m), default);
         Assert.Null(monthly!.PayDays);
         Assert.Null((await c.Db.IncomeLines.AsNoTracking().SingleAsync()).PayDay1);
+    }
+
+    [Fact]
+    public async Task Update_ANewMember_FollowsTheLineIntoItsMonths_ButNothingElseDoes()
+    {
+        // The migrated month rows had no member; naming the line's member re-labels them. Amounts, labels, currencies,
+        // rows of other lines, one-offs, and a row whose member was set to someone else by hand stay as they were.
+        var c = await SeedAsync();
+        var (line, _) = await c.Handler.CreateAsync(Weekly("Primary income", null, 1_787.5m), default);
+        var (other, _) = await c.Handler.CreateAsync(new("Rent", null, "CRC", "fixed", "monthly", 250_000m), default);
+        var elsewhere = Guid.CreateVersion7(); // a member who has since left, set on one row by hand
+        var september = new Month { TenantId = c.Tenant, Year = 2026, MonthNumber = 9, WeekCount = 5, Week1StartDate = new DateOnly(2026, 8, 25), CreatedAt = T0, UpdatedAt = T0 };
+        var october = new Month { TenantId = c.Tenant, Year = 2026, MonthNumber = 10, WeekCount = 4, Week1StartDate = new DateOnly(2026, 9, 29), CreatedAt = T0, UpdatedAt = T0 };
+        MonthIncome Row(Month m, Guid? lineId, string label, decimal amount, Guid? member = null) => new()
+        {
+            TenantId = c.Tenant, MonthId = m.Id, IncomeLineId = lineId, Label = label, MemberUserId = member, Currency = "USD",
+            Amount = amount, PlannedAmount = lineId is null ? null : amount, CreatedAt = T0, UpdatedAt = T0,
+        };
+        c.Db.AddRange(september, october);
+        c.Db.AddRange(
+            Row(september, line!.Id, "Primary income", 8_950m),
+            Row(october, line.Id, "Old salary name", 7_150m),
+            Row(october, line.Id, "Primary income (split)", 100m, elsewhere),
+            Row(september, other!.Id, "Rent", 250_000m),
+            Row(september, null, "Sold the bike", 300m));
+        await c.Db.SaveChangesAsync();
+        c.Db.ChangeTracker.Clear();
+
+        var (updated, error) = await c.Handler.UpdateAsync(line.Id, Weekly("Primary income", c.Member, 1_790m) with { IsActive = true }, default);
+
+        Assert.Null(error);
+        Assert.Equal(c.Member, updated!.MemberUserId);
+        var rows = await c.Db.MonthIncomes.AsNoTracking().OrderBy(r => r.Amount).ToListAsync();
+        Assert.Equal(
+            [
+                ("Primary income (split)", (Guid?)elsewhere, 100m),
+                ("Sold the bike", null, 300m),
+                ("Old salary name", c.Member, 7_150m),
+                ("Primary income", c.Member, 8_950m),
+                ("Rent", null, 250_000m),
+            ],
+            rows.Select(r => (r.Label, r.MemberUserId, r.Amount)));
+
+        // Back to the household: the rows that followed follow again; the hand-set one still doesn't.
+        await c.Handler.UpdateAsync(line.Id, Weekly("Primary income", null, 1_790m), default);
+        var after = await c.Db.MonthIncomes.AsNoTracking().Where(r => r.IncomeLineId == line.Id).ToDictionaryAsync(r => r.Amount, r => r.MemberUserId);
+        Assert.Equal((null, null, (Guid?)elsewhere), (after[8_950m], after[7_150m], after[100m]));
+    }
+
+    [Fact]
+    public async Task Update_WithTheSameMember_TouchesNoMonth()
+    {
+        var c = await SeedAsync();
+        var (line, _) = await c.Handler.CreateAsync(Weekly("Salary", c.Member), default);
+        var month = new Month { TenantId = c.Tenant, Year = 2026, MonthNumber = 9, WeekCount = 5, Week1StartDate = new DateOnly(2026, 8, 25), CreatedAt = T0, UpdatedAt = T0 };
+        c.Db.Add(month);
+        c.Db.Add(new MonthIncome { TenantId = c.Tenant, MonthId = month.Id, IncomeLineId = line!.Id, Label = "Salary", MemberUserId = null, Currency = "USD", Amount = 1m, CreatedAt = T0, UpdatedAt = T0 });
+        await c.Db.SaveChangesAsync();
+        c.Db.ChangeTracker.Clear();
+
+        await c.Handler.UpdateAsync(line.Id, Weekly("Salary", c.Member, 600m), default);
+
+        Assert.Null((await c.Db.MonthIncomes.AsNoTracking().SingleAsync()).MemberUserId); // the member didn't change, so the months are left alone
     }
 
     [Fact]

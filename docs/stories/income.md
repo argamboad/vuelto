@@ -27,8 +27,11 @@ without typing four-week and five-week figures
   month is created** — `amount` and `planned_amount` = the line's amount × the paydays inside the month's window:
   weekly → × the month's week count; biweekly → × the pay days that fall between the first week's start and the last
   week's end; monthly → × 1. A line whose member has **left the household** is skipped (computed at snapshot time —
-  nothing is flipped on the line). Rows carry the line's name, member and currency as they were, so renaming a line
-  never rewrites history.
+  nothing is flipped on the line). Rows carry the line's name, amount and currency as they were, so renaming a line or
+  changing its amount never rewrites history. **Whose income it is follows the line** (owner, 2026-09-17): when a
+  line's member changes, the month rows copied from that line that still carry its previous member take the new one
+  (the migrated rows had none, so naming a member re-labels them for INCOME-2); a row whose member differs is left
+  alone. The edit form says so.
 - **Editing a month** (`PUT /api/months/{id}/income` with `rows`): the full list — an existing row by `id` changes its
   `label` / `amount` / `currency`; a row without `id` is a one-off for that month (`income_line_id` null,
   `planned_amount` null); a row left out is removed. `GET /api/months/{id}` returns `income_rows`.
@@ -88,6 +91,13 @@ Scenario: The catalog rules
   When I send amount 0, pay_period "yearly", currency "EUR" or pay days on a monthly line → 400 invalid_request
   When I reorder with a list that isn't exactly the active lines → 400 invalid_request
   When I touch another household's line → 404
+
+Scenario: Whose income it is follows the line into its months
+  Given the migrated line "Primary income" with no member, and September's row copied from it with no member
+  When I set myself as the line's member
+  Then September's row names me too, with its amount and label unchanged
+  And the report's income by member shows my name, not "The household"
+  And a row of that line whose member was different stays as it was
 
 Scenario: The migration keeps every month's income
   Given a household whose settings say primary $2,000 (4w) / $2,500 (5w) and secondary ₡600,000 / ₡600,000

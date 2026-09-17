@@ -53,6 +53,10 @@
                                 <option value="@kept">@Localizer["Income_MemberLeft"]</option>
                             }
                         </select>
+                        @if (form.Editing is not null)
+                        {
+                            <div class="form-text" data-testid="inc-member-hint">@Localizer["Income_MemberFollowsHint"]</div>
+                        }
                     </div>
                     <div class="col-6 col-md-3">
                         <label class="form-label small fw-medium mb-1" for="inc-kind">@Localizer["Income_Kind"]</label>

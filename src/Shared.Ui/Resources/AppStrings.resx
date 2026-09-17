@@ -882,4 +882,5 @@
   <data name="Reports_WhoHousehold" xml:space="preserve"><value>The household</value></data>
   <data name="Reports_WhoFormer" xml:space="preserve"><value>Former members</value></data>
   <data name="Reports_WhoInflows" xml:space="preserve"><value>Other income (inflows)</value></data>
+  <data name="Income_MemberFollowsHint" xml:space="preserve"><value>Changing whose income this is also updates the months that already have it. Their amounts stay as they are.</value></data>
 </root>

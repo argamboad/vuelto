@@ -187,7 +187,8 @@ A budget period. Exists **only** through transactions (auto-created, auto-delete
 ### MonthIncome *(INCOME-1, ADR-V023)*
 One income of one month: snapshotted from an IncomeLine when the month is created, or added by hand for that month.
 - `id`, `tenant_id`, `month_id` (FK → Month, **cascade**), `income_line_id` (FK → IncomeLine, nullable, **set null**)
-- `label`, `member_user_id` (no FK), `currency` — copied from the line, so renaming a line never rewrites history
+- `label`, `member_user_id` (no FK), `currency` — copied from the line, so renaming a line never rewrites history;
+  the one exception is the member: when a line's member changes, its rows that still carry the previous member follow
 - `amount` (`NUMERIC(12,2)`) — what the month counts; `planned_amount` (nullable) — what the pay period derived at
   creation, null for a one-off
 - `sort_order`, `created_at`, `updated_at`

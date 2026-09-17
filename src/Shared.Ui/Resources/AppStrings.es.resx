@@ -882,4 +882,5 @@
   <data name="Reports_WhoHousehold" xml:space="preserve"><value>El hogar</value></data>
   <data name="Reports_WhoFormer" xml:space="preserve"><value>Exmiembros</value></data>
   <data name="Reports_WhoInflows" xml:space="preserve"><value>Otros ingresos (entradas)</value></data>
+  <data name="Income_MemberFollowsHint" xml:space="preserve"><value>Cambiar de quién es este ingreso también actualiza los meses que ya lo tienen. Sus montos no cambian.</value></data>
 </root>

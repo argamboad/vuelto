@@ -78,6 +78,7 @@ public class IncomesPageTests : ComponentTestBase
 
         cut.WaitForElement("[data-testid='inc-new']").Click();
         Assert.Empty(cut.FindAll("[data-testid='inc-day1']")); // monthly by default: no pay days
+        Assert.Empty(cut.FindAll("[data-testid='inc-member-hint']")); // a new line has no months yet
         cut.Find("[data-testid='inc-name']").Input("Consulting");
         cut.Find("[data-testid='inc-member']").Change(Allan);
         cut.Find("[data-testid='inc-kind']").Change("variable");
@@ -157,6 +158,7 @@ public class IncomesPageTests : ComponentTestBase
         cut.WaitForAssertion(() => Assert.Equal(3, cut.FindAll("[data-testid='inc-edit']").Count));
         cut.FindAll("[data-testid='inc-edit']")[1].Click();
         Assert.Equal(Departed, cut.Find("[data-testid='inc-member']").GetAttribute("value"));
+        Assert.Contains("Income_MemberFollowsHint", cut.Find("[data-testid='inc-member-hint']").TextContent);
         Assert.Contains("Income_MemberLeft", cut.Find("[data-testid='inc-member']").TextContent);
         Assert.Equal("31", cut.Find("[data-testid='inc-day2']").GetAttribute("value"));
         cut.Find("[data-testid='inc-amount']").Change("320000");

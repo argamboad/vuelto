@@ -13,9 +13,12 @@ namespace Vuelto.Api.Features.Income;
 /// <see cref="ReorderAsync"/>) plus the income fields: an optional member who must be in the household, a currency, a
 /// kind, a pay period with its amount per payment, and the two pay days of a biweekly line. Never seeded. Any member may
 /// edit any line. <c>Query()</c> is tenant-filtered by the platform, so another household's id is simply not found.
+/// A month's rows are copies (a rename or a new amount never rewrites history), with one exception: <b>whose</b> income
+/// it is follows the line — see <see cref="UpdateAsync"/>.
 /// </summary>
 public sealed class IncomeHandler(
     IRepository<IncomeLine> lines,
+    IRepository<MonthIncome> monthIncomes,
     ITenantRepository tenants,
     ICurrentTenant tenant,
     TimeProvider clock)
@@ -62,10 +65,28 @@ public sealed class IncomeHandler(
         if (await FindByNameAsync(v!.Name, cancellationToken) is { } clash && clash.Id != id)
             return (null, new IncomeConflictResponse("income_exists", $"An income named '{clash.Name}' already exists", null, null));
 
-        Apply(line, v, r.IsActive, clock.GetUtcNow()); // SortOrder untouched — the reorder endpoint owns it
-        line.NeedsReview = false;                      // someone looked at it
+        var previousMember = line.MemberUserId;
+        var now = clock.GetUtcNow();
+        Apply(line, v, r.IsActive, now); // SortOrder untouched — the reorder endpoint owns it
+        line.NeedsReview = false;        // someone looked at it
         lines.Update(line);
-        await lines.SaveChangesAsync(cancellationToken);
+
+        // Whose income it is describes the line, not a figure to freeze: the month rows copied from this line that still
+        // carry its previous member take the new one (the migrated rows had none, so naming a member re-labels them).
+        // A row set to someone else by hand keeps its member; amounts, labels and currencies are never touched.
+        if (line.MemberUserId != previousMember)
+        {
+            var rows = await monthIncomes.Query()
+                .Where(m => m.IncomeLineId == line.Id && m.MemberUserId == previousMember)
+                .ToListAsync(cancellationToken);
+            foreach (var row in rows)
+            {
+                row.MemberUserId = line.MemberUserId;
+                row.UpdatedAt = now;
+                monthIncomes.Update(row);
+            }
+        }
+        await lines.SaveChangesAsync(cancellationToken); // the line and its months land together (one context)
         return (IncomeLineResponse.From(line), null);
     }
 
