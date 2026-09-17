@@ -211,27 +211,6 @@
                         </div>
                     }
                 }
-                @if (_report.SingleMonth)
-                {
-                    @* INCOME-2: whose the month's income is — members by name, the household, former members, inflows. *@
-                    <div class="col-12 col-lg-6">
-                        <div class="rep-card h-100" data-testid="rep-members-card">
-                            <h2 class="rep-card-title">@Localizer["Reports_IncomeByMember"]</h2>
-                            @if (_report.Income is null)
-                            {
-                                <p class="rep-card-note" data-testid="rep-members-norate">@Localizer["Reports_IncomeNoRate"]</p>
-                            }
-                            else if (_report.IncomeByMember is not { Count: > 0 })
-                            {
-                                <p class="rep-card-note" data-testid="rep-members-empty">@Localizer["Reports_IncomeByMemberEmpty"]</p>
-                            }
-                            else
-                            {
-                                <DonutChart TestId="rep-members-donut" Currency="@_chartCurrency" Title="@Localizer["Reports_IncomeByMember"].Value" Slices="MemberSlices()" />
-                            }
-                        </div>
-                    </div>
-                }
                 @* Where the money leaves from (REPORTS-4): by bank, and card vs account — stored amounts, so any period. *@
                 <div class="col-12 col-lg-6">
                     <div class="rep-card h-100" data-testid="rep-bank-card">
@@ -462,18 +441,6 @@
         "var(--bs-success)", "var(--bs-danger)", "var(--bs-secondary)", "var(--bs-tertiary-color)",
     ];
 
-    /// <summary>INCOME-2: one slice per bucket of the month's income, named in the page's language (a member by their name).</summary>
-    private List<DonutSlice> MemberSlices() => (_report?.IncomeByMember ?? [])
-        .Select((s, i) => new DonutSlice(s.Kind switch
-        {
-            "member" => s.Name ?? Localizer["Reports_WhoFormer"].Value,
-            "household" => Localizer["Reports_WhoHousehold"].Value,
-            "former_member" => Localizer["Reports_WhoFormer"].Value,
-            "inflows" => Localizer["Reports_WhoInflows"].Value,
-            _ => s.Kind,
-        }, ChartSide(s.Amount.Crc, s.Amount.Usd), Palette[i % Palette.Length]))
-        .ToList();
-
     private List<DonutSlice> BankSlices() => (_report?.ByBank ?? [])
         .Select((b, i) => new DonutSlice(string.IsNullOrEmpty(b.Label) ? Localizer["Reports_UnknownBank"].Value : b.Label, ChartSide(b.TotalCrc, b.TotalUsd), Palette[i % Palette.Length]))
         .ToList();
@@ -626,13 +593,7 @@
         [property: JsonPropertyName("by_bank")] List<GroupDto> ByBank,
         [property: JsonPropertyName("by_method")] List<GroupDto> ByMethod,
         [property: JsonPropertyName("spend_by_day")] List<DayDto>? SpendByDay,
-        [property: JsonPropertyName("by_card")] List<GroupDto>? ByCard = null,
-        [property: JsonPropertyName("income_by_member")] List<MemberIncomeDto>? IncomeByMember = null);
-    private sealed record MemberIncomeDto(
-        [property: JsonPropertyName("kind")] string Kind,
-        [property: JsonPropertyName("member_user_id")] Guid? MemberUserId,
-        [property: JsonPropertyName("name")] string? Name,
-        [property: JsonPropertyName("amount")] MoneyDto Amount);
+        [property: JsonPropertyName("by_card")] List<GroupDto>? ByCard = null);
     private sealed record MoneyDto([property: JsonPropertyName("crc")] decimal Crc, [property: JsonPropertyName("usd")] decimal Usd);
     private sealed record GroupDto([property: JsonPropertyName("key")] string Key, [property: JsonPropertyName("label")] string Label, [property: JsonPropertyName("total_crc")] decimal TotalCrc, [property: JsonPropertyName("total_usd")] decimal TotalUsd);
     private sealed record DayDto([property: JsonPropertyName("date")] DateOnly Date, [property: JsonPropertyName("total_crc")] decimal TotalCrc, [property: JsonPropertyName("total_usd")] decimal TotalUsd);

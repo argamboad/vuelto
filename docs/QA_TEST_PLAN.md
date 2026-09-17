@@ -1581,19 +1581,17 @@ month's income** → `(0 rows)`; any row → roll the app back (the old columns 
 **Gherkin**
 ```gherkin
 Given September 2026 has income rows for me, a household row, a row of a member who left, and an inflow
-When I open Reports for September and switch to Chart
-Then an "Income by member" card shows a donut with my name, "The household", "Former members" and "Other income (inflows)", adding up to the month's income
-When I download the PDF
-Then it has the same donut and an "Income by member" table (Whose · Income · Share) with a Total row, its heading on the same page as the table
+When I download the September PDF from Reports
+Then it has an "Income by member" table (Whose · Income · Share) listing my name, "The household", "Former members" and "Other income (inflows)", with a Total row equal to the month's income, all on one page
+And there is no "Income by member" chart, in the PDF or on the Reports page
 When I report a date range, or the rate is unavailable
-Then there is no income by member (a range) or the card says the rate is missing
+Then the PDF has no income by member table
 ```
 **Walkthrough:** with the month of QA-INC-02 (add a household line and an inflow first, if needed), **Reports** → the
-month → **Chart** → **Expected:** the **Income by member** card, each slice's amount and share in the chart currency;
-switch **$** → the same slices in dollars. **PDF → Download** → **Expected:** the donut beside the other income cards
-and, before "By category", the **Income by member** table whose shares add to 100% and whose total equals the income
-tile's basis; in Spanish (Settings → language) the labels read *Ingreso por miembro*, *El hogar*, *Exmiembros*. A date
-range → **Expected:** no card, no table. Via Postman (**20 · Reports → Category analysis (month)**) → `income_by_member`
+month → **Chart** → **Expected:** no income by member card. **PDF → Download** → **Expected:** no income by member
+chart, and before "By category" the **Income by member** table whose shares add to 100% and whose total equals the
+income tile's basis; in Spanish (Settings → language) the labels read *Ingreso por miembro*, *El hogar*, *Exmiembros*. A
+date range → **Expected:** no table. Via Postman (**20 · Reports → Category analysis (month)**) → `income_by_member`
 with `kind` per slice, summing to `income`; the range request → `income_by_member: null`.
 
 ---
@@ -4217,6 +4215,8 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   TTL guard; interrupted links land on Settings' banner). New **QA-AND-15** (on-device kill test;
   renumbered from the branch's QA-AND-14 — that slot went to THEME-1's restart test in the interim).
   Suite 149 → **150** cases.
+- **Updated 2026-09-17** — **No income-by-member chart (owner).** The "Income by member" donut is gone from the Reports
+  page and from the PDF; the PDF keeps its income by member table. **QA-INC-04** rewritten. Case count unchanged.
 - **Updated 2026-09-17** — **Choose the PDF's transaction columns (REPORTS-9; owner request).** The PDF dialog lists
   the appendix's nine optional columns under "Include the transactions", all ticked each time; date and payee always
   print. Both PDF endpoints take `appendix_columns`. New **QA-REP-07** (⚙️ — `ReportPdfJourneyTests` unticks a column

@@ -10,8 +10,8 @@ namespace Vuelto.Api.Features.Reports.Pdf;
 /// rule-for-rule mirror of <c>Shared.Ui/Pages/Reports.razor</c> and <c>CategoryTable.razor</c>: the four tiles and
 /// their subtitles, the pace (a month picture, in the "show in" currency or the chart currency for "both"), the
 /// income/budget cards that say why when there is no rate, the category tables (budget and red/green only for the
-/// budgeted class of a month, judged in each line's own currency), the month's income by whose it is (INCOME-2: a donut
-/// and a table), and the appendix of the CSV's rows.
+/// budgeted class of a month, judged in each line's own currency), the month's income by whose it is (INCOME-2: a
+/// table), and the appendix of the CSV's rows.
 /// </summary>
 public static class ReportPdfModelBuilder
 {
@@ -246,11 +246,6 @@ public static class ReportPdfModelBuilder
                         Amount0(income), notes));
                 }
                 else charts.Add(NoRateCard("budget", T("BudgetSplit")));
-
-                if (_a.IncomeByMember is { Count: > 0 } byMember)
-                    charts.Add(Donut("members", T("IncomeByMember"), byMember
-                        .Select((s, i) => new PdfSlice(WhoLabel(s), ChartSide(s.Amount.Crc, s.Amount.Usd), P.Series[i % P.Series.Count]))
-                        .ToList()));
 
                 if (input.Trend is { Months.Count: > 0 } trend)
                 {

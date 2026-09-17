@@ -125,11 +125,10 @@ Scenario: The migration keeps every month's income
 - **API:** `GET /api/reports/category-analysis` gains `income_by_member: [{kind, member_user_id, name, amount{crc,usd}}]`,
   `kind` = `member` | `household` | `former_member` | `inflows`. Present exactly when `income` is (a single month with a
   rate); null for a range or without a rate. No new endpoint, no migration.
-- **Reports page** (chart view, month mode): an **Income by member** donut card in the chart currency; "no rate" and
-  "no income recorded" say so instead of drawing.
-- **PDF:** the same donut among the charts, and an **Income by member** table (whose · income on the "show in" side ·
-  share) with its total, before the category tables; its heading never ends a page. Left out for a range or without a
-  rate. EN/ES.
+- **PDF:** an **Income by member** table (whose · income on the "show in" side · share) with its total, before the
+  category tables, kept whole on one page. Left out for a range or without a rate. EN/ES.
+- **No chart (owner, 2026-09-17):** the first cut also drew an "Income by member" donut on the Reports page and in the
+  PDF; both were removed — the table says it. The page shows no income by member.
 
 ```gherkin
 Scenario: The month's income by whose it is
@@ -141,11 +140,10 @@ Scenario: The month's income by whose it is
 
 Scenario: A range or a missing rate has no cut
   When I report a date range, or the rate cannot be resolved
-  Then income_by_member is null and the page says why instead of drawing
+  Then income_by_member is null and the PDF has no income by member table
 
-Scenario: The chart and the PDF
-  When I switch to the chart view
-  Then an "Income by member" donut names each slice in my language, in the chart currency
-  When I download the PDF
-  Then it has the same donut and an "Income by member" table with a share column and a total
+Scenario: The PDF
+  When I download the PDF of a month
+  Then it has an "Income by member" table with a share column and a total, in my language
+  And no "Income by member" chart, in the PDF or on the Reports page
 ```

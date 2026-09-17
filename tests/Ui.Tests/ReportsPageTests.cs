@@ -268,35 +268,15 @@ public class ReportsPageTests : ComponentTestBase
     }
 
     [Fact]
-    public async Task ChartView_IncomeByMember_NamesEachSlice_InTheChartCurrency()
+    public async Task ChartView_HasNoIncomeByMemberCard()
     {
-        // INCOME-2: Allan by name, the household and the inflows by label; ₡150,000 of ₡200,000 is 75%.
+        // Owner, 2026-09-17: whose the income is lives in the PDF's table, not in a chart on this page.
         await SignInAsync();
         var cut = RenderMonth();
         ChartView(cut);
 
-        cut.WaitForElement("[data-testid='rep-members-donut']");
-        var legend = cut.FindAll("[data-testid='rep-members-donut'] [data-testid='chart-legend-item']");
-        Assert.Equal(3, legend.Count);
-        Assert.Contains("Allan", legend[0].TextContent);
-        Assert.Contains("₡150,000", legend[0].TextContent);
-        Assert.Contains("75%", legend[0].TextContent);
-        Assert.Contains("Reports_WhoHousehold", legend[1].TextContent);
-        Assert.Contains("Reports_WhoInflows", legend[2].TextContent);
-
-        cut.Find("[data-testid='rep-cur-usd']").Click();
-        cut.WaitForAssertion(() => Assert.Contains("$300", cut.FindAll("[data-testid='rep-members-donut'] [data-testid='chart-legend-item']")[0].TextContent));
-    }
-
-    [Fact]
-    public async Task ChartView_IncomeByMember_WithoutIncomeRows_SaysSo()
-    {
-        await SignInAsync();
-        var cut = RenderMonth(SingleMonth.Replace("\"income_by_member\":[", "\"income_by_member\":[],\"ignored\":["));
-        ChartView(cut);
-
-        Assert.Contains("Reports_IncomeByMemberEmpty", cut.WaitForElement("[data-testid='rep-members-empty']").TextContent);
-        Assert.Empty(cut.FindAll("[data-testid='rep-members-donut']"));
+        cut.WaitForElement("[data-testid='rep-income-donut']");
+        Assert.Empty(cut.FindAll("[data-testid='rep-members-card']"));
     }
 
     [Fact]
@@ -330,8 +310,6 @@ public class ReportsPageTests : ComponentTestBase
         Assert.Empty(cut.FindAll("[data-testid='rep-income-donut']"));
         Assert.Contains("Reports_IncomeNoRate", cut.Find("[data-testid='rep-budget-norate']").TextContent);
         Assert.Empty(cut.FindAll("[data-testid='rep-budget-donut']"));
-        Assert.Contains("Reports_IncomeNoRate", cut.Find("[data-testid='rep-members-norate']").TextContent);
-        Assert.Empty(cut.FindAll("[data-testid='rep-members-donut']"));
         Assert.NotEmpty(cut.FindAll("[data-testid='rep-donut']"));
 
         // A date range has no month income: no card at all, and the class donut takes the full width again.
@@ -343,7 +321,6 @@ public class ReportsPageTests : ComponentTestBase
         cut.WaitForAssertion(() => Assert.Contains("Reports_MultiMonthNote", cut.Find("[data-testid='rep-period']").TextContent));
         Assert.Empty(cut.FindAll("[data-testid='rep-income-card']"));
         Assert.Empty(cut.FindAll("[data-testid='rep-budget-card']"));
-        Assert.Empty(cut.FindAll("[data-testid='rep-members-card']"));
         Assert.NotEmpty(cut.FindAll("[data-testid='rep-donut']"));
         Assert.Empty(cut.FindAll("[data-testid='rep-pace-card']"));
         Assert.Empty(cut.FindAll("[data-testid='rep-trend-card']"));

@@ -371,7 +371,7 @@ Scenario: Guard rails
   When I send display "EUR" → 400 invalid_request, and nothing is queued
 ```
 
-*Extended by INCOME-2 (2026-09-16, `docs/stories/income.md`):* for a single month with a rate the category analysis also returns `income_by_member` (the month's income cut by member, household, former members and inflows); the chart view draws it as a donut and the PDF adds the donut and an "Income by member" table.
+*Extended by INCOME-2 (2026-09-16, `docs/stories/income.md`):* for a single month with a rate the category analysis also returns `income_by_member` (the month's income cut by member, household, former members and inflows); the PDF prints it as an "Income by member" table (no chart — owner, 2026-09-17).
 
 ### REPORTS-9 — Choose the transaction columns in the PDF *(owner request, 2026-09-17)*
 

@@ -284,9 +284,6 @@
   <data name="Pdf_EmailBody" xml:space="preserve">
     <value>Attached is the report for {0} ({1}) of {2}. Total spend: {3}.</value>
   </data>
-  <data name="Pdf_IncomeByMember" xml:space="preserve">
-    <value>Income by member</value>
-  </data>
   <data name="Pdf_IncomeTitle" xml:space="preserve">
     <value>Income by member</value>
   </data>

@@ -185,8 +185,8 @@ public class ReportPdfModelBuilderTests
     [Fact]
     public void Charts_ForAMonth_AndForARange()
     {
-        Assert.Equal(["class", "income", "budget", "members", "trend", "bank", "method", "method-budget"], Build().Charts.Select(c => c.Key));
-        Assert.Equal(["class", "income", "budget", "members", "trend", "bank", "card", "method", "method-budget"], Build(June(withCard: true)).Charts.Select(c => c.Key));
+        Assert.Equal(["class", "income", "budget", "trend", "bank", "method", "method-budget"], Build().Charts.Select(c => c.Key));
+        Assert.Equal(["class", "income", "budget", "trend", "bank", "card", "method", "method-budget"], Build(June(withCard: true)).Charts.Select(c => c.Key));
         Assert.Equal(["class", "bank", "method"], Build(Range()).Charts.Select(c => c.Key));
     }
 
@@ -233,12 +233,10 @@ public class ReportPdfModelBuilderTests
     }
 
     [Fact]
-    public void IncomeByMember_IsADonutAndATable_WhoseSharesAddUp()
+    public void IncomeByMember_IsATable_WhoseSharesAddUp_AndNotAChart()
     {
         var model = Build();
-        var donut = model.Charts.Single(c => c.Key == "members");
-        Assert.Equal(["Allan", "The household", "Former members", "Other income (inflows)"], donut.Legend.Select(l => l.Label));
-        Assert.Equal("₡1,000,000 · 67%", donut.Legend[0].Value);
+        Assert.DoesNotContain(model.Charts, c => c.Key == "members"); // owner, 2026-09-17: the table says it
 
         var table = model.Income!;
         Assert.Equal("Income by member", table.Title);
@@ -261,12 +259,10 @@ public class ReportPdfModelBuilderTests
     {
         Assert.Null(Build(Range()).Income);
         Assert.Null(Build(June(withRate: false)).Income);
-        Assert.DoesNotContain(Build(June(withRate: false)).Charts, c => c.Key == "members");
 
         var none = Build(June() with { Income = new ReportMoneyResponse(0m, 0m), IncomeByMember = [] });
         Assert.Equal("No income recorded for this month.", none.Income!.EmptyNote);
         Assert.Null(none.Income.Total);
-        Assert.DoesNotContain(none.Charts, c => c.Key == "members");
 
         var formerNamed = Build(June() with { IncomeByMember = [NewSlice("member", Guid.CreateVersion7(), null, 1m, 1m)] });
         Assert.Equal("Former members", formerNamed.Income!.Rows[0][0].Text); // a member without a name never prints blank

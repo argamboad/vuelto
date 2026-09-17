@@ -1820,7 +1820,8 @@ member take the new one, in the same save. Without this, the migrated rows (no m
 the month page edits no member — and the reports' income by member read "the household" for every past month. A row
 whose member differs from the line's previous member is left alone.
 *Amendment (2026-09-16, INCOME-2):* the reports cut the month's income by whose it is (`IncomeByMember` in Core; the
-analysis response's `income_by_member`, a donut on the page, a donut and a table in the PDF). Rows of a member who left
+analysis response's `income_by_member`, printed as a table in the PDF; the first cut's donut on the page and in the PDF
+was removed on 2026-09-17 at the owner's request — the table says it). Rows of a member who left
 form one "former members" slice with no name — a departed member's name is not kept in this household's reports.
 *Deviation from the plan:* a member who leaves is **skipped at snapshot time** (the member is no longer in the household)
 rather than having their lines deactivated in storage — the line keeps its member for history and can be reassigned; the

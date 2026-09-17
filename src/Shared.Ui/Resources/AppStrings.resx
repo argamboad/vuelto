@@ -877,11 +877,6 @@
   <data name="Month_IncomeAdd" xml:space="preserve"><value>Add income for this month</value></data>
   <data name="Month_IncomeLabelRequired" xml:space="preserve"><value>Every income needs a name.</value></data>
   <data name="Month_IncomeNegative" xml:space="preserve"><value>Amounts can't be negative.</value></data>
-  <data name="Reports_IncomeByMember" xml:space="preserve"><value>Income by member</value></data>
-  <data name="Reports_IncomeByMemberEmpty" xml:space="preserve"><value>No income recorded for this month.</value></data>
-  <data name="Reports_WhoHousehold" xml:space="preserve"><value>The household</value></data>
-  <data name="Reports_WhoFormer" xml:space="preserve"><value>Former members</value></data>
-  <data name="Reports_WhoInflows" xml:space="preserve"><value>Other income (inflows)</value></data>
   <data name="Income_MemberFollowsHint" xml:space="preserve"><value>Changing whose income this is also updates the months that already have it. Their amounts stay as they are.</value></data>
   <data name="Reports_PdfColumns" xml:space="preserve"><value>Columns</value></data>
   <data name="Reports_PdfColumnsHint" xml:space="preserve"><value>Date and payee always print.</value></data>
