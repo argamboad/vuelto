@@ -1763,6 +1763,11 @@ appendix (every CSV column); new resx pair `ReportPdfStrings` under the resource
 linked from `Shared.Ui/wwwroot/brand` so the brand keeps one file. REPORTS-8 mails the same bytes
 (`ReportPdfHandler.RenderAsync`) as an attachment through the platform's `IEmailSender` attachment seam.
 
+*Amendment (2026-09-17, REPORTS-9, owner):* the appendix's columns are the reader's choice — `appendix_columns` on both
+PDF endpoints, any of category, class, amount, rate, method, bank, source, card, notes, printed in the usual order;
+date and payee always print; absent means all (the file is unchanged for existing callers); an unknown key is a 400.
+The dialog ticks every column each time it opens rather than remembering a choice — a leaner file is a per-report
+decision, and a remembered one would silently drop columns from the next report.
 *Amendment (2026-09-16, REPORTS-8 as built):* **"Email me"** is `POST /api/reports/pdf/email` — one email, queued through
 the outbox, to the caller's own address (no recipient input), the PDF attached, the body the platform's generic branded
 notification (`BrandedEmail.Notification`, HTML-encoded) naming the period, the household and the total spend; nothing is

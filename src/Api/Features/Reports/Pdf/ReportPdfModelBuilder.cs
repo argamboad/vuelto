@@ -365,33 +365,34 @@ public static class ReportPdfModelBuilder
 
         // ---- appendix ----
 
+        /// <summary>The CSV's rows, one column per chosen field (REPORTS-9: date and payee always; the rest as asked).</summary>
         private PdfTable Appendix()
         {
             var crc = _o.Display != DisplayCurrencies.Usd;
             var usd = _o.Display != DisplayCurrencies.Crc;
-            var columns = new List<PdfColumn>
+            var fields = new List<(PdfColumn Column, Func<TransactionExportRow, string> Cell)>
             {
-                new(T("ColDate"), 2.2f), new(T("ColPayee"), 4.5f), new(T("ColCategory"), 3.2f), new(T("ColClass"), 2.8f),
+                (new(T("ColDate"), 2.2f), r => r.Date.ToString("d", _c)),
+                (new(T("ColPayee"), 4.5f), r => r.Payee),
             };
-            if (crc) columns.Add(new("₡", 3f, Right: true));
-            if (usd) columns.Add(new("$", 2.2f, Right: true));
-            columns.AddRange([new(T("ColRate"), 1.8f, Right: true), new(T("ColMethod"), 2.8f), new(T("ColBank"), 2.4f),
-                new(T("ColSource"), 1.8f), new(T("ColCard"), 2.6f), new(T("ColNotes"), 4f)]);
-
-            var rows = (input.Appendix ?? []).Select(r =>
+            if (_o.Shows(ReportPdfColumns.Category)) fields.Add((new(T("ColCategory"), 3.2f), r => r.CategoryName ?? ""));
+            if (_o.Shows(ReportPdfColumns.Class)) fields.Add((new(T("ColClass"), 2.8f), r => ClassLabel(r.TransactionType)));
+            if (_o.Shows(ReportPdfColumns.Amount))
             {
-                var cells = new List<PdfCell>
-                {
-                    new(r.Date.ToString("d", _c)), new(r.Payee), new(r.CategoryName ?? ""), new(ClassLabel(r.TransactionType)),
-                };
-                if (crc) cells.Add(new("₡" + Num(r.AmountCrc)));
-                if (usd) cells.Add(new("$" + Num(r.AmountUsd)));
-                cells.AddRange([new(Num(r.ExchangeRateUsed)), new(MethodLabel(r.PaymentMethod)), new(r.BankName ?? ""),
-                    new(SourceLabel(r.Source)), new(r.CardName ?? ""), new(r.Notes ?? "")]);
-                return (IReadOnlyList<PdfCell>)cells;
-            }).ToList();
+                if (crc) fields.Add((new("₡", 3f, Right: true), r => "₡" + Num(r.AmountCrc)));
+                if (usd) fields.Add((new("$", 2.2f, Right: true), r => "$" + Num(r.AmountUsd)));
+            }
+            if (_o.Shows(ReportPdfColumns.Rate)) fields.Add((new(T("ColRate"), 1.8f, Right: true), r => Num(r.ExchangeRateUsed)));
+            if (_o.Shows(ReportPdfColumns.Method)) fields.Add((new(T("ColMethod"), 2.8f), r => MethodLabel(r.PaymentMethod)));
+            if (_o.Shows(ReportPdfColumns.Bank)) fields.Add((new(T("ColBank"), 2.4f), r => r.BankName ?? ""));
+            if (_o.Shows(ReportPdfColumns.Source)) fields.Add((new(T("ColSource"), 1.8f), r => SourceLabel(r.Source)));
+            if (_o.Shows(ReportPdfColumns.Card)) fields.Add((new(T("ColCard"), 2.6f), r => r.CardName ?? ""));
+            if (_o.Shows(ReportPdfColumns.Notes)) fields.Add((new(T("ColNotes"), 4f), r => r.Notes ?? ""));
 
-            return new PdfTable(T("AppendixTitle"), columns, rows, null, rows.Count == 0 ? T("AppendixEmpty") : null);
+            var rows = (input.Appendix ?? [])
+                .Select(r => (IReadOnlyList<PdfCell>)fields.Select(f => new PdfCell(f.Cell(r))).ToList())
+                .ToList();
+            return new PdfTable(T("AppendixTitle"), fields.Select(f => f.Column).ToList(), rows, null, rows.Count == 0 ? T("AppendixEmpty") : null);
         }
     }
 }

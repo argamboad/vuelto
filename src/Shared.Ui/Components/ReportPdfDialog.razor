@@ -9,8 +9,8 @@
    chart currency and this device's date, in the language saved in the account (the app sends none; the API reads it).
    Download (POST /api/reports/pdf) returns the CSV's signed link and leaves through the same IFileDownloadLauncher (a
    browser download, or the native share sheet); Email me (POST /api/reports/pdf/email) mails the file to the signed-in
-   address. The only choice offered is whether to add the transactions; everything else follows the screen, and the
-   dialog says so. Bootstrap modal markup rendered by Blazor, like the budget-line dialog (no Bootstrap JS). *@
+   address. The choices offered are whether to add the transactions and, if so, which of their columns (REPORTS-9: all
+   ticked, date and payee always print); everything else follows the screen, and the dialog says so. Bootstrap modal markup rendered by Blazor, like the budget-line dialog (no Bootstrap JS). *@
 <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="pdf-dialog-title"
      data-testid="rep-pdf-dialog" @onkeydown="OnKeyDown">
     <div class="modal-dialog modal-dialog-centered">
@@ -24,6 +24,25 @@
                     <input class="form-check-input" type="checkbox" id="pdf-appendix" data-testid="rep-pdf-appendix" disabled="@_busy" @bind="_appendix" />
                     <label class="form-check-label" for="pdf-appendix">@Localizer["Reports_PdfAppendix"]</label>
                 </div>
+                @if (_appendix)
+                {
+                    <fieldset class="ms-4 mb-3" data-testid="rep-pdf-columns" disabled="@_busy">
+                        <legend class="small fw-medium mb-1">@Localizer["Reports_PdfColumns"]</legend>
+                        <p class="small text-muted mb-2">@Localizer["Reports_PdfColumnsHint"]</p>
+                        <div class="row row-cols-2 g-1">
+                            @foreach (var (key, label) in Columns())
+                            {
+                                <div class="col">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="pdf-col-@key" data-testid="rep-pdf-col-@key"
+                                               checked="@_columns.Contains(key)" @onchange="e => Toggle(key, e.Value is true)" />
+                                        <label class="form-check-label small" for="pdf-col-@key">@label</label>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </fieldset>
+                }
                 <ul class="list-unstyled small text-muted mb-0" data-testid="rep-pdf-summary">
                     <li>@Localizer["Reports_PdfAmounts", AmountsLabel(Display)]</li>
                     <li>@Localizer["Reports_PdfCharts", AmountsLabel(ChartCurrency)]</li>
@@ -64,6 +83,22 @@
     [Parameter] public EventCallback OnClose { get; set; }
 
     private bool _appendix = true;
+
+    /// <summary>The appendix's optional columns, in print order (the API's keys) — all ticked to start.</summary>
+    private static readonly string[] ColumnKeys = ["category", "class", "amount", "rate", "method", "bank", "source", "card", "notes"];
+    private readonly HashSet<string> _columns = [.. ColumnKeys];
+
+    private IEnumerable<(string Key, string Label)> Columns() =>
+    [
+        ("category", Localizer["Tx_Category"].Value), ("class", Localizer["Tx_Class"].Value), ("amount", Localizer["Tx_Amount"].Value),
+        ("rate", Localizer["Reports_PdfColRate"].Value), ("method", Localizer["Tx_PaymentMethod"].Value), ("bank", Localizer["Tx_Bank"].Value),
+        ("source", Localizer["Reports_PdfColSource"].Value), ("card", Localizer["Tx_Card"].Value), ("notes", Localizer["Tx_Notes"].Value),
+    ];
+
+    private void Toggle(string key, bool on)
+    {
+        if (on) _columns.Add(key); else _columns.Remove(key);
+    }
     private string? _action; // "download" | "email" while a request is out
     private bool _busy => _action is not null;
     private string? _error;
@@ -82,7 +117,8 @@
     }
 
     private PdfRequest Body() => new(Period.MonthId, Period.From?.ToString("yyyy-MM-dd"), Period.To?.ToString("yyyy-MM-dd"),
-        Display, ChartCurrency, _appendix, Today.ToString("yyyy-MM-dd"));
+        Display, ChartCurrency, _appendix, Today.ToString("yyyy-MM-dd"),
+        _appendix ? ColumnKeys.Where(_columns.Contains).ToList() : null);
 
     private string AmountsLabel(string side) => side switch
     {
@@ -150,7 +186,8 @@
         [property: JsonPropertyName("display")] string Display,
         [property: JsonPropertyName("chart_currency")] string ChartCurrency,
         [property: JsonPropertyName("include_appendix")] bool IncludeAppendix,
-        [property: JsonPropertyName("today")] string Today);
+        [property: JsonPropertyName("today")] string Today,
+        [property: JsonPropertyName("appendix_columns"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] List<string>? AppendixColumns);
 
     private sealed record EmailResponse([property: JsonPropertyName("sent_to")] string SentTo);
 

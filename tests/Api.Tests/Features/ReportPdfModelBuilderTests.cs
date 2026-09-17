@@ -74,7 +74,7 @@ public class ReportPdfModelBuilderTests
     private static ReportPdfModel Build(
         CategoryAnalysisResponse? analysis = null, string display = "both", string chart = "CRC", string language = "en",
         bool appendix = true, TransactionExportRow[]? rows = null, MonthsTrendResponse? trend = null, MoneyPair? refunds = null,
-        DateOnly? today = null, bool month = true)
+        DateOnly? today = null, bool month = true, IReadOnlyList<string>? columns = null)
     {
         var a = analysis ?? June();
         return ReportPdfModelBuilder.Build(new ReportPdfInput(
@@ -83,7 +83,7 @@ public class ReportPdfModelBuilderTests
             a.SingleMonth ? trend ?? Trend() : null,
             refunds,
             appendix ? rows ?? Rows : null,
-            new ReportPdfOptions(display, chart, appendix, language, today ?? new DateOnly(2026, 6, 10))));
+            new ReportPdfOptions(display, chart, appendix, language, today ?? new DateOnly(2026, 6, 10), columns)));
     }
 
     // ---- header ----
@@ -363,6 +363,21 @@ public class ReportPdfModelBuilderTests
         Assert.Equal(["5/30/2026", "Walmart", "Groceries", "Budgeted", "₡48,000.00", "$96.00", "500.00", "Bank account", "", "Manual", "", ""],
             appendix.Rows[1].Select(c => c.Text));
         Assert.Null(appendix.Total);
+    }
+
+    [Fact]
+    public void Appendix_PrintsOnlyTheChosenColumns_DateAndPayeeAlways()
+    {
+        var lean = Build(columns: ["amount", "notes"]).Appendix!;
+        Assert.Equal(["Date", "Payee", "₡", "$", "Notes"], lean.Columns.Select(c => c.Header));
+        Assert.Equal(["6/10/2026", "Soda Tapia", "₡15,750.00", "$31.50", "birthday"], lean.Rows[0].Select(c => c.Text));
+
+        var usdOnly = Build(display: "USD", columns: ["amount", "category"]).Appendix!;
+        Assert.Equal(["Date", "Payee", "Category", "$"], usdOnly.Columns.Select(c => c.Header)); // amount = the "show in" side(s)
+
+        var bare = Build(columns: []).Appendix!;
+        Assert.Equal(["Date", "Payee"], bare.Columns.Select(c => c.Header));
+        Assert.Equal(["5/30/2026", "Walmart"], bare.Rows[1].Select(c => c.Text));
     }
 
     [Fact]

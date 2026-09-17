@@ -159,6 +159,34 @@ public class ReportPdfSliceTests(PostgresFixture fixture) : PostgresTestBase(fix
         Assert.Equal(expected, options!.Language);
     }
 
+    [Fact]
+    public async Task ParseOptions_AppendixColumns_AreNormalized_AndAllMeansNull()
+    {
+        var c = await SeedAsync();
+
+        var (some, error) = await c.Pdf.ParseOptionsAsync(new ReportPdfRequest(AppendixColumns: [" Notes", "AMOUNT", "date", "amount", "payee"]), c.UserId, default);
+        Assert.Null(error);
+        Assert.Equal(["amount", "notes"], some!.AppendixColumns); // print order, no repeats; date and payee are implied
+        Assert.True(some.Shows("date") && some.Shows("payee") && some.Shows("notes"));
+        Assert.False(some.Shows("bank"));
+
+        var (none, _) = await c.Pdf.ParseOptionsAsync(new ReportPdfRequest(AppendixColumns: []), c.UserId, default);
+        Assert.Empty(none!.AppendixColumns!); // date and payee only
+
+        var (all, _) = await c.Pdf.ParseOptionsAsync(new ReportPdfRequest(AppendixColumns: [.. ReportPdfColumns.Optional]), c.UserId, default);
+        Assert.Null(all!.AppendixColumns); // every column is the default appendix
+    }
+
+    [Fact]
+    public async Task ParseOptions_AnUnknownColumn_IsRefused()
+    {
+        var c = await SeedAsync();
+        var (options, error) = await c.Pdf.ParseOptionsAsync(new ReportPdfRequest(AppendixColumns: ["amount", "tip"]), c.UserId, default);
+        Assert.Null(options);
+        Assert.Equal("invalid_request", error!.Error);
+        Assert.Contains("'tip'", error.Message);
+    }
+
     [Theory]
     [InlineData("EUR", null, null)]
     [InlineData(null, "both", null)]

@@ -883,4 +883,8 @@
   <data name="Reports_WhoFormer" xml:space="preserve"><value>Former members</value></data>
   <data name="Reports_WhoInflows" xml:space="preserve"><value>Other income (inflows)</value></data>
   <data name="Income_MemberFollowsHint" xml:space="preserve"><value>Changing whose income this is also updates the months that already have it. Their amounts stay as they are.</value></data>
+  <data name="Reports_PdfColumns" xml:space="preserve"><value>Columns</value></data>
+  <data name="Reports_PdfColumnsHint" xml:space="preserve"><value>Date and payee always print.</value></data>
+  <data name="Reports_PdfColRate" xml:space="preserve"><value>Exchange rate</value></data>
+  <data name="Reports_PdfColSource" xml:space="preserve"><value>Source</value></data>
 </root>

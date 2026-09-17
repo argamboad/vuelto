@@ -132,6 +132,8 @@ public class ReportEndpointTests(IntegrationTestFactory factory)
         Assert.Equal((HttpStatusCode.BadRequest, "period_ambiguous"), await Post(new { month_id = Guid.CreateVersion7(), from = "2026-06-01", to = "2026-06-30" }));
         Assert.Equal((HttpStatusCode.BadRequest, "invalid_request"), await Post(new { from = "2026-06-01", to = "2026-06-30", display = "EUR" }));
         Assert.Equal((HttpStatusCode.BadRequest, "invalid_request"), await Post(new { from = "2026-06-01", to = "2026-06-30", language = "fr" }));
+        Assert.Equal((HttpStatusCode.BadRequest, "invalid_request"), await Post(new { from = "2026-06-01", to = "2026-06-30", appendix_columns = new[] { "tip" } }));
+        Assert.Equal((HttpStatusCode.OK, (string?)null), await Post(new { from = "2026-06-01", to = "2026-06-30", appendix_columns = new[] { "amount", "notes" } }));
         Assert.Equal(HttpStatusCode.NotFound, (await Post(new { month_id = Guid.CreateVersion7() })).Status);
 
         // Another household's month is the same uniform 404.

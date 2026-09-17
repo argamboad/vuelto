@@ -140,7 +140,9 @@ public record TransactionExportResponse(
 /// <c>POST /api/reports/pdf</c> (REPORTS-7): the period (<c>month_id</c> or <c>from</c>+<c>to</c>, the shared rule) and how
 /// to show it — <c>display</c> CRC | USD | both (default both), <c>chart_currency</c> CRC | USD (default CRC),
 /// <c>include_appendix</c> (default true), <c>language</c> en | es (default en), and <c>today</c>, the device's date for
-/// the pace marker (default the server's UTC date).
+/// the pace marker (default the server's UTC date). <c>appendix_columns</c> (REPORTS-9) lists the appendix columns to
+/// print — any of category, class, amount, rate, method, bank, source, card, notes (date and payee always print);
+/// absent means all of them; an unknown key is a 400.
 /// </summary>
 public record ReportPdfRequest(
     [property: JsonPropertyName("month_id")] Guid? MonthId = null,
@@ -150,7 +152,8 @@ public record ReportPdfRequest(
     [property: JsonPropertyName("chart_currency")] string? ChartCurrency = null,
     [property: JsonPropertyName("include_appendix")] bool? IncludeAppendix = null,
     [property: JsonPropertyName("language")] string? Language = null,
-    [property: JsonPropertyName("today")] DateOnly? Today = null);
+    [property: JsonPropertyName("today")] DateOnly? Today = null,
+    [property: JsonPropertyName("appendix_columns")] List<string>? AppendixColumns = null);
 
 /// <summary><c>POST /api/reports/pdf/email</c> (REPORTS-8): 202 — one email queued to <c>sent_to</c>, the caller's own address.</summary>
 public record ReportEmailResponse(

@@ -346,7 +346,8 @@ Notes: downloads go through the platform's `IFileDownloadLauncher` seam so nativ
 **Goal:** keep, print or share the month without the app.
 
 Flow:
-1. Reports → **PDF** (beside Export CSV) opens a dialog: "Include the transactions" (ticked) and the
+1. Reports → **PDF** (beside Export CSV) opens a dialog: "Include the transactions" (ticked) with the transactions
+   table's columns to print (REPORTS-9: all ticked; date and payee always print), and the
    amounts, charts and language the file will use — all taken from the screen.
 2. **Download** calls `POST /api/reports/pdf` with the shown period (`month_id` or `from`+`to`), the
    "show in" side, the chart currency, the appendix choice, the app language and the device date. The API

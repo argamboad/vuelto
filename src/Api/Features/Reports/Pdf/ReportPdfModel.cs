@@ -10,10 +10,18 @@ namespace Vuelto.Api.Features.Reports.Pdf;
 /// <summary>The month a single-month report is about (for the heading), by its budget year and number.</summary>
 public sealed record ReportPdfMonth(int Year, int Number);
 
-/// <summary>How the caller asked to see it: the "show in" side, the chart currency, the appendix, the language, and the device date for the pace marker.</summary>
-public sealed record ReportPdfOptions(string Display, string ChartCurrency, bool IncludeAppendix, string Language, DateOnly Today)
+/// <summary>
+/// How the caller asked to see it: the "show in" side, the chart currency, the appendix, the language, the device date
+/// for the pace marker, and the appendix's optional columns (REPORTS-9; null = all, see <see cref="ReportPdfColumns"/>).
+/// </summary>
+public sealed record ReportPdfOptions(string Display, string ChartCurrency, bool IncludeAppendix, string Language, DateOnly Today,
+    IReadOnlyList<string>? AppendixColumns = null)
 {
     public CultureInfo Culture => CultureInfo.GetCultureInfo(Language);
+
+    /// <summary>Whether the appendix prints <paramref name="column"/> (date and payee always do).</summary>
+    public bool Shows(string column) => AppendixColumns is null || AppendixColumns.Contains(column)
+        || column is ReportPdfColumns.Date or ReportPdfColumns.Payee;
 }
 
 /// <summary>

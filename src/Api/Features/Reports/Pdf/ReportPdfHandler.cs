@@ -58,8 +58,13 @@ public sealed class ReportPdfHandler(
             language = saved is not null && Languages.Contains(saved) ? saved : "en";
         }
 
+        var columns = ReportPdfColumns.Normalize(request.AppendixColumns, out var unknown);
+        if (unknown is not null)
+            return (null, new ErrorResponse("invalid_request",
+                $"appendix_columns: '{unknown}' is not a column. Use {string.Join(", ", ReportPdfColumns.Optional)}."));
+
         var today = request.Today ?? DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime);
-        return (new ReportPdfOptions(display, chart, request.IncludeAppendix ?? true, language, today), null);
+        return (new ReportPdfOptions(display, chart, request.IncludeAppendix ?? true, language, today, columns), null);
     }
 
     /// <summary>The rendered file and its download name — REPORTS-8 mails the same bytes this stores.</summary>

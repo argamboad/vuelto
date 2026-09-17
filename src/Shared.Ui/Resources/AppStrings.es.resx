@@ -883,4 +883,8 @@
   <data name="Reports_WhoFormer" xml:space="preserve"><value>Exmiembros</value></data>
   <data name="Reports_WhoInflows" xml:space="preserve"><value>Otros ingresos (entradas)</value></data>
   <data name="Income_MemberFollowsHint" xml:space="preserve"><value>Cambiar de quién es este ingreso también actualiza los meses que ya lo tienen. Sus montos no cambian.</value></data>
+  <data name="Reports_PdfColumns" xml:space="preserve"><value>Columnas</value></data>
+  <data name="Reports_PdfColumnsHint" xml:space="preserve"><value>La fecha y el comercio siempre se imprimen.</value></data>
+  <data name="Reports_PdfColRate" xml:space="preserve"><value>Tipo de cambio</value></data>
+  <data name="Reports_PdfColSource" xml:space="preserve"><value>Origen</value></data>
 </root>

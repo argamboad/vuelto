@@ -2256,6 +2256,27 @@ attached)**) → 202 `{ sent_to, file_name, period }`; a month of another househ
 "EUR"` → 400 `invalid_request` and no email; **Report as PDF (link)** without `language` follows the saved
 language, with `"language": "en"` it is English.
 
+### QA-REP-07 — Choose the transaction columns the PDF prints ⚙️ Automated in CI 🟢 (Web / API)
+**Gherkin**
+```gherkin
+Given I am on Reports for June with transactions
+When I press PDF
+Then under "Include the transactions" nine columns are listed, all ticked, with "Date and payee always print"
+When I untick Exchange rate, Source, Card and Class and press Download
+Then the appendix prints Date, Payee, Category, the amounts, Payment method, Bank and Notes, in that order
+When I open the dialog again
+Then every column is ticked again
+When I untick "Include the transactions"
+Then the column list disappears and the PDF has no appendix
+```
+**Walkthrough:** **Reports** (June) → **PDF** → **Expected:** the **Columns** list under the transactions checkbox,
+nine boxes ticked. Untick **Exchange rate**, **Source**, **Card**, **Class** → **Download** → open the file →
+**Expected:** the landscape "Transactions" page with only the listed columns, in order, still readable. **PDF** again
+→ **Expected:** all nine ticked. **Email me** with a lean choice → the attachment matches. Untick **Include the
+transactions** → **Expected:** the list hides. Via Postman (**20 · Reports → Report as PDF (link)**) with
+`"appendix_columns": ["notes", "amount"]` → 200, the appendix prints Date, Payee, the amounts, Notes;
+`["tip"]` → 400 `invalid_request` naming it.
+
 ## 10l. Web — Email inboxes: connect, filters & readers (app slice EMAIL-2/3) 🟠
 
 > Your inbox, not the household's (ADR-V002): read-only consent on the account you're signed in with,
@@ -3577,7 +3598,7 @@ Then the sign-in succeeds
 | Expected refunds & realization (app LEDGER-3) | LED-05..06 + `Api.Tests` (`RefundSliceTests`, incl. the two-context concurrency proof) | `refund_expected` / `refund_percentage` on `POST/PUT /api/transactions`; `GET /api/months/{id}/refunds`; `PUT /api/refunds/{id}` (200; 400 `invalid_request`; 404; 409 `refund_status_conflict`) |
 | Budget lines: fixed + variable (app EXPENSES-1) | EXP-01..03 | `GET/POST /api/expenses/{fixed\|variable}`, `PUT …/{id}`, `PUT …/order` (400 `invalid_request`; 409 `expense_exists` / `expense_exists_inactive` + `existing_id` + `existing_name`; uniform 404) |
 | Dashboard (app DASH-1) | DASH-01..02 + `Core.Tests` (`DashboardSummaryServiceTests`, 45 donor cases) + `Api.Tests` (`DashboardSliceTests`) | `GET /api/months/{id}/summary` (200 `{month, exchange_rate, rate_source, rate_as_of, rate_unavailable, summary}`; 401 anonymous; uniform 404) |
-| Reports: category analysis + CSV export + PDF + email (app REPORTS-1/2/7/8) | REP-01..02, REP-05..06 + `Core.Tests` (`CategoryAnalysisCalculatorTests`, `TransactionCsvWriterTests`) + `Api.Tests` (`ReportSliceTests`, `ReportPdfChartsTests`, `ReportPdfModelBuilderTests`, `ReportPdfSliceTests`) + E2E `ReportPdfJourneyTests` | `GET /api/reports/category-analysis`, `POST /api/reports/transactions/export`, `POST /api/reports/pdf`, `POST /api/reports/pdf/email` (`month_id` \| `from`+`to`; 400 `period_required` / `period_ambiguous` / `period_incomplete` / `period_invalid`; uniform 404; export → signed `download_url` served by `GET /api/files/{token}`) |
+| Reports: category analysis + CSV export + PDF + email + appendix columns (app REPORTS-1/2/7/8/9) | REP-01..02, REP-05..07 + `Core.Tests` (`CategoryAnalysisCalculatorTests`, `TransactionCsvWriterTests`) + `Api.Tests` (`ReportSliceTests`, `ReportPdfChartsTests`, `ReportPdfModelBuilderTests`, `ReportPdfSliceTests`) + E2E `ReportPdfJourneyTests` | `GET /api/reports/category-analysis`, `POST /api/reports/transactions/export`, `POST /api/reports/pdf`, `POST /api/reports/pdf/email` (`month_id` \| `from`+`to`; 400 `period_required` / `period_ambiguous` / `period_incomplete` / `period_invalid`; uniform 404; export → signed `download_url` served by `GET /api/files/{token}`) |
 | Email inboxes: connect + readers (app EMAIL-2/3) | EMAIL-01..03 + `Api.Tests` (`MailConsentServiceTests`, `EmailReaderTests`, `EmailConnectionSliceTests`) | `GET /api/email/connections` (+ `/{id}`, `/{id}/folders` 409 `needs_reconsent`), `GET …/authorize?provider=` (400 `invalid_provider` / `provider_not_configured`), anonymous `GET …/callback` (→ `/email?connected=` \| `?email_error=`), `GET …/suggested-filters`, `POST …` (400 `use_consent_flow`), `PUT /{id}` (400 `filters_required` / `invalid_interval`), `DELETE /{id}`; uniform 404 |
 | Email ingestion: staging + dedup (app EMAIL-4) | EMAIL-04 + `Core.Tests` (`VoucherFingerprintTests`) + `Api.Tests` (`VoucherStagingSliceTests` incl. the poll job) | `POST /api/email/connections/{id}/sync` (200 `{staged, duplicates, unrecognized}`; 409 `needs_reconsent`; uniform 404); the `email-poll` scheduled job |
 | Email ingestion: merchant suggestions (app EMAIL-5) | EMAIL-05 + `Core.Tests` (`MerchantMatcherTests`) + `Api.Tests` (`MerchantMappingSliceTests` incl. the race, `VoucherStagingSliceTests` suggestion case, `ReviewEndpointTests`) + `Ui.Tests` (`MerchantMappingsPageTests`) | `GET/POST /api/merchant-mappings`, `PUT/DELETE …/{id}` (400 `invalid_request`; 409 `mapping_exists`; uniform 404) |
@@ -3793,6 +3814,7 @@ Record one row per executed case. Build = API/web commit SHA (`git rev-parse --s
 | QA-REP-04 | Web | | | | | |
 | QA-REP-05 | Web/API | | | | | |
 | QA-REP-06 | Web/API | | | | | |
+| QA-REP-07 | Web/API | | | | | |
 | QA-EMAIL-01 | Web/API | | | | | |
 | QA-EMAIL-02 | Web | | | | | |
 | QA-EMAIL-03 | Web/API | | | | | |
@@ -4195,6 +4217,10 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   TTL guard; interrupted links land on Settings' banner). New **QA-AND-15** (on-device kill test;
   renumbered from the branch's QA-AND-14 — that slot went to THEME-1's restart test in the interim).
   Suite 149 → **150** cases.
+- **Updated 2026-09-17** — **Choose the PDF's transaction columns (REPORTS-9; owner request).** The PDF dialog lists
+  the appendix's nine optional columns under "Include the transactions", all ticked each time; date and payee always
+  print. Both PDF endpoints take `appendix_columns`. New **QA-REP-07** (⚙️ — `ReportPdfJourneyTests` unticks a column
+  before downloading). **Case count 203 → 204.**
 - **Updated 2026-09-17** — **A one-off month income is the adder's (owner).** "Add income for this month" now makes
   the row the signed-in member's income instead of the household's. **QA-INC-02** gains the check. Case count unchanged.
 - **Updated 2026-09-17** — **Whose income it is follows the line (owner).** Changing an income line's member also

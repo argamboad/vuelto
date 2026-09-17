@@ -30,6 +30,8 @@ public class ReportPdfJourneyTests : E2ETestBase
 
         await Page.GetByTestId("rep-pdf").ClickAsync();
         await Expect(Page.GetByTestId("rep-pdf-dialog")).ToBeVisibleAsync(Slow);
+        await Expect(Page.GetByTestId("rep-pdf-col-notes")).ToBeCheckedAsync(); // every column starts ticked (REPORTS-9)
+        await Page.GetByTestId("rep-pdf-col-notes").UncheckAsync();            // a leaner appendix still renders
 
         var download = await Page.RunAndWaitForDownloadAsync(
             () => Page.GetByTestId("rep-pdf-download").ClickAsync(),

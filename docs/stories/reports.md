@@ -372,3 +372,35 @@ Scenario: Guard rails
 ```
 
 *Extended by INCOME-2 (2026-09-16, `docs/stories/income.md`):* for a single month with a rate the category analysis also returns `income_by_member` (the month's income cut by member, household, former members and inflows); the chart view draws it as a donut and the PDF adds the donut and an "Income by member" table.
+
+### REPORTS-9 — Choose the transaction columns in the PDF *(owner request, 2026-09-17)*
+
+**As a** household member
+**I want** to pick which columns the PDF's transactions table prints
+**So that** I can get a leaner appendix when I don't need every detail
+
+**Context / notes:** ADR-V022 (amended).
+- **API:** both PDF endpoints accept `appendix_columns` — any of `category`, `class`, `amount`, `rate`, `method`,
+  `bank`, `source`, `card`, `notes`, in any order and case; the appendix prints them in its usual order. **Date and
+  payee always print** (a row means nothing without them; sending them is allowed and changes nothing). Absent, or
+  every column named, is the full appendix as before. An unknown key → 400 `invalid_request` naming it. `amount` is
+  the "show in" side(s), as before.
+- **UI:** under "Include the transactions" the dialog lists the nine columns as checkboxes, **all ticked each time it
+  opens**, with "Date and payee always print"; unticking the transactions hides the list and sends no columns. Download
+  and Email me send the same choice.
+
+```gherkin
+Scenario: A leaner appendix
+  Given the PDF dialog is open with "Include the transactions" ticked
+  Then all nine columns are ticked
+  When I untick Exchange rate, Source, Card and Class and download
+  Then the appendix prints Date, Payee, Category, the amounts, Payment method, Bank and Notes, in that order
+
+Scenario: The API's rules
+  When I send appendix_columns ["notes", "AMOUNT"]
+  Then the appendix prints Date, Payee, the amounts and Notes
+  When I send appendix_columns []
+  Then it prints Date and Payee only
+  When I send appendix_columns ["tip"]
+  Then I receive 400 invalid_request naming "tip", and nothing is rendered
+```

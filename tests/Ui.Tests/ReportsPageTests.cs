@@ -500,7 +500,9 @@ public class ReportsPageTests : ComponentTestBase
         var summary = cut.Find("[data-testid='rep-pdf-summary']").TextContent;
         Assert.Contains("Reports_PdfAmounts[Reports_PdfBoth]", summary); // the "show in" default is both sides
         Assert.Contains("Reports_PdfCharts[₡]", summary);
+        Assert.NotEmpty(cut.FindAll("[data-testid='rep-pdf-columns']"));
         cut.Find("[data-testid='rep-pdf-appendix']").Change(false);
+        Assert.Empty(cut.FindAll("[data-testid='rep-pdf-columns']")); // no transactions, no columns to pick
         cut.Find("[data-testid='rep-pdf-download']").Click();
 
         cut.WaitForElement("[data-testid='rep-notice']");
@@ -510,11 +512,42 @@ public class ReportsPageTests : ComponentTestBase
         Assert.Equal("both", body.GetProperty("display").GetString());
         Assert.Equal("CRC", body.GetProperty("chart_currency").GetString());
         Assert.False(body.GetProperty("include_appendix").GetBoolean());
+        Assert.False(body.TryGetProperty("appendix_columns", out _));
         Assert.False(body.TryGetProperty("language", out _)); // the API reads the language saved in the account
         Assert.Equal("2026-07-15", body.GetProperty("today").GetString());
         Assert.Equal(("http://localhost/api/files/tok-pdf", "report-2026-06-25_2026-07-29.pdf"), Assert.Single(Downloads.Launched));
         Assert.Empty(cut.FindAll("[data-testid='rep-pdf-dialog']"));
         Assert.Contains("Reports_PdfReady", cut.Find("[data-testid='rep-notice']").TextContent);
+    }
+
+    [Fact]
+    public async Task Pdf_Columns_AllTickedByDefault_AndALeanerChoiceIsSent_ToDownloadAndEmail()
+    {
+        await SignInAsync();
+        Http.On(HttpMethod.Post, "/api/reports/pdf", Pdf);
+        Http.On(HttpMethod.Post, "/api/reports/pdf/email",
+            """{"sent_to":"ana@example.com","file_name":"r.pdf","period":{"from":"2026-06-25","to":"2026-07-29"}}""", HttpStatusCode.Accepted);
+        var cut = RenderMonth();
+
+        cut.Find("[data-testid='rep-pdf']").Click();
+        var boxes = cut.FindAll("[data-testid='rep-pdf-columns'] input[type='checkbox']");
+        Assert.Equal(9, boxes.Count);
+        Assert.All(boxes, b => Assert.True(b.HasAttribute("checked")));
+        Assert.Contains("Reports_PdfColumnsHint", cut.Find("[data-testid='rep-pdf-columns']").TextContent);
+        cut.Find("[data-testid='rep-pdf-download']").Click();
+        cut.WaitForElement("[data-testid='rep-notice']");
+        var all = await PdfBodyAsync(Http.Requests.Last(r => r.RequestUri!.AbsolutePath == "/api/reports/pdf"));
+        Assert.Equal(["category", "class", "amount", "rate", "method", "bank", "source", "card", "notes"],
+            all.GetProperty("appendix_columns").EnumerateArray().Select(e => e.GetString()));
+
+        cut.Find("[data-testid='rep-pdf']").Click();
+        foreach (var key in new[] { "rate", "source", "card", "class" })
+            cut.Find($"[data-testid='rep-pdf-col-{key}']").Change(false);
+        Assert.False(cut.Find("[data-testid='rep-pdf-col-rate']").HasAttribute("checked"));
+        cut.Find("[data-testid='rep-pdf-email']").Click();
+        cut.WaitForAssertion(() => Assert.Contains(Http.Requests, r => r.RequestUri!.AbsolutePath == "/api/reports/pdf/email"));
+        var lean = await PdfBodyAsync(Http.Requests.Last(r => r.RequestUri!.AbsolutePath == "/api/reports/pdf/email"));
+        Assert.Equal(["category", "amount", "method", "bank", "notes"], lean.GetProperty("appendix_columns").EnumerateArray().Select(e => e.GetString()));
     }
 
     [Fact]
