@@ -154,6 +154,14 @@ public static partial class ReportPdfRenderer
         foreach (var chart in model.Charts.Where(IsBars))
             col.Item().ShowEntire().Element(c => Card(c, chart, wide: true));
 
+        // INCOME-2: whose the month's income is — a few rows at most, so the heading, the rows and the total stay on one page.
+        if (model.Income is { } income)
+            col.Item().ShowEntire().Column(c =>
+            {
+                c.Item().PaddingTop(4).PaddingBottom(4).Text(income.Title).FontSize(14).SemiBold().FontColor(P.BrandDark);
+                c.Item().Element(e => Table(e, income, fontSize: 9f, repeatHeader: true));
+            });
+
         // A heading never ends a page: the section heading travels with the first table, and each table title with
         // its header and first rows — the block moves to the next page when there isn't room for that much.
         for (var i = 0; i < model.Categories.Count; i++)

@@ -877,4 +877,9 @@
   <data name="Month_IncomeAdd" xml:space="preserve"><value>Agregar un ingreso a este mes</value></data>
   <data name="Month_IncomeLabelRequired" xml:space="preserve"><value>Cada ingreso necesita un nombre.</value></data>
   <data name="Month_IncomeNegative" xml:space="preserve"><value>Los montos no pueden ser negativos.</value></data>
+  <data name="Reports_IncomeByMember" xml:space="preserve"><value>Ingreso por miembro</value></data>
+  <data name="Reports_IncomeByMemberEmpty" xml:space="preserve"><value>Este mes no tiene ingresos registrados.</value></data>
+  <data name="Reports_WhoHousehold" xml:space="preserve"><value>El hogar</value></data>
+  <data name="Reports_WhoFormer" xml:space="preserve"><value>Exmiembros</value></data>
+  <data name="Reports_WhoInflows" xml:space="preserve"><value>Otros ingresos (entradas)</value></data>
 </root>

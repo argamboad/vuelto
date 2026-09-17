@@ -40,7 +40,8 @@ public sealed record ReportPdfModel(
     string CategoriesTitle,
     IReadOnlyList<PdfTable> Categories,
     PdfTable? Appendix,
-    ReportPdfFooter Footer);
+    ReportPdfFooter Footer,
+    PdfTable? Income = null);
 
 /// <summary><see cref="Rates"/> is the buy/sell pair line, the "no rate" sentence for a month without one, or null for a range.</summary>
 public sealed record ReportPdfHeader(string Title, string Household, string Heading, string Period, string Scope, string Generated, string? Rates);

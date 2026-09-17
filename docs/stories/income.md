@@ -98,7 +98,42 @@ Scenario: The migration keeps every month's income
   And the old columns still hold their values, and running the backfill again adds nothing
 ```
 
-### INCOME-2 — Income by member *(planned)*
+### INCOME-2 — Income by member
 
-Reports gain "income by member" (the analysis response and a donut) and the PDF's income block becomes a table with a
-member column. After INCOME-1.
+**As a** household member
+**I want** the month's report to say whose income it is
+**So that** I can see how much each of us brings in, and what came in as one-offs or inflows
+
+**Context / notes:**
+- **Pure rule** (`IncomeByMember.Group`, Core): the month's income rows (INCOME-1) and inflows, as the same pairs
+  `IncomeCalculator` produced, cut into slices — one per **current member** (named with their display name, else
+  their email), **the household** (rows with no member), **former members** (rows whose member left — one slice, no
+  names kept), **inflows**. Members first, largest first (ties by name), then household, former members, inflows.
+  Empty slices are left out. The slices add up to the month's income.
+- **API:** `GET /api/reports/category-analysis` gains `income_by_member: [{kind, member_user_id, name, amount{crc,usd}}]`,
+  `kind` = `member` | `household` | `former_member` | `inflows`. Present exactly when `income` is (a single month with a
+  rate); null for a range or without a rate. No new endpoint, no migration.
+- **Reports page** (chart view, month mode): an **Income by member** donut card in the chart currency; "no rate" and
+  "no income recorded" say so instead of drawing.
+- **PDF:** the same donut among the charts, and an **Income by member** table (whose · income on the "show in" side ·
+  share) with its total, before the category tables; its heading never ends a page. Left out for a range or without a
+  rate. EN/ES.
+
+```gherkin
+Scenario: The month's income by whose it is
+  Given September's income rows: Allan's salary $2,000 and freelance $300, a household rent ₡150,000, and a row of a member who left
+  And a ₡25,000 inflow
+  When I open the September report
+  Then income_by_member lists Allan ($2,300 at the day's rate), the household, former members and inflows
+  And the slices add up to the report's income
+
+Scenario: A range or a missing rate has no cut
+  When I report a date range, or the rate cannot be resolved
+  Then income_by_member is null and the page says why instead of drawing
+
+Scenario: The chart and the PDF
+  When I switch to the chart view
+  Then an "Income by member" donut names each slice in my language, in the chart currency
+  When I download the PDF
+  Then it has the same donut and an "Income by member" table with a share column and a total
+```

@@ -99,7 +99,7 @@ public class ReportPdfSliceTests(PostgresFixture fixture) : PostgresTestBase(fix
         var reports = new ReportHandler(
             new EfRepository<Month>(db), new EfRepository<Week>(db), new EfRepository<Transaction>(db), new EfRepository<Category>(db),
             new EfRepository<Bank>(db), new EfRepository<Card>(db), new EfRepository<FixedExpense>(db), new EfRepository<VariableExpense>(db),
-            new EfRepository<MonthIncome>(db), files, new FixedRate(rate), clock);
+            new EfRepository<MonthIncome>(db), new TenantRepository(db), new TestCurrentTenant { TenantId = tenant }, files, new FixedRate(rate), clock);
         var email = new CapturingEmailSender();
         var pdf = new ReportPdfHandler(reports, new EfRepository<Month>(db), new EfRepository<Refund>(db),
             new TenantRepository(db), new UserRepository(db), new TestCurrentTenant { TenantId = tenant }, files, email, clock);

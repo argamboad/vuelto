@@ -36,7 +36,19 @@ public class ReportPdfModelBuilderTests
         SpendByDay: empty ? [] : [new(new DateOnly(2026, 5, 30), 48_000m, 96m), new(new DateOnly(2026, 6, 10), 26_750m, 53.5m)],
         ByCard: withCard
             ? [new(Guid.CreateVersion7().ToString(), "Allan's Visa", 60_000m, 120m), new("none", "", 14_750m, 29.5m)]
-            : [new("none", "", 74_750m, 149.5m)]);
+            : [new("none", "", 74_750m, 149.5m)],
+        IncomeByMember: withRate
+            ?
+            [
+                NewSlice("member", Guid.CreateVersion7(), "Allan", 1_000_000m, 2_000m),
+                NewSlice("household", null, null, 375_000m, 750m),
+                NewSlice("former_member", null, null, 100_000m, 200m),
+                NewSlice("inflows", null, null, 25_000m, 50m),
+            ]
+            : null);
+
+    private static IncomeMemberResponse NewSlice(string kind, Guid? id, string? name, decimal crc, decimal usd) =>
+        new(kind, id, name, new ReportMoneyResponse(crc, usd));
 
     private static CategoryAnalysisResponse Range() => June() with
     {
@@ -44,6 +56,7 @@ public class ReportPdfModelBuilderTests
         SingleMonth = false,
         Budgeted = [new(Guid.CreateVersion7(), "Groceries", 48_000m, 96m, null, null, 3)],
         Income = null, BudgetTotal = null, ExchangeRate = null, ExchangeRateBuy = null, BudgetByMethod = null, SpendByDay = null,
+        IncomeByMember = null,
     };
 
     private static MonthsTrendResponse Trend(bool rate = true) => new(
@@ -172,8 +185,8 @@ public class ReportPdfModelBuilderTests
     [Fact]
     public void Charts_ForAMonth_AndForARange()
     {
-        Assert.Equal(["class", "income", "budget", "trend", "bank", "method", "method-budget"], Build().Charts.Select(c => c.Key));
-        Assert.Equal(["class", "income", "budget", "trend", "bank", "card", "method", "method-budget"], Build(June(withCard: true)).Charts.Select(c => c.Key));
+        Assert.Equal(["class", "income", "budget", "members", "trend", "bank", "method", "method-budget"], Build().Charts.Select(c => c.Key));
+        Assert.Equal(["class", "income", "budget", "members", "trend", "bank", "card", "method", "method-budget"], Build(June(withCard: true)).Charts.Select(c => c.Key));
         Assert.Equal(["class", "bank", "method"], Build(Range()).Charts.Select(c => c.Key));
     }
 
@@ -217,6 +230,46 @@ public class ReportPdfModelBuilderTests
             Assert.Equal("Income needs today's exchange rate, which isn't available right now.", Assert.Single(c.Notes).Text);
         }
         Assert.DoesNotContain(charts, c => c.Key == "method-budget");
+    }
+
+    [Fact]
+    public void IncomeByMember_IsADonutAndATable_WhoseSharesAddUp()
+    {
+        var model = Build();
+        var donut = model.Charts.Single(c => c.Key == "members");
+        Assert.Equal(["Allan", "The household", "Former members", "Other income (inflows)"], donut.Legend.Select(l => l.Label));
+        Assert.Equal("₡1,000,000 · 67%", donut.Legend[0].Value);
+
+        var table = model.Income!;
+        Assert.Equal("Income by member", table.Title);
+        Assert.Equal(["Whose", "Income", "Share"], table.Columns.Select(c => c.Header));
+        Assert.Equal(
+            [["Allan", "₡1,000,000.00 · $2,000.00", "67%"], ["The household", "₡375,000.00 · $750.00", "25%"],
+             ["Former members", "₡100,000.00 · $200.00", "7%"], ["Other income (inflows)", "₡25,000.00 · $50.00", "2%"]],
+            table.Rows.Select(r => r.Select(c => c.Text).ToArray()));
+        Assert.Equal(["Total", "₡1,500,000.00 · $3,000.00", "100%"], table.Total!.Select(c => c.Text));
+
+        // Shares follow the "show in" side; Spanish labels.
+        var usd = Build(display: "USD", language: "es").Income!;
+        Assert.Equal("Ingreso por miembro", usd.Title);
+        Assert.Equal(["Allan", "$2.000,00", "67%"], usd.Rows[0].Select(c => c.Text));
+        Assert.Equal("El hogar", usd.Rows[1][0].Text);
+    }
+
+    [Fact]
+    public void IncomeByMember_IsLeftOut_ForARange_WithoutARate_AndSaysSoWhenTheMonthHasNoIncome()
+    {
+        Assert.Null(Build(Range()).Income);
+        Assert.Null(Build(June(withRate: false)).Income);
+        Assert.DoesNotContain(Build(June(withRate: false)).Charts, c => c.Key == "members");
+
+        var none = Build(June() with { Income = new ReportMoneyResponse(0m, 0m), IncomeByMember = [] });
+        Assert.Equal("No income recorded for this month.", none.Income!.EmptyNote);
+        Assert.Null(none.Income.Total);
+        Assert.DoesNotContain(none.Charts, c => c.Key == "members");
+
+        var formerNamed = Build(June() with { IncomeByMember = [NewSlice("member", Guid.CreateVersion7(), null, 1m, 1m)] });
+        Assert.Equal("Former members", formerNamed.Income!.Rows[0][0].Text); // a member without a name never prints blank
     }
 
     [Fact]

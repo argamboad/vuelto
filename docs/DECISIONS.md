@@ -1809,6 +1809,9 @@ names them. Dropping them is INCOME-3, a later owner-gated contract migration.
 `PUT /api/months/{id}/income` takes the month's full row list (with an id updates, without one is a one-off, left out is
 removed); `budget-settings` lost its income fields; the dashboard summary reports `income_lines` + `income_inflows` instead
 of primary/secondary. The account-erasure contributor clears `member_user_id` on lines and rows, amounts kept.
+*Amendment (2026-09-16, INCOME-2):* the reports cut the month's income by whose it is (`IncomeByMember` in Core; the
+analysis response's `income_by_member`, a donut on the page, a donut and a table in the PDF). Rows of a member who left
+form one "former members" slice with no name — a departed member's name is not kept in this household's reports.
 *Deviation from the plan:* a member who leaves is **skipped at snapshot time** (the member is no longer in the household)
 rather than having their lines deactivated in storage — the line keeps its member for history and can be reassigned; the
 edit form still shows the former member. *Supersedes:* ADR-V003's income defaults and ADR-V005's "two incomes per month".

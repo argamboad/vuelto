@@ -94,7 +94,7 @@ public class ReportSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
         var handler = new ReportHandler(
             new EfRepository<Month>(db), new EfRepository<Week>(db), new EfRepository<Transaction>(db), new EfRepository<Category>(db),
             new EfRepository<Bank>(db), new EfRepository<Card>(db), new EfRepository<FixedExpense>(db), new EfRepository<VariableExpense>(db),
-            new EfRepository<MonthIncome>(db), files, new FixedRate(rate), new FakeTimeProvider(T0));
+            new EfRepository<MonthIncome>(db), new TenantRepository(db), new TestCurrentTenant { TenantId = tenant }, files, new FixedRate(rate), new FakeTimeProvider(T0));
         return new Ctx(db, tenant, handler, files, month.Id, groceries.Id, dining.Id, bac.Id);
     }
 
@@ -252,6 +252,34 @@ public class ReportSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
     }
 
     [Fact]
+    public async Task Analyze_SingleMonth_CutsTheIncomeByMember_AndTheSlicesAddUpToIt()
+    {
+        // INCOME-2: Ana (a current member) owns the salary, a departed member the side job; the inflow is its own slice.
+        var c = await SeedAsync();
+        var ana = new User { Email = $"ana-{c.Tenant:N}@example.com", DisplayName = "Ana", EmailVerified = true, CreatedAt = T0, UpdatedAt = T0 };
+        var gone = new User { Email = $"gone-{c.Tenant:N}@example.com", EmailVerified = true, CreatedAt = T0, UpdatedAt = T0 };
+        c.Db.Add(new Tenant { Id = c.Tenant, Name = "Casa", CreatedAt = T0, UpdatedAt = T0 });
+        c.Db.AddRange(ana, gone);
+        c.Db.Add(new TenantMembership { TenantId = c.Tenant, UserId = ana.Id, Role = TenantRoles.Owner, JoinedAt = T0 });
+        await c.Db.SaveChangesAsync();
+        var rows = c.Db.MonthIncomes.Where(r => r.MonthId == c.MonthId).OrderBy(r => r.SortOrder).ToList();
+        rows[0].MemberUserId = ana.Id;
+        rows[1].MemberUserId = gone.Id;
+        await c.Db.SaveChangesAsync();
+        c.Db.ChangeTracker.Clear();
+        await AddTxAsync(c, new DateOnly(2026, 6, 10), 9_000m, "inflow");
+        await AddTxAsync(c, new DateOnly(2026, 6, 11), 1_000m);
+
+        var period = (await c.Handler.ResolvePeriodAsync(c.MonthId, null, null, default)).Period!;
+        var report = await c.Handler.AnalyzeAsync(period, default);
+
+        Assert.Equal(
+            [("member", (Guid?)ana.Id, (string?)"Ana", 1_500_000m, 3_000m), ("former_member", null, null, 250_000m, 500m), ("inflows", null, null, 9_000m, 18m)],
+            report.IncomeByMember!.Select(s => (s.Kind, s.MemberUserId, s.Name, s.Amount.Crc, s.Amount.Usd)));
+        Assert.Equal((report.Income!.Crc, report.Income.Usd), (report.IncomeByMember!.Sum(s => s.Amount.Crc), report.IncomeByMember!.Sum(s => s.Amount.Usd)));
+    }
+
+    [Fact]
     public async Task Analyze_SingleMonth_NoRate_ReportsSpendWithoutIncome()
     {
         var c = await SeedAsync(rate: null);
@@ -262,6 +290,7 @@ public class ReportSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
 
         Assert.Equal(5_000m, Assert.Single(report.Budgeted).TotalCrc); // the spend report never depends on a rate
         Assert.Null(report.Income);
+        Assert.Null(report.IncomeByMember); // no rate, no income — and so no cut of it
         Assert.Null(report.BudgetTotal);
     }
 
@@ -280,6 +309,7 @@ public class ReportSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
         Assert.Null(entry.BudgetedCrc);
         Assert.False(report.SingleMonth);
         Assert.Null(report.Income); // income is per month — a range has none, even with a rate available
+        Assert.Null(report.IncomeByMember);
         Assert.Null(report.BudgetTotal);
     }
 

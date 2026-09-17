@@ -284,4 +284,31 @@
   <data name="Pdf_EmailBody" xml:space="preserve">
     <value>Te adjuntamos el informe de {0} ({1}) de {2}. Gasto total: {3}.</value>
   </data>
+  <data name="Pdf_IncomeByMember" xml:space="preserve">
+    <value>Ingreso por miembro</value>
+  </data>
+  <data name="Pdf_IncomeTitle" xml:space="preserve">
+    <value>Ingreso por miembro</value>
+  </data>
+  <data name="Pdf_ColWho" xml:space="preserve">
+    <value>De quién</value>
+  </data>
+  <data name="Pdf_ColIncome" xml:space="preserve">
+    <value>Ingreso</value>
+  </data>
+  <data name="Pdf_ColShare" xml:space="preserve">
+    <value>Parte</value>
+  </data>
+  <data name="Pdf_WhoHousehold" xml:space="preserve">
+    <value>El hogar</value>
+  </data>
+  <data name="Pdf_WhoFormer" xml:space="preserve">
+    <value>Exmiembros</value>
+  </data>
+  <data name="Pdf_WhoInflows" xml:space="preserve">
+    <value>Otros ingresos (entradas)</value>
+  </data>
+  <data name="Pdf_IncomeEmpty" xml:space="preserve">
+    <value>Este mes no tiene ingresos registrados.</value>
+  </data>
 </root>

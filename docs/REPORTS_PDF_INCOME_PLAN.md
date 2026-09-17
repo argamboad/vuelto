@@ -158,6 +158,11 @@ Not on the form, on purpose: no 4w/5w amounts (the count comes from the month); 
 
 **Docs.** ADR-V023; `docs/stories/income.md`; `DATA_MODEL.md`; `FEATURES.md`; `budget-settings.md` amended; Postman; QA; `tools/snapshot-household.sql` + `tools/README.md` (new tables); `my-seed.sql` gains income lines (owner) — its old income columns keep working since they still exist.
 
+**As built (2026-09-16, INCOME-2):** the PDF had no income block to convert, so it gains an "Income by member" table
+(whose · income · share, with a total) before the category tables, plus the donut among the charts. The cut is a pure
+Core rule (`IncomeByMember`) with four kinds — member, household, former member, inflows — so the slices add up to the
+income; no migration, no new endpoint.
+
 **Split.** INCOME-1 ships end-to-end without any new breakdown. **INCOME-2** adds "income by member" to the reports (analysis response + a donut) and turns the PDF's income block into a table with a member column. Small, additive, after INCOME-1.
 
 ### 4a. Data-safety rules for every commit in this batch (owner, 2026-09-16)

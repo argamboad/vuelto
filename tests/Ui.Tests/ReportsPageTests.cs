@@ -30,7 +30,10 @@ public class ReportsPageTests : ComponentTestBase
          "by_bank":[{"key":"cccccccc-0000-0000-0000-000000000001","label":"BAC","total_crc":90000,"total_usd":180},{"key":"cccccccc-0000-0000-0000-000000000002","label":"","total_crc":9704.87,"total_usd":24.19}],
          "by_method":[{"key":"credit_card","label":"credit_card","total_crc":80000,"total_usd":160},{"key":"bank_account","label":"bank_account","total_crc":19704.87,"total_usd":44.19}],
          "spend_by_day":[{"date":"2026-06-26","total_crc":8000,"total_usd":16},{"date":"2026-07-03","total_crc":70000,"total_usd":140},{"date":"2026-07-20","total_crc":21704.87,"total_usd":48.19}],
-         "by_card":[{"key":"eeeeeeee-0000-0000-0000-000000000005","label":"Allan's Visa","total_crc":80000,"total_usd":160},{"key":"none","label":"","total_crc":19704.87,"total_usd":44.19}]}
+         "by_card":[{"key":"eeeeeeee-0000-0000-0000-000000000005","label":"Allan's Visa","total_crc":80000,"total_usd":160},{"key":"none","label":"","total_crc":19704.87,"total_usd":44.19}],
+         "income_by_member":[{"kind":"member","member_user_id":"dddddddd-0000-0000-0000-000000000001","name":"Allan","amount":{"crc":150000,"usd":300}},
+                             {"kind":"household","member_user_id":null,"name":null,"amount":{"crc":40000,"usd":80}},
+                             {"kind":"inflows","member_user_id":null,"name":null,"amount":{"crc":10000,"usd":20}}]}
         """;
     private const string Trend = """
         {"months":[{"month_id":"aaaaaaaa-0000-0000-0000-000000000000","year":2026,"month_number":5,"income":{"crc":200000,"usd":400},"spend":{"crc":250000,"usd":500}},
@@ -265,6 +268,38 @@ public class ReportsPageTests : ComponentTestBase
     }
 
     [Fact]
+    public async Task ChartView_IncomeByMember_NamesEachSlice_InTheChartCurrency()
+    {
+        // INCOME-2: Allan by name, the household and the inflows by label; ₡150,000 of ₡200,000 is 75%.
+        await SignInAsync();
+        var cut = RenderMonth();
+        ChartView(cut);
+
+        cut.WaitForElement("[data-testid='rep-members-donut']");
+        var legend = cut.FindAll("[data-testid='rep-members-donut'] [data-testid='chart-legend-item']");
+        Assert.Equal(3, legend.Count);
+        Assert.Contains("Allan", legend[0].TextContent);
+        Assert.Contains("₡150,000", legend[0].TextContent);
+        Assert.Contains("75%", legend[0].TextContent);
+        Assert.Contains("Reports_WhoHousehold", legend[1].TextContent);
+        Assert.Contains("Reports_WhoInflows", legend[2].TextContent);
+
+        cut.Find("[data-testid='rep-cur-usd']").Click();
+        cut.WaitForAssertion(() => Assert.Contains("$300", cut.FindAll("[data-testid='rep-members-donut'] [data-testid='chart-legend-item']")[0].TextContent));
+    }
+
+    [Fact]
+    public async Task ChartView_IncomeByMember_WithoutIncomeRows_SaysSo()
+    {
+        await SignInAsync();
+        var cut = RenderMonth(SingleMonth.Replace("\"income_by_member\":[", "\"income_by_member\":[],\"ignored\":["));
+        ChartView(cut);
+
+        Assert.Contains("Reports_IncomeByMemberEmpty", cut.WaitForElement("[data-testid='rep-members-empty']").TextContent);
+        Assert.Empty(cut.FindAll("[data-testid='rep-members-donut']"));
+    }
+
+    [Fact]
     public async Task ChartView_IncomeDonut_Overspent_HasNoRemainingSlice_AndSaysByHowMuch()
     {
         await SignInAsync();
@@ -295,6 +330,8 @@ public class ReportsPageTests : ComponentTestBase
         Assert.Empty(cut.FindAll("[data-testid='rep-income-donut']"));
         Assert.Contains("Reports_IncomeNoRate", cut.Find("[data-testid='rep-budget-norate']").TextContent);
         Assert.Empty(cut.FindAll("[data-testid='rep-budget-donut']"));
+        Assert.Contains("Reports_IncomeNoRate", cut.Find("[data-testid='rep-members-norate']").TextContent);
+        Assert.Empty(cut.FindAll("[data-testid='rep-members-donut']"));
         Assert.NotEmpty(cut.FindAll("[data-testid='rep-donut']"));
 
         // A date range has no month income: no card at all, and the class donut takes the full width again.
@@ -306,6 +343,7 @@ public class ReportsPageTests : ComponentTestBase
         cut.WaitForAssertion(() => Assert.Contains("Reports_MultiMonthNote", cut.Find("[data-testid='rep-period']").TextContent));
         Assert.Empty(cut.FindAll("[data-testid='rep-income-card']"));
         Assert.Empty(cut.FindAll("[data-testid='rep-budget-card']"));
+        Assert.Empty(cut.FindAll("[data-testid='rep-members-card']"));
         Assert.NotEmpty(cut.FindAll("[data-testid='rep-donut']"));
         Assert.Empty(cut.FindAll("[data-testid='rep-pace-card']"));
         Assert.Empty(cut.FindAll("[data-testid='rep-trend-card']"));

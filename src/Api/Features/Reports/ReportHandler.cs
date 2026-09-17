@@ -26,6 +26,8 @@ public sealed class ReportHandler(
     IRepository<FixedExpense> fixedExpenses,
     IRepository<VariableExpense> variableExpenses,
     IRepository<MonthIncome> monthIncomes,
+    ITenantRepository tenants,
+    ICurrentTenant currentTenant,
     IFileStorage files,
     IExchangeRateResolver rates,
     TimeProvider clock)
@@ -73,6 +75,7 @@ public sealed class ReportHandler(
         MoneyPair? income = null, budgetTotal = null;
         FxRates? pair = null;
         IReadOnlyList<GroupSpendEntry>? budgetByMethod = null;
+        IReadOnlyList<IncomeMemberSlice>? incomeByMember = null;
         if (period.SingleMonth)
         {
             lines = [];
@@ -85,14 +88,24 @@ public sealed class ReportHandler(
             if (month is not null && await rates.ResolveAsync(cancellationToken) is { } resolved)
             {
                 var incomeRows = await monthIncomes.Query().Where(r => r.MonthId == month.Id).ToListAsync(cancellationToken);
-                income = IncomeCalculator.Calculate(incomeRows, rows, resolved.Rates).Total;
+                var summary = IncomeCalculator.Calculate(incomeRows, rows, resolved.Rates);
+                income = summary.Total;
+                incomeByMember = IncomeByMember.Group(summary, await MemberNamesAsync(cancellationToken));
                 budgetTotal = BudgetTotals.Planned(lines, resolved.Rates);
                 budgetByMethod = BudgetTotals.PlannedByMethod(lines, resolved.Rates);
                 pair = resolved.Rates;
             }
         }
 
-        return CategoryAnalysisResponse.From(CategoryAnalysisCalculator.Calculate(rows, names, period.From, period.To, lines, bankNames, cardNames), income, budgetTotal, pair, budgetByMethod);
+        return CategoryAnalysisResponse.From(CategoryAnalysisCalculator.Calculate(rows, names, period.From, period.To, lines, bankNames, cardNames), income, budgetTotal, pair, budgetByMethod, incomeByMember);
+    }
+
+    /// <summary>The household's current members by user id → display name, falling back to the email (INCOME-2).</summary>
+    private async Task<IReadOnlyDictionary<Guid, string>> MemberNamesAsync(CancellationToken cancellationToken)
+    {
+        if (currentTenant.TenantId is not { } tenantId) return new Dictionary<Guid, string>();
+        var members = await tenants.GetMemberDetailsAsync(tenantId, cancellationToken);
+        return members.ToDictionary(m => m.UserId, m => string.IsNullOrWhiteSpace(m.DisplayName) ? m.Email : m.DisplayName!);
     }
 
     public const int TrendDefaultCount = 12, TrendMaxCount = 36;

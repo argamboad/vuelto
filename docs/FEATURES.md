@@ -326,7 +326,9 @@ Flow:
 1. Reports → Category analysis: pick a month, or a date range. `GET /api/reports/category-analysis`
    returns CRC/USD spend per category, split by class, with a budget comparison for a single month.
 
-Notes: the month window ends on the last stored week's `end_date` — never `week_count × 7`.
+Notes: the month window ends on the last stored week's `end_date` — never `week_count × 7`. For a single month with a
+rate, the response also cuts the month's income by whose it is (`income_by_member`, INCOME-2): each member by name, the
+household, former members and inflows; the chart view draws it as a donut and the PDF adds it as a donut and a table.
 
 ### 17. Export transactions as CSV *(US-044, WU-4)*
 **Goal:** take the data anywhere.
@@ -349,7 +351,7 @@ Flow:
    (native shells: the share sheet).
 
 Notes: the PDF is built from the same figures the page reads — tiles, pace, the donuts, month by month, the
-method bars, the category tables — plus a landscape appendix of exactly the CSV export's rows. No rate
+method bars, the income by member (donut and table, INCOME-2), the category tables — plus a landscape appendix of exactly the CSV export's rows. No rate
 today → income, budget and the plan line are left out and the PDF says so. A range has no month pieces.
 The PDF speaks the language saved in the account settings.
 

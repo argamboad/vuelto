@@ -10,7 +10,8 @@ namespace Vuelto.Api.Features.Reports.Pdf;
 /// rule-for-rule mirror of <c>Shared.Ui/Pages/Reports.razor</c> and <c>CategoryTable.razor</c>: the four tiles and
 /// their subtitles, the pace (a month picture, in the "show in" currency or the chart currency for "both"), the
 /// income/budget cards that say why when there is no rate, the category tables (budget and red/green only for the
-/// budgeted class of a month, judged in each line's own currency), and the appendix of the CSV's rows.
+/// budgeted class of a month, judged in each line's own currency), the month's income by whose it is (INCOME-2: a donut
+/// and a table), and the appendix of the CSV's rows.
 /// </summary>
 public static class ReportPdfModelBuilder
 {
@@ -54,7 +55,8 @@ public static class ReportPdfModelBuilder
                 T("ByCategory"),
                 empty ? [] : Categories(),
                 _o.IncludeAppendix ? Appendix() : null,
-                new ReportPdfFooter(Brand, T("FooterPage"), T("FooterOf")));
+                new ReportPdfFooter(Brand, T("FooterPage"), T("FooterOf")),
+                IncomeTable());
         }
 
         // ---- formatting ----
@@ -245,6 +247,11 @@ public static class ReportPdfModelBuilder
                 }
                 else charts.Add(NoRateCard("budget", T("BudgetSplit")));
 
+                if (_a.IncomeByMember is { Count: > 0 } byMember)
+                    charts.Add(Donut("members", T("IncomeByMember"), byMember
+                        .Select((s, i) => new PdfSlice(WhoLabel(s), ChartSide(s.Amount.Crc, s.Amount.Usd), P.Series[i % P.Series.Count]))
+                        .ToList()));
+
                 if (input.Trend is { Months.Count: > 0 } trend)
                 {
                     var bars = trend.Months.Select(m => new PdfBar(MonthLabel(m.Year, m.MonthNumber), ChartSide(m.Spend.Crc, m.Spend.Usd),
@@ -277,6 +284,33 @@ public static class ReportPdfModelBuilder
                     bars.Select(b => new PdfNote($"{b.Label}: {T("MethodCaption", Amount(b.Track ?? 0), Amount(b.Value))}")).ToList()));
             }
             return charts;
+        }
+
+        // ---- income by member (INCOME-2) ----
+
+        private string WhoLabel(IncomeMemberResponse s) => s.Kind switch
+        {
+            IncomeByMember.Member => s.Name ?? T("WhoFormer"),
+            IncomeByMember.Household => T("WhoHousehold"),
+            IncomeByMember.FormerMember => T("WhoFormer"),
+            IncomeByMember.Inflows => T("WhoInflows"),
+            _ => s.Kind,
+        };
+
+        /// <summary>The month's income by whose it is, on the "show in" side, with each slice's share; null without it (a range, or no rate).</summary>
+        private PdfTable? IncomeTable()
+        {
+            if (!_a.SingleMonth || _a.Income is not { } income || _a.IncomeByMember is not { } slices) return null;
+            var columns = new List<PdfColumn> { new(T("ColWho"), 5f), new(T("ColIncome"), 4f, Right: true), new(T("ColShare"), 1.5f, Right: true) };
+            var whole = Side(income.Crc, income.Usd);
+            var rows = slices.Select(s => (IReadOnlyList<PdfCell>)
+            [
+                new(WhoLabel(s)),
+                new(Show(s.Amount.Crc, s.Amount.Usd)),
+                new(Pct(Side(s.Amount.Crc, s.Amount.Usd), whole).ToString(_c) + "%"),
+            ]).ToList();
+            IReadOnlyList<PdfCell> total = [new(T("Total")), new(Show(income.Crc, income.Usd)), new(rows.Count > 0 ? "100%" : "")];
+            return new PdfTable(T("IncomeTitle"), columns, rows, rows.Count > 0 ? total : null, rows.Count == 0 ? T("IncomeEmpty") : null);
         }
 
         // ---- category tables ----

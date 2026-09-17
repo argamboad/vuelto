@@ -1572,6 +1572,25 @@ clears on the first save. Open three past months and their dashboards → **Expe
 production before the deploy. Repeat the parity query on staging right after the deploy, **before anyone edits a
 month's income** → `(0 rows)`; any row → roll the app back (the old columns are intact) and investigate.
 
+### QA-INC-04 — The month report says whose the income is 🟠 (Web / API)
+**Gherkin**
+```gherkin
+Given September 2026 has income rows for me, a household row, a row of a member who left, and an inflow
+When I open Reports for September and switch to Chart
+Then an "Income by member" card shows a donut with my name, "The household", "Former members" and "Other income (inflows)", adding up to the month's income
+When I download the PDF
+Then it has the same donut and an "Income by member" table (Whose · Income · Share) with a Total row, its heading on the same page as the table
+When I report a date range, or the rate is unavailable
+Then there is no income by member (a range) or the card says the rate is missing
+```
+**Walkthrough:** with the month of QA-INC-02 (add a household line and an inflow first, if needed), **Reports** → the
+month → **Chart** → **Expected:** the **Income by member** card, each slice's amount and share in the chart currency;
+switch **$** → the same slices in dollars. **PDF → Download** → **Expected:** the donut beside the other income cards
+and, before "By category", the **Income by member** table whose shares add to 100% and whose total equals the income
+tile's basis; in Spanish (Settings → language) the labels read *Ingreso por miembro*, *El hogar*, *Exmiembros*. A date
+range → **Expected:** no card, no table. Via Postman (**20 · Reports → Category analysis (month)**) → `income_by_member`
+with `kind` per slice, summing to `income`; the range request → `income_by_member: null`.
+
 ---
 
 ## 10h. Web — Months & transactions (app slice LEDGER-1/2) 🟠
@@ -3548,7 +3567,7 @@ Then the sign-in succeeds
 | Catalog: categories + banks (app CATALOG-1/2) | CAT-01..04 | `GET/POST /api/categories`, `PUT /api/categories/{id}`, same under `/api/banks` (409 `*_exists` / `*_exists_inactive` + `existing_id` + `existing_name`; uniform 404) |
 | Exchange rate (app FX-1) | FX-01..02 + `Api.Tests` (`ExchangeRateApiClientTests`, `ExchangeRateResolverTests`) | `GET /api/exchange-rate` (200 `{rate, source: live\|cache\|transaction, as_of}`; 503 `exchange_rate_unavailable`; 401 anonymous) |
 | Envelopes (app ENV-1) | ENV-01..02 | `GET/POST /api/envelopes`, `PUT /api/envelopes/{id}` (400 `invalid_request`; 409 `envelope_exists` / `envelope_exists_inactive` + `existing_id` + `existing_name`; uniform 404) |
-| Income lines + month income rows (app INCOME-1 · ADR-V023) | INC-01..03 (01–02 ⚙️ E2E `IncomeJourneyTests`) + `Core.Tests` (`IncomeSnapshotTests`, `IncomeCalculatorTests`) + `Api.Tests` (`IncomeSliceTests`, `IncomeEndpointTests`, `IncomeMigrationTests` on real Postgres, `ArchitectureTests.LegacyIncomeColumns_AreReadOrWrittenByNothing`) + `Ui.Tests` (`IncomesPageTests`, `LedgerPagesTests`) | `GET/POST /api/incomes`, `PUT /api/incomes/{id}`, `PUT /api/incomes/order` (400 `invalid_request`; 409 `income_exists` / `income_exists_inactive` + `existing_id` + `existing_name`; uniform 404); `GET /api/months/{id}` → `income_rows`; `PUT /api/months/{id}/income` `{rows:[…]}`; `tools/check-income-parity.sql` |
+| Income lines + month income rows + income by member (app INCOME-1/2 · ADR-V023) | INC-01..04 (04: `Core.Tests` `IncomeByMemberTests`, `Api.Tests` `ReportSliceTests` / `ReportPdfModelBuilderTests` / `ReportPdfRendererTests`, `Ui.Tests` `ReportsPageTests`) (01–02 ⚙️ E2E `IncomeJourneyTests`) + `Core.Tests` (`IncomeSnapshotTests`, `IncomeCalculatorTests`) + `Api.Tests` (`IncomeSliceTests`, `IncomeEndpointTests`, `IncomeMigrationTests` on real Postgres, `ArchitectureTests.LegacyIncomeColumns_AreReadOrWrittenByNothing`) + `Ui.Tests` (`IncomesPageTests`, `LedgerPagesTests`) | `GET/POST /api/incomes`, `PUT /api/incomes/{id}`, `PUT /api/incomes/order` (400 `invalid_request`; 409 `income_exists` / `income_exists_inactive` + `existing_id` + `existing_name`; uniform 404); `GET /api/months/{id}` → `income_rows`; `PUT /api/months/{id}/income` `{rows:[…]}`; `tools/check-income-parity.sql` |
 | Months & transactions (app LEDGER-1/2) | LED-01..04 + `Api.Tests` (`LedgerSliceTests`) | `GET /api/months`, `GET /api/months/resolve?date=`, `GET /api/months/{id}`, `PUT /api/months/{id}/income`, `GET /api/months/{id}/transactions`; `POST /api/transactions`, `GET/PUT/DELETE /api/transactions/{id}` (400 `invalid_request` / `exchange_rate_unavailable` / `derived_transaction`; uniform 404) |
 | Expected refunds & realization (app LEDGER-3) | LED-05..06 + `Api.Tests` (`RefundSliceTests`, incl. the two-context concurrency proof) | `refund_expected` / `refund_percentage` on `POST/PUT /api/transactions`; `GET /api/months/{id}/refunds`; `PUT /api/refunds/{id}` (200; 400 `invalid_request`; 404; 409 `refund_status_conflict`) |
 | Budget lines: fixed + variable (app EXPENSES-1) | EXP-01..03 | `GET/POST /api/expenses/{fixed\|variable}`, `PUT …/{id}`, `PUT …/order` (400 `invalid_request`; 409 `expense_exists` / `expense_exists_inactive` + `existing_id` + `existing_name`; uniform 404) |
@@ -3745,6 +3764,7 @@ Record one row per executed case. Build = API/web commit SHA (`git rev-parse --s
 | QA-INC-01 | Web/API | | | | | |
 | QA-INC-02 | Web/API | | | | | |
 | QA-INC-03 | API/DB | | | | | |
+| QA-INC-04 | Web/API | | | | | |
 | QA-LED-01 | Web/API | | | | | |
 | QA-LED-02 | Web/API | | | | | |
 | QA-LED-03 | Web/API | | | | | |
@@ -4170,6 +4190,10 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   TTL guard; interrupted links land on Settings' banner). New **QA-AND-15** (on-device kill test;
   renumbered from the branch's QA-AND-14 — that slot went to THEME-1's restart test in the interim).
   Suite 149 → **150** cases.
+- **Updated 2026-09-16** — **Income by member (INCOME-2).** The month report cuts its income by whose it is — each
+  member by name, the household, former members, inflows: `income_by_member` on the category analysis, an **Income by
+  member** donut in the chart view, and in the PDF the same donut plus a table with shares and a total. New
+  **QA-INC-04**; Postman's category-analysis description names the field. **Case count 202 → 203.**
 - **Updated 2026-09-16** — **Income lines (INCOME-1, ADR-V023; owner decision).** Income is no longer two 4-week /
   5-week defaults on the budget settings: **Settings → Manage income** keeps a list of lines (whose, currency,
   fixed/variable, weekly / twice a month / monthly, amount per payment), and each new month starts with one editable

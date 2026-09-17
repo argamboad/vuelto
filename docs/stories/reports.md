@@ -370,3 +370,5 @@ Scenario: Guard rails
   When I name another household's month → 404, and nothing is queued
   When I send display "EUR" → 400 invalid_request, and nothing is queued
 ```
+
+*Extended by INCOME-2 (2026-09-16, `docs/stories/income.md`):* for a single month with a rate the category analysis also returns `income_by_member` (the month's income cut by member, household, former members and inflows); the chart view draws it as a donut and the PDF adds the donut and an "Income by member" table.
