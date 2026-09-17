@@ -50,6 +50,45 @@ public class HouseholdSnapshotTests(PostgresFixture fixture) : PostgresTestBase(
     }
 
     [Fact]
+    public async Task Snapshot_OfAnOlderSchema_SkipsTheTablesItDoesNotHave()
+    {
+        // The pre-deploy backup (DEPLOYMENT §9a) runs on a database that doesn't have this release's tables yet.
+        var tenant = Guid.CreateVersion7();
+        var email = $"{Guid.NewGuid():N}@snapshot.test";
+        var user = new User { Email = email, DisplayName = "Old schema", EmailVerified = true, CreatedAt = T0, UpdatedAt = T0 };
+        await using (var db = Fixture.CreateContext(tenant))
+        {
+            db.Add(new Tenant { Id = tenant, Name = "Old schema household", CreatedAt = T0, UpdatedAt = T0 });
+            db.Add(user);
+            db.Add(new TenantMembership { TenantId = tenant, UserId = user.Id, Role = TenantRoles.Owner, JoinedAt = T0 });
+            await db.SaveChangesAsync();
+        }
+
+        string snapshot;
+        await using (var conn = new NpgsqlConnection(Fixture.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var tx = await conn.BeginTransactionAsync();
+            await using (var hide = new NpgsqlCommand("""ALTER TABLE "MonthIncomes" RENAME TO "MonthIncomes_hidden"; ALTER TABLE "IncomeLines" RENAME TO "IncomeLines_hidden";""", conn, tx))
+                await hide.ExecuteNonQueryAsync();
+            var script = ScriptText();
+            var functionOnly = script[..script.LastIndexOf("SELECT pg_temp.snapshot_household", StringComparison.Ordinal)];
+            await using (var create = new NpgsqlCommand(functionOnly, conn, tx)) await create.ExecuteNonQueryAsync();
+            await using var call = new NpgsqlCommand("SELECT pg_temp.snapshot_household(@email)", conn, tx);
+            call.Parameters.AddWithValue("email", email);
+            snapshot = (string)(await call.ExecuteScalarAsync())!;
+            await tx.RollbackAsync(); // the tables come back
+        }
+
+        Assert.Contains("-- IncomeLines: not in this database (older schema) — skipped", snapshot);
+        Assert.Contains("-- MonthIncomes: not in this database (older schema) — skipped", snapshot);
+        Assert.DoesNotContain("INSERT INTO \"IncomeLines\"", snapshot);
+        Assert.Contains("-- Users: 1 row(s)", snapshot);
+        Assert.Contains("-- Months: 0 row(s)", snapshot);
+        Assert.EndsWith("COMMIT;\n", snapshot);
+    }
+
+    [Fact]
     public async Task Snapshot_ThenRestore_OnAnEmptyTarget_ReproducesTheHousehold()
     {
         // Seed a household: identity + budget data, with ids we can recognise on the far side.

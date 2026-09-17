@@ -42,6 +42,9 @@ Ids are preserved, so every reference survives untouched.
 | `ApiKeys`, `AuditEvents`, `OutboxMessages`, `TenantInvitations`, `UsageCounters`, `WebhookSubscriptions`, `WebhookDeliveries` | operational state of the source server |
 | `UserMfa`, `MfaRecoveryCodes`, `RefreshTokens`, `LoginTokens`, `Notifications`, `NotificationPreferences`, `InboxMessages` | per-server session/security state — re-enrol MFA on the target if you use it |
 
+A table the source database doesn't have yet (an older schema, e.g. staging before INCOME-1) is skipped with a
+`not in this database` comment, so the script also takes the pre-deploy backup in `docs/DEPLOYMENT.md` §9a.
+
 The include/exclude list lives in the script header. `HouseholdSnapshotTests` fails the build if a new
 tenant-scoped table is ever added without being named there.
 
