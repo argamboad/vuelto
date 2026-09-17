@@ -50,9 +50,16 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0.11 AS runtime
 WORKDIR /app
 
 # curl for the container/compose health probe. The .NET image already ships a non-root `app` user; run as it.
+# /app itself is created by root (WORKDIR above), so give `app` the local-disk file storage folder
+# (ADR-010's default, ./storage under the app base dir) BEFORE switching user — otherwise the first stored
+# file (CSV export, report PDF, household export) fails with "Access to the path '/app/storage' is denied".
+# The folder lives in the container: on a free host it is ephemeral, which suits short-lived download links;
+# set Storage:S3 for anything that must survive a restart. (Synced from perezosoft-platform #236.)
 RUN apt-get update \
  && apt-get install -y --no-install-recommends curl \
- && rm -rf /var/lib/apt/lists/*
+ && rm -rf /var/lib/apt/lists/* \
+ && mkdir -p /app/storage \
+ && chown app:app /app/storage
 USER app
 
 COPY --from=build --chown=app:app /publish/api ./
