@@ -30,6 +30,24 @@ public sealed class TestHttpHandler : HttpMessageHandler
     }
 
     /// <summary>
+    /// Stub "METHOD /path" to answer <paramref name="jsons"/> in order, one per request, repeating the last —
+    /// for a page that refetches until the server's answer changes. Swapping stubs with a second
+    /// <see cref="On"/> mid-test races the page's own timer; a sequence can't be missed however slow the
+    /// machine is.
+    /// </summary>
+    public TestHttpHandler OnSequence(HttpMethod method, string path, params string[] jsons)
+    {
+        _gated.Remove(Key(method, path));
+        var next = 0;
+        _routes[Key(method, path)] = _ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(jsons[Math.Min(Interlocked.Increment(ref next) - 1, jsons.Length - 1)],
+                Encoding.UTF8, "application/json"),
+        };
+        return this;
+    }
+
+    /// <summary>
     /// Stub "METHOD /path" to HANG until the returned action is invoked — for testing concurrent requests
     /// (e.g. a rapid double-click while the first call is still in flight). Every request to this route
     /// awaits the SAME gate.
