@@ -103,7 +103,12 @@ async function bootToLogin(device, attempt) {
   // restarting the host. The goto stays as a fallback, once, if the menu link isn't reachable.
   const household = page.getByTestId('household-rename-input');
   try {
-    await page.getByTestId('user-menu').click({ timeout: 60_000 });
+    // On a phone-width window the whole header (the user menu included) collapses behind the hamburger —
+    // Forgejo run 6 waited 60 s on an invisible `user-menu`, then the goto fallback hit the reload race.
+    // Open the hamburger first when the menu isn't showing; on a wide window it already is.
+    const userMenu = page.getByTestId('user-menu');
+    if (!(await userMenu.isVisible())) await page.locator('button.navbar-toggler').click({ timeout: 60_000 });
+    await userMenu.click({ timeout: 60_000 });
     await page.getByTestId('nav-household').click({ timeout: 60_000 });
     await household.waitFor({ state: 'visible', timeout: 60_000 });
   } catch (e) {

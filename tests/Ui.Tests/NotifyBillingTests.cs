@@ -99,7 +99,12 @@ public class NotifyBillingTests : ComponentTestBase
         // that flips the plan lands a moment later, so the page refetches on its own (no manual reload).
         await SignInAsync();
         StubFeatures(); // GATES-1: the page leaves immediately when billing is gated off
-        Http.On(HttpMethod.Get, "/api/billing", """{"plan_key":"free","status":"active"}""");
+        // First load: still free; every refetch after it: the webhook landed. A sequence, not a second On()
+        // mid-test — the page refetches only twice, 10 ms apart, and a busy CI box (four jobs on one CPU)
+        // used to finish both before the test swapped the stub (Forgejo runs 2 and 7).
+        Http.OnSequence(HttpMethod.Get, "/api/billing",
+            """{"plan_key":"free","status":"active"}""",
+            """{"plan_key":"pro","status":"active"}""");
         Services.GetRequiredService<NavigationManager>().NavigateTo("/billing/success");
 
         var cut = Render<Billing>(p => p.Add(x => x.RefreshDelayMs, 10));
@@ -107,10 +112,8 @@ public class NotifyBillingTests : ComponentTestBase
         Assert.Contains("Billing_CheckoutSuccess", cut.Find("[data-testid='billing-checkout-success']").TextContent);
         Assert.Empty(cut.FindAll("[data-testid='billing-checkout-cancel']"));
 
-        StubFeatures(); // GATES-1: the page leaves immediately when billing is gated off
-
-        Http.On(HttpMethod.Get, "/api/billing", """{"plan_key":"pro","status":"active"}"""); // the webhook landed
         cut.WaitForAssertion(() => Assert.Equal("Plan_pro", cut.Find("[data-testid='billing-plan']").TextContent.Trim()), TimeSpan.FromSeconds(5));
+        Assert.True(Http.Requests.Count(r => r.RequestUri?.AbsolutePath == "/api/billing") >= 2, "the page refetched on its own");
     }
 
     [Fact]

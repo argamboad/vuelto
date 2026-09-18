@@ -786,6 +786,12 @@ jobs:
           [ "$api" = "200" ] || { echo "::error::API did not become ready"; tail -60 api.log; exit 1; }
 
           adb install -r src/Maui/bin/Debug/net10.0-android/com.perezosoft.vuelto-Signed.apk
+          # Let the system finish reacting to the install BEFORE the app starts. On a slow emulator the
+          # PACKAGE_ADDED broadcast lands late (Forgejo run 8: 16 s after `Success`), the overlay manager
+          # re-applies overlays for the package, and the RUNNING activity is relaunched — killing the
+          # WebView the smoke is driving (a hung click, or "Cannot access a disposed object"). Bounded,
+          # like everything else in this step.
+          timeout 120 adb shell am wait-for-broadcast-idle || echo "::warning::broadcast queue not idle after 120 s; launching anyway"
           # The app's compiled Android base URL is http://localhost:5338 — adb reverse maps the
           # emulator's localhost:5338 back to this runner (same trick as local dev).
           adb reverse tcp:5338 tcp:5338
