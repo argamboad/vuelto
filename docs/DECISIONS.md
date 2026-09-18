@@ -1880,3 +1880,83 @@ is not green-listed, so it admits nobody new — the leak is cosmetic, not a hol
 **Ports downstream** (`vuelto`, `jigger-jot`) once the platform suite is green, like LOCALCI-3.
 
 > *Numbering note: 025 and 026 are reserved upstream for platform-only work (local CI, the flavors program) that this app does not carry, so the sequence jumps.*
+
+**ADR-028 — The self-hosted Forgejo is the primary forge and runs the full CI/CD; GitHub stays a mirror whose own CI runs only when pushed to on purpose (LOCALCI-4). (2026-09-16)**
+The maintainer moved day-to-day git to a private Forgejo on the Windows desk (WSL2 + Docker, reachable over
+Tailscale) so that routine pushes cost nothing and leave nothing on a third-party server. GitHub keeps the
+repository — Render builds from it, and pushing there on purpose still runs the GitHub pipeline unchanged.
+The Forgejo pipeline must do everything the GitHub one does, deploys included. This supersedes
+LOCALCI-1's approach (route GitHub Actions to self-hosted runners) for this repo: the runners belong to
+Forgejo, and GitHub keeps its hosted ones.
+
+**Decision:**
+1. **Two workflow files, held together by a test.** `.forgejo/workflows/ci.yml` is a copy of
+   `.github/workflows/ci.yml` (each forge reads only its own directory once `.forgejo/workflows` exists).
+   `ForgejoCiParityTests` (**R80**) fails when the job list, a `runs-on` line, a pinned version or the change
+   classifier differs; the LOCALCI-3 gate tests run against both files. Every deliberate difference is
+   marked `LOCALCI-4:` in the copy.
+2. **The runners carry the hosted labels.** `ubuntu-latest` is a container image
+   (`forgejo-ci/ubuntu:24.04`: catthehacker's act image + Docker CLI, PowerShell, `gh`, JDK 17, the Android
+   SDK with the smoke's system image, the pinned .NET SDK and Android workload) on the WSL runner, which runs
+   jobs inside Docker-in-Docker with host networking and `/dev/kvm` passed through. Every WSL job shares that
+   one network namespace, so the two jobs that bind fixed ports (`e2e`, `native-smoke-android`) use
+   `ubuntu-host-ports` — the same image on a second WSL runner that takes one job at a time, which also
+   serializes them across runs and repos. That is the only `runs-on` difference the parity test allows, and
+   it fails for any Linux job with service containers left on the shared runner. `windows-latest` is the
+   Windows desk in host mode (a logon task, so WebView2 has a session). `macos-26` will be the MacBook.
+   Identical labels are what make `runs-on` comparable line for line.
+3. **Apple jobs require `vars.CI_MACOS_RUNNER`.** A job whose label no runner carries queues forever on
+   Forgejo (GitHub would expire it in 24 h), so until the Mac is registered the Apple legs are skipped.
+4. **Deploys publish to `deploy/*` branches on GitHub.** Render only builds from GitHub, and GitHub's
+   `ci.yml` only triggers on `main`, `develop` and pull requests. The deploy job force-pushes the tested
+   commit to `deploy/staging` (or `deploy/prod`) with a token scoped to that repository, fires the Render
+   hook, and runs the same `deploy-smoke.sh`. Each Render service tracks its `deploy/*` branch with
+   auto-deploy off. No GitHub Actions run for a deploy.
+5. **Prod is a manual dispatch.** Forgejo has no Environments and no required reviewers. `deploy-prod` runs
+   only on `workflow_dispatch` from `main`; a push to `main` runs every gate and deploys nothing. The
+   dispatched run re-runs the gates first (`changes` fails open without a diff base).
+6. **GitHub's deploy hooks are removed from GitHub.** With both pipelines holding the hook, a deliberate push
+   to GitHub's `develop` would fire a second deploy of whatever `deploy/staging` holds. Without the secret,
+   GitHub's deploy jobs already skip with a notice (DEPLOY-3's opt-in design) — a settings change, not a
+   code change.
+
+**Consequences.** The desk is now a deploy path: deploys need the laptop on (the accepted trade-off of
+SETUP.md; GitHub stays the emergency route — restore the hook secret there and push). Runners are not
+clean machines: the smoke's Postgres is recreated per run, port-binding Linux jobs queue behind each other,
+and the image's SDK/workload pins join the CLAUDE.md
+bump-together playbook. The Render deploy-hook and the GitHub mirror token live in Forgejo's secrets only.
+
+**Rejected — one shared, forge-aware `ci.yml`.** It would remove the duplication but thread
+`github.server_url` conditions through the file GitHub runs today, for every future reader of both.
+**Rejected — pushing `develop` to GitHub to deploy.** It runs the whole GitHub pipeline, and its deploy job,
+on every deploy. **Rejected — image-backed Render services.** Faster builds, but it means new services, a
+registry account, and losing the "redeploy from GitHub" escape hatch; revisit if Render's build time bites.
+
+**Addendum (2026-09-16, same day, after the first green runs) — deploys and smokes are on demand; the
+deploy pushes the real branch to GitHub; points 4–6 above are superseded.** Two things became clear once
+the pipeline ran on one machine: (a) a develop push that runs the emulator and the WebView2 smoke every
+time costs 20 minutes of a laptop the maintainer is also working on, for legs that rarely change; and
+(b) keeping GitHub deploying too was wanted after all ("I don't mind if GitHub deploys again when I push"),
+which makes the `deploy/*` branches pointless — Render can follow only one branch, and it stays on
+`develop`. So:
+- **Pushes and PRs run the gates, `e2e` and the native *builds* only** (≈10 min). The native **smokes**
+  run from `workflow_dispatch` (`smokes` = windows | android | apple | all) and on the Monday schedule.
+  The builds stay per push on purpose: they are free in wall clock and catch compile rot within one merge.
+- **Deploys run only from `workflow_dispatch`** (`deploy` = staging on `develop` | prod on `main`), never on
+  a push, and only after every gate and every smoke *selected in that run* is green (a smoke not selected
+  is skipped, and a skip is not a failure). Staging no longer tracks `develop` automatically: the
+  maintainer decides when.
+- **The deploy pushes the commit to the same branch on GitHub** — a plain fast-forward, never forced; if
+  GitHub is ahead the deploy stops and says so — then fires the hook and runs the shared smoke. GitHub's
+  pipeline runs on that push and re-deploys the same commit; accepted as harmless. GitHub keeps its hook,
+  Render keeps `develop`, nothing to reconfigure. "The deploy from Forgejo" and "the push to GitHub" are
+  the same button.
+- The earlier rejection of "pushing `develop` to GitHub to deploy" is withdrawn: its cost (GitHub's run
+  and second deploy) was re-weighed against the operational simplicity and accepted.
+
+**Ported to vuelto (2026-09-18).** Forgejo repo `argamboad/y-el-vuelto` (the GitHub mirror keeps its
+name, `argamboad/vuelto`); Render `vuelto-staging` stays on GitHub's `develop` with auto-deploy off, so
+the Forgejo deploy and a deliberate `git push github develop` are its only triggers. Runbook:
+`DEPLOYMENT.md` §10. The Forgejo copy of `ci.yml` was built by applying the platform's GitHub→Forgejo
+changes to this repo's own `ci.yml` (a clean three-way merge); `ForgejoCiParityTests` and the
+LOCALCI-3 gate theories hold the two files together here too.

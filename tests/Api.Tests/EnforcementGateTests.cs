@@ -57,8 +57,9 @@ public class EnforcementGateTests
         Assert.Matches(@"mkdir -p [^\n]*/app/storage", beforeUser);
         Assert.Matches(@"chown [^\n]*app:app [^\n]*/app/storage", beforeUser);
 
-        // CI proves it on the built image.
-        Assert.Contains("/app/storage/.write-probe", File.ReadAllText(Path.Combine(RepoRoot(), ".github", "workflows", "ci.yml")));
+        // CI proves it on the built image, in both workflow copies (R80 keeps them together).
+        foreach (var workflow in new[] { Path.Combine(".github", "workflows", "ci.yml"), Path.Combine(".forgejo", "workflows", "ci.yml") })
+            Assert.Contains("/app/storage/.write-probe", File.ReadAllText(Path.Combine(RepoRoot(), workflow)));
     }
 
     [Fact]
@@ -82,8 +83,10 @@ public class EnforcementGateTests
             + $"(web-only: [{string.Join(", ", webOnly)}], maui-only: [{string.Join(", ", mauiOnly)}]).");
     }
 
-    [Fact]
-    public void EveryCiJob_EitherGatesOnChanges_OrIsOnTheAlwaysRunList() // LOCALCI-3
+    [Theory] // LOCALCI-4: the Forgejo copy (R80) is held to the same gate
+    [InlineData(".github/workflows/ci.yml")]
+    [InlineData(".forgejo/workflows/ci.yml")]
+    public void EveryCiJob_EitherGatesOnChanges_OrIsOnTheAlwaysRunList(string workflow) // LOCALCI-3
     {
         // The point of the paths gate is that a docs-only push stops billing thirty minutes for
         // markdown. A new job added without `needs: changes` silently undoes that for every future
@@ -96,9 +99,11 @@ public class EnforcementGateTests
         //                  exists to catch.
         //   changes      — it is the gate.
         //   deploy-*     — they gate transitively, through the jobs they need.
-        string[] alwaysRun = ["changes", "secret-scan", "qa-artifacts", "deploy-staging", "deploy-prod"];
+        //   mac         — LOCALCI-4, Forgejo only: a seconds-long probe asking whether the MacBook is
+        //                 awake, so the Apple jobs can skip instead of queueing. It gates nothing itself.
+        string[] alwaysRun = ["changes", "secret-scan", "qa-artifacts", "deploy-staging", "deploy-prod", "mac"];
 
-        var ci = File.ReadAllLines(Path.Combine(RepoRoot(), ".github", "workflows", "ci.yml"));
+        var ci = File.ReadAllLines(Path.Combine(RepoRoot(), workflow));
 
         // Job blocks are the two-space keys under `jobs:`; a block runs to the next such key. Start
         // AFTER `jobs:` — the trigger list above it uses the same indentation, so `push` and
@@ -120,7 +125,8 @@ public class EnforcementGateTests
             var end = n + 1 < starts.Count ? starts[n + 1].i : ci.Length;
             var body = string.Join("\n", ci[starts[n].i..end]);
 
-            if (!body.Contains("needs: changes", StringComparison.Ordinal)
+            // `needs: changes` or a list that includes it (`needs: [changes, e2e]`).
+            if (!Regex.IsMatch(body, @"(?m)^    needs:\s*(changes\s*$|\[[^\]]*\bchanges\b)")
                 || !body.Contains("needs.changes.outputs.", StringComparison.Ordinal))
             {
                 ungated.Add(name);
@@ -133,8 +139,10 @@ public class EnforcementGateTests
             + string.Join(", ", ungated));
     }
 
-    [Fact]
-    public void MarkdownAnywhere_IsNeverCodeOrNative() // LOCALCI-3 follow-up
+    [Theory]
+    [InlineData(".github/workflows/ci.yml")]
+    [InlineData(".forgejo/workflows/ci.yml")]
+    public void MarkdownAnywhere_IsNeverCodeOrNative(string workflow) // LOCALCI-3 follow-up
     {
         // A docs-only pull request that touched tests/E2E.Tests/README.md billed the FULL run — build,
         // test, e2e, docker, and both native builds — because the classifier's regexes key on the
@@ -142,7 +150,7 @@ public class EnforcementGateTests
         // change what the code does or how it builds, wherever it sits. This models the classifier
         // script faithfully: the same regexes, applied after the same markdown exclusion, so the
         // assertion cannot pass while the workflow still bills for a README.
-        var ci = File.ReadAllText(Path.Combine(RepoRoot(), ".github", "workflows", "ci.yml"));
+        var ci = File.ReadAllText(Path.Combine(RepoRoot(), workflow));
 
         static string Extract(string ci, string name)
         {
@@ -173,24 +181,26 @@ public class EnforcementGateTests
         Assert.True(Code("src/Api/Program.cs"));
         Assert.True(Native("src/Api/Program.cs"));
         Assert.True(Native("tests/E2E.Tests/BillingJourneyTests.cs"));
-        Assert.True(Code(".github/workflows/ci.yml"));
+        Assert.True(Code(workflow), "an edit to the workflow itself can break a build no source file touched");
         Assert.True(Code("src/Api/packages.lock.json"));
         Assert.True(docs.IsMatch("docs/QA_TEST_PLAN.md"), "docs= is computed on the UNFILTERED list, so markdown under docs/ still counts as docs");
     }
 
-    [Fact]
-    public void TheTwoGatesThatCatchDocsMistakes_AreNeverCodeGated() // LOCALCI-3
+    [Theory]
+    [InlineData(".github/workflows/ci.yml")]
+    [InlineData(".forgejo/workflows/ci.yml")]
+    public void TheTwoGatesThatCatchDocsMistakes_AreNeverCodeGated(string workflow) // LOCALCI-3
     {
         // Stated separately from the test above because it is the opposite failure: not "someone
         // forgot the gate" but "someone added it where it does harm". A docs-only change is exactly
         // when these two matter, so gating them on code would blind CI to the one class of mistake
         // a docs commit can make.
-        var ci = File.ReadAllText(Path.Combine(RepoRoot(), ".github", "workflows", "ci.yml"));
+        var ci = File.ReadAllText(Path.Combine(RepoRoot(), workflow));
 
         foreach (var job in new[] { "secret-scan", "qa-artifacts" })
         {
             var block = Regex.Match(ci, $@"(?ms)^  {Regex.Escape(job)}:\s*$.*?(?=^  [a-z][a-z0-9-]*:\s*$)");
-            Assert.True(block.Success, $"{job} not found in ci.yml");
+            Assert.True(block.Success, $"{job} not found in {workflow}");
             Assert.DoesNotContain("needs.changes.outputs.code", block.Value, StringComparison.Ordinal);
         }
     }

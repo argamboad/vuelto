@@ -492,6 +492,84 @@ publishes and verifies the APK signature (`tools/README.md`).
 
 **iOS / macCatalyst** need a Mac, an Apple developer identity and provisioning — out of scope for this guide.
 
+## 10. Forgejo as the primary forge — CI/CD from the desk (LOCALCI-4, ADR-028)
+
+Ported from the platform on 2026-09-18. Day-to-day git lives on a private Forgejo
+(`origin` = `ssh://git@localhost:2222/argamboad/y-el-vuelto.git`); GitHub (`github` =
+`argamboad/vuelto`) is a mirror you push to on purpose. `.forgejo/workflows/ci.yml` runs the same
+pipeline as GitHub's, on the maintainer's machines. The server itself (compose file, runners, CI
+image, backups) is set up by the separate Forgejo guide (`SETUP.md` in the maintainer's
+`Portafolio/forgejo` folder); this section covers what the **repo** needs.
+
+**Remotes.**
+```bash
+git remote -v                       # origin = Forgejo (y-el-vuelto), github = GitHub (vuelto)
+git push                            # → Forgejo: runs the Forgejo pipeline
+git push github develop             # → GitHub, on purpose: runs the GitHub pipeline (and its deploy)
+```
+Branches, PRs and merges happen on Forgejo (`http://localhost:3000/argamboad/y-el-vuelto`). If
+something was merged on GitHub anyway, reconcile before the next deploy:
+`git fetch github && git merge github/develop && git push`.
+
+**Runners** (labels match GitHub's so `runs-on` is identical in both files — R80):
+
+| Label | Machine | Notes |
+|---|---|---|
+| `ubuntu-latest` | WSL runner `linux-local` (4 jobs at once) → image `forgejo-ci/ubuntu:24.04` | Docker-in-Docker, host network, `/dev/kvm` passed through. Shared with the other repos on the same Forgejo. |
+| `ubuntu-host-ports` | WSL runner `linux-ports` (1 job at a time), same image | `e2e` + `native-smoke-android`: they bind fixed ports and every WSL job shares one network, so they queue here — across runs and repos. |
+| `windows-latest` | the Windows desk, host mode (logon task) | **Stop the dev stack before it takes jobs** — the smoke fails fast if 5432/5338 are busy. |
+| `macos-26` | the MacBook (`macos-air`) | Needs `CI_MACOS_RUNNER`; asleep ⇒ the Apple jobs skip with a warning (see `CI_MACOS_PROBE`). |
+
+**One-time setup** (nothing changes on Render or GitHub — Render `vuelto-staging` keeps following
+GitHub's `develop` with auto-deploy off; GitHub keeps its hook and its pipeline). **Forgejo** → repo
+→ **Settings → Actions**:
+- Secret **`RENDER_DEPLOY_HOOK_STAGING`** = the same hook GitHub has (Render → `vuelto-staging` →
+  Settings → Deploy Hook); `RENDER_DEPLOY_HOOK_PROD` when prod exists.
+- Secret **`DEPLOY_MIRROR_TOKEN`** = a GitHub **fine-grained** token with *Contents: Read and write*
+  on `argamboad/vuelto` (it pushes `develop`/`main` and reads the compare API for the smoke).
+- Variables **`DEPLOY_MIRROR_REPO`** = `argamboad/vuelto`, **`STAGING_BASE_URL`**, **`PROD_BASE_URL`**
+  (when prod exists), **`POSTMAN_WORKSPACE_ID`**; secret **`POSTMAN_API_KEY`**.
+
+**What runs when.**
+
+| Event | Runs | Wall clock |
+|---|---|---|
+| Push / PR, docs only | `changes`, `secret-scan`, `qa-artifacts` | ≈ 1 min |
+| Push / PR with code | + `build-test`, `license-scan`, `docker-build`, `e2e`, Android + Windows (+ Apple, Mac awake) **builds** | ≈ 10–17 min |
+| **Run workflow**, `smokes=…` | the above + the selected native **smokes** (windows / android / apple / all) | + 3–10 min |
+| **Run workflow**, `deploy=staging` (on `develop`) | the above, then `deploy-staging` — only if every gate and every selected smoke is green | + 5–8 min |
+| **Run workflow**, `deploy=prod` (on `main`) | same, `deploy-prod` | |
+| Monday 06:00 UTC | all three smokes (the weekly safety net for legs that no longer run per push) | |
+
+By default the native smokes and the deploys never run on a push. Pick both inputs in one dispatch to
+smoke and deploy in a single run.
+
+**Knobs** — repo variables (Forgejo → repo → Settings → Actions → Variables) that change the table above
+without a commit. Set one to turn a behaviour on, delete it to go back to the default; the next run picks
+it up. The workflow header lists the same ones, and `ForgejoKnobs_AreTheDocumentedFour` fails if the
+workflow reads a `CI_*` variable that is not documented here.
+
+| Variable | Values | Default | Effect |
+|---|---|---|---|
+| `CI_SMOKES_ON_PUSH` | `windows` · `android` · `apple` · `all` | unset (none) | Also run those native smokes on **every code push to `develop`** — GitHub's behaviour. Costs 3–10 min per merge and the desk's CPU while you work. |
+| `CI_DEPLOY_ON_PUSH` | `staging` | unset (manual only) | Also deploy staging on **every green code push to `develop`** — GitHub's behaviour: staging tracks `develop`. Combine with `CI_SMOKES_ON_PUSH` and the deploy waits for those smokes too. **Prod is never deployed on a push**, whatever this says. |
+| `CI_WEEKLY_SMOKES` | `off` | unset (on) | Switch off the Monday 06:00 UTC smoke run (e.g. while the laptop is away). |
+| `CI_MACOS_RUNNER` | anything non-empty | unset | Set once the MacBook runner is Online. Until then the Apple jobs **skip**. |
+| `CI_MACOS_PROBE` | `host:port` (e.g. `100.103.211.64:22`) | unset (assume awake) | What the `mac` job connects to in order to decide whether the MacBook is awake. Asleep ⇒ the Apple jobs **skip with a warning** instead of queueing for `ABANDONED_JOB_TIMEOUT` (24 h) or being killed as zombies mid-build (10 min) and turning the run red. Wake it and re-run the workflow. |
+
+Any value not listed reads as the default (an unknown `CI_SMOKES_ON_PUSH` matches no smoke).
+
+**How a deploy runs.** `deploy-staging` pushes the commit to `develop` **on GitHub**
+(`.forgejo/scripts/push-to-github.sh` — `develop`/`main` only, a plain fast-forward, never forced), fires
+the Render hook, and runs `.github/scripts/deploy-smoke.sh`. That push also triggers GitHub's own pipeline,
+which re-deploys the same commit; accepted. If GitHub's `develop` has a commit Forgejo's does not, the push
+is refused and the deploy stops: `git fetch github && git merge github/develop`, push to Forgejo, dispatch
+again. **Rollback:** dispatch `deploy=staging` on an older commit (Actions → Run workflow lets you pick the
+ref), or Render → Deploys → Redeploy.
+**Laptop off = no deploy.** GitHub is the other route: `git push github develop` deploys as it always did.
+
+---
+
 ## Prod, later
 
 When a downstream app has real users, repeat §1–§5 as a second Render service fed from `main` (an
