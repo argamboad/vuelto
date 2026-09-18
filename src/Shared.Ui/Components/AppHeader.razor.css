@@ -213,8 +213,12 @@
         padding-bottom: 9px;
     }
 
+    /* relative, NOT static: it still flows in the sheet, but z-index only works on a positioned element.
+       With `static` the panel dropped under the full-screen .user-menu-backdrop (fixed, z-index 200), so
+       on a phone every tap on the menu hit the backdrop and just closed it (found by the Android smoke,
+       confirmed on a device, 2026-09-18). */
     .user-menu-panel {
-        position: static;
+        position: relative;
         min-width: 0;
         box-shadow: none;
     }
