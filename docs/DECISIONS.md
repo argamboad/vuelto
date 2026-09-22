@@ -1875,6 +1875,21 @@ form one "former members" slice with no name — a departed member's name is not
 rather than having their lines deactivated in storage — the line keeps its member for history and can be reassigned; the
 edit form still shows the former member. *Supersedes:* ADR-V003's income defaults and ADR-V005's "two incomes per month".
 
+**ADR-V024 — A voucher is booked at the rate of the day it arrived, not the day it is confirmed. (2026-09-22; owner decision, EMAIL-8)**
+
+Confirm passed no rate, so the ledger resolved today's (ADR-V006): a voucher's date set its budget month, but a Friday
+purchase reviewed on Monday was converted at Monday's rate — and the frozen rate can never be corrected afterwards.
+**Decision (the owner's pick of two):** staging freezes the day's **live** buy/sell pair on the draft
+(`PendingVoucher.StagedRateBuy/Sell/AsOf`, fetched once per sync and only when something is staged); confirm passes the
+side the booked currency selects (ADR-V019) as the command's rate. No live quote at staging (provider down, only a stale
+cache) → no staged rate → confirm resolves today's as before. **Rejected:** looking up the historical rate for the
+voucher's date at confirm — more exact, but it needs a dated source in the provider tier (the BCCR mirror's history is
+unverified) and a new tier in ADR-V006's chain. **Trade-off:** the staged rate is the rate of the day the mail was
+*read*, which is the purchase day for the normal sync cadence but not for a backfilled folder or a re-read queue
+(EMAIL-7); it is never later than confirm, so nothing gets worse. *Amends:* ADR-V006 (a voucher's rate is resolved at
+staging, not at confirm) and ADR-V010 (confirm still books only through `TransactionService.CreateAsync` — now with a
+rate). Migration `AddPendingVoucherStagedRate` adds three nullable columns and drops nothing.
+
 **ADR-027 — Pre-launch gates: billing and account creation are deployment configuration, not runtime switches (GATES-1/2). (2026-09-11)**
 A deployment must be able to run **private and free** before it is published: nothing offers to sell
 a tester anything, and a stranger who finds the URL cannot create an account. Hiding the deployment

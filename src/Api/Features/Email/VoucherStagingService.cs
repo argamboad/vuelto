@@ -18,6 +18,9 @@ namespace Vuelto.Api.Features.Email;
 /// Cursor rules: hold at the oldest transient failure so it retries (poison mail older than 7 days is
 /// dropped, never stalls), resume from the newest fetched message when the reader saturated its page
 /// cap, otherwise advance to the poll start. A failed save is detached so the shared context stays clean.
+/// EMAIL-8: each draft carries the day's LIVE buy/sell pair, fetched once per sync and only when something is
+/// staged — confirm books at it, however late the review. No live quote (provider down, only a stale cache)
+/// stages the draft without one; it never blocks staging.
 /// </summary>
 public sealed class VoucherStagingService(
     IEnumerable<IEmailReader> readers,
@@ -30,6 +33,7 @@ public sealed class VoucherStagingService(
     IRepository<IngestedVoucher> ingestedVouchers,
     IRepository<EmailConnection> connections,
     IRepository<MerchantCategoryMapping> mappings,
+    IExchangeRateService exchangeRates,
     TimeProvider clock,
     ILogger<VoucherStagingService> logger) : IVoucherStagingService
 {
@@ -64,6 +68,7 @@ public sealed class VoucherStagingService(
             var locale = (await users.Query().Where(u => u.Id == connection.UserId).Select(u => u.Locale).FirstOrDefaultAsync(cancellationToken));
             var bankIds = await ResolveBankIdsAsync(householdId.Value, locale, cancellationToken);
             var rules = await mappings.Query().ToListAsync(cancellationToken); // EMAIL-5: the household's suggestion rules, matched in memory
+            var quote = new Lazy<Task<ExchangeRateQuote?>>(() => LiveQuoteAsync(cancellationToken)); // EMAIL-8: asked once, and only if a draft is staged
 
             foreach (var message in fetch.Messages)
             {
@@ -90,6 +95,7 @@ public sealed class VoucherStagingService(
                     var effectiveFingerprint = fingerprint ?? Guid.CreateVersion7().ToString("N"); // no dedup possible: always stage
 
                     var now = clock.GetUtcNow();
+                    var rate = await quote.Value;
                     var rule = MerchantMatcher.Resolve(rules, parsed.Merchant); // a suggestion is copied onto the draft, never applied (D4)
                     var draft = new PendingVoucher
                     {
@@ -98,6 +104,7 @@ public sealed class VoucherStagingService(
                         Currency = parsed.Currency, Date = parsed.Date, CardNumber = parsed.CardNumber, CardBrand = parsed.CardBrand, CardKind = parsed.CardKind, Authorization = parsed.Authorization,
                         Reference = parsed.Reference, TransactionType = parsed.TransactionType, MissingFields = parsed.MissingFields.ToArray(),
                         SuggestedCategoryId = rule?.CategoryId, SuggestedClass = rule is null ? null : rule.SuggestedClass ?? SuggestibleClasses.Default,
+                        StagedRateBuy = rate?.Rates.Buy, StagedRateSell = rate?.Rates.Sell, StagedRateAsOf = rate?.AsOf,
                         Status = PendingVoucherStatuses.Pending, ReceivedAt = message.ReceivedAt, CreatedAt = now, UpdatedAt = now,
                     };
                     var tombstone = new IngestedVoucher { TenantId = householdId.Value, Fingerprint = effectiveFingerprint, PendingVoucherId = draft.Id, CreatedAt = now };
@@ -150,6 +157,25 @@ public sealed class VoucherStagingService(
         logger.LogInformation("Connection {Id} synced: fetched {Fetched}, staged {Staged}, duplicates {Duplicates}, unrecognized {Unrecognized}; cursor now {Cursor:o}",
             connection.Id, fetch.Messages.Count, staged, duplicates, unrecognized, connection.LastPolledAt);
         return new StagingResult(staged, duplicates, unrecognized, false);
+    }
+
+    /// <summary>
+    /// The provider's quote if it is LIVE — a stale cached pair can predate the purchase, so the draft goes without
+    /// and confirm resolves today's (no worse than before EMAIL-8). Never throws: a missing rate never blocks staging.
+    /// </summary>
+    private async Task<ExchangeRateQuote?> LiveQuoteAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var quote = await exchangeRates.GetQuoteAsync(Currencies.Usd, Currencies.Crc, cancellationToken);
+            if (quote.IsLive) return quote;
+            logger.LogInformation("Only a cached exchange rate (as of {AsOf:o}) at staging; drafts staged without one", quote.AsOf);
+        }
+        catch (ExchangeRateUnavailableException ex)
+        {
+            logger.LogWarning(ex, "No exchange rate at staging; drafts staged without one, confirm resolves today's");
+        }
+        return null;
     }
 
     private sealed record BankIds(Guid? Bac, Guid? Bn, Guid? Cash)

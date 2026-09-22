@@ -106,16 +106,17 @@ public sealed class PendingVoucherHandler(
         if (!SuggestibleClasses.TryNormalize(r.TransactionClass, out var cls) || cls is null)
             return (null, Invalid($"transaction_class must be one of: {string.Join(", ", SuggestibleClasses.All)}"));
 
+        var currency = r.Currency ?? voucher.Currency;
         var command = new CreateTransactionCommand(
             Payee: string.IsNullOrWhiteSpace(r.Payee) ? voucher.Merchant : r.Payee,
             BankId: r.BankId ?? voucher.BankId,
             PaymentMethod: r.PaymentMethod, // may be null here — the resolved card decides below (CARDS-3)
             OriginalAmount: r.OriginalAmount ?? voucher.Amount ?? 0m,
-            Currency: r.Currency ?? voucher.Currency,
+            Currency: currency,
             TransactionDate: r.TransactionDate ?? voucher.Date,
             CategoryId: categoryId,
             TransactionType: cls,
-            ExchangeRate: null, // resolve + freeze the live rate, like manual entry (ADR-V006)
+            ExchangeRate: StagedRate(voucher, currency), // EMAIL-8: the rate when it arrived; null → today's, like manual entry (ADR-V006)
             RefundExpected: r.RefundExpected, // the ledger validates the percentage and spawns the refund (LEDGER-3)
             RefundPercentage: r.RefundPercentage,
             Source: TransactionSources.Email,
@@ -167,6 +168,16 @@ public sealed class PendingVoucherHandler(
     }
 
     private static ErrorResponse Invalid(string message) => new("invalid_request", message);
+    /// <summary>
+    /// EMAIL-8: the side of the pair frozen at staging that the booked currency selects (ADR-V019) — the currency the
+    /// reviewer confirmed, which may correct the parser's. Null (→ the ledger resolves today's) when the voucher
+    /// arrived without a live rate, or has no currency for the ledger to accept.
+    /// </summary>
+    private static decimal? StagedRate(PendingVoucher voucher, string? currency) =>
+        voucher is { StagedRateBuy: { } buy, StagedRateSell: { } sell } && !string.IsNullOrWhiteSpace(currency)
+            ? new FxRates(buy, sell).ForSpend(currency)
+            : null;
+
     private static ErrorResponse NotFound() => new("not_found", "pending voucher not found");
     private static ErrorResponse NotPending() => new("not_pending", "This voucher is no longer pending");
 }
