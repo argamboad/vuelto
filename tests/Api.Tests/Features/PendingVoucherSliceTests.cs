@@ -68,7 +68,7 @@ public class PendingVoucherSliceTests(PostgresFixture fixture) : PostgresTestBas
 
     private Ctx Sibling(Ctx c) => Build(Fixture.CreateContext(c.Tenant), c.Tenant, c.CategoryId, c.BankId, new FixedRate(500m));
 
-    private static async Task<PendingVoucher> DraftAsync(Ctx c, string merchant = "TACO BELL PLAZA REAL C", decimal? amount = 7620m, string? currency = "CRC", DateOnly? date = null, Guid? bankId = null, string status = PendingVoucherStatuses.Pending, DateTimeOffset? receivedAt = null, string[]? missing = null, string? cardNumber = null, string? cardBrand = null, string? cardKind = null)
+    private static async Task<PendingVoucher> DraftAsync(Ctx c, string merchant = "TACO BELL PLAZA REAL C", decimal? amount = 7620m, string? currency = "CRC", DateOnly? date = null, Guid? bankId = null, string status = PendingVoucherStatuses.Pending, DateTimeOffset? receivedAt = null, string[]? missing = null, string? cardNumber = null, string? cardBrand = null, string? cardKind = null, FxRates? stagedRate = null)
     {
         var fingerprint = Guid.CreateVersion7().ToString("N");
         var draft = new PendingVoucher
@@ -76,6 +76,7 @@ public class PendingVoucherSliceTests(PostgresFixture fixture) : PostgresTestBas
             TenantId = c.Tenant, EmailConnectionId = Guid.CreateVersion7(), ProviderMessageId = fingerprint, Fingerprint = fingerprint, ParsedBank = "Bac",
             BankId = bankId ?? c.BankId, Merchant = merchant, Amount = amount, Currency = currency, Date = date ?? Jun13, Authorization = "662664", CardNumber = cardNumber, CardBrand = cardBrand, CardKind = cardKind,
             TransactionType = "COMPRA", MissingFields = missing ?? [], Status = status, ReceivedAt = receivedAt ?? T0, CreatedAt = T0, UpdatedAt = T0,
+            StagedRateBuy = stagedRate?.Buy, StagedRateSell = stagedRate?.Sell, StagedRateAsOf = stagedRate is null ? null : T0.AddDays(-3),
         };
         c.Db.Add(draft);
         c.Db.Add(new IngestedVoucher { TenantId = c.Tenant, Fingerprint = fingerprint, PendingVoucherId = draft.Id, CreatedAt = T0 });
@@ -322,6 +323,54 @@ public class PendingVoucherSliceTests(PostgresFixture fixture) : PostgresTestBas
         Assert.Empty(await c.Db.Transactions.ToListAsync());
         Assert.Empty(await c.Db.Months.ToListAsync());
         Assert.Equal(PendingVoucherStatuses.Pending, (await ReloadAsync(c, draft.Id)).Status);
+    }
+
+    [Fact]
+    public async Task Confirm_UsesTheRateFrozenWhenTheVoucherArrived_NotTodays()
+    {
+        // EMAIL-8: bought Friday, confirmed Monday — the voucher carries Friday's pair (staged when it arrived) and
+        // the side follows the currency exactly as a live rate would (ADR-V019). Today's pair is never consulted.
+        var c = await ContextAsync(pair: new FxRates(Buy: 448.27m, Sell: 453.69m));
+        var friday = new FxRates(Buy: 440.00m, Sell: 445.00m);
+        var colones = await DraftAsync(c, amount: 8800m, stagedRate: friday);
+        var dollars = await DraftAsync(c, merchant: "AMAZON", amount: 20m, currency: "USD", stagedRate: friday);
+
+        var (crc, e1) = await c.Handler.ConfirmAsync(colones.Id, Confirm(c), default);
+        var (usd, e2) = await c.Handler.ConfirmAsync(dollars.Id, Confirm(c), default);
+
+        Assert.Null(e1); Assert.Null(e2);
+        var crcTx = await c.Db.Transactions.SingleAsync(t => t.Id == crc!.TransactionId);
+        var usdTx = await c.Db.Transactions.SingleAsync(t => t.Id == usd!.TransactionId);
+        Assert.Equal((440.00m, 8800m, 20.00m), (crcTx.ExchangeRateUsed, crcTx.AmountCrc, crcTx.AmountUsd));   // 8,800 / 440 at Buy
+        Assert.Equal((445.00m, 8900.00m, 20m), (usdTx.ExchangeRateUsed, usdTx.AmountCrc, usdTx.AmountUsd));   // 20 × 445 at Sell
+    }
+
+    [Fact]
+    public async Task Confirm_FrozenRate_FollowsACurrencyCorrectedAtReview()
+    {
+        // The parser left the currency blank or wrong and the reviewer fixed it: the side is picked for the
+        // currency the transaction is booked in, not the one the voucher arrived with.
+        var c = await ContextAsync();
+        var draft = await DraftAsync(c, amount: 20m, currency: "CRC", stagedRate: new FxRates(Buy: 440.00m, Sell: 445.00m));
+
+        var (confirmed, error) = await c.Handler.ConfirmAsync(draft.Id, Confirm(c) with { Currency = "USD" }, default);
+
+        Assert.Null(error);
+        var tx = await c.Db.Transactions.SingleAsync(t => t.Id == confirmed!.TransactionId);
+        Assert.Equal(("USD", 445.00m), (tx.Currency, tx.ExchangeRateUsed));
+    }
+
+    [Fact]
+    public async Task Confirm_WithAFrozenRate_NeedsNoRateToday()
+    {
+        // The provider is down at confirm time: a voucher that carries its own rate still books.
+        var c = await ContextAsync(rate: null);
+        var draft = await DraftAsync(c, stagedRate: new FxRates(Buy: 440.00m, Sell: 445.00m));
+
+        var (confirmed, error) = await c.Handler.ConfirmAsync(draft.Id, Confirm(c), default);
+
+        Assert.Null(error);
+        Assert.Equal(440.00m, (await c.Db.Transactions.SingleAsync(t => t.Id == confirmed!.TransactionId)).ExchangeRateUsed);
     }
 
     [Fact]

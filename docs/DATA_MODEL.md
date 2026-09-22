@@ -242,6 +242,9 @@ An inert review-queue draft parsed from an email. Nothing touches the budget unt
 - `merchant`, `amount`, `currency`, `date`, `card_number`, `card_brand` (the label the number sat under, null
   when the voucher names none), `authorization`, `reference`, `transaction_type`, `missing_fields[]`
 - `suggested_category_id` (nullable), `suggested_class` (nullable) — copied from a mapping at staging
+- `staged_rate_buy`, `staged_rate_sell` (nullable, numeric(10,4)), `staged_rate_as_of` (nullable) — the day's live
+  pair when the draft was staged; confirm books at the side the booked currency selects (EMAIL-8, ADR-V024). Null
+  (no live quote then, or staged before EMAIL-8) → confirm resolves today's rate
 - `status` — `pending` | `confirmed` | `discarded`
 - `confirmed_transaction_id` (nullable), `received_at`
 - index on (`tenant_id`, `status`)

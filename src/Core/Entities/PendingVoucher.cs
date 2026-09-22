@@ -41,6 +41,18 @@ public class PendingVoucher : ITenantScoped
     public Guid? SuggestedCategoryId { get; set; }
     public string? SuggestedClass { get; set; }
 
+    // --- the rate when the voucher arrived (EMAIL-8) ---
+    /// <summary>
+    /// The day's live buy/sell pair, taken when the voucher was staged — near the purchase — so a voucher confirmed
+    /// days later still books at its own day's rate, not the day it happened to be reviewed. Confirm picks the side
+    /// for the booked currency (ADR-V019) and freezes it on the transaction. Null when no live quote existed at
+    /// staging (provider down, only a stale cache): confirm then resolves today's rate as before.
+    /// </summary>
+    public decimal? StagedRateBuy { get; set; }
+    public decimal? StagedRateSell { get; set; }
+    /// <summary>When the provider fetched the staged pair.</summary>
+    public DateTimeOffset? StagedRateAsOf { get; set; }
+
     // --- lifecycle ---
     public string Status { get; set; } = PendingVoucherStatuses.Pending;
 

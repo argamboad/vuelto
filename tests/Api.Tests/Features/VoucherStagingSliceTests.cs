@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using Vuelto.Api.Features.Email;
 using Vuelto.Api.Tests.Infrastructure;
+using Vuelto.Core.Budget;
 using Vuelto.Core.Entities;
 using Vuelto.Core.Mail;
 using Vuelto.Core.Vouchers;
@@ -37,6 +38,20 @@ public class VoucherStagingSliceTests(PostgresFixture fixture) : PostgresTestBas
         }
         public Task<EmailFoldersResult> ListFoldersAsync(EmailConnection connection, CancellationToken cancellationToken = default) => Task.FromResult(EmailFoldersResult.Ok([]));
     }
+
+    /// <summary>The day's quote as the provider serves it (EMAIL-8); null = the provider is down with nothing cached.</summary>
+    private sealed class FakeQuotes(ExchangeRateQuote? quote) : IExchangeRateService
+    {
+        public int Calls;
+        public Task<ExchangeRateQuote> GetQuoteAsync(string fromCurrency, string toCurrency, CancellationToken cancellationToken = default)
+        {
+            Calls++;
+            return quote is null ? throw new ExchangeRateUnavailableException("provider down") : Task.FromResult(quote);
+        }
+    }
+
+    // BCCR 2026-06-16 as the provider would serve it live at staging time.
+    private static readonly ExchangeRateQuote LiveQuote = new(new FxRates(Buy: 448.27m, Sell: 453.69m), Now, IsLive: true);
 
     private sealed class FakeParser(Func<VoucherMessage, ParsedVoucher?> parse) : IVoucherParser
     {
@@ -87,10 +102,10 @@ public class VoucherStagingSliceTests(PostgresFixture fixture) : PostgresTestBas
         return await c.Db.EmailConnections.SingleAsync(x => x.Id == conn.Id);
     }
 
-    private static VoucherStagingService Service(Ctx c, IEmailReader reader, IVoucherParser parser, ILogger<VoucherStagingService>? logger = null) => new(
+    private static VoucherStagingService Service(Ctx c, IEmailReader reader, IVoucherParser parser, ILogger<VoucherStagingService>? logger = null, IExchangeRateService? quotes = null) => new(
         [reader], parser, new TenantRepository(c.Db), c.Current, new EfRepository<User>(c.Db), new EfRepository<Bank>(c.Db),
         new EfRepository<PendingVoucher>(c.Db), new EfRepository<IngestedVoucher>(c.Db), new EfRepository<EmailConnection>(c.Db),
-        new EfRepository<MerchantCategoryMapping>(c.Db), new FakeTimeProvider(Now), logger ?? NullLogger<VoucherStagingService>.Instance);
+        new EfRepository<MerchantCategoryMapping>(c.Db), quotes ?? new FakeQuotes(LiveQuote), new FakeTimeProvider(Now), logger ?? NullLogger<VoucherStagingService>.Instance);
 
     private sealed class CapturingLogger : ILogger<VoucherStagingService>
     {
@@ -127,6 +142,52 @@ public class VoucherStagingSliceTests(PostgresFixture fixture) : PostgresTestBas
             Assert.Empty(await c.Db.Months.ToListAsync());
             Assert.Empty(await c.Db.Transactions.ToListAsync());
         }
+    }
+
+    // ── EMAIL-8: the rate is frozen when the voucher arrives, not when it is confirmed ──
+
+    [Fact]
+    public async Task Stages_TheDaysLiveRatePair_OnTheDraft()
+    {
+        var c = await SeedAsync();
+        var conn = await ConnectionAsync(c);
+
+        await Service(c, new FakeReader([Msg()]), new FakeParser(_ => Bac())).StageConnectionAsync(conn);
+
+        var draft = Assert.Single(await DraftsAsync(c));
+        Assert.Equal((448.27m, 453.69m, Now), (draft.StagedRateBuy, draft.StagedRateSell, draft.StagedRateAsOf));
+    }
+
+    [Theory]
+    [InlineData(true)]  // the provider is down and nothing is cached
+    [InlineData(false)] // only a stale cached pair: it could predate the purchase, so today's at confirm is no worse
+    public async Task Stages_WithoutARate_WhenNoLiveQuoteExists(bool providerDown)
+    {
+        var c = await SeedAsync();
+        var conn = await ConnectionAsync(c);
+        var quotes = new FakeQuotes(providerDown ? null : LiveQuote with { IsLive = false, AsOf = Now.AddDays(-3) });
+
+        var result = await Service(c, new FakeReader([Msg()]), new FakeParser(_ => Bac()), quotes: quotes).StageConnectionAsync(conn);
+
+        Assert.Equal(1, result.Staged); // a missing rate never blocks staging — confirm resolves one then
+        var draft = Assert.Single(await DraftsAsync(c));
+        Assert.Equal((null, null, null), (draft.StagedRateBuy, draft.StagedRateSell, draft.StagedRateAsOf));
+    }
+
+    [Fact]
+    public async Task AsksForTheQuote_OncePerSync_AndNotAtAllWhenNothingIsStaged()
+    {
+        var c = await SeedAsync();
+        var conn = await ConnectionAsync(c);
+        var quotes = new FakeQuotes(LiveQuote);
+
+        await Service(c, new FakeReader([Msg("m1"), Msg("m2")]), new FakeParser(m => Bac(auth: m.MessageId)), quotes: quotes).StageConnectionAsync(conn);
+        Assert.Equal(1, quotes.Calls);
+
+        var quiet = new FakeQuotes(LiveQuote);
+        await Service(c, new FakeReader([]), new FakeParser(_ => Bac()), quotes: quiet).StageConnectionAsync(conn);
+        await Service(c, new FakeReader([Msg("m1")]), new FakeParser(m => Bac(auth: m.MessageId)), quotes: quiet).StageConnectionAsync(conn); // a duplicate
+        Assert.Equal(0, quiet.Calls);
     }
 
     [Fact]

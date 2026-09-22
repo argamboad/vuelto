@@ -24,6 +24,8 @@ public class PendingVoucherConfiguration : IEntityTypeConfiguration<PendingVouch
         p.Property(x => x.TransactionType).HasMaxLength(40);
         p.Property(x => x.MissingFields).IsRequired();
         p.Property(x => x.SuggestedClass).HasMaxLength(32);
+        p.Property(x => x.StagedRateBuy).HasPrecision(10, 4);  // same scale as Transaction.ExchangeRateUsed
+        p.Property(x => x.StagedRateSell).HasPrecision(10, 4);
         p.Property(x => x.Status).HasMaxLength(20).IsRequired();
         p.HasIndex(x => new { x.TenantId, x.Status });
         p.HasOne<Bank>().WithMany().HasForeignKey(x => x.BankId).OnDelete(DeleteBehavior.Restrict);

@@ -1427,7 +1427,9 @@ from the one-hour cache). Without a token → 401. **New transaction** → **Exp
 pre-filled with the **buy** figure while the currency is CRC; pick USD → the **sell** figure; type your
 own rate, switch currency again → your rate stays. Save a $20 purchase → **Expected:** the month page
 shows ₡(20 × sell) beside it (a ₡ purchase would show $(amount ÷ buy)). A voucher confirmed from the
-review queue freezes the same side for its currency.
+review queue freezes the same side for its currency — of the pair taken when the voucher **arrived**, not when it
+is confirmed (EMAIL-8): sync a voucher, confirm it the next day, and its rate is the one Postman showed on the day of
+the sync. A voucher synced while the provider was down books at the confirm day's rate.
 
 ### QA-FX-02 — No provider → the honest "unavailable" state, never a fabricated rate 🟠 (Web / API)
 **Gherkin**

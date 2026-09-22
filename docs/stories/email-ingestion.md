@@ -316,7 +316,7 @@ Feature slices may not reference each other (R7), so the Ledger's `TransactionHa
 are the user's decision; the command is the voucher's own data (payee = merchant, bank, amount, currency,
 date) with optional overrides — the UI opens a field **only where the parser left a blank**
 (`missing_fields`) — booked with `source = email` and no manual rate (the live rate resolves and freezes,
-like manual entry). **One boundary**: `IUnitOfWork.BeginTransactionAsync` → create → conditional
+like manual entry — *amended by EMAIL-8:* the rate frozen at staging, when the draft has one). **One boundary**: `IUnitOfWork.BeginTransactionAsync` → create → conditional
 `ExecuteUpdate pending → confirmed` (+ `ConfirmedTransactionId`) → commit. A ledger validation or
 `exchange_rate_unavailable` failure writes nothing and the draft stays pending; a second concurrent confirm
 loses the flip (0 rows), returns `not_pending`, and its scope disposes without commit — **the transaction
@@ -401,4 +401,34 @@ Scenario: Start the queue over
        the inbox cursor sits just before the oldest cleared draft, and no transaction changed
   When I press Sync now
   Then those 3 emails are staged again - parsed by today's parser
+```
+
+### EMAIL-8 — A voucher keeps the rate of the day it arrived *(owner request, 2026-09-22)* ✅
+
+**As** a household member, **I want** a voucher I confirm days later to be booked at the rate of the day it
+arrived, **so that** a Friday purchase reviewed on Monday isn't converted at Monday's rate.
+
+**Context / notes:** until now confirm passed no rate, so the ledger resolved **today's** (ADR-V006) — the voucher's
+date set the budget month but not the rate. Now staging asks the provider for the day's USD→CRC pair **once per
+sync, and only if something is staged**, and copies it onto every draft of that sync (`staged_rate_buy`,
+`staged_rate_sell`, `staged_rate_as_of`). Only a **live** quote is kept: a stale cached pair can predate the
+purchase, and the provider being down never blocks staging — those drafts carry no rate. On confirm the side the
+**booked** currency selects (ADR-V019; a currency the reviewer corrected counts) goes to the ledger as the
+transaction's rate and is frozen there; a draft without one resolves today's, exactly as before — including every
+draft staged before this story. A draft that carries its rate books even while the provider is down.
+**Not covered:** the rate of the purchase date itself — the sync runs near the purchase, but mail read late (a new
+folder backfilled, a cleared queue re-read per EMAIL-7) carries the rate of the day it was *read*. That still never
+lands later than confirm. A historical rate lookup would be a change to ADR-V006's chain (ADR-V024).
+
+```gherkin
+Scenario: Confirmed on Monday, booked at Friday's rate
+  Given on Friday the provider serves buy 440.00 / sell 445.00 and a $20 AMAZON voucher is synced
+  And on Monday the provider serves buy 448.27 / sell 453.69
+  When I confirm the voucher on Monday
+  Then the transaction's rate is 445.00 (sell, for dollars) and it costs ₡8,900.00
+
+Scenario: The provider is down when the mail arrives
+  Given the provider has no live rate when the voucher is synced
+  When I confirm it later with the provider back up
+  Then it is booked at that day's rate, as before
 ```
