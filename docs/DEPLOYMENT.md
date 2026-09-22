@@ -515,8 +515,8 @@ something was merged on GitHub anyway, reconcile before the next deploy:
 
 | Label | Machine | Notes |
 |---|---|---|
-| `ubuntu-latest` | WSL runner `linux-local` (4 jobs at once) → image `forgejo-ci/ubuntu:24.04` | Docker-in-Docker, host network, `/dev/kvm` passed through. Shared with the other repos on the same Forgejo. |
-| `ubuntu-host-ports` | WSL runner `linux-ports` (1 job at a time), same image | `e2e` + `native-smoke-android`: they bind fixed ports and every WSL job shares one network, so they queue here — across runs and repos. |
+| `ubuntu-latest` | WSL runner `linux-local` (6 jobs at once) → image `forgejo-ci/ubuntu:24.04` | Docker-in-Docker, host network, `/dev/kvm` passed through. Shared with the other repos on the same Forgejo. |
+| `ubuntu-host-ports` | WSL runners `linux-ports` **and `linux-ports-2`** (1 job each, own dockerd each), same image | `e2e` + `native-smoke-android`: they bind fixed ports and every WSL job shares one network, so each lane takes one at a time, but the two lanes have separate networks, so two such jobs run at once (added 2026-09-22 — with three repos this was the longest queue). A third waits. |
 | `windows-latest` | the Windows desk, host mode (logon task) | **Stop the dev stack before it takes jobs** — the smoke fails fast if 5432/5338 are busy. |
 | `macos-26` | the MacBook (`macos-air`) | Needs `CI_MACOS_RUNNER`; asleep ⇒ the Apple jobs skip with a warning (see `CI_MACOS_PROBE`). |
 
@@ -526,7 +526,10 @@ GitHub's `develop` with auto-deploy off; GitHub keeps its hook and its pipeline)
 - Secret **`RENDER_DEPLOY_HOOK_STAGING`** = the same hook GitHub has (Render → `vuelto-staging` →
   Settings → Deploy Hook); `RENDER_DEPLOY_HOOK_PROD` when prod exists.
 - Secret **`DEPLOY_MIRROR_TOKEN`** = a GitHub **fine-grained** token with *Contents: Read and write*
-  on `argamboad/vuelto` (it pushes `develop`/`main` and reads the compare API for the smoke).
+  **and *Workflows: Read and write*** on `argamboad/vuelto` (it pushes `develop`/`main` and reads the compare
+  API for the smoke). Without Workflows, GitHub refuses any deploy whose commits touch
+  `.github/workflows/` — `GH013: … refusing to allow a Personal Access Token to create or update
+  workflow` — which is how y-el-vuelto's first deploy died (2026-09-18). One token covers all three repos.
 - Variables **`DEPLOY_MIRROR_REPO`** = `argamboad/vuelto`, **`STAGING_BASE_URL`**, **`PROD_BASE_URL`**
   (when prod exists), **`POSTMAN_WORKSPACE_ID`**; secret **`POSTMAN_API_KEY`**.
 

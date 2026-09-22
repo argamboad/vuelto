@@ -37,7 +37,18 @@ AUTH="$(printf 'x-access-token:%s' "$MIRROR_TOKEN" | base64 -w0)"
 echo "::add-mask::$AUTH"
 if ! git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $AUTH" \
      push "https://github.com/$MIRROR_REPO.git" "$SHA:refs/heads/$BRANCH"; then
-  echo "::error::GitHub's $BRANCH is not an ancestor of this commit — it has something Forgejo does not. Pull it into Forgejo's $BRANCH (git fetch github && git merge github/$BRANCH), push, and run the deploy again."
+  # GitHub prints WHY it refused (above) and there is more than one reason: a non-fast-forward, but also
+  # a ruleset — notably GH013 "refusing to allow a Personal Access Token to create or update workflow
+  # .github/workflows/… without `workflow` scope" when the deploy carries a workflow change and the token
+  # only has Contents (y-el-vuelto's first deploy, 2026-09-18). Blaming the branch for all of them sends
+  # the reader to merge something that is already merged, so ask the remote which case this is.
+  if git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $AUTH" \
+       fetch --quiet "https://github.com/$MIRROR_REPO.git" "refs/heads/$BRANCH" 2>/dev/null \
+     && ! git merge-base --is-ancestor FETCH_HEAD "$SHA"; then
+    echo "::error::GitHub's $BRANCH is not an ancestor of this commit — it has something Forgejo does not. Pull it into Forgejo's $BRANCH (git fetch github && git merge github/$BRANCH), push, and run the deploy again."
+  else
+    echo "::error::GitHub refused the push to $BRANCH and its $BRANCH IS an ancestor of this commit, so it is not a fast-forward problem — read git's message above. A ruleset or a token permission is the usual cause (a commit touching .github/workflows/ needs the mirror token to have Workflows: Read and write, not just Contents)."
+  fi
   exit 1
 fi
 echo "Pushed $SHA to $MIRROR_REPO@$BRANCH."
