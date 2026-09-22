@@ -62,12 +62,15 @@ jobs:
 
           green() { jq -r --arg n "$1" 'select(.name == $n and .status == "success") | .name' /tmp/jobs.json | head -1; }
           missing=""
-          for job in changes build-test secret-scan qa-artifacts license-scan docker-build e2e; do
+          for job in changes build-test secret-scan qa-artifacts license-scan docker-build; do
             [ -n "$(green "$job")" ] || missing="$missing $job"
           done
-          # native-build is a matrix (Android + Windows): both legs must have passed.
+          # Two matrices: native-build (Android + Windows) and e2e (3 shards). Every leg must have passed —
+          # counting them is what stops a half-run from looking green.
           natives=$(jq -r 'select(.name | startswith("native-build (")) | select(.status == "success") | .name' /tmp/jobs.json | sort -u | wc -l)
           [ "$natives" -ge 2 ] || missing="$missing native-build($natives/2)"
+          shards=$(jq -r 'select(.name | startswith("e2e (")) | select(.status == "success") | .name' /tmp/jobs.json | sort -u | wc -l)
+          [ "$shards" -ge 3 ] || missing="$missing e2e($shards/3)"
 
           if [ -n "$missing" ]; then
             echo "::error::$SHA has no green run of these gates:$missing — refusing to deploy. Run ci.yml with deploy=${{ github.event.inputs.target }}, which runs the gates and then deploys."
