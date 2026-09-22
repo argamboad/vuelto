@@ -832,6 +832,13 @@ jobs:
   e2e:
     needs: changes
     if: github.event_name != 'schedule' && needs.changes.outputs.code == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        # Three shards, one per port lane (each lane takes one job at a time, so two shards can never
+        # share a daemon and collide on the fixed ports). 35 journeys × ~15 s each was ~7 min of every
+        # run; split three ways it is ~2.5 min, at the cost of booting the stack three times.
+        shard: [1, 2, 3]
     runs-on: ubuntu-latest
     services:
       db:
@@ -922,9 +929,58 @@ jobs:
           done
           [ "$api" = "200" ] && [ "$web" = "200" ] || { echo "::error::stack did not become ready"; tail -40 api.log web.log; exit 1; }
 
-          PLAYWRIGHT_BASE_URL=http://localhost:5269 MAILPIT_BASE_URL=http://localhost:8025 \
-            E2E_API_BASE_URL=http://localhost:5338 \
-            dotnet test tests/E2E.Tests/Vuelto.E2E.Tests.csproj -c Debug --no-build
+          # Exported, not prefixed onto the command: the shard step below sits between this and the run,
+          # and a `VAR=x \` continuation would land on a comment and quietly leave the suite on its dev
+          # defaults (https://localhost:7008 — every journey then fails with ERR_CONNECTION_REFUSED).
+          export PLAYWRIGHT_BASE_URL=http://localhost:5269 MAILPIT_BASE_URL=http://localhost:8025 \
+            E2E_API_BASE_URL=http://localhost:5338
+            # Shard the journeys: list them, keep every third. `--list-tests` prints one method name per
+            # indented line (no namespace), so the filter matches on the name, and a renamed journey simply
+            # moves shard. An empty shard means the parse broke, and that must fail loudly rather than
+            # quietly test nothing.
+            names=$(dotnet test tests/E2E.Tests/Vuelto.E2E.Tests.csproj -c Debug --no-build --list-tests \
+                    | tr -d '\r' | sed -n 's/^    \([A-Za-z0-9_]\{4,\}\).*$/\1/p' | sort -u)
+            total=$(echo "$names" | grep -c .)
+            [ "$total" -ge 10 ] || { echo "::error::only $total journeys listed — the --list-tests parse broke"; exit 1; }
+            mine=$(echo "$names" | awk -v s=${{ matrix.shard }} -v n=3 'NR % n == s % n')
+            [ -n "$mine" ] || { echo "::error::shard ${{ matrix.shard }} of 3 matched none of the $total journeys"; exit 1; }
+            echo "shard ${{ matrix.shard }} of 3: $(echo "$mine" | grep -c .) of $total journeys"
+            echo "$mine" | sed 's/^/  /'
+            # FullyQualifiedName~ (substring), not Name= (exact): a parameterised journey prints as
+            # `Foo(args)`, and matching the base name keeps all its cases in one shard instead of none.
+            filter=$(echo "$mine" | sed 's/^/FullyQualifiedName~/' | paste -sd'|')
+
+            dotnet test tests/E2E.Tests/Vuelto.E2E.Tests.csproj -c Debug --no-build \
+              --filter "$filter" \
+              --logger "trx;LogFileName=e2e.trx" --results-directory "$PWD/e2e-results"
+
+
+      # Which journeys cost the time. The suite is ~85% of this job (7m11s total, 5m55s of it tests —
+      # measured 2026-09-22), so any work on its speed starts with knowing which ones are slow. Prints a
+      # table; never fails the job, and runs even when the suite is red (a slow test is often the failing one).
+      - name: Slowest journeys
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import glob, xml.etree.ElementTree as ET
+          files = glob.glob("e2e-results/*.trx")
+          if not files:
+              print("no .trx written — nothing to report"); raise SystemExit
+          ns = {"t": "http://microsoft.com/schemas/VisualStudio/TeamTest/2010"}
+          rows = []
+          for r in ET.parse(files[0]).getroot().findall(".//t:UnitTestResult", ns):
+              d = r.get("duration") or "0:00:00"
+              h, m, s = d.split(":")
+              rows.append((float(h) * 3600 + float(m) * 60 + float(s), r.get("testName", "?"), r.get("outcome", "?")))
+          rows.sort(reverse=True)
+          total = sum(x[0] for x in rows)
+          print(f"{len(rows)} journeys, {total/60:.1f} min of test time (wall clock is lower only if they run in parallel)")
+          print(f"{'secs':>7}  {'outcome':<8} journey")
+          for secs, name, outcome in rows[:15]:
+              print(f"{secs:7.1f}  {outcome:<8} {name.split('.')[-1][:80]}")
+          slow = sum(x[0] for x in rows[:5])
+          print(f"\nthe 5 slowest are {slow/total*100:.0f}% of the suite's time")
+          PY
 
       - name: Server logs (on failure)
         if: failure()
