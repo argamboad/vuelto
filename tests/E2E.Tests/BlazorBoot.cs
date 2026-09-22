@@ -92,8 +92,12 @@ public static class BlazorBoot
 
             // The silent death: a framework fetch failed (ERR_NETWORK_CHANGED, connection reset…) while the
             // loader is still up. Blazor never shows its banner for this one; the loader just sits at NN%.
+            // ERR_ABORTED is not that: it is the browser cancelling the previous page's lazy downloads when
+            // this navigation started, and it lands in the log just after `seen` (9 needless reloads in
+            // one shard before this filter).
             var dead = log.Skip(seen).FirstOrDefault(l =>
-                (l.StartsWith("requestfailed: ", StringComparison.Ordinal) && l.Contains("/_framework/", StringComparison.Ordinal))
+                (l.StartsWith("requestfailed: ", StringComparison.Ordinal) && l.Contains("/_framework/", StringComparison.Ordinal)
+                    && !l.EndsWith("net::ERR_ABORTED", StringComparison.Ordinal))
                 || l.StartsWith("pageerror: Error: download ", StringComparison.Ordinal));
             if (dead is not null) return "fetch failed: " + dead[(dead.IndexOf(' ') + 1)..];
 
