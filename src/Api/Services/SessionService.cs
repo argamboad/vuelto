@@ -9,9 +9,10 @@ namespace Vuelto.Api.Services;
 /// An issued access session: the <see cref="TokenResponse"/> for the client plus the raw
 /// refresh token. The caller delivers the refresh token by transport — an HttpOnly cookie
 /// for the browser, or the response body (already on <see cref="TokenResponse.RefreshToken"/>)
-/// for a native client.
+/// for a native client. <paramref name="RefreshTokenId"/> is the new refresh token's row id, so a rotation
+/// can link the token it replaced to it (<see cref="IRefreshTokenService.MarkRotatedAsync"/>).
 /// </summary>
-public record AccessSession(TokenResponse Response, string RefreshToken);
+public record AccessSession(TokenResponse Response, string RefreshToken, Guid RefreshTokenId);
 
 /// <summary>
 /// Owns session establishment so the controller doesn't: issues the refresh token, resolves
@@ -56,7 +57,7 @@ public class SessionService(
             RefreshToken = native ? issued.RawToken : null,
         };
 
-        return new AccessSession(response, issued.RawToken);
+        return new AccessSession(response, issued.RawToken, issued.Token.Id);
     }
 
     public async Task<(Guid? Id, string? Name)> ResolveTenantAsync(Guid userId, CancellationToken cancellationToken = default)

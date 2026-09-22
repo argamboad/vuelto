@@ -15,5 +15,8 @@ public class RefreshTokenConfiguration : IEntityTypeConfiguration<RefreshToken>
         // Unique: a hash identifies exactly one refresh token (single-row credential lookup).
         r.HasIndex(x => x.TokenHash).IsUnique();
         r.HasIndex(x => x.UserId);
+        // RotatedAt / ReplacedByTokenId (rotation link, reuse grace window — ADR-002 addendum 2026-09-18) are
+        // plain nullable columns by convention. ReplacedByTokenId is deliberately NOT a foreign key: the hourly
+        // expired-token cleanup deletes rows set-based in any order, and the successor is only ever read by id.
     }
 }

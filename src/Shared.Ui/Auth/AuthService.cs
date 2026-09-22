@@ -1,4 +1,5 @@
 using System.IdentityModel.Tokens.Jwt;
+using System.Net;
 using System.Net.Http.Json;
 using System.Security.Claims;
 using Microsoft.Extensions.Logging;
@@ -28,6 +29,13 @@ public sealed record SignInResult(SignInStatus Status, string? Challenge = null,
 /// exchange it for a fresh access token. Where that refresh token lives is the only
 /// per-host difference, abstracted behind <see cref="ISessionStore"/> — an HttpOnly
 /// cookie on the web, the OS secure store on native (MAUI).
+/// <para>
+/// An open session keeps itself alive (ADR-002 addendum, 2026-09-22): a timer renews the access token
+/// shortly before it expires, a request renews it first if the timer was missed (the device slept, the
+/// renewal failed), and the app coming back to the foreground does the same. Only the server rejecting
+/// the refresh token ends a session — a timeout, a 5xx while the host cold-starts or no network leaves
+/// the stored refresh token where it is, to be tried again.
+/// </para>
 /// </summary>
 public class AuthService(
     HttpClient httpClient,
@@ -38,7 +46,41 @@ public class AuthService(
     TimeProvider? timeProvider = null)
 {
     private string? _accessToken;
-    private Task<bool>? _refreshInFlight;
+    private Task<RefreshOutcome>? _refreshInFlight;
+    private readonly object _refreshGate = new();
+
+    // True from the moment tokens are accepted until the session is cleared: the one state in which renewing
+    // is worth a call. Anonymous pages hit the API too, and must not spend a refresh on every request.
+    private bool _sessionHeld;
+    private ITimer? _renewTimer;
+
+    /// <summary>
+    /// How long before the access token expires the session renews it — capped at a quarter of the token's
+    /// lifetime, so a short-lived token isn't renewed the moment it arrives.
+    /// </summary>
+    public static readonly TimeSpan RenewLead = TimeSpan.FromMinutes(1);
+
+    /// <summary>After a renewal that couldn't reach the server, how long until the next attempt.</summary>
+    public static readonly TimeSpan RenewRetryDelay = TimeSpan.FromSeconds(30);
+
+    private static readonly TimeSpan MaxRenewalWait = TimeSpan.FromDays(1);
+
+    /// <summary>
+    /// The pauses between startup attempts when the server can't be reached — a free-tier host takes up to
+    /// half a minute to wake, and bouncing the user to the login page meanwhile is half of what this fixes.
+    /// The app shows its loading spinner throughout.
+    /// </summary>
+    public static readonly IReadOnlyList<TimeSpan> StartupRetryDelays =
+        [TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(15)];
+
+    private enum RefreshOutcome
+    {
+        Renewed,
+        /// <summary>The server answered and said no (401/400/403): the refresh token is dead.</summary>
+        Rejected,
+        /// <summary>No usable answer (network, timeout, 5xx, a proxy's error page): nothing is known, keep it.</summary>
+        Unreachable,
+    }
 
     /// <summary>
     /// Raised when the service transitions from unauthenticated to holding a valid access
@@ -111,22 +153,29 @@ public class AuthService(
     /// token. MainLayout is the single refresh entry point now, so this is mostly
     /// defense-in-depth. Blazor WASM is single-threaded, so sharing the Task suffices.
     /// </summary>
-    public Task<bool> TryRefreshAsync()
+    public async Task<bool> TryRefreshAsync() => await RefreshAsync() == RefreshOutcome.Renewed;
+
+    private Task<RefreshOutcome> RefreshAsync()
     {
-        if (_refreshInFlight is { } inFlight)
-            return inFlight;
-        var refresh = RunRefreshAsync();
-        // Cache only a task that is still RUNNING (v3 T45c). When RunRefreshAsync completes
-        // synchronously — a native session store answering "no stored token" without yielding — its
-        // finally has ALREADY cleared the field, and `_refreshInFlight ??= …` would re-cache the
-        // completed task forever: every later refresh would replay the stale result without ever
-        // hitting the network, leaving a native session dead until app restart.
-        if (!refresh.IsCompleted)
-            _refreshInFlight = refresh;
-        return refresh;
+        // Locked because on native the renewal timer fires on a thread-pool thread, and requests are issued
+        // off the UI thread too; on WASM (single-threaded) the lock costs nothing.
+        lock (_refreshGate)
+        {
+            if (_refreshInFlight is { } inFlight)
+                return inFlight;
+            var refresh = RunRefreshAsync();
+            // Cache only a task that is still RUNNING (v3 T45c). When RunRefreshAsync completes
+            // synchronously — a native session store answering "no stored token" without yielding — its
+            // finally has ALREADY cleared the field, and `_refreshInFlight ??= …` would re-cache the
+            // completed task forever: every later refresh would replay the stale result without ever
+            // hitting the network, leaving a native session dead until app restart.
+            if (!refresh.IsCompleted)
+                _refreshInFlight = refresh;
+            return refresh;
+        }
     }
 
-    private async Task<bool> RunRefreshAsync()
+    private async Task<RefreshOutcome> RunRefreshAsync()
     {
         try
         {
@@ -139,7 +188,7 @@ public class AuthService(
                 if (string.IsNullOrEmpty(stored))
                 {
                     _accessToken = null;
-                    return false;
+                    return RefreshOutcome.Rejected;
                 }
                 response = await httpClient.PostAsJsonAsync("/api/auth/refresh",
                     new { refresh_token = stored });
@@ -150,34 +199,43 @@ public class AuthService(
                 response = await httpClient.PostAsync("/api/auth/refresh", null);
             }
 
+            if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.BadRequest or HttpStatusCode.Forbidden)
+            {
+                // The server looked at the token and refused it (revoked, expired, unknown): it is dead.
+                logger.LogWarning("Token refresh rejected: {StatusCode}", response.StatusCode);
+                await ClearSessionAsync();
+                return RefreshOutcome.Rejected;
+            }
             if (!response.IsSuccessStatusCode)
             {
-                logger.LogWarning("Token refresh failed: {StatusCode}", response.StatusCode);
-                await ClearSessionAsync();
-                return false;
+                // A 5xx, a proxy's 502 while the host wakes, a 429: the server never ruled on the token.
+                // Throwing it away here is what signed people out every morning (found downstream, 2026-09-22).
+                logger.LogWarning("Token refresh could not complete: {StatusCode}; keeping the session", response.StatusCode);
+                return RefreshOutcome.Unreachable;
             }
 
             var payload = await response.Content.ReadFromJsonAsync<TokenResponse>();
             if (!string.IsNullOrEmpty(payload?.AccessToken))
             {
                 await AcceptTokensAsync(payload);
-                return true;
+                return RefreshOutcome.Renewed;
             }
 
             logger.LogWarning("Refresh response missing access_token");
             await ClearSessionAsync();
-            return false;
+            return RefreshOutcome.Rejected;
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to refresh access token");
-            await ClearSessionAsync();
-            return false;
+            // No answer at all (no network, DNS, a timeout) or an unreadable one: the token's fate is unknown.
+            logger.LogWarning(ex, "Token refresh could not reach the server; keeping the session");
+            return RefreshOutcome.Unreachable;
         }
         finally
         {
             // Allow a fresh refresh next time; only *concurrent* calls are coalesced.
-            _refreshInFlight = null;
+            lock (_refreshGate)
+                _refreshInFlight = null;
         }
     }
 
@@ -536,6 +594,9 @@ public class AuthService(
     /// </summary>
     public void BeginImpersonation(string accessToken)
     {
+        // The staff session's renewal must not fire under the impersonation: a refresh restores the staff
+        // identity, which would silently end the "sign in as". Stopping re-arms it through the refresh.
+        CancelRenewal();
         _accessToken = accessToken;
         _isStaff = null;
         IdentityChanged?.Invoke();
@@ -581,10 +642,12 @@ public class AuthService(
     {
         var wasAuthenticated = IsAuthenticated;
         _accessToken = payload.AccessToken;
+        _sessionHeld = true;
         _isStaff = null; // identity may have changed; re-probe on demand
         ForgetRememberedPreferences(); // a new token carries the account's preferences as they stand
         if (sessionStore.UsesBodyTransport && !string.IsNullOrEmpty(payload.RefreshToken))
             await sessionStore.SaveRefreshTokenAsync(payload.RefreshToken);
+        ScheduleRenewal(RenewalDue(payload.AccessToken!));
 
         if (!wasAuthenticated && IsAuthenticated)
             SignedIn?.Invoke();
@@ -594,6 +657,8 @@ public class AuthService(
     {
         var wasAuthenticated = IsAuthenticated;
         _accessToken = null;
+        _sessionHeld = false;
+        CancelRenewal();
         _isStaff = null;
         ForgetRememberedPreferences();
         if (sessionStore.UsesBodyTransport)
@@ -611,7 +676,95 @@ public class AuthService(
     public async Task InitializeAsync()
     {
         if (IsAuthenticated) return;
-        await TryRefreshAsync();
+        var outcome = await RefreshAsync();
+        // A server still waking up (or a phone still finding signal) is not "signed out": wait and try again
+        // before the layout sends the user to the login page. A rejection is final and never retried.
+        foreach (var delay in StartupRetryDelays)
+        {
+            if (outcome != RefreshOutcome.Unreachable) return;
+            await Task.Delay(delay, Time);
+            outcome = await RefreshAsync();
+        }
+    }
+
+    /// <summary>
+    /// The access token to send with a request, renewed first when it is inside the renewal window or already
+    /// expired — the timer's safety net for a device that slept through it, or a renewal that couldn't reach
+    /// the server. Null when there is no session (anonymous pages never spend a refresh). Returned as-is while
+    /// impersonating: that token is not refreshable, and a refresh would restore the staff identity instead.
+    /// Both hosts' bearer handlers call this; so does the layout when the app returns to the foreground.
+    /// </summary>
+    public async Task<string?> GetFreshAccessTokenAsync()
+    {
+        var token = _accessToken;
+        if (!_sessionHeld || IsImpersonating)
+            return token;
+        if (token is not null && RenewalDue(token) > TimeSpan.Zero)
+            return token;
+        await RefreshAsync();
+        return _accessToken;
+    }
+
+    // How long from now until this token should be renewed: its expiry, less the lead.
+    private TimeSpan RenewalDue(string token)
+    {
+        try
+        {
+            var jwt = new JwtSecurityTokenHandler().ReadJwtToken(token);
+            var lifetime = jwt.ValidFrom == DateTime.MinValue ? RenewLead * 4 : jwt.ValidTo - jwt.ValidFrom;
+            var lead = lifetime / 4 < RenewLead ? lifetime / 4 : RenewLead;
+            return new DateTimeOffset(jwt.ValidTo, TimeSpan.Zero) - lead - Time.GetUtcNow();
+        }
+        catch
+        {
+            return TimeSpan.Zero;
+        }
+    }
+
+    private void ScheduleRenewal(TimeSpan due)
+    {
+        // Never sooner than the retry pause: a device clock running ahead of the server's would otherwise see
+        // every fresh token as already due, and renew in a tight loop.
+        if (due < RenewRetryDelay)
+            due = RenewRetryDelay;
+        // Timers can't wait longer than ~49 days; a far-off expiry just wakes up early and looks again.
+        if (due > MaxRenewalWait)
+            due = MaxRenewalWait;
+        lock (_refreshGate)
+        {
+            _renewTimer?.Dispose();
+            _renewTimer = Time.CreateTimer(_ => _ = RenewInBackgroundAsync(), null, due, Timeout.InfiniteTimeSpan);
+        }
+    }
+
+    private void CancelRenewal()
+    {
+        lock (_refreshGate)
+        {
+            _renewTimer?.Dispose();
+            _renewTimer = null;
+        }
+    }
+
+    private async Task RenewInBackgroundAsync()
+    {
+        try
+        {
+            if (!_sessionHeld || IsImpersonating)
+                return;
+            if (_accessToken is { } token && RenewalDue(token) is var due && due > TimeSpan.Zero)
+            {
+                ScheduleRenewal(due); // woke early (the wait was capped): not due yet
+                return;
+            }
+            // Renewed re-arms the timer (AcceptTokensAsync); Rejected ends the session (ClearSessionAsync).
+            if (await RefreshAsync() == RefreshOutcome.Unreachable && _sessionHeld)
+                ScheduleRenewal(RenewRetryDelay);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Background session renewal failed");
+        }
     }
 
     /// <summary>Display name from the JWT 'name' claim, falling back to email.</summary>
@@ -662,12 +815,12 @@ public class AuthService(
         }
     }
 
-    private static bool IsTokenExpired(string token)
+    private bool IsTokenExpired(string token)
     {
         try
         {
             var jwt = new JwtSecurityTokenHandler().ReadJwtToken(token);
-            return jwt.ValidTo < DateTime.UtcNow;
+            return new DateTimeOffset(jwt.ValidTo, TimeSpan.Zero) < Time.GetUtcNow();
         }
         catch
         {

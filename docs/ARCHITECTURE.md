@@ -152,8 +152,8 @@ classDiagram
         IssueAsync = refresh token + JWT
     }
     class RefreshTokenService {
-        Issue / Inspect / Revoke
-        status: Valid Expired Unknown Reuse
+        Issue / Inspect / MarkRotated / Revoke
+        status: Valid Expired Unknown Reuse RotatedWithinGrace
     }
     class JwtTokenService {
         IssueAccessToken (tenant_id claim)
@@ -315,7 +315,8 @@ flowchart TB
 
 Client HTTP note (`src/Web/Program.cs`): `AuthService` is deliberately a **singleton**, and the
 refresh/logout calls use a second named client (`"ApiAuth"`, cookie handler only) to break the
-DI cycle with `AuthHeaderHandler`.
+DI cycle with `AuthHeaderHandler`. Both hosts' bearer handlers ask `AuthService.GetFreshAccessTokenAsync`
+for the token, which renews it first when it is about to expire (ADR-002 addendum 2026-09-22).
 
 ## 10. Startup & request pipeline
 

@@ -1,9 +1,12 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Vuelto.Api.Services;
 using Vuelto.Api.Tests.Infrastructure;
+using Vuelto.Infrastructure.Persistence;
 
 namespace Vuelto.Api.Tests.Integration;
 
@@ -14,18 +17,25 @@ namespace Vuelto.Api.Tests.Integration;
 /// replaying a rotated-out token through <c>POST /api/auth/refresh</c> must (a) return the same generic
 /// 401 as any bad token (no reuse signal leaked to the attacker) and (b) revoke every live session for
 /// the user, killing the legitimately-rotated token too.
-/// Uses the native (body-token) transport so the test drives raw tokens without a cookie jar.
+/// ADR-002 addendum (2026-09-18): a replay WITHIN <c>RefreshToken:ReuseGraceSeconds</c> (60 s) of the
+/// rotation, while the successor is still live, is a benign race (two tabs, a lost response) — it gets
+/// a fresh session and revokes nothing. The theft tests therefore move the rotation out of the window
+/// first. Most tests use the native (body-token) transport so they drive raw tokens without a cookie
+/// jar; the two-tab race uses the web cookie transport, where it actually happens.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
 public class RefreshReplayTests(IntegrationTestFactory factory)
 {
+    private const string RefreshCookie = "refresh_token";
+
     private readonly IntegrationTestFactory _factory = factory;
 
     [Fact]
-    public async Task Refresh_RotatedTokenReplay_RevokesAllSessions_WithoutLeakingReuse()
+    public async Task Refresh_RotatedTokenReplay_AfterGraceWindow_RevokesAllSessions_WithoutLeakingReuse()
     {
         var user = await _factory.SeedUserAsync();
         var rawA = await IssueRefreshTokenAsync(user.UserId);
+        var phone = await IssueRefreshTokenAsync(user.UserId);
         var client = _factory.CreateClient();
 
         // 1. Legit rotation: A → B (A is revoked server-side, B comes back on the body).
@@ -33,6 +43,9 @@ public class RefreshReplayTests(IntegrationTestFactory factory)
         Assert.Equal(HttpStatusCode.OK, first.StatusCode);
         var rawB = await ReadRefreshTokenAsync(first);
         Assert.False(string.IsNullOrEmpty(rawB));
+
+        // The rotation is now older than the 60 s grace window.
+        await AgeRotationsAsync(user.UserId, TimeSpan.FromSeconds(61));
 
         // 2. Attacker replays the rotated-out A. Must be indistinguishable from a plain bad token —
         //    same status AND same error code as a never-issued garbage token.
@@ -43,9 +56,11 @@ public class RefreshReplayTests(IntegrationTestFactory factory)
         Assert.Equal(HttpStatusCode.Unauthorized, garbage.StatusCode);
         Assert.Equal(await garbage.Content.ReadAsStringAsync(), replayBody);
 
-        // 3. The theft response revoked EVERY session: the legitimately-rotated B is dead too.
-        var legit = await PostRefreshAsync(client, rawB!);
-        Assert.Equal(HttpStatusCode.Unauthorized, legit.StatusCode);
+        // 3. The theft response revoked EVERY session: the legitimately-rotated B is dead too, and so is
+        //    the user's other device.
+        Assert.Equal(HttpStatusCode.Unauthorized, (await PostRefreshAsync(client, rawB!)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await PostRefreshAsync(client, phone)).StatusCode);
+        Assert.Equal(0, await CountLiveTokensAsync(user.UserId));
     }
 
     [Fact]
@@ -65,6 +80,58 @@ public class RefreshReplayTests(IntegrationTestFactory factory)
         Assert.Equal(HttpStatusCode.OK, phoneRefresh.StatusCode);
     }
 
+    [Fact]
+    public async Task Refresh_SameCookieTwice_BackToBack_BothSucceed_AndNothingIsRevoked()
+    {
+        // The staging bug: two tabs refresh at once with the same cookie (or a refresh's response is lost
+        // and the browser retries with the old cookie). The second presentation lands inside the grace
+        // window with a live successor — a race, not a theft: both get a session, no one is signed out.
+        var user = await _factory.SeedUserAsync();
+        var cookie = await IssueRefreshTokenAsync(user.UserId);
+        var phone = await IssueRefreshTokenAsync(user.UserId);
+        var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
+
+        var tab1 = await PostWebRefreshAsync(client, cookie);
+        var tab2 = await PostWebRefreshAsync(client, cookie);
+
+        Assert.Equal(HttpStatusCode.OK, tab1.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, tab2.StatusCode);
+        var rotated1 = ReadRefreshCookie(tab1);
+        var rotated2 = ReadRefreshCookie(tab2);
+        Assert.False(string.IsNullOrEmpty(rotated1));
+        Assert.False(string.IsNullOrEmpty(rotated2));
+        Assert.NotEqual(rotated1, rotated2);
+
+        // Nothing was revoked: both new chains and the user's other device keep working.
+        Assert.Equal(HttpStatusCode.OK, (await PostRefreshAsync(client, phone)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await PostWebRefreshAsync(client, rotated1!)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await PostWebRefreshAsync(client, rotated2!)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Refresh_PreLogoutRotatedToken_WithinGraceWindow_Is401_AndIssuesNoSession()
+    {
+        // Logout revokes the successor, so a stale token from another tab can never undo a sign-out —
+        // even seconds after the rotation, inside the grace window.
+        var user = await _factory.SeedUserAsync();
+        var rawA = await IssueRefreshTokenAsync(user.UserId);
+        var client = _factory.CreateClient();
+
+        var rotated = await PostRefreshAsync(client, rawA);
+        Assert.Equal(HttpStatusCode.OK, rotated.StatusCode);
+        var rawB = await ReadRefreshTokenAsync(rotated);
+
+        var logout = await PostNativeAsync(client, "/api/auth/logout", rawB!);
+        Assert.Equal(HttpStatusCode.OK, logout.StatusCode);
+        var tokensAfterLogout = await CountTokensAsync(user.UserId);
+
+        var stale = await PostRefreshAsync(client, rawA);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, stale.StatusCode);
+        Assert.Equal(0, await CountLiveTokensAsync(user.UserId));
+        Assert.Equal(tokensAfterLogout, await CountTokensAsync(user.UserId)); // no session was minted
+    }
+
     /// <summary>Issues a session for the user via the app's own service — the same path a login uses.</summary>
     private async Task<string> IssueRefreshTokenAsync(Guid userId)
     {
@@ -73,9 +140,37 @@ public class RefreshReplayTests(IntegrationTestFactory factory)
         return (await service.IssueRefreshTokenAsync(userId, "127.0.0.1", "test")).RawToken;
     }
 
-    private static Task<HttpResponseMessage> PostRefreshAsync(HttpClient client, string rawToken)
+    /// <summary>Moves every rotation of the user's tokens <paramref name="age"/> into the past (the app runs on the real clock).</summary>
+    private async Task AgeRotationsAsync(Guid userId, TimeSpan age)
     {
-        var req = new HttpRequestMessage(HttpMethod.Post, "/api/auth/refresh")
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var aged = await db.RefreshTokens
+            .Where(t => t.UserId == userId && t.RotatedAt != null)
+            .ExecuteUpdateAsync(s => s.SetProperty(t => t.RotatedAt, t => t.RotatedAt - age));
+        Assert.True(aged > 0, "expected at least one rotated token to age");
+    }
+
+    private async Task<int> CountLiveTokensAsync(Guid userId)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        return await db.RefreshTokens.CountAsync(t => t.UserId == userId && !t.IsRevoked);
+    }
+
+    private async Task<int> CountTokensAsync(Guid userId)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        return await db.RefreshTokens.CountAsync(t => t.UserId == userId);
+    }
+
+    private static Task<HttpResponseMessage> PostRefreshAsync(HttpClient client, string rawToken) =>
+        PostNativeAsync(client, "/api/auth/refresh", rawToken);
+
+    private static Task<HttpResponseMessage> PostNativeAsync(HttpClient client, string path, string rawToken)
+    {
+        var req = new HttpRequestMessage(HttpMethod.Post, path)
         {
             Content = JsonContent.Create(new { refresh_token = rawToken }),
         };
@@ -83,9 +178,29 @@ public class RefreshReplayTests(IntegrationTestFactory factory)
         return client.SendAsync(req);
     }
 
+    /// <summary>The browser transport: the refresh token rides the HttpOnly cookie, the body is empty.</summary>
+    private static Task<HttpResponseMessage> PostWebRefreshAsync(HttpClient client, string rawToken)
+    {
+        var req = new HttpRequestMessage(HttpMethod.Post, "/api/auth/refresh");
+        // Encoded the way CookieService writes it (base64 carries + / =), as the browser sends it back.
+        req.Headers.Add("Cookie", $"{RefreshCookie}={Uri.EscapeDataString(rawToken)}");
+        return client.SendAsync(req);
+    }
+
     private static async Task<string?> ReadRefreshTokenAsync(HttpResponseMessage response)
     {
         using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         return doc.RootElement.GetProperty("refresh_token").GetString();
+    }
+
+    /// <summary>The value of the Path=/api/auth refresh cookie set on the response (the Path=/ one is the legacy-orphan expiry).</summary>
+    private static string? ReadRefreshCookie(HttpResponseMessage response)
+    {
+        if (!response.Headers.TryGetValues("Set-Cookie", out var setCookies))
+            return null;
+        var cookie = setCookies.FirstOrDefault(c =>
+            c.StartsWith($"{RefreshCookie}=", StringComparison.Ordinal) &&
+            c.Contains("path=/api/auth", StringComparison.OrdinalIgnoreCase));
+        return cookie is null ? null : Uri.UnescapeDataString(cookie[(RefreshCookie.Length + 1)..].Split(';')[0]);
     }
 }

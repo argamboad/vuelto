@@ -140,6 +140,54 @@ an unverified-email takeover guard; passwordless magic-link + email OTP via `Pas
 JWT model (ported and hardened) was chosen over more Identity debugging, and it also gives native
 (MAUI) clients clean body-token transport.
 
+*Addendum (2026-09-18) — a 60-second reuse grace window: a rotated-out refresh token replayed that soon,
+while its successor is still live, is a race, not a theft.* **Evidence:** staging logged 15
+"Refresh-token reuse detected … revoked all sessions" warnings for the owner's own account in 4 days,
+often in pairs ~2 s apart; the owner experienced it as "the web keeps forgetting me". Every one was the
+theft response firing on benign traffic, killing every session of the user (web AND native). **The
+benign races:** two browser tabs refreshing at once (both send the same cookie; the second presents a
+token the first just rotated out), and a refresh whose response is lost — tab closed or reloaded
+mid-request, a slow cold start — so the browser still holds the old cookie and presents it again.
+**Decision (the owner chose 60 s):** `RefreshToken` gains `RotatedAt` + `ReplacedByTokenId`, stamped
+**only by rotation** (never by logout, revoke-all or a staff reset). `InspectRefreshTokenAsync` returns
+`RotatedWithinGrace` when the token is revoked AND was rotated AND `now − RotatedAt ≤
+RefreshToken:ReuseGraceSeconds` (default 60; 0 disables it — strict behaviour) AND the successor exists,
+is not revoked and is not expired. The controller then issues a fresh session for the same user and
+provider and **revokes nothing** — not the successor either: both chains stay valid and rotate
+independently, and the unused one simply expires. Anything else revoked stays `Reuse` → revoke all.
+**The live-successor condition is what keeps logout final:** logout and revoke-all revoke the successor,
+so a stale token from another tab can never undo a sign-out, even inside the window. **Trade-off:** a
+thief who replays a stolen token within 60 s of the victim's rotation gets a session instead of tripping
+the alarm — the same trade the industry makes (Auth0's refresh-token *reuse interval*, Okta's rotation
+*grace period*). Past the window, or once the user signs out, the full theft response still fires.
+Observability: the grace path logs at Information, reuse
+keeps its Warning. Evidence of the fix: `RefreshTokenServiceTests` (grace boundary, successor
+revoked/expired, grace 0, never-rotated) + `RefreshReplayTests` (same cookie twice → both 200, nothing
+revoked; replay after the window → 401 + revoke-all; pre-logout token within the window → 401, no
+session). Migration `AddRefreshTokenRotationLink` (two nullable columns). Flow: FLOWS §7.
+
+*Addendum (2026-09-22) — the client keeps an open session alive, and only the server ends it.* **Evidence:**
+downstream (`y-el-vuelto`) the owner still had to sign in every day, on web and on Android, after the reuse
+grace window above. The 30-day refresh token was never the problem: the client only spent it once, at
+startup. An app left open — a tab overnight, the phone app in the background — kept its 60-minute access
+token past expiry and nothing renewed it, so the next call 401'd and the page looked signed out. And every
+failed refresh counted as "signed out": a timeout, a proxy's 502 while a free-tier host cold-starts, or no
+signal made the native app **delete its stored refresh token**, so a sleeping server cost the session for
+good. **Decision:** `AuthService` renews ahead of expiry on three paths — a timer (one minute before `exp`,
+capped at a quarter of the token's lifetime, never sooner than 30 s so a fast device clock can't loop it),
+the bearer handlers before each request (`GetFreshAccessTokenAsync` — the net for a device that slept
+through the timer), and the layout when the app returns to the foreground (`AppResumeNotifier`). Refresh
+outcomes split three ways: **401/400/403 = rejected** (clear the session, as before); **5xx, 429,
+network, timeout or an unreadable body = unreachable** (keep everything — the server never ruled on the
+token; mid-session the timer retries in 30 s); **200 = renewed**. At startup an unreachable refresh is
+retried after 2, 5, 10 and 15 s behind the loading spinner before the layout sends the user to `/login`,
+and even then the stored token stays for the next launch. **Unchanged:** impersonation tokens are never
+renewed (a refresh would restore the staff identity — the timer is cancelled on `BeginImpersonation`), and
+anonymous pages never spend a refresh. **Why this is safe:** the server stays the sole authority — keeping a
+refresh token the client can't validate only means asking again; a revoked one still gets 401 and is
+dropped. Concurrent renewals (timer + request) coalesce into one call as before, now under a lock for
+native's thread pool. Evidence: `SessionKeepAliveTests` (Ui.Tests, on a fake clock). QA: QA-SMK-04.
+
 **ADR-003 — Tenancy is membership-based and enforced by a global query filter. (2026-06-19)**
 A user's tenant lives in a **`TenantMembership`** join entity (unique on `UserId` — one tenant at a
 time; `Role` owner/member), **not** a `tenant_id` column on `User`. Tenant-owned entities implement

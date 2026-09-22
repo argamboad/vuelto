@@ -25,6 +25,14 @@ public enum RefreshTokenStatus
     /// the client; reuse and unknown return the same response).
     /// </summary>
     Reuse,
+    /// <summary>
+    /// A rotated-out token presented again within <see cref="IRefreshTokenSettings.ReuseGraceSeconds"/> of its
+    /// rotation while the token that replaced it is still live — a benign race (two tabs refreshing with the
+    /// same cookie, a refresh whose response was lost), not theft. The caller issues a fresh session and
+    /// revokes nothing. Requires a LIVE successor: logout and revoke-all revoke it, so a stale token can
+    /// never undo a sign-out. ADR-002 addendum, 2026-09-18.
+    /// </summary>
+    RotatedWithinGrace,
 }
 
 /// <summary>Outcome of <see cref="IRefreshTokenService.InspectRefreshTokenAsync"/>: a status plus the matched token (null when unknown).</summary>
@@ -36,11 +44,19 @@ public interface IRefreshTokenService
     Task<RefreshToken?> ValidateRefreshTokenAsync(string rawToken, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Classifies a presented refresh token (valid / expired / unknown / reuse) without rotating it,
-    /// so the caller can mount a theft response on replay of a rotated token. This is the
+    /// Classifies a presented refresh token (valid / expired / unknown / reuse / rotated-within-grace) without
+    /// rotating it, so the caller can mount a theft response on replay of a rotated token — or, inside the
+    /// reuse grace window, recognise the benign race and issue a fresh session instead. This is the
     /// reuse-aware replacement for <see cref="ValidateRefreshTokenAsync"/> on the refresh path.
     /// </summary>
     Task<RefreshTokenInspection> InspectRefreshTokenAsync(string rawToken, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Rotation: revokes <paramref name="tokenId"/> and links it to <paramref name="replacedByTokenId"/>, stamping
+    /// the rotation time from the injected clock. The only way a token gets <c>RotatedAt</c> — which is what
+    /// makes it eligible for the reuse grace window.
+    /// </summary>
+    Task MarkRotatedAsync(Guid tokenId, Guid replacedByTokenId, CancellationToken cancellationToken = default);
 
     Task RevokeRefreshTokenAsync(Guid tokenId, CancellationToken cancellationToken = default);
     Task RevokeAllUserTokensAsync(Guid userId, CancellationToken cancellationToken = default);
@@ -103,13 +119,41 @@ public class RefreshTokenService(
 
         if (token is null)
             return new RefreshTokenInspection(RefreshTokenStatus.Unknown, null);
-        // A revoked row whose hash is being presented = a rotated-out token replayed → theft.
+        // A revoked row whose hash is being presented = a rotated-out token replayed → theft, unless it is
+        // the benign race the grace window covers (just rotated, successor still live).
         if (token.IsRevoked)
-            return new RefreshTokenInspection(RefreshTokenStatus.Reuse, token);
+        {
+            var status = await IsRotatedWithinGraceAsync(token, cancellationToken)
+                ? RefreshTokenStatus.RotatedWithinGrace
+                : RefreshTokenStatus.Reuse;
+            return new RefreshTokenInspection(status, token);
+        }
         if (token.ExpiresAt <= clock.GetUtcNow())
             return new RefreshTokenInspection(RefreshTokenStatus.Expired, token);
         return new RefreshTokenInspection(RefreshTokenStatus.Valid, token);
     }
+
+    // All must hold: the window is on; the token was revoked BY ROTATION (logout/revoke-all never stamp
+    // RotatedAt); the rotation is at most ReuseGraceSeconds old; and the successor is still live — logout and
+    // revoke-all revoke the successor, which is what keeps a sign-out final against a stale tab.
+    private async Task<bool> IsRotatedWithinGraceAsync(RefreshToken token, CancellationToken cancellationToken)
+    {
+        if (settings.ReuseGraceSeconds <= 0 || token.RotatedAt is not { } rotatedAt || token.ReplacedByTokenId is not { } successorId)
+            return false;
+
+        var now = clock.GetUtcNow();
+        if (now - rotatedAt > TimeSpan.FromSeconds(settings.ReuseGraceSeconds))
+            return false;
+
+        var successor = await repository.GetByIdAsync(successorId, cancellationToken);
+        return successor is not null
+            && successor.UserId == token.UserId
+            && !successor.IsRevoked
+            && successor.ExpiresAt > now;
+    }
+
+    public Task MarkRotatedAsync(Guid tokenId, Guid replacedByTokenId, CancellationToken cancellationToken = default) =>
+        repository.MarkRotatedAsync(tokenId, replacedByTokenId, clock.GetUtcNow(), cancellationToken);
 
     public Task RevokeRefreshTokenAsync(Guid tokenId, CancellationToken cancellationToken = default) => repository.RevokeAsync(tokenId, cancellationToken);
 
