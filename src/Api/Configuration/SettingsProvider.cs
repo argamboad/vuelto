@@ -30,10 +30,12 @@ public class JwtSettings : IJwtSettings
 public class RefreshTokenSettings : IRefreshTokenSettings
 {
     public int ExpiryDays { get; }
+    public int ReuseGraceSeconds { get; }
 
     public RefreshTokenSettings(IConfiguration config)
     {
         ExpiryDays = config.GetValue("RefreshToken:ExpiryDays", 30);
+        ReuseGraceSeconds = config.GetValue("RefreshToken:ReuseGraceSeconds", 60);
     }
 }
 

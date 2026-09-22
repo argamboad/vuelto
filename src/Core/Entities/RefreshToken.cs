@@ -19,4 +19,21 @@ public class RefreshToken
     /// rotation so refreshed JWTs keep an accurate provider claim.
     /// </summary>
     public required string Provider { get; set; }
+
+    /// <summary>
+    /// When this token was rotated out (revoked because it was exchanged for <see cref="ReplacedByTokenId"/>).
+    /// Set ONLY by rotation — never by logout, revoke-all or any other revocation — so a revoked token with
+    /// a null <c>RotatedAt</c> was killed on purpose. Drives the reuse grace window (ADR-002 addendum,
+    /// 2026-09-18): the same token presented again shortly after this instant, while its successor is still
+    /// live, is a benign race (two tabs, a lost response), not theft.
+    /// </summary>
+    public DateTimeOffset? RotatedAt { get; set; }
+
+    /// <summary>
+    /// The token that replaced this one at rotation (a soft link to another <see cref="RefreshToken"/> row —
+    /// no FK, so the hourly expired-token cleanup can delete rows in any order). Set together with
+    /// <see cref="RotatedAt"/> and only by rotation. The grace window requires this successor to be live
+    /// (not revoked, not expired): logout and revoke-all revoke it, so a stale token can never undo them.
+    /// </summary>
+    public Guid? ReplacedByTokenId { get; set; }
 }

@@ -2,6 +2,7 @@ using Bunit;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Time.Testing;
 using Vuelto.Shared.Ui;
 using Vuelto.Shared.Ui.Resources;
 using Vuelto.Shared.Ui.Auth;
@@ -23,6 +24,12 @@ public abstract class ComponentTestBase : BunitContext
     protected FakeFileDownloadLauncher Downloads { get; } = new();
     protected AuthService Auth { get; }
 
+    /// <summary>
+    /// The clock <see cref="Auth"/> reads — frozen at "now" so the tokens <see cref="TestJwt"/> mints are live, and
+    /// the session's renewal timer fires only when a test advances it (never mid-render on a busy machine).
+    /// </summary>
+    protected FakeTimeProvider Time { get; } = new(DateTimeOffset.UtcNow);
+
     protected ComponentTestBase()
     {
         // Deterministic per test: MainLayout's locale reconcile mutates the process-global
@@ -35,7 +42,8 @@ public abstract class ComponentTestBase : BunitContext
         Auth = new AuthService(
             new HttpClient(Http) { BaseAddress = new Uri("http://localhost") },
             NullLogger<AuthService>.Instance,
-            sessionStore);
+            sessionStore,
+            timeProvider: Time);
 
         Services.AddSingleton(Auth);
         Services.AddSingleton(new HttpClient(Http) { BaseAddress = new Uri("http://localhost") });

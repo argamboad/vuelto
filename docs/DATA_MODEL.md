@@ -56,6 +56,11 @@ A rotating, hashed refresh token backing a session — only the **hash** is stor
 can't forge sessions.
 - `id` (UUIDv7), `user_id`, `token_hash` (SHA-256), `provider`
 - `issued_at`, `expires_at`, `is_revoked`, `issued_from_ip`
+- `rotated_at` (nullable), `replaced_by_token_id` (nullable UUID, soft link to another `RefreshToken` — no FK):
+  the **rotation link**, set together and **only by rotation** (never by logout, revoke-all or any other
+  revocation). A revoked token whose `rotated_at` is at most `RefreshToken:ReuseGraceSeconds` (60 s) old and
+  whose successor is still live (not revoked, not expired) is a benign race when presented again — a fresh
+  session, nothing revoked; anything else revoked is reuse (theft). ADR-002 addendum 2026-09-18.
 
 ### LoginToken *(passwordless: magic link + email OTP)*
 A single-use, hashed, time-limited credential. The account is resolved/created at redemption, so a
@@ -450,6 +455,8 @@ erDiagram
         string token_hash UK "SHA-256 - DB leak cannot forge sessions"
         bool is_revoked "revoked-but-unexpired rows kept for reuse detection"
         datetimeoffset expires_at
+        datetimeoffset rotated_at "nullable - set only by rotation"
+        guid replaced_by_token_id "nullable - successor, no FK"
     }
     LOGIN_TOKEN {
         string email "no user FK"
@@ -755,9 +762,10 @@ stateDiagram-v2
     state "revoked" as Revoked
     state "expired (time-based)" as Expired
     [*] --> Valid : issued at sign-in or rotation
-    Valid --> Revoked : rotation, logout, staff MFA reset
+    Valid --> Revoked : rotation (stamps rotated_at + successor), logout, staff MFA reset
     Valid --> Expired : expires_at passes
-    Revoked --> Revoked : presented again = REUSE detected - ALL the user's tokens revoked, generic 401
+    Revoked --> Revoked : presented again within 60 s of its rotation, successor live = RACE - new session, nothing revoked
+    Revoked --> Revoked : presented again otherwise = REUSE detected - ALL the user's tokens revoked, generic 401
     Expired --> [*] : hourly cleanup deletes expired rows only
     note right of Revoked
         Revoked-but-unexpired rows are deliberately kept -

@@ -16,6 +16,14 @@ public interface IJwtSettings
 public interface IRefreshTokenSettings
 {
     int ExpiryDays { get; }
+
+    /// <summary>
+    /// Reuse grace window (<c>RefreshToken:ReuseGraceSeconds</c>, default 60): a rotated-out token presented
+    /// again within this many seconds of its rotation, while its successor is still live, is treated as a
+    /// benign race (two tabs, a lost response) and gets a fresh session instead of the theft response.
+    /// 0 (or less) disables the window — every replay revokes all sessions. ADR-002 addendum, 2026-09-18.
+    /// </summary>
+    int ReuseGraceSeconds { get; }
 }
 
 /// <summary>

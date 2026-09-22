@@ -48,6 +48,17 @@ public sealed class TestHttpHandler : HttpMessageHandler
     }
 
     /// <summary>
+    /// Stub "METHOD /path" to fail the way an unreachable server does — no response at all (DNS, no signal,
+    /// a connection dropped while the host cold-starts): the client sees an <see cref="HttpRequestException"/>.
+    /// </summary>
+    public TestHttpHandler OnUnreachable(HttpMethod method, string path)
+    {
+        _gated.Remove(Key(method, path));
+        _routes[Key(method, path)] = _ => throw new HttpRequestException("No such host is known.");
+        return this;
+    }
+
+    /// <summary>
     /// Stub "METHOD /path" to HANG until the returned action is invoked — for testing concurrent requests
     /// (e.g. a rapid double-click while the first call is still in flight). Every request to this route
     /// awaits the SAME gate.

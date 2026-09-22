@@ -148,8 +148,11 @@ public class AuthController(
     /// token is revoked and a new one issued. If an already-rotated (revoked) token is later
     /// replayed, that's treated as token theft — every session for the user is revoked and the
     /// event is audit-logged (the client sees the same generic error as any invalid token, so the
-    /// reuse signal isn't leaked). Transport depends on the client: the browser sends/receives the
-    /// token via the HttpOnly cookie; a native client (header <c>X-Native-Client: true</c>) sends it
+    /// reuse signal isn't leaked). Exception — the reuse grace window (<c>RefreshToken:ReuseGraceSeconds</c>,
+    /// default 60 s): a rotated-out token presented again that soon after its rotation, while its successor
+    /// is still live, is a benign race (two tabs, a lost response) and gets a fresh session with nothing
+    /// revoked. Logout revokes the successor, so a stale token can never undo it. Transport depends on
+    /// the client: the browser sends/receives the token via the HttpOnly cookie; a native client (header <c>X-Native-Client: true</c>) sends it
     /// in the body and gets the rotated token back in the body — it never had a cookie to begin with.
     /// </summary>
     [HttpPost("refresh")]
@@ -172,24 +175,37 @@ public class AuthController(
                 await refreshTokenService.RevokeAllUserTokensAsync(inspection.Token!.UserId, cancellationToken);
                 logger.LogWarning("Refresh-token reuse detected for user {UserId}; revoked all sessions", inspection.Token.UserId);
             }
-            if (inspection.Status != RefreshTokenStatus.Valid)
+            if (inspection.Status is not (RefreshTokenStatus.Valid or RefreshTokenStatus.RotatedWithinGrace))
                 return Unauthorized(new ErrorResponse("invalid_refresh_token", "Refresh token is invalid or expired"));
 
-            var validToken = inspection.Token!;
-            var user = await userService.GetUserByIdAsync(validToken.UserId, cancellationToken);
+            var presented = inspection.Token!;
+            var user = await userService.GetUserByIdAsync(presented.UserId, cancellationToken);
             if (user == null)
                 return Unauthorized(new ErrorResponse("user_not_found", "User not found"));
 
-            // Rotate: revoke the used token, then issue a fresh session.
-            await refreshTokenService.RevokeRefreshTokenAsync(validToken.Id, cancellationToken);
+            var session = await sessionService.IssueAsync(user, presented.Provider, ClientIp, native, cancellationToken);
 
-            var session = await sessionService.IssueAsync(user, validToken.Provider, ClientIp, native, cancellationToken);
+            if (inspection.Status == RefreshTokenStatus.Valid)
+            {
+                // Rotate: revoke the used token and link it to the one just issued (RotatedAt + successor),
+                // which is what lets a racing second presentation of it be recognised as benign.
+                await refreshTokenService.MarkRotatedAsync(presented.Id, session.RefreshTokenId, cancellationToken);
+                logger.LogInformation("Token refreshed for user: {UserId}", presented.UserId);
+            }
+            else
+            {
+                // Benign race (ADR-002 addendum, 2026-09-18): the token was rotated seconds ago and its successor
+                // is still live — two tabs sharing the cookie, or a refresh whose response never arrived. Issue a
+                // fresh session and revoke NOTHING (not the successor either): both chains stay valid and rotate
+                // independently; an unused one simply expires.
+                logger.LogInformation(
+                    "Refresh token presented again within the rotation grace window for user {UserId}; issued a new session",
+                    presented.UserId);
+            }
 
             // Web: rotate the cookie. Native: the rotated token is already on the body.
             if (!native)
                 cookieService.SetRefreshTokenCookie(Response, session.RefreshToken, Request);
-
-            logger.LogInformation("Token refreshed for user: {UserId}", validToken.UserId);
 
             return Ok(session.Response);
         }

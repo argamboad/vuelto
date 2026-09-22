@@ -10,6 +10,7 @@
 @inject IThemePersistence ThemePersistence
 @inject IJSRuntime JS
 @inject IStringLocalizer<AppStrings> Localizer
+@inject AppResumeNotifier Resume
 
 @* Outside every branch: the status bar follows the theme on the sign-in screen too, where there is no
    header under it and it takes the page's ground instead. *@
@@ -86,6 +87,7 @@ else
         // (e.g. sign-out clears the device prefs, ADM-9) stay wired for that window.
         Auth.SignedIn += OnSignedIn;
         Auth.SignedOut += OnSignedOut;
+        Resume.Resumed += OnResumed;
 
         // A TRUE result means the reconcile issued the locale reload: this boot is doomed, so stop
         // here with the body unrendered — pages' boot side effects (Join's auto-accept POST) must
@@ -117,6 +119,7 @@ else
     {
         Auth.SignedIn -= OnSignedIn;
         Auth.SignedOut -= OnSignedOut;
+        Resume.Resumed -= OnResumed;
     }
 
     // Wipe the device-stored preferences on sign-out so the next user on a shared device can't inherit
@@ -130,6 +133,21 @@ else
             await CulturePersistence.ClearAsync();
         }
         catch { /* best-effort — a store that can't clear is no worse than before */ }
+    }
+
+    // Back in the foreground (native: the window's Resumed). The access token may have died while the app sat
+    // in the background with its renewal timer asleep — renew it now, before the page's next call finds out.
+    private async void OnResumed()
+    {
+        try
+        {
+            await InvokeAsync(async () =>
+            {
+                await Auth.GetFreshAccessTokenAsync();
+                StateHasChanged();
+            });
+        }
+        catch { /* best-effort — the next request renews it anyway */ }
     }
 
     private async void OnSignedIn()

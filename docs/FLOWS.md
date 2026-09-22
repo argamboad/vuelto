@@ -234,22 +234,39 @@ sequenceDiagram
     participant SS as SessionService
     C->>AC: POST refresh (cookie for web, body for native)
     AC->>RS: InspectRefreshTokenAsync (hash lookup WITHOUT revoked filter)
+    Note over RS: revoked hash - RotatedWithinGrace if rotated at most 60 s ago AND successor live, else Reuse
     alt status Reuse (revoked hash presented again)
         AC->>RR: RevokeAllForUserAsync - kill every session
         AC-->>C: generic 401 invalid_refresh_token (no signal leak)
     else status Unknown or Expired
         AC-->>C: generic 401
+    else RotatedWithinGrace (benign race - two tabs, lost response)
+        AC->>SS: IssueAsync - new refresh token + new JWT
+        Note over AC: revokes NOTHING - both chains stay valid, the unused one expires
+        AC-->>C: new cookie (web) / new body token (native)
     else Valid
-        AC->>RS: RevokeRefreshTokenAsync (old token - rotation)
         AC->>SS: IssueAsync - new refresh token + new JWT
         Note over SS: tenant re-resolved on every rotation - tenant moves propagate here
+        AC->>RS: MarkRotatedAsync (old token revoked + RotatedAt + ReplacedByTokenId = new)
         AC-->>C: new cookie (web) / new body token (native)
     end
 ```
 
-Divergences: revoke uses a tracked load-then-flip (not `ExecuteUpdate`) deliberately, so the
+Divergences: the reuse grace window (ADR-002 addendum 2026-09-18, `RefreshToken:ReuseGraceSeconds`,
+default 60, 0 = strict) needs a LIVE successor — logout and revoke-all revoke it, so a stale tab can
+never undo a sign-out; only rotation stamps `RotatedAt`, so a token revoked any other way is always
+reuse. The successor is read untracked, so a set-based revoke in the same context can't be masked.
+Rotation issues first and links second, so a failed issue leaves the presented token usable instead of
+signing the user out. Revoke/mark-rotated use a tracked load-then-flip (not `ExecuteUpdate`) deliberately, so the
 inspection read stays consistent. The hourly cleanup job deletes only **expired** rows —
 revoked-but-unexpired hashes are kept because they are what makes reuse detection work.
+
+Client side (ADR-002 addendum 2026-09-22): `AuthService` calls this endpoint on four occasions — once at
+startup (retried after 2/5/10/15 s while the server is unreachable), from a timer a minute before the
+access token expires, from the bearer handler when a request finds the token inside that window or
+expired, and when the app returns to the foreground. Concurrent callers share one in-flight call. Only a
+401/400/403 clears the session (and native's stored token); a 5xx, 429, timeout or network failure keeps
+it and tries again.
 
 ## 8. Billing webhook (Stripe → subscription projection)
 

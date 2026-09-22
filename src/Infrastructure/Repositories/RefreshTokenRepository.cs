@@ -30,6 +30,22 @@ public class RefreshTokenRepository(AppDbContext db, TimeProvider clock) : IRefr
     public async Task<RefreshToken?> GetByHashAsync(string tokenHash, CancellationToken cancellationToken = default) =>
         await db.RefreshTokens.FirstOrDefaultAsync(t => t.TokenHash == tokenHash, cancellationToken);
 
+    public async Task<RefreshToken?> GetByIdAsync(Guid tokenId, CancellationToken cancellationToken = default) =>
+        await db.RefreshTokens.AsNoTracking().FirstOrDefaultAsync(t => t.Id == tokenId, cancellationToken);
+
+    public async Task MarkRotatedAsync(Guid tokenId, Guid replacedByTokenId, DateTimeOffset rotatedAt, CancellationToken cancellationToken = default)
+    {
+        // Load-then-flip for the same reason as RevokeAsync: the rotated token is tracked in this context.
+        var token = await db.RefreshTokens.FindAsync([tokenId], cancellationToken);
+        if (token != null)
+        {
+            token.IsRevoked = true;
+            token.RotatedAt = rotatedAt;
+            token.ReplacedByTokenId = replacedByTokenId;
+            await db.SaveChangesAsync(cancellationToken);
+        }
+    }
+
     public async Task RevokeAsync(Guid tokenId, CancellationToken cancellationToken = default)
     {
         // Load-then-flip (not ExecuteUpdate) on purpose: the just-rotated token is usually already
