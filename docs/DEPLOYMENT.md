@@ -562,6 +562,13 @@ workflow reads a `CI_*` variable that is not documented here.
 
 Any value not listed reads as the default (an unknown `CI_SMOKES_ON_PUSH` matches no smoke).
 
+**Two deploy buttons.** *CI* → **Run workflow** → `deploy=staging` runs every gate first and then deploys
+(~15 min): the right one for a commit that has not been tested yet. **Deploy (already green)** → **Run
+workflow** → `target=staging` deploys a commit whose gates already passed (~2 min) — it verifies that
+against this Forgejo's own API first and refuses if any gate is missing, red, or skipped, so the shortcut
+cannot become "deploy something untested". Both publish the same way, and both refuse a branch/target
+mismatch (staging deploys from `develop`, prod from `main`).
+
 **How a deploy runs.** `deploy-staging` pushes the commit to `develop` **on GitHub**
 (`.forgejo/scripts/push-to-github.sh` — `develop`/`main` only, a plain fast-forward, never forced), fires
 the Render hook, and runs `.github/scripts/deploy-smoke.sh`. That push also triggers GitHub's own pipeline,

@@ -14,6 +14,7 @@ public class ForgejoCiParityTests
 {
     private const string GitHubCi = ".github/workflows/ci.yml";
     private const string ForgejoCi = ".forgejo/workflows/ci.yml";
+    private const string DeployWorkflow = ".forgejo/workflows/deploy.yml";
 
     [Fact]
     public void ForgejoCopy_HasTheSameJobs_OnTheSameRunners()
@@ -312,6 +313,39 @@ public class ForgejoCiParityTests
     private static string RunsOn(string job) => Regex.Match(job, @"(?m)^    runs-on:\s*(.+)$").Groups[1].Value.Trim();
 
     // `needs: a` or `needs: [a, b,\n    c]` — the list may wrap onto following lines.
+    [Fact]
+    public void AlreadyGreenDeploy_VerifiesTheCommit_AndPublishesThroughTheSameScript() // LOCALCI-4, 2026-09-22
+    {
+        // `.forgejo/workflows/deploy.yml` deploys a commit whose gates already passed, instead of re-running
+        // them (~10 min on a laptop the maintainer is also using). The shortcut is only honest while it
+        // VERIFIES that greenness against this instance's own API and refuses otherwise, so that is what is
+        // pinned here — plus the two rules it shares with ci.yml's deploy jobs: dispatch only, and the push
+        // to GitHub goes through the fast-forward script, never a raw `git push`.
+        var yml = Read(DeployWorkflow);
+
+        Assert.Contains("workflow_dispatch", yml, StringComparison.Ordinal);
+        Assert.DoesNotContain("\n  push:", yml, StringComparison.Ordinal);
+        Assert.DoesNotContain("\n  schedule:", yml, StringComparison.Ordinal);
+
+        // It asks the API about THIS commit and treats anything but a green gate as a refusal.
+        Assert.Contains("actions/tasks", yml, StringComparison.Ordinal);
+        Assert.Contains("head_sha == env.SHA", yml, StringComparison.Ordinal);
+        foreach (var gate in new[] { "changes", "build-test", "secret-scan", "qa-artifacts", "license-scan", "docker-build", "e2e" })
+            Assert.Contains(gate, yml, StringComparison.Ordinal);
+        Assert.Contains("native-build (", yml, StringComparison.Ordinal); // both matrix legs
+        Assert.Matches(@"refusing to deploy", yml);
+
+        // The verification runs BEFORE anything leaves this machine.
+        Assert.True(yml.IndexOf("actions/tasks", StringComparison.Ordinal)
+                    < yml.IndexOf("push-to-github.sh", StringComparison.Ordinal),
+            "deploy.yml must verify the commit before pushing it to GitHub.");
+
+        // Same publishing path as ci.yml: the script (fast-forward, never forced) and the shared smoke.
+        Assert.Contains("push-to-github.sh", yml, StringComparison.Ordinal);
+        Assert.Contains("deploy-smoke.sh", yml, StringComparison.Ordinal);
+        Assert.DoesNotContain("git push", yml, StringComparison.Ordinal);
+    }
+
     private static HashSet<string> NeedsList(string job)
     {
         var m = Regex.Match(job, @"(?ms)^    needs:\s*(\[[^\]]*\]|\S+)");
