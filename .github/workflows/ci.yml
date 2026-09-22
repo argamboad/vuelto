@@ -980,6 +980,8 @@ jobs:
               print(f"{secs:7.1f}  {outcome:<8} {name.split('.')[-1][:80]}")
           slow = sum(x[0] for x in rows[:5])
           print(f"\nthe 5 slowest are {slow/total*100:.0f}% of the suite's time")
+          boots = open(files[0], encoding="utf-8").read().count("[blazor-boot] attempt")
+          print(f"Blazor boot retries: {boots}" + ("  <- the app's loader died and was reloaded (BlazorBoot.cs); the journey's output has the browser console" if boots else ""))
           PY
 
       - name: Server logs (on failure)

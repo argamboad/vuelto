@@ -10,5 +10,6 @@ public abstract class BasePage(IPage page)
 
     public abstract string Path { get; }
 
-    public Task GotoAsync() => Page.GotoAsync(Path);
+    // A full navigation = a Blazor boot; BlazorBoot reloads it if the loader dies (busy CI machine).
+    public Task GotoAsync() => BlazorBoot.GotoAsync(Page, Path);
 }

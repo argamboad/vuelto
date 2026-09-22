@@ -205,16 +205,17 @@ public class ForgejoCiParityTests
     }
 
     [Fact]
-    public void ForgejoE2e_WaitsForTheHeavyBuilds()
+    public void E2e_RunsBesideTheBuilds_OnBothForges()
     {
-        // One machine: the test browser's Blazor boot failed 5 times in 14 runs, always while build-test
-        // and the native builds were compiling beside it. e2e therefore runs after them on Forgejo. GitHub
-        // keeps them parallel (one VM per job). Only additions are allowed — `changes` must stay.
-        var github = NeedsList(Jobs(Read(GitHubCi))["e2e"]);
-        var forgejo = NeedsList(Jobs(Read(ForgejoCi))["e2e"]);
-        Assert.Equal(new HashSet<string> { "changes" }, github);
-        Assert.True(forgejo.IsSupersetOf(["changes", "build-test", "native-build"]),
-            $"Forgejo's e2e must wait for the heavy builds (needs: [{string.Join(", ", forgejo)}])");
+        // From 2026-09-17 to 2026-09-22 Forgejo's e2e waited for build-test and native-build: on one machine
+        // the test browser's Blazor boot died whenever the builds compiled beside it. That wait was ~4 min of
+        // every run. The suite now reloads a dead boot itself (tests/E2E.Tests/BlazorBoot.cs), so the gate is
+        // gone on both forges and stays gone — putting it back is the slow fix for a problem the suite absorbs.
+        foreach (var file in new[] { GitHubCi, ForgejoCi })
+            Assert.Equal(new HashSet<string> { "changes" }, NeedsList(Jobs(Read(file))["e2e"]));
+        // And the report that says how often it had to: a silent retry would hide a machine getting worse.
+        foreach (var file in new[] { GitHubCi, ForgejoCi })
+            Assert.Contains("[blazor-boot] attempt", Read(file), StringComparison.Ordinal);
     }
 
     [Fact]

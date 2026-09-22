@@ -19,7 +19,7 @@ public class IncomeJourneyTests : E2ETestBase
     public async Task Member_Keeps_The_Households_Income_Lines()
     {
         await SignInAsync(Page, UniqueEmail("income"));
-        await Page.GotoAsync("/settings");
+        await BlazorBoot.GotoAsync(Page, "/settings");
         await Page.GetByTestId("catalog-link-incomes").ClickAsync();
         await Expect(Page.GetByTestId("inc-empty")).ToBeVisibleAsync(Slow);
 
@@ -69,7 +69,7 @@ public class IncomeJourneyTests : E2ETestBase
         await Expect(names).ToContainTextAsync(["My salary"]);
 
         // The first transaction of the month creates it, and the month takes its income from the lines.
-        await Page.GotoAsync("/transactions/new");
+        await BlazorBoot.GotoAsync(Page, "/transactions/new");
         await Expect(Page.GetByTestId("tx-form")).ToBeVisibleAsync(Slow);
         await Page.GetByTestId("tx-amount-field-input").FillAsync("10000");
         await Page.GetByTestId("tx-date").FillAsync("2026-09-10");
@@ -95,7 +95,7 @@ public class IncomeJourneyTests : E2ETestBase
         await Expect(Page.GetByTestId("month-inc-planned")).ToBeVisibleAsync();
         await Page.GetByTestId("month-inc-save").ClickAsync();
         await Expect(Page.GetByTestId("month-notice")).ToBeVisibleAsync(Slow);
-        await Page.ReloadAsync();
+        await BlazorBoot.ReloadAsync(Page);
         await Expect(Page.GetByTestId("month-inc-amount").Nth(1)).ToHaveValueAsync("2000.00", new() { Timeout = 30_000 });
         await Expect(Page.GetByTestId("month-inc-planned")).ToBeVisibleAsync();
     }

@@ -973,12 +973,13 @@ jobs:
   # the HTTP API, and appsettings.Development already allow-lists the Web origin for CORS + Mailpit SMTP.
   # OAuth/desktop/Android stay manual (they need an external provider / native runners).
   e2e:
-    # LOCALCI-4: after the heavy builds, not beside them. On one machine, Blazor's boot inside the
-    # test browser died ("An unhandled error has occurred" at NN%) in 5 of the first 14 runs, every
-    # time while build-test and the native builds were compiling in parallel, never once the machine
-    # was quiet. Waiting for them costs ~3 minutes per run and gives the browser the machine to itself.
-    # A red build also skips e2e, which is fine: there is nothing to test.
-    needs: [changes, build-test, native-build]
+    # LOCALCI-4: beside the builds again, not after them. From 2026-09-17 to 2026-09-22 this job waited
+    # for build-test and native-build, because Blazor's boot inside the test browser died ("An unhandled
+    # error has occurred" at NN%) whenever the machine was busy compiling. That wait was the longest thing
+    # in every run (~4 min: all of build-test). The suite now does what a person does with that banner —
+    # reloads (tests/E2E.Tests/BlazorBoot.cs: at most three tries, browser console attached) — so a busy
+    # machine costs seconds, not the job. The port lanes also outrank the build slots for CPU (cpu-shares).
+    needs: changes
     if: github.event_name != 'schedule' && needs.changes.outputs.code == 'true'
     strategy:
       fail-fast: false
@@ -1131,6 +1132,8 @@ jobs:
               print(f"{secs:7.1f}  {outcome:<8} {name.split('.')[-1][:80]}")
           slow = sum(x[0] for x in rows[:5])
           print(f"\nthe 5 slowest are {slow/total*100:.0f}% of the suite's time")
+          boots = open(files[0], encoding="utf-8").read().count("[blazor-boot] attempt")
+          print(f"Blazor boot retries: {boots}" + ("  <- the app's loader died and was reloaded (BlazorBoot.cs); the journey's output has the browser console" if boots else ""))
           PY
 
       - name: Server logs (on failure)

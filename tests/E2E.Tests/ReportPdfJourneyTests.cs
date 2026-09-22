@@ -20,7 +20,7 @@ public class ReportPdfJourneyTests : E2ETestBase
         var email = UniqueEmail("reports");
         await Mailpit.ClearAsync();
         await SignInAsync(Page, email);
-        await Page.GotoAsync("/reports");
+        await BlazorBoot.GotoAsync(Page, "/reports");
 
         await Page.GetByTestId("rep-mode").SelectOptionAsync("range");
         await Page.GetByTestId("rep-from").FillAsync("2026-06-01");
