@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.Playwright;
 using Microsoft.Playwright.NUnit;
 using NUnit.Framework;
+using NUnit.Framework.Interfaces;
 using Vuelto.E2E.Tests.Pages;
 
 namespace Vuelto.E2E.Tests;
@@ -113,6 +114,20 @@ public abstract class E2ETestBase : PageTest
         var join = new JoinPage(memberPage);
         await join.GotoWithTokenAsync(token);
         await Assertions.Expect(join.Success).ToBeVisibleAsync(new() { Timeout = 30_000 });
+    }
+
+    /// <summary>Keep the browser console of the main page from its first line (BlazorBoot watches secondary
+    /// pages from their first navigation).</summary>
+    [SetUp]
+    public void WatchBrowserConsole() => BlazorBoot.Watch(Page);
+
+    /// <summary>A red journey prints what the browser saw — the only way to tell a dead Blazor boot from
+    /// a real regression after the fact.</summary>
+    [TearDown]
+    public void ReportBrowserConsoleOnFailure()
+    {
+        if (TestContext.CurrentContext.Result.Outcome.Status == TestStatus.Failed)
+            TestContext.Out.WriteLine($"Browser console of {Page.Url}:\n{BlazorBoot.ConsoleOf(Page)}");
     }
 
     protected static string UniqueEmail(string role) => $"e2e-{role}-{Guid.NewGuid():N}@example.com";

@@ -29,7 +29,7 @@ public class MagicLinkJourneyTests : E2ETestBase
 
         // Opening the emailed link verifies the token on the API, sets the refresh cookie,
         // and bounces through /auth-callback into the app shell.
-        await Page.GotoAsync(link);
+        await BlazorBoot.GotoAsync(Page, link);
         await Expect(Page.GetByTestId("user-menu")).ToBeVisibleAsync(Slow);
         await Expect(Page.GetByTestId("tenant-badge")).ToBeVisibleAsync();
     }
@@ -45,14 +45,14 @@ public class MagicLinkJourneyTests : E2ETestBase
         await Expect(login.Email).ToBeVisibleAsync(Slow);
 
         var link = await login.RequestMagicLinkAsync(email);
-        await Page.GotoAsync(link);
+        await BlazorBoot.GotoAsync(Page, link);
         await Expect(Page.GetByTestId("user-menu")).ToBeVisibleAsync(Slow);
 
         // The token is single-use: opening the same link again (fresh context, no session)
         // must not sign in — it bounces to the login page with the invalid-link error.
         await using var secondCtx = await Browser.NewContextAsync(ContextOptions());
         var secondPage = await secondCtx.NewPageAsync();
-        await secondPage.GotoAsync(link);
+        await BlazorBoot.GotoAsync(secondPage, link);
 
         await Expect(secondPage).ToHaveURLAsync(new Regex(".*/login\\?error=invalid_link"), new() { Timeout = 30_000 });
         await Expect(new LoginPage(secondPage).ErrorAlert).ToBeVisibleAsync(Slow);

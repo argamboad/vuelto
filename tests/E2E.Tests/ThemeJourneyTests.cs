@@ -36,7 +36,7 @@ public class ThemeJourneyTests : E2ETestBase
         await Expect(Page.Locator("html")).ToHaveAttributeAsync("data-bs-theme", "dark");
 
         // Survives a reload: theme.js re-applies from localStorage before first paint.
-        await Page.ReloadAsync();
+        await BlazorBoot.ReloadAsync(Page);
         await Expect(Page.GetByTestId("user-menu")).ToBeVisibleAsync(new() { Timeout = 30_000 });
         await Expect(Page.Locator("html")).ToHaveAttributeAsync("data-bs-theme", "dark");
 
@@ -58,7 +58,7 @@ public class ThemeJourneyTests : E2ETestBase
             r => r.Url.EndsWith("/api/auth/theme") && r.Request.Method == "PUT");
         await Expect(secondPage.Locator("html")).ToHaveAttributeAsync("data-bs-theme", "light");
 
-        await Page.ReloadAsync();
+        await BlazorBoot.ReloadAsync(Page);
         await Expect(Page.GetByTestId("user-menu")).ToBeVisibleAsync(new() { Timeout = 30_000 });
         await Expect(Page.Locator("html")).ToHaveAttributeAsync("data-bs-theme", "light", new() { Timeout = 30_000 });
     }

@@ -46,7 +46,7 @@ public class AnnouncementJourneyTests : E2ETestBase
         await Expect(admin.Status).ToBeVisibleAsync(new() { Timeout = 15_000 });
 
         // The owner's bell: badge shows the unread announcement (reload — the badge polls every 60s).
-        await Page.ReloadAsync();
+        await BlazorBoot.ReloadAsync(Page);
         await Expect(Page.GetByTestId("notif-count")).ToBeVisibleAsync(Slow);
         await Expect(Page.GetByTestId("notif-count")).ToHaveTextAsync("1");
 
