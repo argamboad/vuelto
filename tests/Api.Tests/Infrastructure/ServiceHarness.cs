@@ -67,11 +67,49 @@ public sealed class ServiceHarness(AppDbContext db, TimeProvider? clock = null, 
     public QuotaService QuotaService() =>
         new(Subscriptions, Tenants, Invitations, UsageCounters, CurrentTenant, Clock);
 
-    public TenantInvitationService InvitationService(IInvitationSettings? invitation = null) =>
-        new(Invitations, Tenants, TokenGen, Hasher, UnitOfWork, new NoopEmailSender(),
+    /// <param name="contributors">The tenant-data contributors the accept consults (would the old tenant be
+    /// abandoned?) and dissolves through. Defaults to none; <see cref="PlatformContributors"/> is the shipped set.</param>
+    public TenantInvitationService InvitationService(IInvitationSettings? invitation = null,
+        IReadOnlyList<ITenantDataContributor>? contributors = null)
+    {
+        var tenantContext = CurrentTenant as ITenantContext ?? new TestCurrentTenant();
+        contributors ??= [];
+        return new(Invitations, Tenants, TokenGen, Hasher, UnitOfWork, new NoopEmailSender(),
             UserService(), new TestAppSettings(), invitation ?? new TestInvitationSettings(),
-            [], QuotaService(), CurrentTenant as ITenantContext ?? new TestCurrentTenant(),
-            Clock, NullLogger<TenantInvitationService>.Instance);
+            contributors, new TenantDissolutionService(contributors, Tenants, tenantContext),
+            QuotaService(), tenantContext, Clock, NullLogger<TenantInvitationService>.Instance);
+    }
+
+    /// <summary>
+    /// Every <see cref="ITenantDataContributor"/> this app registers in DI, as production resolves them: the
+    /// platform's five (API keys, webhooks, usage metering, billing, the audit log) plus each feature slice's
+    /// (budget settings, the category and bank catalogs, envelopes, the ledger, fixed and variable expenses,
+    /// income, voucher staging, cards, merchant mappings). The whole set rather than just the platform's, so an
+    /// accept-and-dissolve test also proves no slice counts an empty household as content and every slice's
+    /// wipe runs inside the dissolve. Keep it in step with the <c>AddScoped&lt;ITenantDataContributor, …&gt;</c>
+    /// lines in <c>Program.cs</c>, <c>ServiceRegistrationExtensions</c> and Infrastructure's
+    /// <c>ServiceCollectionExtensions</c> when a slice adds one.
+    /// </summary>
+    public IReadOnlyList<ITenantDataContributor> PlatformContributors() =>
+    [
+        new ApiKeyDataContributor(new EfRepository<ApiKey>(Db)),
+        new WebhookDataContributor(new EfRepository<WebhookSubscription>(Db), new EfRepository<WebhookDelivery>(Db)),
+        new UsageCounterDataContributor(UsageCounters),
+        new BillingDataContributor(Subscriptions, new Vuelto.Infrastructure.Outbox.EfOutbox(Db, Clock)),
+        new Vuelto.Infrastructure.Audit.AuditDataContributor(new EfRepository<AuditEvent>(Db)),
+        new Vuelto.Api.Features.Budget.BudgetSettingsDataContributor(new EfRepository<BudgetSettings>(Db)),
+        new Vuelto.Api.Features.Catalog.CategoryDataContributor(new EfRepository<Category>(Db)),
+        new Vuelto.Api.Features.Catalog.BankDataContributor(new EfRepository<Bank>(Db)),
+        new Vuelto.Api.Features.Envelopes.EnvelopeDataContributor(new EfRepository<Envelope>(Db)),
+        new Vuelto.Api.Features.Ledger.LedgerDataContributor(new EfRepository<Month>(Db), new EfRepository<Week>(Db),
+            new EfRepository<Transaction>(Db), new EfRepository<Refund>(Db)),
+        new Vuelto.Api.Features.Expenses.FixedExpenseDataContributor(new EfRepository<FixedExpense>(Db)),
+        new Vuelto.Api.Features.Expenses.VariableExpenseDataContributor(new EfRepository<VariableExpense>(Db)),
+        new Vuelto.Api.Features.Income.IncomeDataContributor(new EfRepository<IncomeLine>(Db), new EfRepository<MonthIncome>(Db)),
+        new Vuelto.Api.Features.Email.VoucherStagingDataContributor(new EfRepository<PendingVoucher>(Db), new EfRepository<IngestedVoucher>(Db)),
+        new Vuelto.Api.Features.Cards.CardDataContributor(new EfRepository<Card>(Db), new EfRepository<CardIdentity>(Db)),
+        new Vuelto.Api.Features.Email.MerchantMappingDataContributor(new EfRepository<MerchantCategoryMapping>(Db)),
+    ];
 }
 
 internal sealed class TestRefreshSettings(int expiryDays = 30, int reuseGraceSeconds = 60) : IRefreshTokenSettings

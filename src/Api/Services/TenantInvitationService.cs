@@ -64,6 +64,7 @@ public class TenantInvitationService(
     IApplicationSettings appSettings,
     IInvitationSettings invitationSettings,
     IEnumerable<ITenantDataContributor> dataContributors,
+    ITenantDissolutionService dissolution,
     IQuotaService quota,
     ITenantContext tenantContext,
     TimeProvider clock,
@@ -246,8 +247,13 @@ public class TenantInvitationService(
                 return AcceptStatus.InvalidToken;
         }
 
+        // Through the dissolution sequence, never a raw delete (v4 audit H5, R123): the old tenant can only get
+        // here holding rows its contributors don't count as content — API keys, webhooks, metering, a Stripe
+        // subscription — and only their WipeAsync removes those (and queues the provider cancel). A bare
+        // Tenants.Remove left them orphaned, and an orphaned API key still authenticated. Same transaction, so
+        // a lost accept race rolls the dissolve back with the membership move.
         if (dissolveOld)
-            await tenants.DeleteTenantAsync(oldTenantId, cancellationToken);
+            await dissolution.DissolveAsync(oldTenantId, cancellationToken);
 
         await scope.CommitAsync(cancellationToken);
 

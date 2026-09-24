@@ -80,14 +80,6 @@ public class TenantRepository(AppDbContext db) : ITenantRepository
         return true;
     }
 
-    public async Task DeleteTenantAsync(Guid tenantId, CancellationToken cancellationToken = default)
-    {
-        var tenant = await db.Tenants.FirstOrDefaultAsync(t => t.Id == tenantId, cancellationToken);
-        if (tenant == null) return;
-        db.Tenants.Remove(tenant);
-        await db.SaveChangesAsync(cancellationToken);
-    }
-
     public async Task<List<TenantMemberDetail>> GetMemberDetailsAsync(Guid tenantId, CancellationToken cancellationToken = default) =>
         await (from m in db.TenantMemberships
                join u in db.Users on m.UserId equals u.Id
