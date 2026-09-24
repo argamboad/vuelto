@@ -1,3 +1,5 @@
+using System.Net;
+
 namespace Vuelto.Core.Abstractions;
 
 /// <summary>
@@ -12,4 +14,12 @@ public interface IOutboundUrlGuard
 {
     /// <summary>True if the URL is well-formed and safe to POST to from the server right now.</summary>
     ValueTask<bool> IsAllowedAsync(string? url, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The addresses a connection to <paramref name="host"/> may dial right now — empty when the host doesn't
+    /// resolve or resolves to any address the guard refuses. Called at connect time (v4 audit H8), so the address
+    /// the socket dials is the one that was checked: a name that answered "public" to <see cref="IsAllowedAsync"/>
+    /// and "loopback" a moment later can't slip through between the two lookups.
+    /// </summary>
+    ValueTask<IPAddress[]> ResolveAllowedAsync(string host, CancellationToken cancellationToken = default);
 }

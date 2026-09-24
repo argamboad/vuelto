@@ -90,8 +90,10 @@ public static class ServiceCollectionExtensions
         // delivery (retry/backoff via the outbox). Always registered — dormant until webhooks are enabled
         // and a subscription exists; the management routes are the config-gated part (Program.cs).
         services.AddScoped<IWebhookSecretProtector, WebhookSecretProtector>();
-        services.AddSingleton<IOutboundUrlGuard, OutboundUrlGuard>(); // SSRF guard for tenant-supplied webhook URLs (GAP-2)
-        services.AddHttpClient<IWebhookSender, WebhookSender>(c => c.Timeout = TimeSpan.FromSeconds(10));
+        services.AddSingleton<IOutboundUrlGuard>(sp => new OutboundUrlGuard(sp.GetRequiredService<IHostEnvironment>())); // SSRF guard for tenant-supplied webhook URLs (GAP-2)
+        // No redirects, a connection only to an address the guard accepts at connect time, no proxy (v4 audit H8).
+        services.AddHttpClient<IWebhookSender, WebhookSender>(c => c.Timeout = TimeSpan.FromSeconds(10))
+            .ConfigurePrimaryHttpMessageHandler(sp => WebhookHttp.CreatePrimaryHandler(sp.GetRequiredService<IOutboundUrlGuard>()));
         services.AddScoped<IOutboxHandler, WebhookOutboxHandler>();
 
         // Cancel a provider subscription out-of-band when a tenant is dissolved (BILLING-7).

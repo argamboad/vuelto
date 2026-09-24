@@ -993,6 +993,15 @@ outbox). Like `OutboxMessage`, `WebhookDelivery` is deliberately **not** `ITenan
 from the tenant-less outbox dispatcher); its `TenantId` is a plain filter column the read side scopes
 on. See `docs/DATA_MODEL.md` and `docs/stories/hooks.md`.
 
+> **Amended 2026-09-24 (v4 audit H8, decision #7) — the client reaches exactly what the guard approved.** The
+> webhook `HttpClient` (`WebhookHttp.CreatePrimaryHandler`) follows **no redirects** (a 3xx is a failed delivery
+> whose error says to register the final URL — following one had turned a 302 into a GET to an unchecked host
+> whose 200 was logged as delivered, and a 307 re-sent the signed body), **pins its connection** (a
+> `ConnectCallback` dials only addresses `IOutboundUrlGuard.ResolveAllowedAsync` accepts at connect time, closing
+> the guard-then-socket rebinding window the original design accepted), and uses **no proxy**. A URL the guard
+> refuses throws `OutboxPermanentFailureException`, so the outbox dead-letters it on the first attempt with one
+> delivery row (`url_refused: ...`) instead of five.
+
 **ADR-017 — Hosting: free-tier single-origin deployment — Render (API serving the WASM bundle) + Neon Postgres + Brevo. (2026-07-02)**
 Resolves the hosting decision deferred in `docs/TECH_STACK.md` ("pick near deploy"). The driver set:
 **$0/mo, no credit card, the refresh-token cookie must stay first-party, and the in-process background

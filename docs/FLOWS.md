@@ -364,13 +364,13 @@ sequenceDiagram
     OB->>WOH: dispatcher claims message
     WOH->>WOH: load subscription cross-tenant - missing/disabled = silent done
     WOH->>WOH: Unprotect signing secret (Data Protection)
-    WOH->>WS: SendAsync - SSRF guard re-checked at send time (DNS rebinding)
+    WOH->>WS: SendAsync - SSRF guard re-checked at send AND at connect (pinned); no redirects, no proxy
     WS->>R: POST, HMAC X-Webhook-Signature + X-Webhook-Id, 10s timeout
     alt 2xx
         WOH->>OB: stage WebhookDelivery(success) - commits with sent flip
     else non-2xx / transport error
         WOH->>WOH: write WebhookDelivery(failure) via a FRESH context - survives the rollback
-        WOH->>OB: throw - outbox retry/backoff/dead-letter
+        WOH->>OB: throw - outbox retry/backoff/dead-letter (a refused URL: dead-letter at once)
     end
 ```
 

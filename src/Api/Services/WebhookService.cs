@@ -137,7 +137,7 @@ public sealed class WebhookSubscriptionService(
             Body = body,
             Success = success,
             StatusCode = status,
-            Error = success ? null : transportError ?? $"HTTP {status}", // kept server-side; never a secret
+            Error = success ? null : WebhookSender.DescribeFailure(status, transportError), // kept server-side; never a secret
             CreatedAt = clock.GetUtcNow(),
         }, cancellationToken);
         await deliveries.SaveChangesAsync(cancellationToken);

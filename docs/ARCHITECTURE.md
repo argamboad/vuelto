@@ -255,9 +255,9 @@ flowchart TB
 
 `NotificationService.NotifyAsync` fans one event into the in-app row and/or a branded email per
 the user's `NotificationPreference` — except `security.*` kinds, which force both channels.
-Outbound webhooks are HMAC-signed (`X-Webhook-Signature`), SSRF-guarded at create **and** at
-send (DNS-rebinding defense), and delivered through the outbox so retry/dead-letter is inherited
-rather than bespoke. The webhook send-test endpoint bypasses the outbox and POSTs synchronously.
+Outbound webhooks are HMAC-signed (`X-Webhook-Signature`), SSRF-guarded at create, at send **and**
+at connect (the socket dials only an address the guard accepts; no redirects, no proxy — v4 audit H8),
+and delivered through the outbox so retry/dead-letter is inherited rather than bespoke. The webhook send-test endpoint bypasses the outbox and POSTs synchronously.
 
 ```mermaid
 flowchart LR

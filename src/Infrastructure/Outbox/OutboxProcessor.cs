@@ -128,7 +128,8 @@ public sealed class OutboxProcessor(
 
         message.AttemptCount++;
         message.LastError = Truncate(cause.Message, 1000);
-        if (message.AttemptCount >= options.MaxAttempts)
+        // A permanent failure (a refused URL, an unreadable payload) won't change on retry (v4 audit H8).
+        if (message.AttemptCount >= options.MaxAttempts || cause is OutboxPermanentFailureException)
         {
             message.Status = OutboxStatus.DeadLettered;
             message.ProcessedAt = now; // finished too — retention ages dead rows by it
