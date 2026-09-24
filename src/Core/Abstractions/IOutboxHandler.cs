@@ -16,5 +16,13 @@ public interface IOutboxHandler
     /// <summary>The <see cref="OutboxMessage.Type"/> this handler claims.</summary>
     string Type { get; }
 
+    /// <summary>
+    /// Whether a row of this type is its tenant's content, removed when that tenant is dissolved (v4 audit H6):
+    /// true for mail and webhook bodies; false for an effect the dissolve itself queues and that must still run
+    /// afterwards (<c>billing.cancel</c>), and for platform-wide messages that belong to no tenant. No default:
+    /// every handler answers, and <c>OutboxTenancyTests</c> pins each answer.
+    /// </summary>
+    bool DissolvesWithItsTenant { get; }
+
     Task HandleAsync(OutboxMessage message, CancellationToken cancellationToken = default);
 }

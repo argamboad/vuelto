@@ -78,6 +78,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IOutboxHandler>(sp =>
             new EmailOutboxHandler(sp.GetRequiredKeyedService<IEmailSender>("smtp")));
         services.AddHostedService<OutboxDispatcher>();
+        // A dissolved tenant's mail and webhook bodies leave with it (v4 audit H6); each handler declares
+        // whether its type does (IOutboxHandler.DissolvesWithItsTenant).
+        services.AddScoped<ITenantDataContributor, OutboxDataContributor>();
 
         // Outbound webhook delivery (HOOKS, ADR-016): the "webhook" outbox handler signs + POSTs each
         // delivery (retry/backoff via the outbox). Always registered — dormant until webhooks are enabled

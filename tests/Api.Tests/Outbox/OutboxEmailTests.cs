@@ -22,7 +22,7 @@ public class OutboxEmailSenderTests(PostgresFixture fixture) : PostgresTestBase(
     {
         await using (var db = Fixture.CreateContext())
         {
-            var sender = new OutboxEmailSender(new EfOutbox(db, TimeProvider.System), db);
+            var sender = new OutboxEmailSender(new EfOutbox(db, TimeProvider.System), db, new TestCurrentTenant());
             await sender.SendAsync("a@b.com", "Subject", "<p>hi</p>");
         }
 
@@ -44,7 +44,7 @@ public class OutboxEmailSenderTests(PostgresFixture fixture) : PostgresTestBase(
         var pdf = new EmailAttachment("report.pdf", [0x25, 0x50, 0x44, 0x46, 0x00, 0xFF], "application/pdf");
         await using (var db = Fixture.CreateContext())
         {
-            var sender = new OutboxEmailSender(new EfOutbox(db, TimeProvider.System), db);
+            var sender = new OutboxEmailSender(new EfOutbox(db, TimeProvider.System), db, new TestCurrentTenant());
             await sender.SendAsync("a@b.com", "Report", "<p>attached</p>", attachments: [pdf]);
         }
 
@@ -63,7 +63,7 @@ public class OutboxEmailSenderTests(PostgresFixture fixture) : PostgresTestBase(
         var half = EmailAttachment.MaxTotalBytes / 2;
         await using (var db = Fixture.CreateContext())
         {
-            var sender = new OutboxEmailSender(new EfOutbox(db, TimeProvider.System), db);
+            var sender = new OutboxEmailSender(new EfOutbox(db, TimeProvider.System), db, new TestCurrentTenant());
             await sender.SendAsync("a@b.com", "Big", "<p/>", attachments:
             [
                 new EmailAttachment("a.pdf", new byte[half], "application/pdf"),
@@ -80,7 +80,7 @@ public class OutboxEmailSenderTests(PostgresFixture fixture) : PostgresTestBase(
     {
         await using (var db = Fixture.CreateContext())
         {
-            var sender = new OutboxEmailSender(new EfOutbox(db, TimeProvider.System), db);
+            var sender = new OutboxEmailSender(new EfOutbox(db, TimeProvider.System), db, new TestCurrentTenant());
             var ex = await Assert.ThrowsAsync<ArgumentException>(() => sender.SendAsync("a@b.com", "Too big", "<p/>",
                 attachments:
                 [
@@ -104,7 +104,7 @@ public class OutboxEmailSenderTests(PostgresFixture fixture) : PostgresTestBase(
     {
         await using (var db = Fixture.CreateContext())
         {
-            var sender = new OutboxEmailSender(new EfOutbox(db, TimeProvider.System), db);
+            var sender = new OutboxEmailSender(new EfOutbox(db, TimeProvider.System), db, new TestCurrentTenant());
             await Assert.ThrowsAsync<ArgumentException>(() => sender.SendAsync("a@b.com", "Bad", "<p/>",
                 attachments: [new EmailAttachment(fileName, [1, 2, 3], mediaType)]));
         }

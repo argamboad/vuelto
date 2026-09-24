@@ -16,6 +16,7 @@ namespace Vuelto.Infrastructure.Email;
 public sealed class EmailOutboxHandler(IEmailSender smtpSender) : IOutboxHandler
 {
     public string Type => OutboxEmailSender.MessageType;
+    public bool DissolvesWithItsTenant => true; // the household's mail: recipient, body, attachments
 
     public async Task HandleAsync(OutboxMessage message, CancellationToken cancellationToken = default)
     {

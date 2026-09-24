@@ -227,6 +227,7 @@ internal sealed class RecordingHandler(string type) : IOutboxHandler
 {
     public List<OutboxMessage> Handled { get; } = [];
     public string Type => type;
+    public bool DissolvesWithItsTenant => true;
 
     public Task HandleAsync(OutboxMessage message, CancellationToken cancellationToken = default)
     {
@@ -238,6 +239,7 @@ internal sealed class RecordingHandler(string type) : IOutboxHandler
 internal sealed class ThrowingHandler(string type) : IOutboxHandler
 {
     public string Type => type;
+    public bool DissolvesWithItsTenant => true;
 
     public Task HandleAsync(OutboxMessage message, CancellationToken cancellationToken = default) =>
         throw new InvalidOperationException("handler boom");
@@ -248,6 +250,7 @@ internal sealed class ThrowingHandler(string type) : IOutboxHandler
 internal sealed class StagesBadRowHandler(string type, AppDbContext db) : IOutboxHandler
 {
     public string Type => type;
+    public bool DissolvesWithItsTenant => true;
 
     public Task HandleAsync(OutboxMessage message, CancellationToken cancellationToken = default)
     {

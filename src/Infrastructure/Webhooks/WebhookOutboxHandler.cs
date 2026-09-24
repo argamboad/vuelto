@@ -25,6 +25,7 @@ public sealed class WebhookOutboxHandler(
 {
     public const string MessageType = "webhook";
     public string Type => MessageType;
+    public bool DissolvesWithItsTenant => true; // the household's event body, for a subscription the dissolve deletes
 
     public async Task HandleAsync(OutboxMessage message, CancellationToken cancellationToken = default)
     {

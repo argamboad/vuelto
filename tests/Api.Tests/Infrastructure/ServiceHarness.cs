@@ -82,9 +82,9 @@ public sealed class ServiceHarness(AppDbContext db, TimeProvider? clock = null, 
 
     /// <summary>
     /// Every <see cref="ITenantDataContributor"/> this app registers in DI, as production resolves them: the
-    /// platform's five (API keys, webhooks, usage metering, billing, the audit log) plus each feature slice's
-    /// (budget settings, the category and bank catalogs, envelopes, the ledger, fixed and variable expenses,
-    /// income, voucher staging, cards, merchant mappings). The whole set rather than just the platform's, so an
+    /// platform's six (API keys, webhooks, usage metering, billing, the audit log, the outbox) plus each feature
+    /// slice's (budget settings, the category and bank catalogs, envelopes, the ledger, fixed and variable
+    /// expenses, income, voucher staging, cards, merchant mappings). The whole set rather than just the platform's, so an
     /// accept-and-dissolve test also proves no slice counts an empty household as content and every slice's
     /// wipe runs inside the dissolve. Keep it in step with the <c>AddScoped&lt;ITenantDataContributor, …&gt;</c>
     /// lines in <c>Program.cs</c>, <c>ServiceRegistrationExtensions</c> and Infrastructure's
@@ -109,6 +109,10 @@ public sealed class ServiceHarness(AppDbContext db, TimeProvider? clock = null, 
         new Vuelto.Api.Features.Email.VoucherStagingDataContributor(new EfRepository<PendingVoucher>(Db), new EfRepository<IngestedVoucher>(Db)),
         new Vuelto.Api.Features.Cards.CardDataContributor(new EfRepository<Card>(Db), new EfRepository<CardIdentity>(Db)),
         new Vuelto.Api.Features.Email.MerchantMappingDataContributor(new EfRepository<MerchantCategoryMapping>(Db)),
+        // Only the email handler is needed to classify: a type no handler claims is kept, which is what the
+        // billing.cancel this dissolve queues must be.
+        new Vuelto.Infrastructure.Outbox.OutboxDataContributor(new EfRepository<OutboxMessage>(Db),
+            [new Vuelto.Infrastructure.Email.EmailOutboxHandler(new NoopEmailSender())]),
     ];
 }
 

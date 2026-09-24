@@ -31,6 +31,7 @@ public sealed class AdminBroadcastOutboxHandler(IUserRepository users, INotifica
 {
     public const string MessageType = "admin.broadcast";
     public string Type => MessageType;
+    public bool DissolvesWithItsTenant => false; // platform-wide: never any one household's
 
     public async Task HandleAsync(OutboxMessage message, CancellationToken cancellationToken = default)
     {

@@ -63,7 +63,7 @@ The seams that matter (all in `src/Core/Abstractions/` unless noted):
 | `IEntitlementService` / `IQuotaService` | `EntitlementService` / `QuotaService` | plan gates (402) and atomic countable limits — ADR-006 |
 | `IPermissionService` | `PermissionService` over the `RolePermissions` matrix | capability checks, not role checks — ADR-009 |
 | `IFileStorage` / `IFileDownloadTokenizer` | `LocalDiskFileStorage` / `S3FileStorage` | tenant-scoped blobs, signed URLs — ADR-010 |
-| `ITenantDataContributor` (×6) / `IUserDataContributor` (×2) | per-slice contributors | export + erasure without central code — ADR-011 |
+| `ITenantDataContributor` (×17) / `IUserDataContributor` (×5) | per-slice contributors | export + erasure without central code — ADR-011 |
 | `IAuditLog` | `AuditLog` (append-only via interceptor) | ADR-008 |
 | `IOutboundUrlGuard` | `OutboundUrlGuard` | SSRF guard for tenant-supplied URLs — ADR-016 |
 | `IRepository<T>` / `IUnitOfWork` | `EfRepository<T>` / `EfUnitOfWork` | generic data access; `Query()` auto-scoped, `QueryAllTenants()` greppable |
@@ -76,7 +76,9 @@ Adding a feature never means editing central code — you register another imple
 flowchart TB
     subgraph contributors ["ITenantDataContributor - export + dissolve participation (ADR-011)"]
         TDC["ITenantDataContributor"]
-        TDC --- C1["Audit"] & C2["Billing"] & C3["UsageCounter"] & C4["ApiKey"] & C5["Webhook"] & C6["Notes (sample)"]
+        TDC --- C1["Audit"] & C2["Billing"] & C3["UsageCounter"] & C4["ApiKey"] & C5["Webhook"] & C6["Outbox"]
+        TDC --- C7["BudgetSettings"] & C8["Category"] & C9["Bank"] & C10["Envelope"] & C11["Ledger"] & C12["FixedExpense"]
+        TDC --- C13["VariableExpense"] & C14["Income"] & C15["VoucherStaging"] & C16["Card"] & C17["MerchantMapping"]
     end
     subgraph handlers ["IOutboxHandler - routed by message Type (ADR-007)"]
         OH["IOutboxHandler"]
@@ -84,7 +86,7 @@ flowchart TB
     end
     subgraph userdata ["IUserDataContributor - account erasure (GDPR-2)"]
         UDC["IUserDataContributor"]
-        UDC --- U1["Mfa"] & U2["Notification"]
+        UDC --- U1["Mfa"] & U2["Notification"] & U3["Income"] & U4["EmailConnection"] & U5["DisplaySettings"]
     end
 ```
 
@@ -199,7 +201,7 @@ classDiagram
     }
     class IOutboxHandler {
         <<interface>>
-        Type + HandleAsync (must be idempotent)
+        Type + DissolvesWithItsTenant + HandleAsync (must be idempotent)
     }
     class EfOutbox {
         EnqueueAsync - stages, never saves

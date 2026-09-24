@@ -669,7 +669,7 @@ erDiagram
     OUTBOX_MESSAGE {
         string type "handler discriminator"
         string payload "JSON - written in the SAME transaction as the change"
-        guid tenant_id "nullable context - not a scoping key"
+        guid tenant_id "nullable owning tenant - not a query filter; its dissolve removes content-bearing types"
         string status "pending | sent | dead"
         int attempt_count "max 5, exponential backoff"
     }

@@ -8,7 +8,8 @@ namespace Vuelto.Core.Entities;
 /// <para>
 /// Deliberately NOT <c>ITenantScoped</c>: the outbox is platform infrastructure and may carry
 /// system (tenant-less) effects, so it is outside the global tenant query filter. The optional
-/// <see cref="TenantId"/> is context for handlers, not a scoping key.
+/// <see cref="TenantId"/> names the tenant a row belongs to when there is one: it is how that tenant's
+/// dissolve finds the rows whose handler says they dissolve with it (<c>OutboxDataContributor</c>, v4 audit H6).
 /// </para>
 /// </summary>
 public class OutboxMessage
@@ -21,7 +22,7 @@ public class OutboxMessage
     /// <summary>Opaque JSON payload understood only by the matching handler.</summary>
     public required string Payload { get; set; }
 
-    /// <summary>Optional owning tenant — context for the handler, not a query-filter key.</summary>
+    /// <summary>Optional owning tenant — not a query-filter key, but the key its dissolve removes rows by.</summary>
     public Guid? TenantId { get; set; }
 
     /// <summary>One of <see cref="OutboxStatus"/>.</summary>
