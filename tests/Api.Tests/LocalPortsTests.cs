@@ -45,6 +45,9 @@ public class LocalPortsTests
             Expect("playwright.runsettings", m.Groups[1].Value, block.WebHttps);
         foreach (Match m in Regex.Matches(Read("tests/E2E.Tests/README.md"), @"localhost:(\d+)"))
             if (!block.All.Contains(m.Groups[1].Value)) failures.Add($"tests/E2E.Tests/README.md: localhost:{m.Groups[1].Value} is not one of this repo's ports");
+        // tools/e2e.ps1 reads the block from the same sources at run time, so it is the same file in all three repos.
+        foreach (Match m in Regex.Matches(Read("tools/e2e.ps1"), @"localhost:(\d+)"))
+            failures.Add($"tools/e2e.ps1: hardcodes localhost:{m.Groups[1].Value} - derive it from compose / launchSettings");
         // .env.example's comments name ports too (the RLS connection, the Stripe hint, the Mailpit default); the shared
         // Aspire Dashboard's OTLP 4317 and UI 18888 are the machine's, not any one app's.
         foreach (Match m in Regex.Matches(env, @"localhost:(\d+)"))
