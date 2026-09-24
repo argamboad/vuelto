@@ -311,7 +311,9 @@ jobs:
             exit 0
           fi
 
-          files=$(git diff --name-only "$BASE_SHA" "${{ github.sha }}")
+          # core.quotePath=false: git otherwise prints a non-ASCII path quoted ("src/AÃ±adir.cs"),
+          # which matches no classifier and would skip every gate for a code change (v4 audit LB-DEP-2).
+          files=$(git -c core.quotePath=false diff --name-only "$BASE_SHA" "${{ github.sha }}")
           # A markdown file cannot change what the code does or how it builds, wherever it lives —
           # but the code/native regexes key on DIRECTORY, so tests/E2E.Tests/README.md once billed a
           # full run including both native builds. Strip markdown before those two matches only;

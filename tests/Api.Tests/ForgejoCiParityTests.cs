@@ -135,6 +135,21 @@ public class ForgejoCiParityTests
     }
 
     [Fact]
+    public void ChangedFileLists_AreByteSafe_InBothCopies() // v4 audit LB-DEP-2 (R137)
+    {
+        // By default git prints a path holding a byte >= 0x80 quoted and escaped: `src/Api/Features/Añadir.cs`
+        // comes out as "src/Api/Features/AÃ±adir.cs". That no longer starts with `src/`, so the classifier
+        // calls a code change code=false native=false docs=false and the push runs no gate at all. Turning
+        // core.quotePath off makes git print the name as it is.
+        foreach (var file in new[] { GitHubCi, ForgejoCi })
+        {
+            var yml = Read(file);
+            Assert.Contains("git -c core.quotePath=false diff --name-only", yml, StringComparison.Ordinal);
+            Assert.DoesNotMatch(@"git diff --name-only", yml);
+        }
+    }
+
+    [Fact]
     public void ForgejoDeploys_RunOnlyFromADispatch_BehindEveryGateAndSelectedSmoke()
     {
         var github = Jobs(Read(GitHubCi));
