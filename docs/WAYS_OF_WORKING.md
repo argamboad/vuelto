@@ -172,12 +172,12 @@ PR title = a Conventional Commit line, ideally referencing the story:
      `native-paths` gate; macOS bills 10×), so an Apple-affecting change is first *proven* by the
      post-merge run. Watch that run to completion; don't stack the next merge onto an unverified
      one.
-- **Recommended repo setting:** GitHub branch protection on `develop` requiring the `build-test`
-  and `e2e` status checks (Settings → Branches → Add rule, or
-  `gh api repos/{owner}/{repo}/branches/develop/protection`). This makes "merge before CI
-  finishes" impossible at the platform level instead of relying on habit. (Not enabled by
-  default in this template — it needs repo admin and blocks solo-maintainer hotfix pushes to
-  develop, so opt in per deployment.)
+- **Required repo setting — `develop` and `main` are protected on Forgejo** (the primary forge, ADR-028):
+  pushes only from the owner, no force push or deletion, merges only with the gate jobs green (a skipped
+  job counts as passed, so docs-only PRs still merge). Forgejo gives every CI job a token that can write
+  and ignores the `permissions:` key that narrows it on GitHub, so this is what stops CI — or a poisoned
+  build dependency — from pushing. Apply it with the platform's `tools/protect-branches.ps1 -Repo
+  argamboad/y-el-vuelto`; the `changes` job fails every run while either branch is unprotected (v4 audit DEP-13/DEP-14).
 - After merging, `deploy-staging` only runs off a fully green develop run — a red develop
   silently **freezes staging** at the last good commit, so a broken develop is not a
   "fix it later" state.

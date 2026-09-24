@@ -59,8 +59,10 @@ on:
 
 # LOCALCI-4: GitHub's copy carries `permissions: contents: read` (v3 audit DEP-8, least privilege for the
 # job token). Forgejo does not support that key — it warns on every run and ignores it — so it is left out
-# here. Nothing in this pipeline writes with the job token: the one push (to GitHub, in the deploy jobs)
-# uses DEPLOY_MIRROR_TOKEN. Job-token capabilities on Forgejo are granted under Authorized Integrations.
+# here, and the job token has to be treated as able to WRITE (v4 audit DEP-14): no checkout keeps it
+# (`persist-credentials: false`), the one fetch that needs it passes it for that command only, and the
+# `changes` job refuses to run while develop or main is unprotected on this forge (DEP-13) — protection is
+# what stops the token pushing. The one push (to GitHub, in the deploy jobs) uses DEPLOY_MIRROR_TOKEN.
 
 # LOCALCI-4: GitHub runs an unspecified `run:` shell as `bash -e {0}` — NO pipefail. Forgejo's default adds
 # `-o pipefail`, which turns steps written for GitHub into failures (`pid=$(adb shell pidof … | tr …)` while
@@ -76,6 +78,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false # v4 audit DEP-14: never leave the job token in .git/config
 
       - uses: actions/setup-dotnet@v5
         with:
@@ -142,6 +146,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
+          persist-credentials: false # v4 audit DEP-14: never leave the job token in .git/config
           fetch-depth: 0 # full history so the scan covers every commit, not just the tip
 
       - name: gitleaks
@@ -170,6 +175,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false # v4 audit DEP-14: never leave the job token in .git/config
 
       - uses: actions/setup-python@v6
         with:
@@ -187,8 +194,11 @@ jobs:
       - name: QA run-log is append-only
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          TOKEN: ${{ github.token }}
         run: |
-          if [ -z "$BASE_SHA" ] || ! git fetch --quiet origin "$BASE_SHA" 2>/dev/null; then
+          # The checkout keeps no token (persist-credentials: false), so this one fetch passes it for itself.
+          AUTH="$(printf 'x-access-token:%s' "$TOKEN" | base64 -w0)"
+          if [ -z "$BASE_SHA" ] || ! git -c "http.extraheader=AUTHORIZATION: basic $AUTH" fetch --quiet origin "$BASE_SHA" 2>/dev/null; then
             echo "Diff base unavailable ($BASE_SHA) — skipping the append-only guard."
             exit 0
           fi
@@ -209,6 +219,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false # v4 audit DEP-14: never leave the job token in .git/config
 
       - uses: actions/setup-dotnet@v5
         with:
@@ -249,6 +261,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false # v4 audit DEP-14: never leave the job token in .git/config
 
       - name: Build the production image
         run: docker build -t vuelto-app:ci .
@@ -282,6 +296,8 @@ jobs:
         shell: ${{ matrix.os == 'windows-latest' && 'pwsh' || 'bash -e {0}' }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false # v4 audit DEP-14: never leave the job token in .git/config
 
       - uses: actions/setup-dotnet@v5
         with:
@@ -387,7 +403,26 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
+          persist-credentials: false # v4 audit DEP-14: never leave the job token in .git/config
           fetch-depth: 0
+      # v4 audit DEP-13/DEP-14 (R98): this job's token can write, and the only thing stopping it (or anything a
+      # build pulls in) from pushing to develop/main is the forge's branch protection. That lives in the repo's
+      # settings, not in this file, so every run confirms it before deciding anything else.
+      - name: develop and main are protected
+        env:
+          API: ${{ github.server_url }}/api/v1/repos/${{ github.repository }}
+          TOKEN: ${{ github.token }}
+        run: |
+          for branch in develop main; do
+            code=$(curl -s -o /tmp/branch.json -w "%{http_code}" -H "Authorization: token $TOKEN" "$API/branches/$branch")
+            if [ "$code" = "404" ]; then echo "$branch does not exist yet - nothing to protect."; continue; fi
+            [ "$code" = "200" ] || { echo "::error::the branches API answered $code for $branch - cannot confirm it is protected."; exit 1; }
+            if ! tr -d ' \n' < /tmp/branch.json | grep -q '"protected":true'; then
+              echo "::error::$branch is not protected on this forge, so the job token could push to it. Protect it with the platform's tools/protect-branches.ps1 -Repo ${{ github.repository }} (DEPLOYMENT.md section 10)."
+              exit 1
+            fi
+          done
+          echo "develop and main are protected."
       - id: diff
         env:
           # A pull request diffs against its base; a push against what was there before.
@@ -466,6 +501,8 @@ jobs:
       DEVELOPER_DIR: /Applications/Xcode_26.6.app
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false # v4 audit DEP-14: never leave the job token in .git/config
 
       - uses: actions/setup-dotnet@v5
         with:
@@ -525,6 +562,8 @@ jobs:
       DEVELOPER_DIR: /Applications/Xcode_26.6.app
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false # v4 audit DEP-14: never leave the job token in .git/config
 
       - uses: actions/setup-dotnet@v5
         with:
@@ -696,6 +735,8 @@ jobs:
         shell: pwsh # LOCALCI-4: Forgejo's default shell is bash even on Windows
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false # v4 audit DEP-14: never leave the job token in .git/config
 
       - uses: actions/setup-dotnet@v5
         with:
@@ -834,6 +875,8 @@ jobs:
         ports: ["1025:1025", "8025:8025"]
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false # v4 audit DEP-14: never leave the job token in .git/config
 
       - uses: actions/setup-dotnet@v5
         with:
@@ -1009,6 +1052,8 @@ jobs:
         ports: ["1025:1025", "8025:8025"]
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false # v4 audit DEP-14: never leave the job token in .git/config
 
       - uses: actions/setup-dotnet@v5
         with:
@@ -1180,6 +1225,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5 # for .github/scripts/deploy-smoke.sh
         with:
+          persist-credentials: false # v4 audit DEP-14: never leave the job token in .git/config
           fetch-depth: 0 # the push to GitHub needs the full history, not a shallow tip
 
       - name: Push develop to GitHub
@@ -1243,6 +1289,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5 # for .github/scripts/deploy-smoke.sh
         with:
+          persist-credentials: false # v4 audit DEP-14: never leave the job token in .git/config
           fetch-depth: 0
 
       - name: Push main to GitHub
