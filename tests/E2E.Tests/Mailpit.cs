@@ -11,7 +11,7 @@ public static class Mailpit
 {
     private static readonly HttpClient Http = new()
     {
-        BaseAddress = new Uri(Environment.GetEnvironmentVariable("MAILPIT_BASE_URL") ?? "http://localhost:8025"),
+        BaseAddress = new Uri(Environment.GetEnvironmentVariable("MAILPIT_BASE_URL") ?? "http://localhost:8026"),
     };
 
     /// <summary>Deletes all trapped messages (call before triggering a fresh email).</summary>
