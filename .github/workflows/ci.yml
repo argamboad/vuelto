@@ -706,7 +706,7 @@ jobs:
           --health-cmd "pg_isready -U smoke -d smoke" --health-interval 5s --health-timeout 5s --health-retries 15
       mail:
         image: axllent/mailpit:v1.30.4 # pinned, not :latest — reproducible mail trap (v3 DEP-9); keep == the Windows-leg MailpitVersion
-        ports: ["1025:1025", "8025:8025"]
+        ports: ["1026:1025", "8026:8025"]
     steps:
       - uses: actions/checkout@v5
         with:
@@ -796,7 +796,7 @@ jobs:
           ASPNETCORE_ENVIRONMENT: Development
           ConnectionStrings__DefaultConnection: "Host=localhost;Port=5432;Database=smoke;Username=smoke;Password=smoke"
           Jwt__Secret: "ci-native-smoke-jwt-signing-key-0123"
-          MAILPIT_BASE_URL: "http://localhost:8025"
+          MAILPIT_BASE_URL: "http://localhost:8026"
         run: |
           set -e
           # platform-tools was installed by sdkmanager this job — it is NOT on the runner's PATH
@@ -879,7 +879,7 @@ jobs:
           --health-cmd "pg_isready -U e2e -d e2e" --health-interval 5s --health-timeout 5s --health-retries 15
       mail:
         image: axllent/mailpit:v1.30.4 # pinned, not :latest — reproducible mail trap (v3 DEP-9); keep == the Windows-leg MailpitVersion
-        ports: ["1025:1025", "8025:8025"]
+        ports: ["1026:1025", "8026:8025"]
     steps:
       - uses: actions/checkout@v5
         with:
@@ -961,7 +961,7 @@ jobs:
           # Exported, not prefixed onto the command: the shard step below sits between this and the run,
           # and a `VAR=x \` continuation would land on a comment and quietly leave the suite on its dev
           # defaults (https://localhost:7008 — every journey then fails with ERR_CONNECTION_REFUSED).
-          export PLAYWRIGHT_BASE_URL=http://localhost:5269 MAILPIT_BASE_URL=http://localhost:8025 \
+          export PLAYWRIGHT_BASE_URL=http://localhost:5269 MAILPIT_BASE_URL=http://localhost:8026 \
             E2E_API_BASE_URL=http://localhost:5338
             # Shard the journeys: list them, keep every third. `--list-tests` prints one method name per
             # indented line (no namespace), so the filter matches on the name, and a renamed journey simply

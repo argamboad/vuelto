@@ -872,7 +872,7 @@ jobs:
           --health-cmd "pg_isready -U smoke -d smoke" --health-interval 5s --health-timeout 5s --health-retries 15
       mail:
         image: axllent/mailpit:v1.30.4 # pinned, not :latest — reproducible mail trap (v3 DEP-9); keep == the Windows-leg MailpitVersion
-        ports: ["1025:1025", "8025:8025"]
+        ports: ["1026:1025", "8026:8025"]
     steps:
       - uses: actions/checkout@v5
         with:
@@ -955,9 +955,12 @@ jobs:
         # One step for everything process-bound (the runner tears down a step's process tree).
         env:
           ASPNETCORE_ENVIRONMENT: Development
+          # LOCALCI-4: host networking on the Forgejo runners ignores the service `ports:` mapping, so Mailpit
+          # listens on its native 1025 (SMTP) / 8025 (API), not this repo's dev 1026 / 8026.
+          Email__Smtp__Port: "1025"
           ConnectionStrings__DefaultConnection: "Host=localhost;Port=5432;Database=smoke;Username=smoke;Password=smoke"
           Jwt__Secret: "ci-native-smoke-jwt-signing-key-0123"
-          MAILPIT_BASE_URL: "http://localhost:8025"
+          MAILPIT_BASE_URL: "http://localhost:8025"  # LOCALCI-4: native port, see Email__Smtp__Port
         run: |
           set -e
           # platform-tools was installed by sdkmanager this job — it is NOT on the runner's PATH
@@ -1049,7 +1052,7 @@ jobs:
           --health-cmd "pg_isready -U e2e -d e2e" --health-interval 5s --health-timeout 5s --health-retries 15
       mail:
         image: axllent/mailpit:v1.30.4 # pinned, not :latest — reproducible mail trap (v3 DEP-9); keep == the Windows-leg MailpitVersion
-        ports: ["1025:1025", "8025:8025"]
+        ports: ["1026:1025", "8026:8025"]
     steps:
       - uses: actions/checkout@v5
         with:
@@ -1098,6 +1101,9 @@ jobs:
         # tree when the step ends. Start API + Web in the background, wait for readiness, then test.
         env:
           ASPNETCORE_ENVIRONMENT: Development
+          # LOCALCI-4: host networking on the Forgejo runners ignores the service `ports:` mapping, so Mailpit
+          # listens on its native 1025 (SMTP) / 8025 (API), not this repo's dev 1026 / 8026.
+          Email__Smtp__Port: "1025"
           ConnectionStrings__DefaultConnection: "Host=localhost;Port=5432;Database=e2e;Username=e2e;Password=e2e"
           Jwt__Secret: "ci-e2e-jwt-signing-secret-0123456789ab"
           # The whole browser suite shares one source IP, so raise the per-IP passwordless limit well

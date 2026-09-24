@@ -78,6 +78,35 @@ public class LocalPortsTests
         Assert.True(clashes.Count == 0, "Two apps claim the same local port: " + string.Join("; ", clashes));
     }
 
+    [Fact]
+    public void CiMailpit_IsWhereTheApiSendsAndTheSuiteReads_OnBothForges()
+    {
+        // The CI API runs as Development, so it sends to appsettings.Development's SMTP port (this repo's block), and the
+        // suite reads Mailpit at MAILPIT_BASE_URL. The forges wire Mailpit differently: GitHub publishes the service's
+        // `ports:` mapping, while the Forgejo runners use host networking, which ignores it (LOCALCI-4), so there Mailpit
+        // listens on its native 1025/8025 and the API must be pointed at 1025. A repo whose block moved off 1025 without
+        // this got every E2E journey timing out on "No OTP email" (y-el-vuelto, 2026-09-24).
+        var block = Block();
+        var failures = new List<string>();
+        foreach (var (file, hostNetworking) in new[] { (".github/workflows/ci.yml", false), (".forgejo/workflows/ci.yml", true) })
+        {
+            var ci = Read(file);
+            var services = Regex.Matches(ci, @"image: axllent/mailpit[^\n]*\n\s*ports: (\[[^\]]*\])");
+            if (services.Count == 0) failures.Add($"{file}: no Mailpit service with a ports: line");
+            foreach (Match m in services)
+                if (m.Groups[1].Value != $"[\"{block.Smtp}:1025\", \"{block.MailUi}:8025\"]")
+                    failures.Add($"{file}: Mailpit ports {m.Groups[1].Value}, expected [\"{block.Smtp}:1025\", \"{block.MailUi}:8025\"]");
+            var readsAt = hostNetworking ? "8025" : block.MailUi;
+            foreach (Match m in Regex.Matches(ci, @"MAILPIT_BASE_URL[:=] *""?http://localhost:(\d+)"))
+                if (m.Groups[1].Value != readsAt) failures.Add($"{file}: MAILPIT_BASE_URL on {m.Groups[1].Value}, Mailpit answers on {readsAt} there");
+            var pins = Regex.Matches(ci, @"Email__Smtp__Port: ""(\d+)""").Select(m => m.Groups[1].Value).ToList();
+            if (pins.Any(p => p != "1025")) failures.Add($"{file}: Email__Smtp__Port pinned to {string.Join(", ", pins)}, Mailpit takes 1025");
+            if (hostNetworking && block.Smtp != "1025" && pins.Count != services.Count)
+                failures.Add($"{file}: {services.Count} Mailpit job(s) but {pins.Count} Email__Smtp__Port: \"1025\" pin(s) - host networking ignores ports:, so the API must be sent to 1025");
+        }
+        Assert.True(failures.Count == 0, "CI mail wiring disagrees with this repo's block:\n  " + string.Join("\n  ", failures));
+    }
+
     // --- the block ---
 
     private sealed record PortBlock(string Db, string Smtp, string MailUi, string App, string ApiHttps, string ApiHttp, string WebHttps, string WebHttp)
