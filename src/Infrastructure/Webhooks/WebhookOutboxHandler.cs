@@ -25,11 +25,16 @@ public sealed class WebhookOutboxHandler(
 {
     public const string MessageType = "webhook";
     public string Type => MessageType;
+    public bool DissolvesWithItsTenant => true; // the household's event body, for a subscription the dissolve deletes
+    public bool KeepsPayloadWhenDone => false; // the delivery log (WebhookDelivery) keeps what replay needs
 
     public async Task HandleAsync(OutboxMessage message, CancellationToken cancellationToken = default)
     {
-        var payload = JsonSerializer.Deserialize<WebhookOutboxPayload>(message.Payload)
-            ?? throw new InvalidOperationException($"Outbox message {message.Id} has an unreadable webhook payload.");
+        WebhookOutboxPayload? payload;
+        try { payload = JsonSerializer.Deserialize<WebhookOutboxPayload>(message.Payload); }
+        catch (JsonException) { payload = null; }
+        if (payload is null) // no retry will make it readable (v4 audit H8)
+            throw new OutboxPermanentFailureException($"Outbox message {message.Id} has an unreadable webhook payload.");
 
         // The outbox is tenant-less, so bypass the tenant filter to load the target subscription by id.
         // (The RLS tag is belt-and-braces: the tenant-less system context already bypasses — ADR-020.)
@@ -42,9 +47,15 @@ public sealed class WebhookOutboxHandler(
 
         int? status = null;
         string? transportError = null;
+        var refused = false;
         try
         {
             status = await sender.SendAsync(subscription.Url, secret, payload.EventType, payload.EventId, payload.Body, cancellationToken);
+        }
+        catch (WebhookUrlRefusedException ex)
+        {
+            transportError = ex.Message; // the SSRF guard refused the URL — permanent, see below
+            refused = true;
         }
         catch (Exception ex)
         {
@@ -70,7 +81,7 @@ public sealed class WebhookOutboxHandler(
             Body = payload.Body,
             Success = success,
             StatusCode = status,
-            Error = success ? null : transportError ?? $"HTTP {status}",
+            Error = success ? null : WebhookSender.DescribeFailure(status, transportError),
             CreatedAt = clock.GetUtcNow(),
         };
 
@@ -86,6 +97,8 @@ public sealed class WebhookOutboxHandler(
             await auditDb.SaveChangesAsync(cancellationToken);
         }
 
+        if (refused) // a refusal won't change on retry: dead-letter now, one delivery row (v4 audit H8)
+            throw new OutboxPermanentFailureException(transportError!);
         throw new InvalidOperationException(
             transportError ?? $"Webhook delivery to {subscription.Url} returned HTTP {status}."); // → outbox retry
     }

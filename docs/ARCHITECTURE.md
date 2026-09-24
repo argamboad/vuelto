@@ -58,12 +58,12 @@ The seams that matter (all in `src/Core/Abstractions/` unless noted):
 | `ICurrentTenant` / `ITenantContext` | one scoped `HttpCurrentTenant` serving both | tenant of the request / trusted system entry — ADR-003, ADR-020 |
 | `IEmailSender` | `OutboxEmailSender` (default) → `SmtpEmailSender` (keyed `"smtp"`) | all email (HTML + CID inline images + file attachments ≤ 10 MiB total); MailKit never leaks past `Infrastructure/Email/` |
 | `IOutbox` / `IOutboxHandler` / `IInbox` | `EfOutbox` / 4 handlers / `EfInbox` | reliable async effects — ADR-007 |
-| `IScheduledJob` | `ExpiredTokenCleanupJob`, `SubscriptionLapseSweepJob` | recurring jobs, no host edits — ADR-007 |
+| `IScheduledJob` | `ExpiredTokenCleanupJob`, `SubscriptionLapseSweepJob`, `OutboxRetentionJob`, `EmailPollJob` | recurring jobs, no host edits — ADR-007 |
 | `IBillingProvider` | `StripeBillingProvider` / `FakeBillingProvider` (dev only, fail-closed at startup) | ADR-006 |
 | `IEntitlementService` / `IQuotaService` | `EntitlementService` / `QuotaService` | plan gates (402) and atomic countable limits — ADR-006 |
 | `IPermissionService` | `PermissionService` over the `RolePermissions` matrix | capability checks, not role checks — ADR-009 |
 | `IFileStorage` / `IFileDownloadTokenizer` | `LocalDiskFileStorage` / `S3FileStorage` | tenant-scoped blobs, signed URLs — ADR-010 |
-| `ITenantDataContributor` (×6) / `IUserDataContributor` (×2) | per-slice contributors | export + erasure without central code — ADR-011 |
+| `ITenantDataContributor` (×17) / `IUserDataContributor` (×6) | per-slice contributors | export + erasure without central code — ADR-011 |
 | `IAuditLog` | `AuditLog` (append-only via interceptor) | ADR-008 |
 | `IOutboundUrlGuard` | `OutboundUrlGuard` | SSRF guard for tenant-supplied URLs — ADR-016 |
 | `IRepository<T>` / `IUnitOfWork` | `EfRepository<T>` / `EfUnitOfWork` | generic data access; `Query()` auto-scoped, `QueryAllTenants()` greppable |
@@ -76,7 +76,9 @@ Adding a feature never means editing central code — you register another imple
 flowchart TB
     subgraph contributors ["ITenantDataContributor - export + dissolve participation (ADR-011)"]
         TDC["ITenantDataContributor"]
-        TDC --- C1["Audit"] & C2["Billing"] & C3["UsageCounter"] & C4["ApiKey"] & C5["Webhook"] & C6["Notes (sample)"]
+        TDC --- C1["Audit"] & C2["Billing"] & C3["UsageCounter"] & C4["ApiKey"] & C5["Webhook"] & C6["Outbox"]
+        TDC --- C7["BudgetSettings"] & C8["Category"] & C9["Bank"] & C10["Envelope"] & C11["Ledger"] & C12["FixedExpense"]
+        TDC --- C13["VariableExpense"] & C14["Income"] & C15["VoucherStaging"] & C16["Card"] & C17["MerchantMapping"]
     end
     subgraph handlers ["IOutboxHandler - routed by message Type (ADR-007)"]
         OH["IOutboxHandler"]
@@ -84,7 +86,7 @@ flowchart TB
     end
     subgraph userdata ["IUserDataContributor - account erasure (GDPR-2)"]
         UDC["IUserDataContributor"]
-        UDC --- U1["Mfa"] & U2["Notification"]
+        UDC --- U1["Mfa"] & U2["Notification"] & U3["Income"] & U4["EmailConnection"] & U5["DisplaySettings"] & U6["Outbox"]
     end
 ```
 
@@ -199,7 +201,7 @@ classDiagram
     }
     class IOutboxHandler {
         <<interface>>
-        Type + HandleAsync (must be idempotent)
+        Type + DissolvesWithItsTenant + HandleAsync (must be idempotent)
     }
     class EfOutbox {
         EnqueueAsync - stages, never saves
@@ -253,9 +255,9 @@ flowchart TB
 
 `NotificationService.NotifyAsync` fans one event into the in-app row and/or a branded email per
 the user's `NotificationPreference` — except `security.*` kinds, which force both channels.
-Outbound webhooks are HMAC-signed (`X-Webhook-Signature`), SSRF-guarded at create **and** at
-send (DNS-rebinding defense), and delivered through the outbox so retry/dead-letter is inherited
-rather than bespoke. The webhook send-test endpoint bypasses the outbox and POSTs synchronously.
+Outbound webhooks are HMAC-signed (`X-Webhook-Signature`), SSRF-guarded at create, at send **and**
+at connect (the socket dials only an address the guard accepts; no redirects, no proxy — v4 audit H8),
+and delivered through the outbox so retry/dead-letter is inherited rather than bespoke. The webhook send-test endpoint bypasses the outbox and POSTs synchronously.
 
 ```mermaid
 flowchart LR

@@ -18,6 +18,8 @@ public sealed class BillingCancelOutboxHandler(IBillingProvider provider) : IOut
 {
     public const string MessageType = "billing.cancel";
     public string Type => MessageType;
+    public bool DissolvesWithItsTenant => false; // queued BY the dissolve — it must still cancel the Stripe subscription
+    public bool KeepsPayloadWhenDone => false;
 
     public async Task HandleAsync(OutboxMessage message, CancellationToken cancellationToken = default)
     {

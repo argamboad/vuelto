@@ -669,7 +669,7 @@ erDiagram
     OUTBOX_MESSAGE {
         string type "handler discriminator"
         string payload "JSON - written in the SAME transaction as the change"
-        guid tenant_id "nullable context - not a scoping key"
+        guid tenant_id "nullable owning tenant - not a query filter; its dissolve removes content-bearing types"
         string status "pending | sent | dead"
         int attempt_count "max 5, exponential backoff"
     }
@@ -684,7 +684,9 @@ erDiagram
   `src/Core/Entities/OutboxMessage.cs`, migration `AddOutbox`. **NOT** `ITenantScoped` (platform infra;
   carries an optional `TenantId` for context). `type`, `payload` (text/JSON), `status`,
   `attempt_count`, `next_attempt_at`, `processed_at`, `last_error`. Written in the **same transaction**
-  as the business change (atomic effects).
+  as the business change (atomic effects). A finished row (sent or dead) gets `processed_at` and its
+  `payload` cleared to `{}` (unless its handler keeps it as a record — the platform broadcast); the
+  `outbox-retention` job deletes finished rows after `Outbox:RetentionDays` (30). v4 audit H7.
 - **`InboxMessage`** *(ADR-007 / `docs/stories/async-jobs.md`)* — ✅ **BUILT (JOBS-2)**:
   `src/Core/Entities/InboxMessage.cs`, migration `AddInbox`. **NOT** `ITenantScoped`. Dedup ledger for
   idempotent inbound (webhook) deliveries: `id`, `source`, `idempotency_key`, `received_at`; **unique on

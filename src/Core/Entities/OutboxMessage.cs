@@ -8,7 +8,8 @@ namespace Vuelto.Core.Entities;
 /// <para>
 /// Deliberately NOT <c>ITenantScoped</c>: the outbox is platform infrastructure and may carry
 /// system (tenant-less) effects, so it is outside the global tenant query filter. The optional
-/// <see cref="TenantId"/> is context for handlers, not a scoping key.
+/// <see cref="TenantId"/> names the tenant a row belongs to when there is one: it is how that tenant's
+/// dissolve finds the rows whose handler says they dissolve with it (<c>OutboxDataContributor</c>, v4 audit H6).
 /// </para>
 /// </summary>
 public class OutboxMessage
@@ -18,10 +19,14 @@ public class OutboxMessage
     /// <summary>Handler discriminator (e.g. <c>"email"</c>). Exactly one handler claims each type.</summary>
     public required string Type { get; set; }
 
-    /// <summary>Opaque JSON payload understood only by the matching handler.</summary>
+    /// <summary>Opaque JSON payload understood only by the matching handler. <see cref="ClearedPayload"/> once
+    /// the row is finished, unless its handler keeps it (<c>IOutboxHandler.KeepsPayloadWhenDone</c>).</summary>
     public required string Payload { get; set; }
 
-    /// <summary>Optional owning tenant — context for the handler, not a query-filter key.</summary>
+    /// <summary>What a finished row's payload is cleared to (v4 audit H7): still valid JSON, carrying nothing.</summary>
+    public const string ClearedPayload = "{}";
+
+    /// <summary>Optional owning tenant — not a query-filter key, but the key its dissolve removes rows by.</summary>
     public Guid? TenantId { get; set; }
 
     /// <summary>One of <see cref="OutboxStatus"/>.</summary>
@@ -34,7 +39,7 @@ public class OutboxMessage
     /// <summary>Earliest time this message may be dispatched; advanced on each retry (backoff).</summary>
     public DateTimeOffset NextAttemptAt { get; set; }
 
-    /// <summary>When the message was successfully delivered (null until then).</summary>
+    /// <summary>When the message finished — delivered, or dead-lettered (null while pending). Retention ages rows by it.</summary>
     public DateTimeOffset? ProcessedAt { get; set; }
 
     /// <summary>Last failure detail for a retrying/dead-lettered message. Never a secret.</summary>

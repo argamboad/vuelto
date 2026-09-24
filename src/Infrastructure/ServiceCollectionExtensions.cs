@@ -72,19 +72,28 @@ public static class ServiceCollectionExtensions
 
         // Transactional outbox + background dispatcher (ADR-007). OutboxMessage is staged in the
         // same transaction as the business change; the dispatcher drains it via typed handlers.
-        services.AddSingleton(new OutboxOptions());
+        services.AddSingleton(OutboxOptions.FromConfiguration(configuration)); // Outbox:RetentionDays; fails fast below 1
         services.AddScoped<IOutbox, EfOutbox>();
         services.AddScoped<OutboxProcessor>();
         services.AddScoped<IOutboxHandler>(sp =>
             new EmailOutboxHandler(sp.GetRequiredKeyedService<IEmailSender>("smtp")));
         services.AddHostedService<OutboxDispatcher>();
+        // A dissolved tenant's mail and webhook bodies leave with it (v4 audit H6); each handler declares
+        // whether its type does (IOutboxHandler.DissolvesWithItsTenant).
+        services.AddScoped<ITenantDataContributor, OutboxDataContributor>();
+        // A finished row's payload is cleared by the processor and the row deleted after Outbox:RetentionDays; an
+        // erased user's pending mail goes with their account (v4 audit H7, decision #6).
+        services.AddScoped<IScheduledJob, OutboxRetentionJob>();
+        services.AddScoped<IUserDataContributor, OutboxUserDataContributor>();
 
         // Outbound webhook delivery (HOOKS, ADR-016): the "webhook" outbox handler signs + POSTs each
         // delivery (retry/backoff via the outbox). Always registered — dormant until webhooks are enabled
         // and a subscription exists; the management routes are the config-gated part (Program.cs).
         services.AddScoped<IWebhookSecretProtector, WebhookSecretProtector>();
-        services.AddSingleton<IOutboundUrlGuard, OutboundUrlGuard>(); // SSRF guard for tenant-supplied webhook URLs (GAP-2)
-        services.AddHttpClient<IWebhookSender, WebhookSender>(c => c.Timeout = TimeSpan.FromSeconds(10));
+        services.AddSingleton<IOutboundUrlGuard>(sp => new OutboundUrlGuard(sp.GetRequiredService<IHostEnvironment>())); // SSRF guard for tenant-supplied webhook URLs (GAP-2)
+        // No redirects, a connection only to an address the guard accepts at connect time, no proxy (v4 audit H8).
+        services.AddHttpClient<IWebhookSender, WebhookSender>(c => c.Timeout = TimeSpan.FromSeconds(10))
+            .ConfigurePrimaryHttpMessageHandler(sp => WebhookHttp.CreatePrimaryHandler(sp.GetRequiredService<IOutboundUrlGuard>()));
         services.AddScoped<IOutboxHandler, WebhookOutboxHandler>();
 
         // Cancel a provider subscription out-of-band when a tenant is dissolved (BILLING-7).

@@ -343,7 +343,7 @@ sequenceDiagram
 
 Divergences: any failure in T2 → rollback of every staged row, then attempt bookkeeping in a
 separate transaction: `attempt_count++`, backoff `10s × 2^(n−1)`, dead-letter at 5 (terminal — no
-automatic replay). SMTP send in T3 is a non-transactional external effect inside a DB
+automatic replay; `processed_at` stamped and the payload cleared, as on success — v4 audit H7). SMTP send in T3 is a non-transactional external effect inside a DB
 transaction: a crash between send and commit re-sends the email (documented, accepted).
 Per-tenant `announce` (not announce-all) fans out synchronously inside one request transaction
 instead.
@@ -364,13 +364,13 @@ sequenceDiagram
     OB->>WOH: dispatcher claims message
     WOH->>WOH: load subscription cross-tenant - missing/disabled = silent done
     WOH->>WOH: Unprotect signing secret (Data Protection)
-    WOH->>WS: SendAsync - SSRF guard re-checked at send time (DNS rebinding)
+    WOH->>WS: SendAsync - SSRF guard re-checked at send AND at connect (pinned); no redirects, no proxy
     WS->>R: POST, HMAC X-Webhook-Signature + X-Webhook-Id, 10s timeout
     alt 2xx
         WOH->>OB: stage WebhookDelivery(success) - commits with sent flip
     else non-2xx / transport error
         WOH->>WOH: write WebhookDelivery(failure) via a FRESH context - survives the rollback
-        WOH->>OB: throw - outbox retry/backoff/dead-letter
+        WOH->>OB: throw - outbox retry/backoff/dead-letter (a refused URL: dead-letter at once)
     end
 ```
 

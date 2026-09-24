@@ -18,6 +18,11 @@
 **Reuses:** `IOutbox`/`IOutboxHandler` + `OutboxDispatcher` (delivery/retry/backoff/dead-letter),
 Data Protection (secret at rest), `HttpCurrentTenant`, `.RequirePermission(...)`.
 
+> **2026-09-24 — v4 audit H8 (decision #7).** The delivery client follows no redirects (a 3xx is a failed
+> delivery that says why), dials only an address the SSRF guard accepts at connect time, and uses no proxy; a
+> refused URL dead-letters on the first attempt. Tests: `WebhookRedirectAndPinningTests`,
+> `ProcessDue_PermanentFailure_DeadLettersOnTheFirstAttempt`.
+
 ---
 
 ### HOOKS-1 — Subscriptions, signed outbox delivery, owner management

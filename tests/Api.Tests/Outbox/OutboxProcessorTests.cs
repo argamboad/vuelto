@@ -105,6 +105,24 @@ public class OutboxProcessorTests(PostgresFixture fixture) : PostgresTestBase(fi
         Assert.NotNull(msg.LastError);
     }
 
+    [Fact]
+    public async Task ProcessDue_PermanentFailure_DeadLettersOnTheFirstAttempt() // v4 audit H8 (JOBS-3)
+    {
+        // A failure that retrying cannot change — a URL the SSRF guard refuses, a payload that doesn't parse — is
+        // dead-lettered at once instead of repeating the refusal (and its side trail) MaxAttempts times.
+        await SeedAsync("refused", "x");
+        var options = new OutboxOptions { MaxAttempts = 5, BackoffBase = TimeSpan.Zero };
+
+        await using (var db = Fixture.CreateContext())
+            await NewProcessor(db, new PermanentlyFailingHandler("refused"), options).ProcessDueAsync();
+
+        await using var read = Fixture.CreateContext();
+        var msg = await read.Set<OutboxMessage>().SingleAsync();
+        Assert.Equal(OutboxStatus.DeadLettered, msg.Status);
+        Assert.Equal(1, msg.AttemptCount);
+        Assert.Contains("cannot succeed", msg.LastError);
+    }
+
     // --- helpers ---
 
     [Fact]
@@ -227,6 +245,8 @@ internal sealed class RecordingHandler(string type) : IOutboxHandler
 {
     public List<OutboxMessage> Handled { get; } = [];
     public string Type => type;
+    public bool DissolvesWithItsTenant => true;
+    public bool KeepsPayloadWhenDone => false;
 
     public Task HandleAsync(OutboxMessage message, CancellationToken cancellationToken = default)
     {
@@ -238,9 +258,21 @@ internal sealed class RecordingHandler(string type) : IOutboxHandler
 internal sealed class ThrowingHandler(string type) : IOutboxHandler
 {
     public string Type => type;
+    public bool DissolvesWithItsTenant => true;
+    public bool KeepsPayloadWhenDone => false;
 
     public Task HandleAsync(OutboxMessage message, CancellationToken cancellationToken = default) =>
         throw new InvalidOperationException("handler boom");
+}
+
+internal sealed class PermanentlyFailingHandler(string type) : IOutboxHandler
+{
+    public string Type => type;
+    public bool DissolvesWithItsTenant => true;
+    public bool KeepsPayloadWhenDone => false;
+
+    public Task HandleAsync(OutboxMessage message, CancellationToken cancellationToken = default) =>
+        throw new OutboxPermanentFailureException("this message cannot succeed");
 }
 
 /// <summary>Handler that SUCCEEDS but stages a row that only faults when the processor commits (a NOT NULL
@@ -248,6 +280,8 @@ internal sealed class ThrowingHandler(string type) : IOutboxHandler
 internal sealed class StagesBadRowHandler(string type, AppDbContext db) : IOutboxHandler
 {
     public string Type => type;
+    public bool DissolvesWithItsTenant => true;
+    public bool KeepsPayloadWhenDone => false;
 
     public Task HandleAsync(OutboxMessage message, CancellationToken cancellationToken = default)
     {

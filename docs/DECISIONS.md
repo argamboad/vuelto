@@ -472,6 +472,15 @@ Constraints recorded:
 2. **`OutboxMessage` is NOT `ITenantScoped`** — it's platform infra and may carry system (non-tenant)
    effects; it stores an optional `TenantId` for handler context but is outside the global filter.
    On dissolve, pending tenant-related outbox rows are drained/cancelled by the relevant contributor.
+   *(Built 2026-09-24, v4 audit H6: until then nothing did it. `OutboxDataContributor` removes the tenant's
+   rows of every type whose handler declares `DissolvesWithItsTenant` — mail and webhook bodies — and keeps
+   `billing.cancel`, which the dissolve itself queues.)*
+   *(Amended 2026-09-24, v4 audit H7 / decision #6 — retention: a finished row (sent or dead) is stamped and
+   its payload cleared to `{}`, and `OutboxRetentionJob` deletes it after `Outbox:RetentionDays` (default 30).
+   A handler may declare its payload a record (`KeepsPayloadWhenDone`): only `admin.broadcast`, the sole
+   attribution of a platform-wide announcement, which carries no personal data and is kept whole. Account
+   erasure removes the user's pending mail by recipient. Attachments stay inline in the payload — capped at
+   10 MiB — rather than moving to `IFileStorage`; revisit when a downstream needs more.)*
 3. **At-least-once delivery ⇒ all handlers must be idempotent** — the same contract billing webhooks
    need (ADR-006).
 4. **First consumer is the existing email path** — passwordless and invitation sends currently call
@@ -983,6 +992,15 @@ under `/api/webhooks` view the log and **replay** a delivery (re-enqueues the re
 outbox). Like `OutboxMessage`, `WebhookDelivery` is deliberately **not** `ITenantScoped` (it's written
 from the tenant-less outbox dispatcher); its `TenantId` is a plain filter column the read side scopes
 on. See `docs/DATA_MODEL.md` and `docs/stories/hooks.md`.
+
+> **Amended 2026-09-24 (v4 audit H8, decision #7) — the client reaches exactly what the guard approved.** The
+> webhook `HttpClient` (`WebhookHttp.CreatePrimaryHandler`) follows **no redirects** (a 3xx is a failed delivery
+> whose error says to register the final URL — following one had turned a 302 into a GET to an unchecked host
+> whose 200 was logged as delivered, and a 307 re-sent the signed body), **pins its connection** (a
+> `ConnectCallback` dials only addresses `IOutboundUrlGuard.ResolveAllowedAsync` accepts at connect time, closing
+> the guard-then-socket rebinding window the original design accepted), and uses **no proxy**. A URL the guard
+> refuses throws `OutboxPermanentFailureException`, so the outbox dead-letters it on the first attempt with one
+> delivery row (`url_refused: ...`) instead of five.
 
 **ADR-017 — Hosting: free-tier single-origin deployment — Render (API serving the WASM bundle) + Neon Postgres + Brevo. (2026-07-02)**
 Resolves the hosting decision deferred in `docs/TECH_STACK.md` ("pick near deploy"). The driver set:

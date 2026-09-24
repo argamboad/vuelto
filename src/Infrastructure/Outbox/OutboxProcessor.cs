@@ -15,6 +15,12 @@ namespace Vuelto.Infrastructure.Outbox;
 /// invocation (ADR-007). Kept separate from the <see cref="OutboxDispatcher"/>
 /// <c>BackgroundService</c> so it can be unit-tested without timing.
 /// </para>
+/// <para>
+/// A finished row — sent or dead — is stamped with <see cref="OutboxMessage.ProcessedAt"/> and its payload
+/// cleared to <see cref="OutboxMessage.ClearedPayload"/> unless its handler keeps it (v4 audit H7, decision #6):
+/// the payload is a delivery instruction, and once there is nothing left to deliver, a recipient, a body and
+/// an attachment have no reason to stay. <see cref="OutboxRetentionJob"/> deletes finished rows later.
+/// </para>
 /// </summary>
 public sealed class OutboxProcessor(
     AppDbContext db,
@@ -78,6 +84,8 @@ public sealed class OutboxProcessor(
                 message.Status = OutboxStatus.Sent;
                 message.ProcessedAt = now;
                 message.LastError = null;
+                if (!handler.KeepsPayloadWhenDone)
+                    message.Payload = OutboxMessage.ClearedPayload;
                 // Persist + commit INSIDE the try (v3 audit LB-BILL-2): if these fail — a transient
                 // disconnect, or a handler that staged a constraint-violating row that only faults at
                 // SaveChanges — the attempt must still be accounted for below, or the message stays Pending,
@@ -120,9 +128,14 @@ public sealed class OutboxProcessor(
 
         message.AttemptCount++;
         message.LastError = Truncate(cause.Message, 1000);
-        if (message.AttemptCount >= options.MaxAttempts)
+        // A permanent failure (a refused URL, an unreadable payload) won't change on retry (v4 audit H8).
+        if (message.AttemptCount >= options.MaxAttempts || cause is OutboxPermanentFailureException)
         {
             message.Status = OutboxStatus.DeadLettered;
+            message.ProcessedAt = now; // finished too — retention ages dead rows by it
+            // Nothing will deliver it now. A type with no registered handler has nobody to keep it either.
+            if (!_handlers.TryGetValue(message.Type, out var handler) || !handler.KeepsPayloadWhenDone)
+                message.Payload = OutboxMessage.ClearedPayload;
             logger.LogError(cause, "Outbox message {Id} ({Type}) dead-lettered after {Attempts} attempt(s)",
                 message.Id, message.Type, message.AttemptCount);
         }

@@ -10,10 +10,16 @@ namespace Vuelto.Infrastructure.Http;
 /// local endpoints and loopback test servers work). Outside Development it enforces https-only and
 /// resolves the host, rejecting the request if <em>any</em> resolved address is loopback, link-local,
 /// private (RFC-1918 / IPv6 ULA), carrier-grade-NAT, or the cloud metadata endpoint — resolving at call
-/// time so DNS rebinding to an internal host is caught (v2 audit GAP-2).
+/// time so DNS rebinding to an internal host is caught (v2 audit GAP-2). The webhook client also asks it at
+/// connect time (<see cref="ResolveAllowedAsync"/>, v4 audit H8), so the address dialed is the address checked.
 /// </summary>
-public sealed class OutboundUrlGuard(IHostEnvironment environment) : IOutboundUrlGuard
+/// <param name="resolve">DNS lookup; the system resolver unless a test substitutes one.</param>
+public sealed class OutboundUrlGuard(
+    IHostEnvironment environment,
+    Func<string, CancellationToken, Task<IPAddress[]>>? resolve = null) : IOutboundUrlGuard
 {
+    private readonly Func<string, CancellationToken, Task<IPAddress[]>> _resolve = resolve ?? Dns.GetHostAddressesAsync;
+
     public async ValueTask<bool> IsAllowedAsync(string? url, CancellationToken cancellationToken = default)
     {
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
@@ -25,19 +31,28 @@ public sealed class OutboundUrlGuard(IHostEnvironment environment) : IOutboundUr
         if (uri.Scheme != Uri.UriSchemeHttps)
             return false; // https-only outside Development
 
+        return (await ResolveAllowedAsync(uri.Host, cancellationToken)).Length > 0;
+    }
+
+    public async ValueTask<IPAddress[]> ResolveAllowedAsync(string host, CancellationToken cancellationToken = default)
+    {
         IPAddress[] addresses;
         try
         {
-            addresses = IPAddress.TryParse(uri.Host, out var literal)
+            addresses = IPAddress.TryParse(host.Trim('[', ']'), out var literal)
                 ? [literal]
-                : await Dns.GetHostAddressesAsync(uri.Host, cancellationToken);
+                : await _resolve(host, cancellationToken);
         }
-        catch
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            return false; // unresolvable host — refuse rather than guess
+            return []; // unresolvable host — refuse rather than guess
         }
 
-        return addresses.Length > 0 && Array.TrueForAll(addresses, IsPublic);
+        if (environment.IsDevelopment())
+            return addresses; // permissive locally (loopback test servers)
+
+        // Every answer must be public: one internal address among public ones is still a way in.
+        return addresses.Length > 0 && Array.TrueForAll(addresses, IsPublic) ? addresses : [];
     }
 
     private static bool IsPublic(IPAddress address)
