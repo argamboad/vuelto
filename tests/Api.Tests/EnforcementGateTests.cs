@@ -285,6 +285,33 @@ public class EnforcementGateTests
             + "(the figure drifted twice before this gate existed: v3 TR-2, T54).");
     }
 
+    [Fact]
+    public void DeployTriggerWording_PostmanSyncNamesTheForge() // v4 audit TR-14 (H9), R117
+    {
+        // Forgejo is the primary forge (ADR-028): develop moves there on every merge, and GitHub's develop moves
+        // only when a deploy pushes it. So the postman-sync that runs per merge is the .forgejo copy, reading a
+        // secret and a variable set in Forgejo. The README told operators to set them on GitHub only, which leaves
+        // the per-merge sync skipping with a notice forever while the docs say it is set up.
+        var root = RepoRoot();
+        var readme = File.ReadAllText(Path.Combine(root, "docs", "postman", "README.md")).ReplaceLineEndings("\n");
+        var start = readme.IndexOf("**One-time setup**", StringComparison.Ordinal);
+        Assert.True(start >= 0, "docs/postman/README.md lost its One-time setup section");
+        var setup = readme[start..readme.IndexOf("**Direction is one-way.**", start, StringComparison.Ordinal)];
+        var forgejo = setup.IndexOf("Forgejo", StringComparison.Ordinal);
+        Assert.True(forgejo >= 0, "the Postman one-time setup must say where the Forgejo secret and variable go");
+        var github = setup.IndexOf("GitHub", StringComparison.Ordinal);
+        Assert.True(github < 0 || forgejo < github, "the Postman one-time setup must lead with Forgejo, the primary forge");
+
+        // The operating manual names the forge whose develop changes drive the sync.
+        Assert.Contains("on every Forgejo `develop` change", File.ReadAllText(Path.Combine(root, "CLAUDE.md")).ReplaceLineEndings(" "),
+            StringComparison.Ordinal);
+
+        // Both workflow copies hardcode the collection path, so a rebrand that renames the files edits both.
+        var rebranding = File.ReadAllText(Path.Combine(root, "docs", "REBRANDING.md"));
+        Assert.Contains(".github/workflows/postman-sync.yml", rebranding, StringComparison.Ordinal);
+        Assert.Contains(".forgejo/workflows/postman-sync.yml", rebranding, StringComparison.Ordinal);
+    }
+
     private static string RepoRoot()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);

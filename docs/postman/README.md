@@ -29,14 +29,21 @@ a mirror kept fresh by CI. The `postman-sync` workflow pushes the collection + e
 `*postman_environment.json` to the workspace (matched **by name**: update if present, create if
 not) on any change to `docs/postman/**` on `develop` — so the team never imports JSON by hand.
 
+The workflow exists twice, one copy per forge (ADR-028). **Forgejo is the one that matters:**
+`develop` moves there on every merge, so `.forgejo/workflows/postman-sync.yml` is the per-merge
+sync. GitHub's `develop` only moves when a deploy pushes it, so `.github/workflows/postman-sync.yml`
+re-syncs the same files at deploy time (harmless: the sync is by name and idempotent).
+
 **One-time setup** (until then the job skips with a notice):
-1. Postman → avatar → **Settings → API keys** → generate a key → GitHub repo →
-   **Settings → Secrets → Actions** → secret `POSTMAN_API_KEY`.
-2. Postman → workspace **Overview** → copy the workspace **ID** → GitHub →
-   **Settings → Variables → Actions** → variable `POSTMAN_WORKSPACE_ID`.
-3. Delete any duplicate same-name collections/environments in the workspace once (with
-   duplicates, the first name-match wins). Trigger the first run via **Actions →
-   postman-sync → Run workflow** (or merge any `docs/postman/` change).
+1. Postman → avatar → **Settings → API keys** → generate a key → Forgejo → repo →
+   **Settings → Actions → Secrets** → secret `POSTMAN_API_KEY`.
+2. Postman → workspace **Overview** → copy the workspace **ID** → Forgejo → repo →
+   **Settings → Actions → Variables** → variable `POSTMAN_WORKSPACE_ID`.
+3. Optional — the deploy-time re-sync: set the same two on GitHub (repo → **Settings →
+   Secrets and variables → Actions**). Without them that copy just skips.
+4. Delete any duplicate same-name collections/environments in the workspace once (with
+   duplicates, the first name-match wins). Trigger the first run from Forgejo: repo →
+   **Actions → postman-sync.yml → Run workflow** (or merge any `docs/postman/` change).
 
 **Direction is one-way.** Edits made in the Postman UI are overwritten on the next sync — change
 the JSON here (PR-reviewed, versioned) instead. Postman's built-in "connect repository" (API
