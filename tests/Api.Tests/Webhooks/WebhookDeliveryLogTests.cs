@@ -201,15 +201,28 @@ public class WebhookDeliveryLogTests(PostgresFixture fixture) : PostgresTestBase
     }
 
     [Fact]
-    public async Task SendTest_UnknownSubscription_ReturnsNull_AndRecordsNothing()
+    public async Task SendTest_UnknownOrOtherTenantSubscription_ReturnsNull_SendsAndRecordsNothing()
     {
-        var tenant = Guid.CreateVersion7();
+        // B's subscription is real and A knows its id. Test-sending it as A must look like an id that doesn't
+        // exist (null -> 404, never 403, which would confirm the id) — and must not POST a ping signed with B's
+        // secret to B's URL, nor log a delivery (TB-TEN-17).
+        var protector = new WebhookSecretProtector(new EphemeralDataProtectionProvider());
+        var pair = await TwoTenants.SeedAsync(t => SeedSubscriptionAsync(t, protector));
+        var endpoint = new RecordingHandler();
 
-        await using (var db = Fixture.CreateContext(tenant))
-            Assert.Null(await BuildService(db, tenant).SendTestAsync(Guid.CreateVersion7(), default));
+        await using (var db = Fixture.CreateContext(pair.Mine))
+        {
+            var service = BuildService(db, pair.Mine, protector, new WebhookSender(new HttpClient(endpoint), new AllowAllUrlGuard()));
+            Assert.Null(await service.SendTestAsync(pair.OtherSeed, default));
+            Assert.Null(await service.SendTestAsync(Guid.CreateVersion7(), default)); // and an id that exists nowhere
+            Assert.Equal(0, endpoint.Calls);
+            await using (var read = Fixture.CreateContext())
+                Assert.Empty(await read.Set<WebhookDelivery>().ToListAsync());
 
-        await using var read = Fixture.CreateContext();
-        Assert.Empty(await read.Set<WebhookDelivery>().ToListAsync());
+            // Control: A's own subscription does send — the nulls above are the tenant wall, not a broken send.
+            Assert.NotNull(await service.SendTestAsync(pair.MineSeed, default));
+            Assert.Equal(1, endpoint.Calls);
+        }
     }
 
     [Fact]
@@ -229,26 +242,39 @@ public class WebhookDeliveryLogTests(PostgresFixture fixture) : PostgresTestBase
     }
 
     [Fact]
-    public async Task Replay_UnknownOrOtherTenant_ReturnsFalse()
+    public async Task Replay_UnknownOrOtherTenant_ReturnsFalse_AndQueuesNothing()
     {
-        var tenant = Guid.CreateVersion7();
-        await using var db = Fixture.CreateContext(tenant);
-        Assert.False(await BuildService(db, tenant).ReplayAsync(Guid.CreateVersion7(), default));
+        // B's delivery is real and A knows its id. Replaying it as A must look like an id that doesn't exist
+        // (false -> 404, never 403) and queue nothing: a queued replay would send B's payload, signed with B's
+        // secret, to B's endpoint on A's say-so. WebhookDelivery isn't ITenantScoped, so the only wall is the
+        // service's own TenantId filter — this is the test that fails if it goes (TB-TEN-16).
+        var pair = await TwoTenants.SeedAsync(t => SeedDeliveryAsync(t, Guid.CreateVersion7(), $"evt-{t}", "{}"));
+
+        await using (var db = Fixture.CreateContext(pair.Mine))
+        {
+            Assert.False(await BuildService(db, pair.Mine).ReplayAsync(pair.OtherSeed, default));
+            Assert.False(await BuildService(db, pair.Mine).ReplayAsync(Guid.CreateVersion7(), default)); // and an id that exists nowhere
+        }
+        await using (var read = Fixture.CreateContext())
+            Assert.Empty(await read.Set<OutboxMessage>().ToListAsync());
+
+        // Control: A's own delivery does replay — the falses above are the tenant wall, not a broken replay.
+        await using (var db = Fixture.CreateContext(pair.Mine))
+            Assert.True(await BuildService(db, pair.Mine).ReplayAsync(pair.MineSeed, default));
+        await using var after = Fixture.CreateContext();
+        var queued = Assert.Single(await after.Set<OutboxMessage>().ToListAsync());
+        Assert.Equal(pair.Mine, queued.TenantId);
     }
 
     [Fact]
     public async Task ListDeliveries_IsTenantScoped()
     {
-        var mine = Guid.CreateVersion7();
-        var other = Guid.CreateVersion7();
-        var sub = Guid.CreateVersion7();
-        await SeedDeliveryAsync(mine, sub, "e1", "{}");
-        await SeedDeliveryAsync(other, sub, "e2", "{}"); // same subscription id, different tenant
+        var sub = Guid.CreateVersion7(); // the same subscription id in both tenants
+        var pair = await TwoTenants.SeedAsync(t => SeedDeliveryAsync(t, sub, $"evt-{t}", "{}"));
 
-        await using var db = Fixture.CreateContext(mine);
-        var list = await BuildService(db, mine).ListDeliveriesAsync(sub, default);
-        Assert.Single(list);
-        Assert.Equal("e1", list[0].EventId);
+        await using var db = Fixture.CreateContext(pair.Mine);
+        var list = await BuildService(db, pair.Mine).ListDeliveriesAsync(sub, default);
+        Assert.Equal(pair.MineSeed, Assert.Single(list).Id);
     }
 
     // --- helpers ---
@@ -320,6 +346,17 @@ public class WebhookDeliveryLogTests(PostgresFixture fixture) : PostgresTestBase
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
             Task.FromResult(new HttpResponseMessage(status));
+    }
+
+    private sealed class RecordingHandler : HttpMessageHandler
+    {
+        public int Calls { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Calls++;
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK));
+        }
     }
 
     private sealed class ThrowingHandler : HttpMessageHandler

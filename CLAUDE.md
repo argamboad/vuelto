@@ -171,8 +171,8 @@ its seams; a generic gap goes upstream to `perezosoft-platform` first.
   the `*.postman_environment.json` files (one per deploy target), never in the collection.
 - Copies in the Postman app/workspace are **mirrors, never the source** (not versioned or
   reviewed). CI keeps the workspace mirror fresh: the `postman-sync` workflow pushes
-  `docs/postman/**` to the workspace on every `develop` change (needs `POSTMAN_API_KEY` secret +
-  `POSTMAN_WORKSPACE_ID` variable; syncs by name — see `docs/postman/README.md`). Edits made in
+  `docs/postman/**` to the workspace on every Forgejo `develop` change (needs `POSTMAN_API_KEY` secret +
+  `POSTMAN_WORKSPACE_ID` variable set in Forgejo; syncs by name — see `docs/postman/README.md`). Edits made in
   the Postman UI are overwritten on the next sync.
 
 ## Scope discipline

@@ -56,8 +56,8 @@ public class HarnessSmokeTests(IntegrationTestFactory factory)
     {
         // Two owners, two tenants. Each calls the identical route with their own token; the JWT tenant_id
         // claim drives the global filter, so neither can see the other's household or members.
-        var a = await _factory.SeedUserAsync(TenantRoles.Owner);
-        var b = await _factory.SeedUserAsync(TenantRoles.Owner);
+        var pair = await TwoTenants.SeedAsync(() => _factory.SeedUserAsync(TenantRoles.Owner), user => user.TenantId);
+        var (a, b) = (pair.MineSeed, pair.OtherSeed);
 
         var bodyA = await _factory.CreateClientFor(a).GetFromJsonAsync<HouseholdDto>("/api/household");
         var bodyB = await _factory.CreateClientFor(b).GetFromJsonAsync<HouseholdDto>("/api/household");

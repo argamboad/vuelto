@@ -93,7 +93,9 @@ public class MerchantMappingSliceTests(PostgresFixture fixture) : PostgresTestBa
     [Fact]
     public async Task Update_ChangesTheRule_RejectsAClash_AndIsTenantScoped()
     {
-        var c = await ContextAsync();
+        // Two real households, each with its own categories (R146): the second one is who must not reach A's rule.
+        var pair = await TwoTenants.SeedAsync(() => ContextAsync(), ctx => ctx.Tenant);
+        var (c, other) = (pair.MineSeed, pair.OtherSeed);
         var a = (await c.Handler.CreateAsync(new("AutoMercado", c.GroceriesId, null), default)).Mapping!;
         var b = (await c.Handler.CreateAsync(new("Walmart", c.GroceriesId, null), default)).Mapping!;
 
@@ -104,7 +106,6 @@ public class MerchantMappingSliceTests(PostgresFixture fixture) : PostgresTestBa
         Assert.Equal("mapping_exists", (await c.Handler.UpdateAsync(a.Id, new("WALMART", c.DiningId, null), default)).Error!.Error);
         Assert.Equal("invalid_request", (await c.Handler.UpdateAsync(b.Id, new("Walmart", c.InactiveId, null), default)).Error!.Error);
 
-        var other = await ContextAsync();
         Assert.Equal("not_found", (await other.Handler.UpdateAsync(a.Id, new("X", other.GroceriesId, null), default)).Error!.Error);
         Assert.False(await other.Handler.DeleteAsync(a.Id, default));
         Assert.Equal(2, (await c.Handler.ListAsync(default)).Count);

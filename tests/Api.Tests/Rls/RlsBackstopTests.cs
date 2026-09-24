@@ -16,8 +16,8 @@ namespace Vuelto.Api.Tests.Rls;
 [Collection(PostgresCollection.Name)]
 public sealed class RlsBackstopTests(PostgresFixture fixture) : IAsyncLifetime
 {
-    private readonly Guid _tenantA = Guid.CreateVersion7();
-    private readonly Guid _tenantB = Guid.CreateVersion7();
+    private Guid _tenantA;
+    private Guid _tenantB;
     private string RuntimeCs => RlsTestSetup.RuntimeConnectionString(fixture.ConnectionString);
 
     public async Task InitializeAsync()
@@ -27,17 +27,15 @@ public sealed class RlsBackstopTests(PostgresFixture fixture) : IAsyncLifetime
             await RlsTestSetup.ProvisionAsync(db);
 
         // One widget per tenant, seeded as the (RLS-exempt) superuser through the normal
-        // tenant-stamping path.
-        await using (var a = fixture.CreateTestContext(_tenantA))
+        // tenant-stamping path. A seeds "a-widget", B "b-widget".
+        var names = new Queue<string>(["a-widget", "b-widget"]);
+        var pair = await TwoTenants.SeedAsync(async tenant =>
         {
-            a.TestWidgets.Add(new TestWidget { Name = "a-widget", CreatedAt = DateTimeOffset.UtcNow });
-            await a.SaveChangesAsync();
-        }
-        await using (var b = fixture.CreateTestContext(_tenantB))
-        {
-            b.TestWidgets.Add(new TestWidget { Name = "b-widget", CreatedAt = DateTimeOffset.UtcNow });
-            await b.SaveChangesAsync();
-        }
+            await using var db = fixture.CreateTestContext(tenant);
+            db.TestWidgets.Add(new TestWidget { Name = names.Dequeue(), CreatedAt = DateTimeOffset.UtcNow });
+            await db.SaveChangesAsync();
+        });
+        (_tenantA, _tenantB) = (pair.Mine, pair.Other);
     }
 
     public Task DisposeAsync() => Task.CompletedTask;

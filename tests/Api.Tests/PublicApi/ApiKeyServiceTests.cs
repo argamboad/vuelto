@@ -150,15 +150,15 @@ public class ApiKeyServiceTests(PostgresFixture fixture) : PostgresTestBase(fixt
     [Fact]
     public async Task List_IsTenantScoped()
     {
-        var mine = Guid.CreateVersion7();
-        var other = Guid.CreateVersion7();
-        await using (var db = Fixture.CreateContext(mine)) await Build(db).CreateAsync(Creator, "mine", null, null, default);
-        await using (var db = Fixture.CreateContext(other)) await Build(db).CreateAsync(Creator, "theirs", null, null, default);
+        var pair = await TwoTenants.SeedAsync(async tenant =>
+        {
+            await using var db = Fixture.CreateContext(tenant);
+            return (await Build(db).CreateAsync(Creator, $"key-{tenant}", null, null, default))!.Key.Id;
+        });
 
-        await using var read = Fixture.CreateContext(mine);
+        await using var read = Fixture.CreateContext(pair.Mine);
         var keys = await Build(read).ListAsync(default);
-        Assert.Single(keys);
-        Assert.Equal("mine", keys[0].Name);
+        Assert.Equal(pair.MineSeed, Assert.Single(keys).Id);
     }
 
     private static ApiKeyService Build(Vuelto.Infrastructure.Persistence.AppDbContext db, TimeProvider? clock = null) =>

@@ -225,8 +225,9 @@ run an automated post-deploy smoke, wire the pipeline in `.github/workflows/ci.y
    `.github/scripts/deploy-smoke.sh`, so the two cannot drift), behind your approval.
 5. **Postman workspace mirror** (optional, same graceful-skip pattern): secret **`POSTMAN_API_KEY`**
    (Postman → Settings → API keys) + variable **`POSTMAN_WORKSPACE_ID`** let the `postman-sync`
-   workflow push `docs/postman/**` to the Postman workspace on every `develop` change — see
-   `docs/postman/README.md`.
+   workflow push `docs/postman/**` to the Postman workspace whenever GitHub's `develop` moves — which,
+   with Forgejo as the primary forge, is at each deploy. The per-merge sync is the Forgejo copy, with the
+   same secret and variable set in Forgejo (§10) — see `docs/postman/README.md`.
 
 ---
 

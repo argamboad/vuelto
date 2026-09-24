@@ -415,7 +415,9 @@ sequenceDiagram
 Divergences: leave by a non-owner just removes the membership + re-homes. Erasure of a plain
 member records `account.erased` in the surviving tenant and does **not** re-home (the account is
 going away). A third dissolve trigger: accepting an invitation as a solo owner dissolves the old
-tenant only when every contributor reports it empty (`HasDataAsync` false). The Stripe cancel is
+tenant only when every contributor reports it empty (`HasDataAsync` false) — through the same
+`TenantDissolutionService`, so its API keys, webhooks, metering and Stripe subscription (none of which count as
+content) go with it; it was once a raw `Tenants.Remove` that orphaned them (v4 audit H5). The Stripe cancel is
 post-commit and idempotent (already-canceled errors swallowed).
 
 ## 12. Line-level walkthrough — OTP verify (the sign-in hot path)

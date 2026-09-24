@@ -29,7 +29,8 @@ Backstop after working through the list: `git grep -i perezosoft` and a search f
   users only ever see it inside Google Authenticator & co.
 - **`docs/postman/`** — the collection's `info.name` ("Perezosoft Platform API"), both environment
   `name`s, and the `Perezosoft.*.json` **file names**. If you rename the files, update the hardcoded
-  collection path in `.github/workflows/postman-sync.yml` in the same commit; and since the sync
+  collection path in **both** `.forgejo/workflows/postman-sync.yml` and `.github/workflows/postman-sync.yml`
+  in the same commit; and since the sync
   matches workspace items **by name**, delete the old-brand copies in the Postman workspace once
   after the first post-rename sync.
 - **`render.yaml`** (v3 audit DEP-12) — two spots: the blueprint's `Email__Smtp__FromName` value

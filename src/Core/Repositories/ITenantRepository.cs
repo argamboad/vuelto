@@ -51,10 +51,6 @@ public interface ITenantRepository
     /// </summary>
     Task<bool> TryTransferOwnershipAsync(Guid tenantId, Guid currentOwnerUserId, Guid targetUserId, CancellationToken cancellationToken = default);
 
-    /// <summary>Hard-deletes a tenant (cascades its data) — used when a solo
-    /// tenant-of-one is dissolved as its owner joins another.</summary>
-    Task DeleteTenantAsync(Guid tenantId, CancellationToken cancellationToken = default);
-
     /// <summary>The tenant's members joined to their user display info.</summary>
     Task<List<TenantMemberDetail>> GetMemberDetailsAsync(Guid tenantId, CancellationToken cancellationToken = default);
 
