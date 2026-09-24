@@ -72,7 +72,7 @@ public static class ServiceCollectionExtensions
 
         // Transactional outbox + background dispatcher (ADR-007). OutboxMessage is staged in the
         // same transaction as the business change; the dispatcher drains it via typed handlers.
-        services.AddSingleton(new OutboxOptions());
+        services.AddSingleton(OutboxOptions.FromConfiguration(configuration)); // Outbox:RetentionDays; fails fast below 1
         services.AddScoped<IOutbox, EfOutbox>();
         services.AddScoped<OutboxProcessor>();
         services.AddScoped<IOutboxHandler>(sp =>
@@ -81,6 +81,10 @@ public static class ServiceCollectionExtensions
         // A dissolved tenant's mail and webhook bodies leave with it (v4 audit H6); each handler declares
         // whether its type does (IOutboxHandler.DissolvesWithItsTenant).
         services.AddScoped<ITenantDataContributor, OutboxDataContributor>();
+        // A finished row's payload is cleared by the processor and the row deleted after Outbox:RetentionDays; an
+        // erased user's pending mail goes with their account (v4 audit H7, decision #6).
+        services.AddScoped<IScheduledJob, OutboxRetentionJob>();
+        services.AddScoped<IUserDataContributor, OutboxUserDataContributor>();
 
         // Outbound webhook delivery (HOOKS, ADR-016): the "webhook" outbox handler signs + POSTs each
         // delivery (retry/backoff via the outbox). Always registered — dormant until webhooks are enabled

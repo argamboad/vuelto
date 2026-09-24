@@ -58,12 +58,12 @@ The seams that matter (all in `src/Core/Abstractions/` unless noted):
 | `ICurrentTenant` / `ITenantContext` | one scoped `HttpCurrentTenant` serving both | tenant of the request / trusted system entry — ADR-003, ADR-020 |
 | `IEmailSender` | `OutboxEmailSender` (default) → `SmtpEmailSender` (keyed `"smtp"`) | all email (HTML + CID inline images + file attachments ≤ 10 MiB total); MailKit never leaks past `Infrastructure/Email/` |
 | `IOutbox` / `IOutboxHandler` / `IInbox` | `EfOutbox` / 4 handlers / `EfInbox` | reliable async effects — ADR-007 |
-| `IScheduledJob` | `ExpiredTokenCleanupJob`, `SubscriptionLapseSweepJob` | recurring jobs, no host edits — ADR-007 |
+| `IScheduledJob` | `ExpiredTokenCleanupJob`, `SubscriptionLapseSweepJob`, `OutboxRetentionJob`, `EmailPollJob` | recurring jobs, no host edits — ADR-007 |
 | `IBillingProvider` | `StripeBillingProvider` / `FakeBillingProvider` (dev only, fail-closed at startup) | ADR-006 |
 | `IEntitlementService` / `IQuotaService` | `EntitlementService` / `QuotaService` | plan gates (402) and atomic countable limits — ADR-006 |
 | `IPermissionService` | `PermissionService` over the `RolePermissions` matrix | capability checks, not role checks — ADR-009 |
 | `IFileStorage` / `IFileDownloadTokenizer` | `LocalDiskFileStorage` / `S3FileStorage` | tenant-scoped blobs, signed URLs — ADR-010 |
-| `ITenantDataContributor` (×17) / `IUserDataContributor` (×5) | per-slice contributors | export + erasure without central code — ADR-011 |
+| `ITenantDataContributor` (×17) / `IUserDataContributor` (×6) | per-slice contributors | export + erasure without central code — ADR-011 |
 | `IAuditLog` | `AuditLog` (append-only via interceptor) | ADR-008 |
 | `IOutboundUrlGuard` | `OutboundUrlGuard` | SSRF guard for tenant-supplied URLs — ADR-016 |
 | `IRepository<T>` / `IUnitOfWork` | `EfRepository<T>` / `EfUnitOfWork` | generic data access; `Query()` auto-scoped, `QueryAllTenants()` greppable |
@@ -86,7 +86,7 @@ flowchart TB
     end
     subgraph userdata ["IUserDataContributor - account erasure (GDPR-2)"]
         UDC["IUserDataContributor"]
-        UDC --- U1["Mfa"] & U2["Notification"] & U3["Income"] & U4["EmailConnection"] & U5["DisplaySettings"]
+        UDC --- U1["Mfa"] & U2["Notification"] & U3["Income"] & U4["EmailConnection"] & U5["DisplaySettings"] & U6["Outbox"]
     end
 ```
 

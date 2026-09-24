@@ -102,7 +102,9 @@ members → `MustTransferFirst`; solo owner → dissolve (contributors wipe + co
 `account.erased` audited in the surviving tenant. Endpoint `DELETE /api/auth/me`
 (`?confirm_dissolve=true`) on `AuthController` → 204 / 400 / 409 / 401. Tests
 `tests/Api.Tests/Gdpr/AccountErasureTests.cs` (member keeps-tenant + audit, solo-owner confirm/dissolve,
-owner-with-members blocked, no-confirm erases nothing, unknown user).
+owner-with-members blocked, no-confirm erases nothing, unknown user). *2026-09-24 (v4 audit H7):* erasure also
+removes mail still queued for the user (`OutboxUserDataContributor`, matched on the recipient) — a notification
+is queued with no tenant, so no dissolve reaches it; finished outbox rows already carry no payload.
 
 **As a** user
 **I want** to delete my account and personal data

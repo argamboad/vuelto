@@ -42,7 +42,8 @@ background
 [`IUnitOfWork`](../../src/Infrastructure/Repositories/EfUnitOfWork.cs) in the **same `SaveChanges`**
 as the business change — atomic by construction. A `BackgroundService` (`OutboxDispatcher`) polls
 unsent rows, invokes a typed handler, and marks sent; failures retry with backoff and land in a
-**dead-letter** state after N attempts. `OutboxMessage` is **not** `ITenantScoped` (it's platform
+**dead-letter** state after N attempts (since v4 audit H7 a finished row is stamped, its payload cleared,
+and the row deleted after `Outbox:RetentionDays`). `OutboxMessage` is **not** `ITenantScoped` (it's platform
 infra and may carry system effects) but stores an optional owning `TenantId` (stamped by the email sender since
 v4 audit H6, and the key a dissolve removes content-bearing rows by — `OutboxDataContributor`). This
 slice **migrates the existing email sends** (passwordless, invitations) to enqueue → handler, on

@@ -14,7 +14,8 @@ namespace Vuelto.Infrastructure.Email;
 /// The message is stamped with the ambient tenant (v4 audit H6): an invitation or an export carries a
 /// household's content, and the stamp is what lets that household's dissolve remove it
 /// (<c>OutboxDataContributor</c>). Mail sent outside any tenant — a sign-in code, a platform broadcast's
-/// fan-out — stays tenant-less.
+/// fan-out — stays tenant-less; account erasure removes a user's pending mail by address instead
+/// (<c>OutboxUserDataContributor</c>, v4 audit H7).
 /// </para>
 /// </summary>
 public sealed class OutboxEmailSender(IOutbox outbox, AppDbContext db, ICurrentTenant currentTenant) : IEmailSender

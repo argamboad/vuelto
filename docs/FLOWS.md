@@ -343,7 +343,7 @@ sequenceDiagram
 
 Divergences: any failure in T2 → rollback of every staged row, then attempt bookkeeping in a
 separate transaction: `attempt_count++`, backoff `10s × 2^(n−1)`, dead-letter at 5 (terminal — no
-automatic replay). SMTP send in T3 is a non-transactional external effect inside a DB
+automatic replay; `processed_at` stamped and the payload cleared, as on success — v4 audit H7). SMTP send in T3 is a non-transactional external effect inside a DB
 transaction: a crash between send and commit re-sends the email (documented, accepted).
 Per-tenant `announce` (not announce-all) fans out synchronously inside one request transaction
 instead.

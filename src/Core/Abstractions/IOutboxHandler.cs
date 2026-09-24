@@ -24,5 +24,13 @@ public interface IOutboxHandler
     /// </summary>
     bool DissolvesWithItsTenant { get; }
 
+    /// <summary>
+    /// Whether a finished row of this type (sent or dead) keeps its payload (v4 audit H7, decision #6). False for
+    /// every delivery instruction — the payload is cleared to <c>{}</c> and the row deleted after
+    /// <c>Outbox:RetentionDays</c>. True only when the payload is itself the record of the action and carries no
+    /// personal data (the platform broadcast's attribution); such rows are neither cleared nor purged.
+    /// </summary>
+    bool KeepsPayloadWhenDone { get; }
+
     Task HandleAsync(OutboxMessage message, CancellationToken cancellationToken = default);
 }

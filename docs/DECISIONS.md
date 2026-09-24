@@ -475,6 +475,12 @@ Constraints recorded:
    *(Built 2026-09-24, v4 audit H6: until then nothing did it. `OutboxDataContributor` removes the tenant's
    rows of every type whose handler declares `DissolvesWithItsTenant` — mail and webhook bodies — and keeps
    `billing.cancel`, which the dissolve itself queues.)*
+   *(Amended 2026-09-24, v4 audit H7 / decision #6 — retention: a finished row (sent or dead) is stamped and
+   its payload cleared to `{}`, and `OutboxRetentionJob` deletes it after `Outbox:RetentionDays` (default 30).
+   A handler may declare its payload a record (`KeepsPayloadWhenDone`): only `admin.broadcast`, the sole
+   attribution of a platform-wide announcement, which carries no personal data and is kept whole. Account
+   erasure removes the user's pending mail by recipient. Attachments stay inline in the payload — capped at
+   10 MiB — rather than moving to `IFileStorage`; revisit when a downstream needs more.)*
 3. **At-least-once delivery ⇒ all handlers must be idempotent** — the same contract billing webhooks
    need (ADR-006).
 4. **First consumer is the existing email path** — passwordless and invitation sends currently call
