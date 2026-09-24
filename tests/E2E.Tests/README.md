@@ -14,6 +14,9 @@ pwsh tools/e2e.ps1 -Filter "FullyQualifiedName~Billing"   # a slice
 `tools/e2e.ps1` starts this repo's `db` + `mail` containers, builds, installs Chromium, then runs the API and the web
 app **with the E2E overrides as command-line settings** — mail into this repo's Mailpit, the raised sign-in rate
 limit, the fake billing provider, the test staff address — waits until both answer, runs the suite and stops both.
+Like CI, the run gets its own database: `e2e`, dropped and recreated in this repo's Postgres container each time and
+migrated + seeded by the API at startup, so the journeys see CI's seed data (not your grown dev catalog) and your dev
+database never collects test users and households.
 Your `.env` is never touched, so it can keep real mail (Brevo) and Stripe test keys for everyday development. It
 refuses to start if an API or web app is already listening on this repo's ports (that one would send real mail).
 Ports come from the compose defaults and launch profiles (README → Local ports). The manual steps below are what

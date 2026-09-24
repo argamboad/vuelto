@@ -9,6 +9,12 @@
   billing provider, and the test staff address. This script starts the API and the web app with exactly those
   overrides as command-line settings (which beat .env), waits until both answer, runs tests/E2E.Tests, and stops both.
 
+  The run gets its own database, as CI's does: `e2e`, dropped and recreated in this repo's Postgres container at the
+  start of every run, then migrated and seeded by the API at startup. So the journeys see exactly the seed data CI
+  sees - not whatever your dev database has grown into (a full imported catalog changes what they assert) - and
+  your dev database never collects test users and households. The `e2e` database stays after the run for
+  inspection and is replaced by the next one.
+
   Ports come from the same sources LocalPortsTests reads - the docker-compose defaults and the launch profiles - so
   this file is the same in perezosoft-platform, y-el-vuelto and jigger-jot. Local Dev Alignment L12.
 
@@ -39,9 +45,18 @@ Set-Location $root
 # --- this repo's port block ---------------------------------------------------------------------------------------
 $compose = Get-Content (Join-Path $root 'docker-compose.yml') -Raw
 function Get-ComposeDefault([string]$var) {
-    $m = [regex]::Match($compose, '\$\{' + $var + ':-(\d+)\}')
-    if (-not $m.Success) { throw "docker-compose.yml has no `${$($var):-<port>} default" }
+    $m = [regex]::Match($compose, '\$\{' + $var + ':-([^}]+)\}')
+    if (-not $m.Success) { throw "docker-compose.yml has no `${$($var):-<value>} default" }
     $m.Groups[1].Value
+}
+# DB credentials: .env's value when it sets one (compose reads the same file), else the compose default.
+$dotenv = Join-Path $root '.env'
+function Get-DbSetting([string]$var) {
+    if (Test-Path $dotenv) {
+        $line = Select-String -Path $dotenv -Pattern "^$var=(.*)$" | Select-Object -First 1
+        if ($line) { return ($line.Matches[0].Groups[1].Value -replace '\s+#.*$', '').Trim().Trim('"') }
+    }
+    Get-ComposeDefault $var
 }
 function Get-HttpsUrl([string]$project) {
     $json = Get-Content (Join-Path $root "src/$project/Properties/launchSettings.json") -Raw
@@ -49,6 +64,9 @@ function Get-HttpsUrl([string]$project) {
     if (-not $m.Success) { throw "src/$project launchSettings has no https://localhost:<port> profile" }
     "https://localhost:$($m.Groups[1].Value)"
 }
+$dbPort = Get-DbSetting 'DB_PORT'   # what compose actually publishes
+$dbUser = Get-DbSetting 'DB_USER'
+$dbPassword = Get-DbSetting 'DB_PASSWORD'
 $smtpPort = Get-ComposeDefault 'MAIL_SMTP_PORT'
 $mailUi = "http://localhost:$(Get-ComposeDefault 'MAIL_UI_PORT')"
 $api = Get-HttpsUrl 'Api'
@@ -71,6 +89,12 @@ foreach ($url in @($api, $web)) {
 docker compose -f (Join-Path $root 'docker-compose.yml') up -d --wait db mail
 if ($LASTEXITCODE -ne 0) { throw 'docker compose could not start db + mail (is Docker running?)' }
 
+# A fresh e2e database for this run (the API migrates and seeds it at startup, as in CI).
+docker compose -f (Join-Path $root 'docker-compose.yml') exec -T db psql -U $dbUser -d postgres -v ON_ERROR_STOP=1 -q `
+    -c 'DROP DATABASE IF EXISTS e2e WITH (FORCE)' -c 'CREATE DATABASE e2e'
+if ($LASTEXITCODE -ne 0) { throw "could not recreate the e2e database in this repo's db container" }
+Write-Host 'E2E database: e2e (recreated; your dev database is not touched)'
+
 if (-not $NoBuild) {
     foreach ($project in 'src/Api', 'src/Web', 'tests/E2E.Tests') {
         dotnet build $project -c Debug --nologo -v q
@@ -85,6 +109,7 @@ pwsh $playwright.FullName install chromium | Out-Null
 $logs = Join-Path ([System.IO.Path]::GetTempPath()) "$repo-e2e"
 New-Item -ItemType Directory -Force $logs | Out-Null
 $overrides = @(
+    "--ConnectionStrings:DefaultConnection=Host=localhost;Port=$dbPort;Database=e2e;Username=$dbUser;Password=$dbPassword",
     '--Email:Smtp:Host=localhost', "--Email:Smtp:Port=$smtpPort", '--Email:Smtp:Username=', '--Email:Smtp:Password=',
     '--Auth:RateLimit:PasswordlessPermitLimit=1000',   # the journeys sign in many users from one IP
     '--Admin:StaffEmails:0=e2e-staff@example.com',     # AnnouncementJourneyTests.StaffEmail
