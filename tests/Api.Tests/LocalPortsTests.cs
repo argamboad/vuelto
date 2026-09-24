@@ -45,6 +45,11 @@ public class LocalPortsTests
             Expect("playwright.runsettings", m.Groups[1].Value, block.WebHttps);
         foreach (Match m in Regex.Matches(Read("tests/E2E.Tests/README.md"), @"localhost:(\d+)"))
             if (!block.All.Contains(m.Groups[1].Value)) failures.Add($"tests/E2E.Tests/README.md: localhost:{m.Groups[1].Value} is not one of this repo's ports");
+        // .env.example's comments name ports too (the RLS connection, the Stripe hint, the Mailpit default); the shared
+        // Aspire Dashboard's OTLP 4317 and UI 18888 are the machine's, not any one app's.
+        foreach (Match m in Regex.Matches(env, @"localhost:(\d+)"))
+            if (!block.All.Contains(m.Groups[1].Value) && m.Groups[1].Value is not ("4317" or "18888"))
+                failures.Add($".env.example: localhost:{m.Groups[1].Value} is not one of this repo's ports");
 
         var row = ReadmeRows().SingleOrDefault(r => r.Name.Contains("(this repo)", StringComparison.Ordinal));
         if (row is null) failures.Add("README.md: the Local ports table has no row marked (this repo)");
