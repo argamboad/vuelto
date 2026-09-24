@@ -135,6 +135,68 @@ public class ForgejoCiParityTests
     }
 
     [Fact]
+    public void ChangedFileLists_AreByteSafe_InBothCopies() // v4 audit LB-DEP-2 (R137)
+    {
+        // By default git prints a path holding a byte >= 0x80 quoted and escaped: `src/Api/Features/Añadir.cs`
+        // comes out as "src/Api/Features/AÃ±adir.cs". That no longer starts with `src/`, so the classifier
+        // calls a code change code=false native=false docs=false and the push runs no gate at all. Turning
+        // core.quotePath off makes git print the name as it is.
+        foreach (var file in new[] { GitHubCi, ForgejoCi })
+        {
+            var yml = Read(file);
+            Assert.Contains("git -c core.quotePath=false diff --name-only", yml, StringComparison.Ordinal);
+            Assert.DoesNotMatch(@"git diff --name-only", yml);
+        }
+    }
+
+    [Fact]
+    public void EveryCheckout_LeavesNoTokenBehind() // v4 audit DEP-14 (H2), R98
+    {
+        // Forgejo gives a job a token that can write to the repo and ignores the `permissions:` key GitHub uses
+        // to narrow it. actions/checkout stores that token in the workspace's git config unless told not to,
+        // where anything the job runs afterwards (a NuGet restore without a lockfile, npm, brew) could push with
+        // it. So no checkout, in any workflow on either forge, keeps it.
+        string[] workflows = [GitHubCi, ForgejoCi, DeployWorkflow, ".github/workflows/postman-sync.yml", ".forgejo/workflows/postman-sync.yml"];
+        foreach (var file in workflows)
+        {
+            var lines = Read(file).Split('\n');
+            var checkouts = lines.Select((line, i) => (line, i)).Where(x => x.line.Contains("uses: actions/checkout@", StringComparison.Ordinal)).ToList();
+            Assert.NotEmpty(checkouts);
+            foreach (var (line, i) in checkouts)
+            {
+                // The step runs until the next line indented no deeper than its `- uses:`.
+                var indent = line.IndexOf('-', StringComparison.Ordinal);
+                var body = lines.Skip(i + 1).TakeWhile(l => l.Trim().Length == 0 || l.Length - l.TrimStart().Length > indent);
+                Assert.True(body.Any(l => l.TrimStart().StartsWith("persist-credentials: false", StringComparison.Ordinal)),
+                    $"{file}:{i + 1} checks out without `persist-credentials: false` — the job token would stay in .git/config.");
+            }
+        }
+
+        // The one step that talks to the remote after checkout authenticates for that command only.
+        foreach (var file in new[] { GitHubCi, ForgejoCi })
+        {
+            var qa = Jobs(Read(file))["qa-artifacts"];
+            Assert.Contains("TOKEN: ${{ github.token }}", qa, StringComparison.Ordinal);
+            Assert.Contains("http.extraheader=AUTHORIZATION: basic", qa, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void ForgejoCi_RefusesToRunWhileItsBranchesAreUnprotected() // v4 audit DEP-13 (H1/H2), R98
+    {
+        // Branch protection is what stops the job token from pushing, and it lives in the forge's settings, not
+        // in the repo — so every run checks it, before the classifier decides anything.
+        var changes = Jobs(Read(ForgejoCi))["changes"];
+        var check = changes.IndexOf("/branches/$branch", StringComparison.Ordinal);
+        Assert.True(check >= 0, "the Forgejo `changes` job must read /branches/<name> for develop and main");
+        Assert.True(check < changes.IndexOf("id: diff", StringComparison.Ordinal), "check the protection before classifying the change");
+        Assert.Contains("for branch in develop main", changes, StringComparison.Ordinal);
+        Assert.Contains("\"protected\":true", changes, StringComparison.Ordinal);
+        Assert.Contains("::error::", changes, StringComparison.Ordinal);
+        Assert.Contains("protect-branches.ps1", changes, StringComparison.Ordinal); // the error says how to fix it
+    }
+
+    [Fact]
     public void ForgejoDeploys_RunOnlyFromADispatch_BehindEveryGateAndSelectedSmoke()
     {
         var github = Jobs(Read(GitHubCi));

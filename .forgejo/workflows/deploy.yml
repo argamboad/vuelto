@@ -9,7 +9,8 @@
 # API which jobs ran for THIS commit, and requires every gate below to have a success. Anything else —
 # a missing job, a failure, a docs-only run that skipped the gates, an API it cannot reach — stops the
 # deploy and tells you to use ci.yml's deploy input instead. The job token can read that API (probed
-# 2026-09-22); it cannot write anything.
+# 2026-09-22). Treat it as able to write (v4 audit DEP-14): the checkout below keeps no copy of it, and the
+# branch protection ci.yml checks on every run is what stops it pushing.
 #
 # The deploy steps themselves are identical to ci.yml's deploy jobs: push the commit to the same branch on
 # GitHub (fast-forward, never forced), fire the Render hook, wait for the service to report this commit.
@@ -80,6 +81,7 @@ jobs:
 
       - uses: actions/checkout@v5 # for .github/scripts/deploy-smoke.sh
         with:
+          persist-credentials: false # v4 audit DEP-14: never leave the job token in .git/config
           fetch-depth: 0 # the push to GitHub needs the full history, not a shallow tip
 
       - name: Push the branch to GitHub

@@ -16,6 +16,8 @@ on:
 # comments, or releases — but several execute freshly-downloaded third-party binaries (gitleaks, mailpit,
 # dotnet tools), so the default write-all token would hand those a repo-write credential for no reason.
 # `contents: read` is all `actions/checkout` needs. Grant any future write scope per-job, never here.
+# Every checkout also sets `persist-credentials: false` so no step after it holds the token (v4 audit
+# DEP-14 — the Forgejo copy cannot narrow the token at all, and the two files are held together, R80).
 permissions:
   contents: read
 
@@ -26,6 +28,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false # v4 audit DEP-14: never leave the job token in .git/config
 
       - uses: actions/setup-dotnet@v5
         with:
@@ -92,6 +96,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
+          persist-credentials: false # v4 audit DEP-14: never leave the job token in .git/config
           fetch-depth: 0 # full history so the scan covers every commit, not just the tip
 
       - name: gitleaks
@@ -120,6 +125,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false # v4 audit DEP-14: never leave the job token in .git/config
 
       - uses: actions/setup-python@v6
         with:
@@ -137,8 +144,11 @@ jobs:
       - name: QA run-log is append-only
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          TOKEN: ${{ github.token }}
         run: |
-          if [ -z "$BASE_SHA" ] || ! git fetch --quiet origin "$BASE_SHA" 2>/dev/null; then
+          # The checkout keeps no token (persist-credentials: false), so this one fetch passes it for itself.
+          AUTH="$(printf 'x-access-token:%s' "$TOKEN" | base64 -w0)"
+          if [ -z "$BASE_SHA" ] || ! git -c "http.extraheader=AUTHORIZATION: basic $AUTH" fetch --quiet origin "$BASE_SHA" 2>/dev/null; then
             echo "Diff base unavailable ($BASE_SHA) — skipping the append-only guard."
             exit 0
           fi
@@ -159,6 +169,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false # v4 audit DEP-14: never leave the job token in .git/config
 
       - uses: actions/setup-dotnet@v5
         with:
@@ -199,6 +211,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false # v4 audit DEP-14: never leave the job token in .git/config
 
       - name: Build the production image
         run: docker build -t vuelto-app:ci .
@@ -228,6 +242,8 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false # v4 audit DEP-14: never leave the job token in .git/config
 
       - uses: actions/setup-dotnet@v5
         with:
@@ -292,6 +308,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
+          persist-credentials: false # v4 audit DEP-14: never leave the job token in .git/config
           fetch-depth: 0
       - id: diff
         env:
@@ -311,7 +328,9 @@ jobs:
             exit 0
           fi
 
-          files=$(git diff --name-only "$BASE_SHA" "${{ github.sha }}")
+          # core.quotePath=false: git otherwise prints a non-ASCII path quoted ("src/AÃ±adir.cs"),
+          # which matches no classifier and would skip every gate for a code change (v4 audit LB-DEP-2).
+          files=$(git -c core.quotePath=false diff --name-only "$BASE_SHA" "${{ github.sha }}")
           # A markdown file cannot change what the code does or how it builds, wherever it lives —
           # but the code/native regexes key on DIRECTORY, so tests/E2E.Tests/README.md once billed a
           # full run including both native builds. Strip markdown before those two matches only;
@@ -366,6 +385,8 @@ jobs:
       DEVELOPER_DIR: /Applications/Xcode_26.6.app
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false # v4 audit DEP-14: never leave the job token in .git/config
 
       - uses: actions/setup-dotnet@v5
         with:
@@ -420,6 +441,8 @@ jobs:
       DEVELOPER_DIR: /Applications/Xcode_26.6.app
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false # v4 audit DEP-14: never leave the job token in .git/config
 
       - uses: actions/setup-dotnet@v5
         with:
@@ -563,6 +586,8 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false # v4 audit DEP-14: never leave the job token in .git/config
 
       - uses: actions/setup-dotnet@v5
         with:
@@ -684,6 +709,8 @@ jobs:
         ports: ["1025:1025", "8025:8025"]
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false # v4 audit DEP-14: never leave the job token in .git/config
 
       - uses: actions/setup-dotnet@v5
         with:
@@ -855,6 +882,8 @@ jobs:
         ports: ["1025:1025", "8025:8025"]
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false # v4 audit DEP-14: never leave the job token in .git/config
 
       - uses: actions/setup-dotnet@v5
         with:
@@ -1013,6 +1042,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5 # for .github/scripts/deploy-smoke.sh
+        with:
+          persist-credentials: false # v4 audit DEP-14: never leave the job token in .git/config
 
       - name: Trigger Render deploy
         env:
@@ -1062,6 +1093,8 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@v5 # for .github/scripts/deploy-smoke.sh
+        with:
+          persist-credentials: false # v4 audit DEP-14: never leave the job token in .git/config
 
       - name: Trigger Render prod deploy
         env:

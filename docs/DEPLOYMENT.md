@@ -530,6 +530,12 @@ GitHub's `develop` with auto-deploy off; GitHub keeps its hook and its pipeline)
   API for the smoke). Without Workflows, GitHub refuses any deploy whose commits touch
   `.github/workflows/` — `GH013: … refusing to allow a Personal Access Token to create or update
   workflow` — which is how y-el-vuelto's first deploy died (2026-09-18). One token covers all three repos.
+- **Protect `develop` and `main`** with the platform's `pwsh ./tools/protect-branches.ps1 -Repo
+  argamboad/y-el-vuelto` (`FORGEJO_TOKEN` set to an admin token). Forgejo gives every job a token that can write and
+  ignores the `permissions:` key GitHub uses to narrow it, so the branch rules are what stop CI (or a
+  poisoned build dependency) from pushing. The `changes` job fails every run while either branch is
+  unprotected, and no checkout leaves the token in the workspace (`persist-credentials: false`, v4 audit
+  DEP-13/DEP-14).
 - Variables **`DEPLOY_MIRROR_REPO`** = `argamboad/vuelto`, **`STAGING_BASE_URL`**, **`PROD_BASE_URL`**
   (when prod exists), **`POSTMAN_WORKSPACE_ID`**; secret **`POSTMAN_API_KEY`**.
 
