@@ -312,6 +312,37 @@ public class EnforcementGateTests
         Assert.Contains(".forgejo/workflows/postman-sync.yml", rebranding, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void LogTemplates_NeverCarryAnEmailAddress() // v4 audit OBS-1 (T41), R93
+    {
+        // Logs leave the machine: with ParseStateValues every template placeholder is exported as an indexed
+        // attribute, and staging ships its logs to a third-party store. An email in a template (or interpolated
+        // into one) is personal data sent there on every call, so the log names the user by id instead.
+        var root = RepoRoot();
+        var logCall = new Regex(@"\.Log(?:Trace|Debug|Information|Warning|Error|Critical)\s*\(|\[LoggerMessage\s*\(");
+        var literal = new Regex(@"(\$?)@?""((?:[^""\\]|\\.)*)""");
+        var piiPlaceholder = new Regex(@"\{\s*(?:\w*e-?mail\w*|recipient\w*)\s*(?:[,:][^}]*)?\}", RegexOptions.IgnoreCase);
+        var offenders = new List<string>();
+        foreach (var file in Directory.EnumerateFiles(Path.Combine(root, "src"), "*.cs", SearchOption.AllDirectories))
+        {
+            if (file.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}")) continue;
+            var text = File.ReadAllText(file).ReplaceLineEndings("\n");
+            foreach (Match call in logCall.Matches(text))
+            {
+                var end = text.IndexOf(';', call.Index);
+                var args = text[call.Index..(end < 0 ? text.Length : end)];
+                foreach (Match lit in literal.Matches(args))
+                {
+                    if (!piiPlaceholder.IsMatch(lit.Groups[2].Value)) continue;
+                    var line = text[..call.Index].Count(c => c == '\n') + 1;
+                    offenders.Add($"{Path.GetRelativePath(root, file).Replace('\\', '/')}:{line}  \"{lit.Groups[2].Value}\"");
+                }
+            }
+        }
+        Assert.True(offenders.Count == 0,
+            "Log templates carry an email address; log {UserId} (or another id) instead:\n  " + string.Join("\n  ", offenders));
+    }
+
     private static string RepoRoot()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);

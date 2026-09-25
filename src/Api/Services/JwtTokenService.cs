@@ -73,7 +73,7 @@ public class JwtTokenService(IJwtSettings settings, TimeProvider clock, ILogger<
         );
 
         var jwt = new JwtSecurityTokenHandler().WriteToken(token);
-        logger.LogInformation("JWT issued for user {Email} (id: {UserId})", email, userId);
+        logger.LogInformation("JWT issued for user {UserId}", userId);
 
         return jwt;
     }

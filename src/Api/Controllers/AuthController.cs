@@ -123,7 +123,7 @@ public class AuthController(
                 return Redirect($"{appSettings.ClientUrl}/login?mfa={Uri.EscapeDataString(challenge)}");
 
             cookieService.SetRefreshTokenCookie(Response, session!.RefreshToken, Request);
-            logger.LogInformation("OAuth callback successful for user: {Email} via {Provider}", email, provider);
+            logger.LogInformation("OAuth callback successful for user {UserId} via {Provider}", user.Id, provider);
             return Redirect($"{appSettings.ClientUrl}/auth-callback");
         }
         catch (UnverifiedEmailConflictException)

@@ -285,7 +285,7 @@ public class TenantInvitationService(
         {
             // Delivery is best-effort — the owner can still share the raw token returned
             // in the API response.
-            logger.LogWarning(ex, "Failed to send invitation email to {Email}", email);
+            logger.LogWarning(ex, "Failed to send the invitation email from user {InviterUserId}", inviterUserId);
         }
     }
 }
