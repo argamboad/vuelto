@@ -271,7 +271,7 @@ list in `__0`.
 | `Admin__StaffEmails__0…` | optional | platform-staff allowlist |
 | `ConnectionStrings__Migrations` | prod (two-role RLS) | owner/migrator connection — startup migrations do DDL (§7) |
 | `Rls__EnforceRuntimeRole` | prod (two-role RLS) | `true` — fail-closed startup check that RLS actually applies (§7) |
-| `OpenTelemetry__Otlp__Endpoint` | optional | collector **base** URL; empty ⇒ nothing exported. Grafana Cloud: `https://otlp-gateway-<region>.grafana.net/otlp` plus the SDK's `OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf` and `OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic <base64 instanceId:token>` — the app appends `/v1/traces` / `/v1/metrics` / `/v1/logs` itself; **logs are exported too** (message + tenant/user scope + trace id), and the metrics include the .NET runtime (memory, GC, CPU, thread pool) and the Npgsql connection pool, so an error line and its trace sit side by side in Grafana — the host's own log stream (Render → Logs) keeps the console copy |
+| `OpenTelemetry__Otlp__Endpoint` | optional | collector **base** URL; empty ⇒ nothing exported. Grafana Cloud: `https://otlp-gateway-<region>.grafana.net/otlp` plus the SDK's `OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf` and `OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic <base64 instanceId:token>` — the app appends `/v1/traces` / `/v1/metrics` / `/v1/logs` itself; **logs are exported too** (message + tenant/user scope + trace id), and the metrics include the .NET runtime (memory, GC, CPU, thread pool) and the Npgsql connection pool, so an error line and its trace sit side by side in Grafana — the host's own log stream (Render → Logs) keeps the console copy; what leaves the host: §11 |
 
 This table is the deploy-oriented subset (what to set to go live). For the **complete list of every
 configurable key and its default** — plus what's compiled-in and *not* configurable — see the
@@ -586,6 +586,20 @@ ref), or Render → Deploys → Redeploy.
 **Laptop off = no deploy.** GitHub is the other route: `git push github develop` deploys as it always did.
 
 ---
+
+## 11. Observability — what leaves the host (v4 audit OBS-1, decision #7)
+
+When `OpenTelemetry__Otlp__Endpoint` is set (staging: Grafana Cloud), the app exports logs, traces and metrics
+over OTLP to that collector, a **third-party processor** of whatever it receives.
+
+- **What leaves:** log messages and their fields (user and household ids, provider names, status codes), request
+  traces (routes, timings, status) and runtime metrics.
+- **What never leaves:** email addresses (held by `EnforcementGateTests.LogTemplates_NeverCarryAnEmailAddress`:
+  logs name the user by `{UserId}`), tokens and card data.
+- **Retention:** whatever the collector's plan keeps; the app sets none.
+- **Production:** a deploy that exports to Grafana (or any collector outside your own infrastructure) must list it
+  as a data processor in the privacy policy. Leave the endpoint empty and nothing is exported; the host's own log
+  stream (Render → Logs) still has the console copy.
 
 ## Prod, later
 
