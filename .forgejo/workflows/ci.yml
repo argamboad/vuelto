@@ -1164,8 +1164,13 @@ jobs:
             # indented line (no namespace), so the filter matches on the name, and a renamed journey simply
             # moves shard. An empty shard means the parse broke, and that must fail loudly rather than
             # quietly test nothing.
-            names=$(dotnet test tests/E2E.Tests/Vuelto.E2E.Tests.csproj -c Debug --no-build --list-tests \
-                    | tr -d '\r' | sed -n 's/^    \([A-Za-z0-9_]\{4,\}\).*$/\1/p' | sort -u)
+            listed=$(dotnet test tests/E2E.Tests/Vuelto.E2E.Tests.csproj -c Debug --no-build --list-tests | tr -d '\r')
+            names=$(echo "$listed" | sed -n 's/^    \([A-Za-z0-9_]\{4,\}\).*$/\1/p' | sort -u)
+            # Journeys are selected below by exact Name=, and the test filter cannot express a parameterised
+            # case's `Foo(args)` (NUnit's adapter rejects an escaped parenthesis). None exist; if one ever does,
+            # say so here rather than let its cases be silently skipped.
+            param=$(echo "$listed" | sed -n 's/^    \([A-Za-z0-9_]\{4,\}\)(.*$/\1/p' | sort -u | paste -sd' ' -)
+            [ -z "$param" ] || { echo "::error::parameterised journeys cannot be sharded by exact name: $param. Give each case its own [Test], or teach this step to select them."; exit 1; }
             # --list-tests ignores --filter, so the [Explicit] native smoke (category NativeSmoke, run by its own
             # job) is dropped here by name, read from its source, and kept out of the run filter below too,
             # whatever the NUnit adapter does with [Explicit] (v4 T12).
@@ -1180,10 +1185,9 @@ jobs:
             [ -n "$mine" ] || { echo "::error::shard ${{ matrix.shard }} of 3 matched none of the $total journeys"; exit 1; }
             echo "shard ${{ matrix.shard }} of 3: $(echo "$mine" | grep -c . || true) of $total journeys"
             echo "$mine" | sed 's/^/  /'
-            # Anchored, never a bare substring: `FullyQualifiedName~Foo` also matched FooBar, which then ran in
-            # two shards (v4 DEP-22). Name=Foo selects the plain journey; a parameterised one lists as
-            # `Foo(args)`, and `.Foo\(` keeps all its cases in this shard without matching any other name.
-            filter="($(echo "$mine" | sed 's/.*/Name=&|FullyQualifiedName~.&\\(/' | paste -sd'|'))&TestCategory!=NativeSmoke"
+            # Exact Name=, never a bare substring: `FullyQualifiedName~Foo` also matched FooBar, which then ran in
+            # two shards (v4 DEP-22). Checked against the real NUnit adapter, which rejects `\(` in a filter value.
+            filter="($(echo "$mine" | sed 's/.*/Name=&/' | paste -sd'|'))&TestCategory!=NativeSmoke"
 
             dotnet test tests/E2E.Tests/Vuelto.E2E.Tests.csproj -c Debug --no-build \
               --filter "$filter" \

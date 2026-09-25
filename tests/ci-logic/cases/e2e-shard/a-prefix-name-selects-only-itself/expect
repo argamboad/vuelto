@@ -1,8 +1,7 @@
 exit 0
 +shard 2 of 3: 4 of 12 journeys
-+Name=Signin|FullyQualifiedName~.Signin\(
++|Name=Signin)
 -SigninWithMfa
--~Signin|
--~Signin)
+-~Signin
 +&TestCategory!=NativeSmoke
 -Native_App_Boots
