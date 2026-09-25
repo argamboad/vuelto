@@ -84,6 +84,8 @@ app (UI components go in the Shared.Ui RCL).
 8. **UI** → nav entry + component in the Shared.Ui RCL, and add the resx (`.resx`) strings (EN/ES).
    **Namespace your keys per feature** (`Notes_Title`, `Notes_Empty`, …) — `AppStrings.resx` is one
    shared file, and unprefixed keys (`Title`, `Empty`) collide across slices (v3 audit / Phase-4 obs).
+   Both halves are enforced: `ResourceParityTests` fails on a key without a `<Feature>_` prefix or declared
+   twice, and a duplicate also fails `dotnet build` (MSB3568 is promoted to an error, v4 T9).
 
 **Reference:** `src/Api/Features/Notes` is a complete, working example (marked "🗑️ DELETE-ME").
 Copy its shape; delete it when you ship your first real feature.

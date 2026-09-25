@@ -1,0 +1,3 @@
+exit 1
++DEPLOY_MIRROR_TOKEN / DEPLOY_MIRROR_REPO are not
+-STUB git push

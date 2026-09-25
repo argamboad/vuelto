@@ -165,7 +165,7 @@ by QA-ADMIN-01..07. The **public API (PUBAPI)** and **outbound webhooks (HOOKS)*
 UI-less (they're for machines) and **config-gated off** — they have **manual curl/Postman cases in §14b**
 (QA-API-01..06), in addition to automated tests.
 
-**Automated in CI (Web):** a Playwright/NUnit E2E suite (`tests/E2E.Tests`, currently 34 journeys)
+**Automated in CI (Web):** a Playwright/NUnit E2E suite (`tests/E2E.Tests`, currently 37 journeys)
 runs against the real booted stack on every push — the `e2e` job in `.github/workflows/ci.yml`. Every
 case it covers is marked **⚙️ Automated in CI** on its title (≈35 cases across auth, MFA, i18n,
 household/roster, invitations, notifications, admin, billing, theme, and GDPR — the case titles are

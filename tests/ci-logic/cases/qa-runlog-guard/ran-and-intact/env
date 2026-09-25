@@ -1,0 +1,4 @@
+BASE_SHA=base
+TOKEN=t
+FAKE_GIT_SHOW=base.md
+EVENT=pull_request

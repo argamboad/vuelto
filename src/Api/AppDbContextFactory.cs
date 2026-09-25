@@ -25,7 +25,7 @@ public class AppDbContextFactory : IDesignTimeDbContextFactory<AppDbContext>
     {
         // Load .env so design-time tooling sees the same config as the running app. No-op when
         // there's no .env (CI/prod), where the connection string comes from real env vars.
-        try { DotNetEnv.Env.TraversePath().Load(); } catch { /* no .env present */ }
+        LocalDotEnv.Load();
 
         var connectionString =
             Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")

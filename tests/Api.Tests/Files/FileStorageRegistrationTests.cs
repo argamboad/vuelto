@@ -39,7 +39,7 @@ public class FileStorageRegistrationTests
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
 
         var services = new ServiceCollection();
-        services.AddInfrastructure(configuration, new FakeHostEnvironment(Environments.Development));
+        services.AddInfrastructure(configuration, new FakeHostEnvironment(Environments.Development), billingEnabled: false);
 
         return services.LastOrDefault(d => d.ServiceType == typeof(IFileStorage))?.ImplementationType;
     }

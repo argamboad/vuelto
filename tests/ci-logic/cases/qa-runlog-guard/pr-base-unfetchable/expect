@@ -1,0 +1,4 @@
+exit 1
++guard=skipped
++could not fetch this pull request's base
+-guard=ran

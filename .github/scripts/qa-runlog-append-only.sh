@@ -34,7 +34,8 @@ executed_rows="$(printf '%s\n' "$base_block" | awk -F'|' '
   /^\|/ {
     line=$0                                                  # keep the raw line — touching $N rebuilds $0
     caseId=$2; gsub(/^[ \t]+|[ \t]+$/, "", caseId)
-    if (caseId == "Case ID" || caseId ~ /^-+$/ || caseId == "…") next   # header / separator / ellipsis rows
+    # header / separator / ellipsis rows; a separator may be colon-aligned (:---, ---:, :---:), v4 DEP-22
+    if (caseId == "Case ID" || caseId ~ /^:?-+:?$/ || caseId == "…") next
     tester=$5; date=$7
     gsub(/[ \t]/, "", tester); gsub(/[ \t]/, "", date)
     if (tester != "" || date != "") print line

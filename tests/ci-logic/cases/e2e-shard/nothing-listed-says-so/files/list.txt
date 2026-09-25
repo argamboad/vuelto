@@ -1,0 +1,4 @@
+  Determining projects to restore...
+Test run for /w/Vuelto.E2E.Tests.dll (.NETCoreApp,Version=v10.0)
+A total of 1 test files matched the specified pattern.
+The following Tests are available:

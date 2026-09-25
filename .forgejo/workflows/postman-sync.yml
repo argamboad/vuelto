@@ -21,8 +21,8 @@ on:
     paths: ["docs/postman/**", ".forgejo/workflows/postman-sync.yml"]
   workflow_dispatch:
 
-permissions:
-  contents: read
+# `permissions:` is left out: Forgejo does not support that key (it warns and ignores it), so the job token
+# is treated as able to write. Why that is safe here: the note above ci.yml's `defaults:` (v4 audit DEP-14/27).
 
 concurrency:
   group: postman-sync

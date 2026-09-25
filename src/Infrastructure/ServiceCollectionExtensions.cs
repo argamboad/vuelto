@@ -37,7 +37,8 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddInfrastructure(
         this IServiceCollection services,
         IConfiguration configuration,
-        IHostEnvironment environment)
+        IHostEnvironment environment,
+        bool billingEnabled)
     {
         // Persistence
         services.AddDbContext<AppDbContext>(options =>
@@ -61,7 +62,7 @@ public static class ServiceCollectionExtensions
             .SetApplicationName("template");
 
         // Email — dev: points to Mailpit via appsettings.Development.json
-        services.Configure<SmtpSettings>(configuration.GetSection("Email:Smtp"));
+        services.Configure<SmtpSettings>(configuration.GetSection(SmtpSettings.SectionName));
         // The real SMTP sender, registered KEYED so the outbox handler can resolve it without
         // getting the outbox decorator (the default IEmailSender) back.
         services.AddKeyedTransient<IEmailSender, SmtpEmailSender>("smtp");
@@ -119,7 +120,7 @@ public static class ServiceCollectionExtensions
         // webhook signature (FakeBillingProvider), and the webhook endpoint is anonymous, so registering
         // it outside Development would accept forged, unauthenticated cross-tenant billing writes. Fail
         // fast at startup instead, so a misconfigured production deploy cannot boot with the fake.
-        services.Configure<StripeSettings>(configuration.GetSection("Billing:Stripe"));
+        services.Configure<StripeSettings>(configuration.GetSection(StripeSettings.SectionName));
         var stripeKey = configuration["Billing:Stripe:SecretKey"];
         if (!string.IsNullOrEmpty(stripeKey))
         {
@@ -147,7 +148,9 @@ public static class ServiceCollectionExtensions
         // deployment this gate exists for: published, free, no Stripe account. The fake stays registered
         // because tenant dissolve still asks the provider to cancel (BillingDataContributor), where it is
         // an inert no-op. `BillingControllers_AreAllGated` is what keeps "no reachable webhook" true.
-        else if (environment.IsDevelopment() || !configuration.GetValue("Billing:Enabled", false))
+        // billingEnabled is the host's bound BillingSettings.Enabled, passed in rather than re-read here, so the
+        // switch that removes the billing routes and the one that relaxes this check can't disagree (v4 T6, BILL-4).
+        else if (environment.IsDevelopment() || !billingEnabled)
             services.AddScoped<IBillingProvider, FakeBillingProvider>();
         else
             throw new InvalidOperationException(
@@ -161,8 +164,8 @@ public static class ServiceCollectionExtensions
         // bucket is configured; otherwise local disk — the dev/test default with zero setup. Same
         // config-presence switch as the billing provider. Keys are tenant-scoped and validated
         // server-side by the impl. The download tokenizer backs the local-disk /api/files endpoint.
-        services.Configure<LocalFileStorageSettings>(configuration.GetSection("Storage:Local"));
-        services.Configure<S3StorageSettings>(configuration.GetSection("Storage:S3"));
+        services.Configure<LocalFileStorageSettings>(configuration.GetSection(LocalFileStorageSettings.SectionName));
+        services.Configure<S3StorageSettings>(configuration.GetSection(S3StorageSettings.SectionName));
         services.AddSingleton<IFileDownloadTokenizer, FileDownloadTokenizer>();
         if (!string.IsNullOrEmpty(configuration["Storage:S3:Bucket"]))
         {

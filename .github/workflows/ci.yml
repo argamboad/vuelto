@@ -139,24 +139,36 @@ jobs:
           cd docs && python check_qa_artifacts.py
 
       # The §16 sign-off sheet is the QA RUN LOG — executed (tester/date-stamped) rows are history
-      # and must survive verbatim; re-runs append a new row (v3 audit S0-G5, T49 / R75). Unknown
-      # diff base (force push, branch creation) fails OPEN, mirroring the `changes` gate.
+      # and must survive verbatim; re-runs append a new row (v3 audit S0-G5, T49 / R75). An unknown base
+      # on a push (force push, branch creation) skips with a notice, mirroring the `changes` gate; on a pull
+      # request the base always exists, so failing to fetch it FAILS the step (v4 DEP-22).
       - name: QA run-log is append-only
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
           TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
         run: |
+          # ci-logic begin: qa-runlog-guard
           # The checkout keeps no token (persist-credentials: false), so this one fetch passes it for itself.
+          # guard=ran / guard=skipped is printed either way: a quiet skip used to look exactly like a pass.
           AUTH="$(printf 'x-access-token:%s' "$TOKEN" | base64 -w0)"
           if [ -z "$BASE_SHA" ] || ! git -c "http.extraheader=AUTHORIZATION: basic $AUTH" fetch --quiet origin "$BASE_SHA" 2>/dev/null; then
-            echo "Diff base unavailable ($BASE_SHA) — skipping the append-only guard."
+            echo "guard=skipped"
+            if [ "$EVENT" = "pull_request" ]; then
+              echo "::error::could not fetch this pull request's base ($BASE_SHA), so the QA run-log guard would check nothing. Re-run the job; if it fails again, the runner cannot fetch from this forge."
+              exit 1
+            fi
+            echo "::notice::Diff base unavailable ($BASE_SHA) — the QA run-log guard is skipped for this run."
             exit 0
           fi
           if ! git show "$BASE_SHA:docs/QA_TEST_PLAN.md" > /tmp/qa-plan-base.md 2>/dev/null; then
+            echo "guard=skipped"
             echo "QA plan absent at the diff base — nothing to guard."
             exit 0
           fi
+          echo "guard=ran"
           bash .github/scripts/qa-runlog-append-only.sh /tmp/qa-plan-base.md docs/QA_TEST_PLAN.md
+          # ci-logic end: qa-runlog-guard
 
   # Dependency license scan (v2 audit B11-6, R26). Inventories every NuGet license in the main app's
   # graph (direct + transitive) and FAILS only on clearly-incompatible copyleft licenses
@@ -315,6 +327,7 @@ jobs:
           # A pull request diffs against its base; a push against what was there before.
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
+          # ci-logic begin: changes-classifier
           # Unknown base — a force push, a new branch, a scheduled or dispatched run — FAILS OPEN.
           # Skipping a gate because the diff could not be read is the one failure mode worth
           # spending thirty minutes to avoid.
@@ -322,7 +335,7 @@ jobs:
             {
               echo "code=true"
               echo "native=true"
-              echo "docs=false"
+              echo "docs=true"
             } >> "$GITHUB_OUTPUT"
             echo "::notice::Diff base unavailable — running every gate."
             exit 0
@@ -333,19 +346,26 @@ jobs:
           files=$(git -c core.quotePath=false diff --name-only "$BASE_SHA" "${{ github.sha }}")
           # A markdown file cannot change what the code does or how it builds, wherever it lives —
           # but the code/native regexes key on DIRECTORY, so tests/E2E.Tests/README.md once billed a
-          # full run including both native builds. Strip markdown before those two matches only;
-          # docs= still sees everything, so markdown under docs/ keeps counting as docs.
-          codefiles=$(printf '%s\n' "$files" | grep -vE '\.md$' || true)
+          # full run including both native builds. Strip markdown (any case: README.MD too) before those
+          # two matches; docs= still sees everything, so markdown under docs/ keeps counting as docs.
+          # Except the markdown that tests READ (testdocs): a docs PR that edits one can break the test
+          # that reads it, so it must run the tests (v4 T2, R97) — but never the native legs, which get the
+          # plain stripped list. A test that reads a new markdown file fails
+          # EnforcementGateTests.EveryRepoFileTheTestsRead_ClassifiesAsCode until it is listed here.
+          testdocs='^(README\.md|CLAUDE\.md|docs/(DEPLOYMENT|DATA_MODEL|QA_TEST_PLAN|REBRANDING)\.md|docs/postman/README\.md|docs/stories/e2e\.md|tests/E2E\.Tests/README\.md)$'
+          nativefiles=$(printf '%s\n' "$files" | grep -viE '\.md$' || true)
+          codefiles=$( { printf '%s\n' "$nativefiles"; printf '%s\n' "$files" | grep -E "$testdocs"; } || true)
           match() { printf '%s\n' "$1" | grep -qE "$2" && echo true || echo false; }
 
-          # Anything that can change what the code DOES or how it is built. Lockfiles and the
-          # workflow itself are in here on purpose: a change to either can break a build that no
-          # source file touched.
-          code=$(match "$codefiles" '^(src/|tests/|Directory\.Packages\.props|Directory\.Build\.props|global\.json|Dockerfile|docker-compose\.yml|\.config/dotnet-tools\.json|\.github/(workflows/ci\.yml|scripts/)|.*packages\.lock\.json)')
+          # Anything that can change what the code DOES or how it is built, and every file a test or gate
+          # reads: lockfiles, both forges' workflows and scripts, the license list, .dockerignore, the
+          # config catalog, tools/, the Postman collection and the markdown in testdocs. Identical in both
+          # workflow copies. A path counts as code if in doubt; skipping a gate is the expensive mistake.
+          code=$(match "$codefiles" '^(src/|tests/|tools/|[^/]+\.slnx?$|Directory\.Packages\.props|Directory\.Build\.props|global\.json|Dockerfile|\.dockerignore|docker-compose\.yml|\.env\.example|\.config/dotnet-tools\.json|\.github/(workflows/|scripts/|forbidden-licenses\.json)|\.forgejo/(workflows/|scripts/)|.*packages\.lock\.json|docs/postman/|README\.md$|CLAUDE\.md$|docs/(DEPLOYMENT|DATA_MODEL|QA_TEST_PLAN|REBRANDING)\.md$|docs/stories/e2e\.md$)')
 
-          # Narrower, and unchanged from the old native-paths regex: what the expensive native legs
-          # can actually be broken by.
-          native=$(match "$codefiles" '^(src/|tests/E2E\.Tests/|tests/native-smoke-android/|Directory\.Packages\.props|\.github/workflows/ci\.yml|global\.json)')
+          # Narrower: what the expensive native legs can actually be broken by, incl. the solution-wide
+          # build props and the native publish script (v4 NAT-16).
+          native=$(match "$nativefiles" '^(src/|tests/E2E\.Tests/|tests/native-smoke-android/|Directory\.Packages\.props|Directory\.Build\.props|global\.json|tools/publish-native\.ps1|\.(github|forgejo)/workflows/ci\.yml)')
 
           {
             echo "code=$code"
@@ -354,6 +374,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
           [ "$code" = "true" ] || echo "::notice::No code touched — build, test, e2e, docker and license gates skipped."
+          # ci-logic end: changes-classifier
 
   # Apple half of the native build gate (NATIVE-1). Develop pushes only, and only when the push
   # touched native-relevant paths (see `changes`): macOS runners bill at 10× on a private repo.
@@ -513,7 +534,7 @@ jobs:
           done
           [ "$api" = "200" ] || { echo "::error::API did not become ready"; tail -60 api.log; exit 1; }
 
-          probes() { grep -c 'Request finished.*GET.*/api/auth/providers.*200' api.log || true; }
+          probes() { grep -cE 'Request finished [^ ]+ GET [^ ]*/api/auth/providers - 200 ' api.log || true; }
 
           echo "=== Mac Catalyst: launch + boot-to-login ==="
           CAT_BIN=$(ls src/Maui/bin/Debug/net10.0-maccatalyst/maccatalyst-*/*.app/Contents/MacOS/* | head -1)
@@ -646,7 +667,7 @@ jobs:
           $app = Start-Process -FilePath $exe -PassThru
           Write-Host "Waiting for the login page's provider probe (app pid $($app.Id))..."
 
-          function Probes { (Select-String -Path api.log -Pattern 'Request finished.*GET.*/api/auth/providers.*200' -ErrorAction SilentlyContinue | Measure-Object).Count }
+          function Probes { (Select-String -Path api.log -Pattern 'Request finished [^ ]+ GET [^ ]*/api/auth/providers - 200 ' -ErrorAction SilentlyContinue | Measure-Object).Count }
           $ok = $false
           foreach ($i in 1..40) {   # up to 2 min — first Blazor boot in a cold WebView2 is slow
             if ($app.HasExited) { Write-Host "::error::the Windows app process exited after launch (startup crash)"; break }
@@ -863,7 +884,7 @@ jobs:
       fail-fast: false
       matrix:
         # Three shards, one per port lane (each lane takes one job at a time, so two shards can never
-        # share a daemon and collide on the fixed ports). 35 journeys × ~15 s each was ~7 min of every
+        # share a daemon and collide on the fixed ports). 37 journeys × ~15 s each was ~7 min of every
         # run; split three ways it is ~2.5 min, at the cost of booting the stack three times.
         shard: [1, 2, 3]
     runs-on: ubuntu-latest
@@ -963,25 +984,40 @@ jobs:
           # defaults (https://localhost:7008 — every journey then fails with ERR_CONNECTION_REFUSED).
           export PLAYWRIGHT_BASE_URL=http://localhost:5269 MAILPIT_BASE_URL=http://localhost:8026 \
             E2E_API_BASE_URL=http://localhost:5338
+            # ci-logic begin: e2e-shard
             # Shard the journeys: list them, keep every third. `--list-tests` prints one method name per
             # indented line (no namespace), so the filter matches on the name, and a renamed journey simply
             # moves shard. An empty shard means the parse broke, and that must fail loudly rather than
             # quietly test nothing.
-            names=$(dotnet test tests/E2E.Tests/Vuelto.E2E.Tests.csproj -c Debug --no-build --list-tests \
-                    | tr -d '\r' | sed -n 's/^    \([A-Za-z0-9_]\{4,\}\).*$/\1/p' | sort -u)
-            total=$(echo "$names" | grep -c .)
+            listed=$(dotnet test tests/E2E.Tests/Vuelto.E2E.Tests.csproj -c Debug --no-build --list-tests | tr -d '\r')
+            names=$(echo "$listed" | sed -n 's/^    \([A-Za-z0-9_]\{4,\}\).*$/\1/p' | sort -u)
+            # Journeys are selected below by exact Name=, and the test filter cannot express a parameterised
+            # case's `Foo(args)` (NUnit's adapter rejects an escaped parenthesis). None exist; if one ever does,
+            # say so here rather than let its cases be silently skipped.
+            param=$(echo "$listed" | sed -n 's/^    \([A-Za-z0-9_]\{4,\}\)(.*$/\1/p' | sort -u | paste -sd' ' -)
+            [ -z "$param" ] || { echo "::error::parameterised journeys cannot be sharded by exact name: $param. Give each case its own [Test], or teach this step to select them."; exit 1; }
+            # --list-tests ignores --filter, so the [Explicit] native smoke (category NativeSmoke, run by its own
+            # job) is dropped here by name, read from its source, and kept out of the run filter below too,
+            # whatever the NUnit adapter does with [Explicit] (v4 T12).
+            native=$(grep -l 'Category("NativeSmoke")' tests/E2E.Tests/*.cs \
+                     | xargs sed -n 's/^ *public [a-zA-Z<> ]* \([A-Za-z0-9_]\{4,\}\)(.*$/\1/p')
+            names=$(echo "$names" | grep -vxF "$native" || true)
+            # `|| true`: grep -c exits 1 on a zero count, and under `bash -e` that killed the step before the
+            # error below could say why (v4 DEP-22).
+            total=$(echo "$names" | grep -c . || true)
             [ "$total" -ge 10 ] || { echo "::error::only $total journeys listed — the --list-tests parse broke"; exit 1; }
             mine=$(echo "$names" | awk -v s=${{ matrix.shard }} -v n=3 'NR % n == s % n')
             [ -n "$mine" ] || { echo "::error::shard ${{ matrix.shard }} of 3 matched none of the $total journeys"; exit 1; }
-            echo "shard ${{ matrix.shard }} of 3: $(echo "$mine" | grep -c .) of $total journeys"
+            echo "shard ${{ matrix.shard }} of 3: $(echo "$mine" | grep -c . || true) of $total journeys"
             echo "$mine" | sed 's/^/  /'
-            # FullyQualifiedName~ (substring), not Name= (exact): a parameterised journey prints as
-            # `Foo(args)`, and matching the base name keeps all its cases in one shard instead of none.
-            filter=$(echo "$mine" | sed 's/^/FullyQualifiedName~/' | paste -sd'|')
+            # Exact Name=, never a bare substring: `FullyQualifiedName~Foo` also matched FooBar, which then ran in
+            # two shards (v4 DEP-22). Checked against the real NUnit adapter, which rejects `\(` in a filter value.
+            filter="($(echo "$mine" | sed 's/.*/Name=&/' | paste -sd'|'))&TestCategory!=NativeSmoke"
 
             dotnet test tests/E2E.Tests/Vuelto.E2E.Tests.csproj -c Debug --no-build \
               --filter "$filter" \
               --logger "trx;LogFileName=e2e.trx" --results-directory "$PWD/e2e-results"
+            # ci-logic end: e2e-shard
 
 
       # Which journeys cost the time. The suite is ~85% of this job (7m11s total, 5m55s of it tests —
@@ -990,6 +1026,7 @@ jobs:
       - name: Slowest journeys
         if: always()
         run: |
+          # ci-logic begin: slowest-journeys
           python3 - <<'PY'
           import glob, xml.etree.ElementTree as ET
           files = glob.glob("e2e-results/*.trx")
@@ -997,10 +1034,13 @@ jobs:
               print("no .trx written — nothing to report"); raise SystemExit
           ns = {"t": "http://microsoft.com/schemas/VisualStudio/TeamTest/2010"}
           rows = []
-          for r in ET.parse(files[0]).getroot().findall(".//t:UnitTestResult", ns):
+          results = ET.parse(files[0]).getroot().findall(".//t:UnitTestResult", ns)
+          for r in results:
               d = r.get("duration") or "0:00:00"
               h, m, s = d.split(":")
               rows.append((float(h) * 3600 + float(m) * 60 + float(s), r.get("testName", "?"), r.get("outcome", "?")))
+          if not rows:  # a run that died before any journey finished (v4 DEP-22: this divided by zero)
+              print(f"{files[0]} holds no test results — nothing to report"); raise SystemExit
           rows.sort(reverse=True)
           total = sum(x[0] for x in rows)
           print(f"{len(rows)} journeys, {total/60:.1f} min of test time (wall clock is lower only if they run in parallel)")
@@ -1009,12 +1049,15 @@ jobs:
               print(f"{secs:7.1f}  {outcome:<8} {name.split('.')[-1][:80]}")
           slow = sum(x[0] for x in rows[:5])
           print(f"\nthe 5 slowest are {slow/total*100:.0f}% of the suite's time")
-          trx = open(files[0], encoding="utf-8").read()
-          boots = trx.count("[blazor-boot] attempt")
-          print(f"Blazor boot retries: {boots}" + ("  <- the app's loader died and was reloaded (BlazorBoot.cs); each one says why:" if boots else ""))
-          for line in sorted({l.strip() for l in trx.splitlines() if "[blazor-boot] attempt" in l}):
+          # Each journey's own output only: counting the marker anywhere in the .trx also counted the copy the
+          # run summary repeats, so every retry was reported twice (v4 DEP-22).
+          boots = [line.strip() for r in results for out in r.findall("t:Output/t:StdOut", ns)
+                   for line in (out.text or "").splitlines() if "[blazor-boot] attempt" in line]
+          print(f"Blazor boot retries: {len(boots)}" + ("  <- the app's loader died and was reloaded (BlazorBoot.cs); each one says why:" if boots else ""))
+          for line in boots:
               print("   ", line[:220])
           PY
+          # ci-logic end: slowest-journeys
 
       - name: Server logs (on failure)
         if: failure()

@@ -551,6 +551,19 @@ GitHub's `develop` with auto-deploy off; GitHub keeps its hook and its pipeline)
 | **Run workflow**, `deploy=prod` (on `main`) | same, `deploy-prod` | |
 | Monday 06:00 UTC | all three smokes (the weekly safety net for legs that no longer run per push) | |
 
+"Docs only" means no file a test or gate reads. Markdown is free wherever it sits (README.MD included),
+except the few files the tests read (the root README and CLAUDE.md, this runbook, DATA_MODEL, QA_TEST_PLAN,
+REBRANDING, the Postman README, the E2E story and README): those count as code, like both forges' workflows
+and scripts, `tools/`, `.env.example`, `.dockerignore` and the Postman collection. The lists are the
+`changes` step's `code=` and `testdocs=`, identical in both workflows; `EveryRepoFileTheTestsRead_ClassifiesAsCode`
+fails when a test starts reading a file they miss (v4 T2).
+
+CI's own pass/fail logic (that classifier, the QA run-log guard, the e2e sharding, the slowest-journeys report,
+the push to GitHub) is shell, awk and Python, and `tests/ci-logic/` runs it for real against fixtures:
+`bash tests/ci-logic/run.sh` on any Linux box, and inside `Api.Tests` on the Linux leg
+(`EnforcementGateTests.CiShellLogic_PassesItsFixtures`). Each block is marked `# ci-logic begin/end: <name>` in the
+workflow; change one and its fixtures tell you what else changed (v4 T8).
+
 By default the native smokes and the deploys never run on a push. Pick both inputs in one dispatch to
 smoke and deploy in a single run.
 
@@ -572,8 +585,9 @@ Any value not listed reads as the default (an unknown `CI_SMOKES_ON_PUSH` matche
 **Two deploy buttons.** *CI* → **Run workflow** → `deploy=staging` runs every gate first and then deploys
 (~15 min): the right one for a commit that has not been tested yet. **Deploy (already green)** → **Run
 workflow** → `target=staging` deploys a commit whose gates already passed (~2 min) — it verifies that
-against this Forgejo's own API first and refuses if any gate is missing, red, or skipped, so the shortcut
-cannot become "deploy something untested". Both publish the same way, and both refuse a branch/target
+against this Forgejo's own API first, looking only at the newest attempt of each job, and refuses if any gate
+or matrix leg is missing, red, skipped or still running, or if a native smoke that ran went red, so the shortcut
+cannot become "deploy something untested" (the verdict is fixture-tested in `tests/ci-logic/`, v4 T4). Both publish the same way, and both refuse a branch/target
 mismatch (staging deploys from `develop`, prod from `main`).
 
 **How a deploy runs.** `deploy-staging` pushes the commit to `develop` **on GitHub**

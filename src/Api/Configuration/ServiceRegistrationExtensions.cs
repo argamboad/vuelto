@@ -97,7 +97,7 @@ public static class ServiceRegistrationExtensions
         // Platform-staff admin surface (ADMIN, ADR-014). Staff is an out-of-band config allowlist; the admin
         // endpoints gate on it per-request. Cross-tenant reads use EnterTenant / non-scoped tables — the global
         // filter is never loosened.
-        services.Configure<PlatformAdminSettings>(config.GetSection("Admin"));
+        services.Configure<PlatformAdminSettings>(config.GetSection(PlatformAdminSettings.SectionName));
         services.AddScoped<IPlatformStaffService, PlatformStaffService>();
         return services;
     }

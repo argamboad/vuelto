@@ -6,9 +6,10 @@
 # laptop you are also working on.
 #
 # It does NOT take anyone's word for "it was green". Before touching anything it asks this Forgejo's own
-# API which jobs ran for THIS commit, and requires every gate below to have a success. Anything else —
-# a missing job, a failure, a docs-only run that skipped the gates, an API it cannot reach — stops the
-# deploy and tells you to use ci.yml's deploy input instead. The job token can read that API (probed
+# API which jobs ran for THIS commit and requires the newest attempt of every gate to be a success, every
+# matrix leg included, and any native smoke that ran to have passed. Anything else — a missing job, a
+# failure, a re-run still going, a docs-only run that skipped the gates, an API it cannot reach — stops
+# the deploy and tells you to use ci.yml's deploy input instead. The job token can read that API (probed
 # 2026-09-22). Treat it as able to write (v4 audit DEP-14): the checkout below keeps no copy of it, and the
 # branch protection ci.yml checks on every run is what stops it pushing.
 #
@@ -24,6 +25,9 @@ on:
         type: choice
         default: staging
         options: [staging, prod]
+
+# `permissions:` is left out: Forgejo does not support that key (it warns and ignores it), so the job token
+# is treated as able to write. Why that is safe here: the note above ci.yml's `defaults:` (v4 audit DEP-14/27).
 
 defaults:
   run:
@@ -48,7 +52,11 @@ jobs:
           API: ${{ github.server_url }}/api/v1/repos/${{ github.repository }}
           TOKEN: ${{ github.token }}
           SHA: ${{ github.sha }}
+          # ci.yml's own matrix sizes (native-build legs, e2e shards); ForgejoCiParityTests holds them equal.
+          NATIVE_LEGS: 2
+          E2E_SHARDS: 3
         run: |
+          # ci-logic begin: already-green
           command -v jq > /dev/null || { echo "::error::jq is missing from the runner image — cannot verify, refusing to deploy."; exit 1; }
 
           # Job-level history, newest first. Five pages is far more than a day of runs on this instance.
@@ -61,23 +69,34 @@ jobs:
             [ "$(jq '.workflow_runs | length' /tmp/page.json)" -lt 50 ] && break
           done
 
-          green() { jq -r --arg n "$1" 'select(.name == $n and .status == "success") | .name' /tmp/jobs.json | head -1; }
+          # Only the newest attempt of each job counts (v4 LB-DEP-3): a job that passed and was re-run red is red,
+          # and a re-run still going is not green yet. Any success found, however old, used to be enough.
+          jq -cs 'group_by(.name) | map(max_by(.id)) | .[]' /tmp/jobs.json > /tmp/newest.json
+          status() { jq -r --arg n "$1" 'select(.name == $n) | .status' /tmp/newest.json; }
           missing=""
           for job in changes build-test secret-scan qa-artifacts license-scan docker-build; do
-            [ -n "$(green "$job")" ] || missing="$missing $job"
+            [ "$(status "$job")" = "success" ] || missing="$missing $job"
           done
-          # Two matrices: native-build (Android + Windows) and e2e (3 shards). Every leg must have passed —
-          # counting them is what stops a half-run from looking green.
-          natives=$(jq -r 'select(.name | startswith("native-build (")) | select(.status == "success") | .name' /tmp/jobs.json | sort -u | wc -l)
-          [ "$natives" -ge 2 ] || missing="$missing native-build($natives/2)"
-          shards=$(jq -r 'select(.name | startswith("e2e (")) | select(.status == "success") | .name' /tmp/jobs.json | sort -u | wc -l)
-          [ "$shards" -ge 3 ] || missing="$missing e2e($shards/3)"
+          # Matrix jobs: EVERY leg must be green — one red leg refuses even when the green ones reach the
+          # count — and the count must reach ci.yml's own matrix size, so a half-run is not green either.
+          for matrix in "native-build:$NATIVE_LEGS" "e2e:$E2E_SHARDS"; do
+            name="${matrix%%:*}"; want="${matrix##*:}"
+            red=$(jq -r --arg p "$name (" 'select(.name | startswith($p)) | select(.status != "success") | "\(.name)=\(.status)"' /tmp/newest.json | paste -sd' ' -)
+            ok=$(jq -r --arg p "$name (" 'select(.name | startswith($p)) | select(.status == "success") | .name' /tmp/newest.json | grep -c . || true)
+            [ -z "$red" ] || missing="$missing $red"
+            [ "$ok" -ge "$want" ] || missing="$missing $name($ok/$want)"
+          done
+          # A native smoke runs only when it was selected. One that ran must have passed, exactly as ci.yml's
+          # deploy jobs require; one that was skipped does not block.
+          red=$(jq -r 'select(.name | startswith("native-smoke")) | select(.status != "success" and .status != "skipped") | "\(.name)=\(.status)"' /tmp/newest.json | paste -sd' ' -)
+          [ -z "$red" ] || missing="$missing $red"
 
           if [ -n "$missing" ]; then
-            echo "::error::$SHA has no green run of these gates:$missing — refusing to deploy. Run ci.yml with deploy=${{ github.event.inputs.target }}, which runs the gates and then deploys."
+            echo "::error::$SHA is not green in its newest ci.yml run:$missing — refusing to deploy. Run ci.yml with deploy=${{ github.event.inputs.target }}, which runs the gates and then deploys."
             exit 1
           fi
-          echo "Every gate is green for $SHA (native smokes are not required here, exactly as in ci.yml)."
+          echo "Every gate is green for $SHA in its newest ci.yml run, and every native smoke that ran passed (as ci.yml's deploy requires)."
+          # ci-logic end: already-green
 
       - uses: actions/checkout@v5 # for .github/scripts/deploy-smoke.sh
         with:

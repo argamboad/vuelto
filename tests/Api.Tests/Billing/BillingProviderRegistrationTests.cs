@@ -108,7 +108,10 @@ public class BillingProviderRegistrationTests
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
 
         var services = new ServiceCollection();
-        services.AddInfrastructure(configuration, new FakeHostEnvironment(environmentName));
+        // The switch is bound the way Program binds it and passed in, as the host does (v4 T6).
+        var billing = new Vuelto.Api.Configuration.BillingSettings();
+        configuration.GetSection(Vuelto.Api.Configuration.BillingSettings.SectionName).Bind(billing);
+        services.AddInfrastructure(configuration, new FakeHostEnvironment(environmentName), billing.Enabled);
 
         return services.LastOrDefault(d => d.ServiceType == typeof(IBillingProvider))?.ImplementationType;
     }

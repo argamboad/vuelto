@@ -8,7 +8,7 @@
 @inject IStringLocalizer<AppStrings> Localizer
 
 <select class="form-select form-select-sm lang-switcher" value="@_current" data-testid="language-switcher"
-        @onchange="OnChange" aria-label="@Localizer["Language"]">
+        @onchange="OnChange" aria-label="@Localizer["Common_Language"]">
     @foreach (var c in Cultures)
     {
         <option value="@c.Code">@c.Name</option>

@@ -1,0 +1,2 @@
+FAKE_DOTNET_LIST=list.txt
+CI_matrix_shard=2

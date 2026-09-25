@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Vuelto.Api.Tests.Configuration;
 
 namespace Vuelto.Api.Tests;
 
@@ -47,47 +48,158 @@ public class DocAndConfigSyncTests
     {
         // R20/CON-2: every Section:Key literal read via IConfiguration is documented — either in an
         // appsettings*.json (as a nested path) or in .env.example (as Section__Key). Catches config drift
-        // where code reads a key nobody declared. Scoped to dotted literals at config-access sites.
+        // where code reads a key nobody declared. Scoped to config-access sites (ReadKeysIn).
         var documented = DocumentedConfigPaths();
 
         var readKeys = new HashSet<string>(StringComparer.Ordinal);
-        var access = new Regex(@"(?:GetSection|GetValue<[^>]*>|GetValue|configuration|config|Configuration)\s*[\(\[]\s*""([A-Za-z][A-Za-z0-9]*(?::[A-Za-z0-9]+)+)""");
-        // Keys hoisted into a const are read via the identifier, so the call-site regex above never sees the
-        // literal — a blind spot that silently exempted whole files (Proxy:*, Rls:*) from this gate. Capture
-        // the declarations too, so naming a key doesn't opt it out of being documented.
-        var constKey = new Regex(@"const\s+string\s+\w+\s*=\s*""([A-Za-z][A-Za-z0-9]*(?::[A-Za-z0-9]+)+)""");
-        // v3 TR-9 (T47): two more read shapes the gate was blind to. (1) A SINGLE-segment GetSection
-        // ("Admin") binds a whole options class without any dotted literal at the call site. (2) Raw
-        // Environment.GetEnvironmentVariable reads bypass IConfiguration entirely (deploy-injected
-        // values like APP_BUILD_COMMIT) — Section__Sub names map onto config paths; FLAT names must be
-        // documented verbatim in .env.example.
-        var sectionOnly = new Regex(@"GetSection\s*\(\s*""([A-Za-z][A-Za-z0-9]*)""\s*\)");
-        var envRead = new Regex(@"Environment\.GetEnvironmentVariable\s*\(\s*""([A-Za-z_][A-Za-z0-9_]*)""\s*\)");
         foreach (var f in SourceFiles(Path.Combine(RepoRoot(), "src")))
-        {
-            var text = File.ReadAllText(f);
-            foreach (Match m in access.Matches(text))
-                readKeys.Add(m.Groups[1].Value);
-            foreach (Match m in constKey.Matches(text))
-                readKeys.Add(m.Groups[1].Value);
-            foreach (Match m in sectionOnly.Matches(text))
-                readKeys.Add(m.Groups[1].Value);
-            foreach (Match m in envRead.Matches(text))
-                readKeys.Add(m.Groups[1].Value.Contains("__") ? m.Groups[1].Value.Replace("__", ":") : m.Groups[1].Value);
-        }
+            readKeys.UnionWith(ReadKeysIn(File.ReadAllText(f)));
 
-        // A read key is OK if it equals a documented path, is a prefix of one (a section), or a documented
-        // path is a prefix of it (a leaf under a documented section).
-        var undocumented = readKeys
-            .Where(k => !documented.Any(d =>
-                d.Equals(k, StringComparison.Ordinal)
-                || d.StartsWith(k + ":", StringComparison.Ordinal)
-                || k.StartsWith(d + ":", StringComparison.Ordinal)))
-            .OrderBy(k => k)
-            .ToList();
+        var undocumented = readKeys.Where(k => !IsDocumented(k, documented)).OrderBy(k => k).ToList();
 
         Assert.True(undocumented.Count == 0,
             $"Config keys read in code but not in appsettings*.json or .env.example: {string.Join(", ", undocumented)}");
+    }
+
+    [Fact]
+    public void ReadKeysIn_SeesEveryReadShape()
+    {
+        // Self-test of the extractor: each shape once blinded the gate (v3 TR-9; v4 OBS-3 for the flat read).
+        Assert.Contains("Reports:Limit", ReadKeysIn("""var x = configuration.GetValue<int>("Reports:Limit");"""));
+        Assert.Contains("Reports:Limit", ReadKeysIn("""private const string LimitKey = "Reports:Limit";"""));
+        Assert.Contains("Reports", ReadKeysIn("""services.Configure<X>(config.GetSection("Reports"));"""));
+        Assert.Contains("APP_BUILD_COMMIT", ReadKeysIn("""Environment.GetEnvironmentVariable("APP_BUILD_COMMIT")"""));
+        Assert.Contains("OTEL_EXPORTER_OTLP_PROTOCOL", ReadKeysIn("""var p = configuration["OTEL_EXPORTER_OTLP_PROTOCOL"];"""));
+    }
+
+    // v4 T6 (ADV-P4-10, R153): a settings class bound through its SectionName constant never shows a literal at
+    // the call site, so the literal scan above can't see its section or its keys. Reflect over the classes
+    // instead. Classes that implement a Core I*Settings interface are built key by key in SettingsProvider from
+    // literals the scan above already reads; every other *Settings class is bound from a section and must name it.
+
+    [Fact]
+    public void EverySectionBoundSettingsClass_DeclaresItsSectionName()
+    {
+        var unnamed = SettingsCatalog.ConfigBound().Where(t => !SettingsCatalog.IsBuiltKeyByKey(t) && SettingsCatalog.SectionNameOf(t) is null).Select(t => t.FullName).ToList();
+        Assert.True(unnamed.Count == 0,
+            $"Settings classes bound from config must declare `public const string SectionName`: {string.Join(", ", unnamed)}");
+    }
+
+    [Fact]
+    public void EverySettingsSection_AndItsProperties_AreDocumented()
+    {
+        var missing = UndocumentedSettings(SettingsCatalog.All(), DocumentedConfigPaths());
+        Assert.True(missing.Count == 0,
+            $"Settings bound from config but not in appsettings*.json or .env.example: {string.Join(", ", missing)}");
+    }
+
+    [Fact]
+    public void UndocumentedSettings_CatchesANewSlicesSection()
+    {
+        // The audit's case: a new slice ships ReportsSettings with a one-word section nobody documented.
+        var documented = new HashSet<string>(StringComparer.Ordinal) { "Billing:Enabled" };
+        Assert.Equal(["Reports", "Reports:Enabled", "Reports:MaxRows"], UndocumentedSettings([typeof(ReportsSettings)], documented));
+
+        documented.UnionWith(["Reports:Enabled", "Reports:MaxRows"]);
+        Assert.Empty(UndocumentedSettings([typeof(ReportsSettings)], documented));
+    }
+
+    [Fact]
+    public void SettingsClasses_AreBoundThroughTheirSectionName()
+    {
+        // One binding mechanism: GetSection(XxxSettings.SectionName), never the section repeated as a literal that a
+        // rename would miss.
+        var sections = SettingsCatalog.All().Select(SettingsCatalog.SectionNameOf).OfType<string>().ToList();
+        var offenders = SourceFiles(Path.Combine(RepoRoot(), "src"))
+            .SelectMany(f => sections
+                .Where(s => Regex.IsMatch(File.ReadAllText(f), $@"GetSection\s*\(\s*""{Regex.Escape(s)}""\s*\)"))
+                .Select(s => $"{Path.GetFileName(f)}: GetSection(\"{s}\")"))
+            .ToList();
+        Assert.True(offenders.Count == 0, $"Bind settings through their SectionName constant: {string.Join(", ", offenders)}");
+    }
+
+    [Fact]
+    public void AGatedSwitch_IsReadOnlyThroughItsSettingsClass()
+    {
+        // BILL-4: Program bound BillingSettings while Infrastructure re-read "Billing:Enabled" raw. The two reads must
+        // agree (one removes the billing routes, the other relaxes the Stripe startup check), and a section rename
+        // would change only one. A *Settings.Enabled switch is read through the class, never as a literal.
+        var gated = SettingsCatalog.All()
+            .Where(SettingsCatalog.HasEnabledSwitch)
+            .Select(t => SettingsCatalog.SectionNameOf(t)!)
+            .OfType<string>()
+            .ToList();
+        Assert.NotEmpty(gated); // probe alive: Billing, PublicApi, Webhooks
+
+        var offenders = SourceFiles(Path.Combine(RepoRoot(), "src"))
+            .SelectMany(f => gated
+                .Where(s => File.ReadAllText(f) is var text
+                            && (text.Contains($"\"{s}:Enabled\"", StringComparison.Ordinal)
+                                || text.Contains($"\"{s}__Enabled\"", StringComparison.Ordinal)))
+                .Select(s => $"{Path.GetFileName(f)} reads {s}:Enabled raw"))
+            .ToList();
+        Assert.True(offenders.Count == 0, $"Read gated switches through their settings class: {string.Join(", ", offenders)}");
+    }
+
+    /// <summary>Every config key a source text reads, in each read shape the gate knows.</summary>
+    internal static HashSet<string> ReadKeysIn(string text)
+    {
+        var keys = new HashSet<string>(StringComparer.Ordinal);
+        foreach (Match m in DottedAccess.Matches(text)) keys.Add(m.Groups[1].Value);
+        foreach (Match m in ConstKey.Matches(text)) keys.Add(m.Groups[1].Value);
+        foreach (Match m in SectionOnly.Matches(text)) keys.Add(m.Groups[1].Value);
+        foreach (Match m in FlatIndexer.Matches(text)) keys.Add(m.Groups[1].Value);
+        foreach (Match m in EnvRead.Matches(text))
+            keys.Add(m.Groups[1].Value.Contains("__") ? m.Groups[1].Value.Replace("__", ":") : m.Groups[1].Value);
+        return keys;
+    }
+
+    private static readonly Regex DottedAccess = new(@"(?:GetSection|GetValue<[^>]*>|GetValue|configuration|config|Configuration)\s*[\(\[]\s*""([A-Za-z][A-Za-z0-9]*(?::[A-Za-z0-9]+)+)""");
+    // Keys hoisted into a const are read via the identifier, so the call-site regex never sees the literal — a blind
+    // spot that silently exempted whole files (Proxy:*, Rls:*). Capture the declarations too.
+    private static readonly Regex ConstKey = new(@"const\s+string\s+\w+\s*=\s*""([A-Za-z][A-Za-z0-9]*(?::[A-Za-z0-9]+)+)""");
+    // v3 TR-9 (T47): a SINGLE-segment GetSection("Admin") binds a whole options class without a dotted literal.
+    private static readonly Regex SectionOnly = new(@"GetSection\s*\(\s*""([A-Za-z][A-Za-z0-9]*)""\s*\)");
+    // v4 T6 (OBS-3): a flat indexer read, e.g. configuration["OTEL_EXPORTER_OTLP_PROTOCOL"] (an SDK variable read
+    // through IConfiguration); like a raw env read, it must be documented verbatim.
+    private static readonly Regex FlatIndexer = new(@"(?:configuration|config|Configuration)\s*\[\s*""([A-Za-z_][A-Za-z0-9_]*)""\s*\]");
+    // v3 TR-9 (T47): raw Environment.GetEnvironmentVariable reads bypass IConfiguration entirely (APP_BUILD_COMMIT).
+    private static readonly Regex EnvRead = new(@"Environment\.GetEnvironmentVariable\s*\(\s*""([A-Za-z_][A-Za-z0-9_]*)""\s*\)");
+
+    // A read key is OK if it equals a documented path, is a prefix of one (a section), or a documented path is a prefix
+    // of it (a leaf under a documented section).
+    private static bool IsDocumented(string key, ISet<string> documented) =>
+        documented.Any(d => d.Equals(key, StringComparison.Ordinal)
+                            || d.StartsWith(key + ":", StringComparison.Ordinal)
+                            || key.StartsWith(d + ":", StringComparison.Ordinal));
+
+    /// <summary>The section and each bindable property of every section-bound settings type, as undocumented paths.</summary>
+    internal static List<string> UndocumentedSettings(IEnumerable<Type> settingsTypes, ISet<string> documented)
+    {
+        var missing = new List<string>();
+        foreach (var t in settingsTypes)
+        {
+            if (SettingsCatalog.SectionNameOf(t) is not { } section) continue;
+            // The section must appear; each property must appear as itself or with children (arrays, maps).
+            if (!documented.Any(d => d == section || d.StartsWith(section + ":", StringComparison.Ordinal)))
+                missing.Add(section);
+            foreach (var p in t.GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)
+                         .Where(p => p.SetMethod?.IsPublic == true))
+            {
+                var path = $"{section}:{p.Name}";
+                if (!documented.Any(d => d == path || d.StartsWith(path + ":", StringComparison.Ordinal)))
+                    missing.Add(path);
+            }
+        }
+        return missing.OrderBy(m => m, StringComparer.Ordinal).ToList();
+    }
+
+    // A stand-in for a downstream slice's settings class, for the self-test above.
+    private sealed class ReportsSettings
+    {
+        public const string SectionName = "Reports";
+        public bool Enabled { get; set; }
+        public int MaxRows { get; init; }
     }
 
     /// <summary>Flattened config paths (Section:Key) declared in appsettings*.json + .env.example.</summary>
@@ -95,7 +207,9 @@ public class DocAndConfigSyncTests
     {
         var paths = new HashSet<string>(StringComparer.Ordinal);
 
-        foreach (var json in Directory.EnumerateFiles(Path.Combine(RepoRoot(), "src", "Api"), "appsettings*.json"))
+        // The API's appsettings, plus the Web client's (wwwroot) for the client's own reads (ApiBaseUrl).
+        foreach (var json in Directory.EnumerateFiles(Path.Combine(RepoRoot(), "src", "Api"), "appsettings*.json")
+                     .Concat(Directory.EnumerateFiles(Path.Combine(RepoRoot(), "src", "Web", "wwwroot"), "appsettings*.json")))
         {
             using var doc = JsonDocument.Parse(File.ReadAllText(json));
             Flatten(doc.RootElement, "", paths);

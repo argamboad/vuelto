@@ -7,6 +7,8 @@ namespace Vuelto.Infrastructure.Files;
 /// </summary>
 public sealed class LocalFileStorageSettings
 {
+    public const string SectionName = "Storage:Local";
+
     /// <summary>Filesystem root under which tenant-scoped objects are stored.</summary>
     public string RootPath { get; set; } = "";
 

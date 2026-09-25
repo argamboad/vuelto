@@ -114,9 +114,9 @@ public class ForgejoCiParityTests
     [Fact]
     public void ForgejoCopy_ClassifiesChangesLikeGitHub()
     {
-        // The only addition the copy may make is its own workflow file — the rest of each classifier
-        // regex, and the markdown exclusion before it, must be character-for-character GitHub's.
-        const string ownFile = @"|\.forgejo/workflows/ci\.yml";
+        // Character for character: each classifier regex, the markdown strip and the testdocs list. The copy used to
+        // add only its own workflow file; since v4 T2 (R97) both count every file a test reads — Forgejo's workflows
+        // and scripts included, which the tests read whichever forge runs them — so there is nothing left to differ.
         var github = Read(GitHubCi);
         var forgejo = Read(ForgejoCi);
 
@@ -124,14 +124,10 @@ public class ForgejoCiParityTests
         {
             var g = Classifier(github, name);
             var f = Classifier(forgejo, name);
-            var stripped = f.Replace(ownFile + ")", ")", StringComparison.Ordinal);
-            Assert.True(g == stripped, $"the `{name}=` regex drifted:\n  github:  {g}\n  forgejo: {f}");
+            Assert.True(g == f, $"the `{name}=` regex drifted:\n  github:  {g}\n  forgejo: {f}");
         }
-        Assert.Contains(ownFile, Classifier(forgejo, "code"), StringComparison.Ordinal);
-        Assert.Contains(ownFile, Classifier(forgejo, "native"), StringComparison.Ordinal);
-
-        const string exclusion = @"codefiles=\$\(printf '%s\\n' ""\$files"" \| grep -vE '([^']+)'";
-        Assert.Equal(Regex.Match(github, exclusion).Groups[1].Value, Regex.Match(forgejo, exclusion).Groups[1].Value);
+        foreach (var shape in new[] { @"grep -viE '([^']+)'", @"testdocs='([^']+)'" })
+            Assert.Equal(Regex.Match(github, shape).Groups[1].Value, Regex.Match(forgejo, shape).Groups[1].Value);
     }
 
     [Fact]
@@ -347,9 +343,62 @@ public class ForgejoCiParityTests
         var github = Read(".github/workflows/postman-sync.yml");
         var forgejo = Read(".forgejo/workflows/postman-sync.yml");
 
-        static string Body(string yml) => yml[yml.IndexOf("name: postman-sync", StringComparison.Ordinal)..];
-        var expected = Body(github).Replace(".github/workflows/postman-sync.yml", ".forgejo/workflows/postman-sync.yml", StringComparison.Ordinal);
+        // Identical but for its own path, and the `permissions:` block, which Forgejo ignores: every Forgejo workflow
+        // leaves it out with the same note (v4 DEP-27, ForgejoWorkflows_LeaveOutPermissions_AndSayWhy).
+        static string Body(string yml) => yml[yml.IndexOf("name: postman-sync", StringComparison.Ordinal)..].Replace("\r\n", "\n");
+        var expected = Regex.Replace(
+            Body(github).Replace(".github/workflows/postman-sync.yml", ".forgejo/workflows/postman-sync.yml", StringComparison.Ordinal),
+            @"(?m)^permissions:\n  contents: read\n", PermissionsNote + "\n");
         Assert.Equal(expected, Body(forgejo));
+    }
+
+    // The one way the Forgejo workflows handle GitHub's least-privilege key (v4 audit DEP-27, R63/R98).
+    private const string PermissionsNote =
+        "# `permissions:` is left out: Forgejo does not support that key (it warns and ignores it), so the job token\n"
+        + "# is treated as able to write. Why that is safe here: the note above ci.yml's `defaults:` (v4 audit DEP-14/27).";
+
+    [Fact]
+    public void ForgejoWorkflows_LeaveOutPermissions_AndSayWhy() // v4 audit DEP-27 (R98)
+    {
+        // Forgejo ignores `permissions:`, so the three Forgejo files used to handle it three ways: omitted with a
+        // note (ci.yml), kept (postman-sync.yml), omitted without a word (deploy.yml). One way now: leave it out and
+        // say why, so the least-privilege rule is visibly argued in every file instead of met, argued or ignored.
+        var dir = Path.Combine(RepoRoot(), ".forgejo", "workflows");
+        foreach (var file in Directory.EnumerateFiles(dir, "*.yml"))
+        {
+            var yml = File.ReadAllText(file).Replace("\r\n", "\n");
+            Assert.DoesNotMatch(@"(?m)^\s*permissions:", yml);
+            Assert.True(yml.Contains("Forgejo does not support that key", StringComparison.Ordinal),
+                $"{Path.GetFileName(file)} leaves out `permissions:` and must say why (the PermissionsNote wording)");
+        }
+    }
+
+    [Fact]
+    public void NativeSmokeProviderProbe_MatchesTheStatusField_InAllFourSites() // v4 audit LB-DEP-4 (R139)
+    {
+        // The Windows and Apple smokes decide "the app booted" from a 200 on GET /api/auth/providers in api.log.
+        // `.*200` matched a 200 anywhere later on the line, e.g. the elapsed time of a 404 ("200.1234ms"), or a
+        // sibling route. Each of the four patterns (bash + PowerShell, both copies) must read the status field.
+        var patterns = new[] { GitHubCi, ForgejoCi }
+            .SelectMany(f => Regex.Matches(Read(f), @"(?:grep -cE|-Pattern) '(Request finished[^']*auth/providers[^']*)'").Select(m => (f, m.Groups[1].Value)))
+            .ToList();
+        Assert.Equal(4, patterns.Count);
+
+        const string real = "info: Microsoft.AspNetCore.Hosting.Diagnostics[2] Request finished HTTP/1.1 GET http://localhost:5238/api/auth/providers - 200 - application/json;+charset=utf-8 14.2031ms";
+        string[] impostors =
+        [
+            "info: Microsoft.AspNetCore.Hosting.Diagnostics[2] Request finished HTTP/1.1 GET http://localhost:5238/api/auth/providers - 404 - application/problem+json 200.1234ms",
+            "info: Microsoft.AspNetCore.Hosting.Diagnostics[2] Request finished HTTP/1.1 GET http://localhost:5238/api/auth/providers - 500 0 - 205.0010ms",
+            "info: Microsoft.AspNetCore.Hosting.Diagnostics[2] Request finished HTTP/1.1 GET http://localhost:5238/api/auth/providers-beta - 200 - application/json 3.1ms",
+            "info: Microsoft.AspNetCore.Hosting.Diagnostics[2] Request finished HTTP/1.1 POST http://localhost:5238/api/auth/providers - 200 - application/json 3.1ms",
+        ];
+        foreach (var (file, pattern) in patterns)
+        {
+            Assert.Contains("providers - 200 ", pattern);
+            Assert.Matches(pattern, real);
+            foreach (var line in impostors)
+                Assert.False(Regex.IsMatch(line, pattern), $"{file}: '{pattern}' matched a non-200 or sibling line: {line}");
+        }
     }
 
     private static string Read(string relative) =>
@@ -395,7 +444,9 @@ public class ForgejoCiParityTests
         Assert.Contains("head_sha == env.SHA", yml, StringComparison.Ordinal);
         foreach (var gate in new[] { "changes", "build-test", "secret-scan", "qa-artifacts", "license-scan", "docker-build", "e2e" })
             Assert.Contains(gate, yml, StringComparison.Ordinal);
-        Assert.Contains("native-build (", yml, StringComparison.Ordinal); // both matrix legs
+        // Both matrices, every leg, against ci.yml's own sizes (AlreadyGreenDeploy_ExpectsCiYmlsOwnMatrixSizes); the
+        // verdict's behaviour itself is fixture-tested by tests/ci-logic (target already-green).
+        Assert.Contains("\"native-build:$NATIVE_LEGS\" \"e2e:$E2E_SHARDS\"", yml, StringComparison.Ordinal);
         Assert.Matches(@"refusing to deploy", yml);
 
         // The verification runs BEFORE anything leaves this machine.
@@ -407,6 +458,23 @@ public class ForgejoCiParityTests
         Assert.Contains("push-to-github.sh", yml, StringComparison.Ordinal);
         Assert.Contains("deploy-smoke.sh", yml, StringComparison.Ordinal);
         Assert.DoesNotContain("git push", yml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AlreadyGreenDeploy_ExpectsCiYmlsOwnMatrixSizes() // v4 audit LB-DEP-3 / DEP-19 (R138)
+    {
+        // The deploy counts green legs against a floor. Typed by hand (2 and 3), a fourth shard or a third native leg
+        // would leave the floor behind, and a red leg could hide behind it. The floor is ci.yml's own matrix size.
+        var deploy = Read(DeployWorkflow);
+        var ci = Read(ForgejoCi);
+        var jobs = Jobs(ci);
+
+        var nativeLegs = Regex.Matches(jobs["native-build"], @"(?m)^\s+- tfm:").Count;
+        var shards = Regex.Match(jobs["e2e"], @"shard:\s*\[([^\]]*)\]").Groups[1].Value.Split(',', StringSplitOptions.RemoveEmptyEntries).Length;
+        Assert.True(nativeLegs > 0 && shards > 0, "could not read ci.yml's native-build / e2e matrices");
+
+        Assert.Equal(nativeLegs.ToString(), Regex.Match(deploy, @"NATIVE_LEGS:\s*(\d+)").Groups[1].Value);
+        Assert.Equal(shards.ToString(), Regex.Match(deploy, @"E2E_SHARDS:\s*(\d+)").Groups[1].Value);
     }
 
     private static HashSet<string> NeedsList(string job)
