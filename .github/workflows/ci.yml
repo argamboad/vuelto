@@ -863,7 +863,7 @@ jobs:
       fail-fast: false
       matrix:
         # Three shards, one per port lane (each lane takes one job at a time, so two shards can never
-        # share a daemon and collide on the fixed ports). 35 journeys × ~15 s each was ~7 min of every
+        # share a daemon and collide on the fixed ports). 37 journeys × ~15 s each was ~7 min of every
         # run; split three ways it is ~2.5 min, at the cost of booting the stack three times.
         shard: [1, 2, 3]
     runs-on: ubuntu-latest
@@ -969,6 +969,12 @@ jobs:
             # quietly test nothing.
             names=$(dotnet test tests/E2E.Tests/Vuelto.E2E.Tests.csproj -c Debug --no-build --list-tests \
                     | tr -d '\r' | sed -n 's/^    \([A-Za-z0-9_]\{4,\}\).*$/\1/p' | sort -u)
+            # --list-tests ignores --filter, so the [Explicit] native smoke (category NativeSmoke, run by its own
+            # job) is dropped here by name, read from its source, and kept out of the run filter below too,
+            # whatever the NUnit adapter does with [Explicit] (v4 T12).
+            native=$(grep -l 'Category("NativeSmoke")' tests/E2E.Tests/*.cs \
+                     | xargs sed -n 's/^ *public [a-zA-Z<> ]* \([A-Za-z0-9_]\{4,\}\)(.*$/\1/p')
+            names=$(echo "$names" | grep -vxF "$native" || true)
             total=$(echo "$names" | grep -c .)
             [ "$total" -ge 10 ] || { echo "::error::only $total journeys listed — the --list-tests parse broke"; exit 1; }
             mine=$(echo "$names" | awk -v s=${{ matrix.shard }} -v n=3 'NR % n == s % n')
@@ -977,7 +983,7 @@ jobs:
             echo "$mine" | sed 's/^/  /'
             # FullyQualifiedName~ (substring), not Name= (exact): a parameterised journey prints as
             # `Foo(args)`, and matching the base name keeps all its cases in one shard instead of none.
-            filter=$(echo "$mine" | sed 's/^/FullyQualifiedName~/' | paste -sd'|')
+            filter="($(echo "$mine" | sed 's/^/FullyQualifiedName~/' | paste -sd'|'))&TestCategory!=NativeSmoke"
 
             dotnet test tests/E2E.Tests/Vuelto.E2E.Tests.csproj -c Debug --no-build \
               --filter "$filter" \
