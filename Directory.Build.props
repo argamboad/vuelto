@@ -17,6 +17,13 @@
       (Directory.Packages.props).
     -->
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <!--
+      Two .resx entries with one name only warn (MSB3568) and the first value silently wins, so a slice can show
+      another slice's text (v4 T9, R152). TreatWarningsAsErrors doesn't cover MSBuild warnings; promote exactly this
+      one (a blanket MSBuildTreatWarningsAsErrors would also fail on the MAUI adb-reverse MSB3073). Held by
+      ResourceParityTests.DuplicateResourceNames_FailTheBuild.
+    -->
+    <MSBuildWarningsAsErrors>$(MSBuildWarningsAsErrors);MSB3568</MSBuildWarningsAsErrors>
   </PropertyGroup>
 
 </Project>
