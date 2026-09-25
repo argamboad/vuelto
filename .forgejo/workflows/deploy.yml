@@ -25,6 +25,9 @@ on:
         default: staging
         options: [staging, prod]
 
+# `permissions:` is left out: Forgejo does not support that key (it warns and ignores it), so the job token
+# is treated as able to write. Why that is safe here: the note above ci.yml's `defaults:` (v4 audit DEP-14/27).
+
 defaults:
   run:
     shell: bash -e {0}

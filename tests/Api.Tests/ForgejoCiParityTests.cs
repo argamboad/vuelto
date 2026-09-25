@@ -343,9 +343,34 @@ public class ForgejoCiParityTests
         var github = Read(".github/workflows/postman-sync.yml");
         var forgejo = Read(".forgejo/workflows/postman-sync.yml");
 
-        static string Body(string yml) => yml[yml.IndexOf("name: postman-sync", StringComparison.Ordinal)..];
-        var expected = Body(github).Replace(".github/workflows/postman-sync.yml", ".forgejo/workflows/postman-sync.yml", StringComparison.Ordinal);
+        // Identical but for its own path, and the `permissions:` block, which Forgejo ignores: every Forgejo workflow
+        // leaves it out with the same note (v4 DEP-27, ForgejoWorkflows_LeaveOutPermissions_AndSayWhy).
+        static string Body(string yml) => yml[yml.IndexOf("name: postman-sync", StringComparison.Ordinal)..].Replace("\r\n", "\n");
+        var expected = Regex.Replace(
+            Body(github).Replace(".github/workflows/postman-sync.yml", ".forgejo/workflows/postman-sync.yml", StringComparison.Ordinal),
+            @"(?m)^permissions:\n  contents: read\n", PermissionsNote + "\n");
         Assert.Equal(expected, Body(forgejo));
+    }
+
+    // The one way the Forgejo workflows handle GitHub's least-privilege key (v4 audit DEP-27, R63/R98).
+    private const string PermissionsNote =
+        "# `permissions:` is left out: Forgejo does not support that key (it warns and ignores it), so the job token\n"
+        + "# is treated as able to write. Why that is safe here: the note above ci.yml's `defaults:` (v4 audit DEP-14/27).";
+
+    [Fact]
+    public void ForgejoWorkflows_LeaveOutPermissions_AndSayWhy() // v4 audit DEP-27 (R98)
+    {
+        // Forgejo ignores `permissions:`, so the three Forgejo files used to handle it three ways: omitted with a
+        // note (ci.yml), kept (postman-sync.yml), omitted without a word (deploy.yml). One way now: leave it out and
+        // say why, so the least-privilege rule is visibly argued in every file instead of met, argued or ignored.
+        var dir = Path.Combine(RepoRoot(), ".forgejo", "workflows");
+        foreach (var file in Directory.EnumerateFiles(dir, "*.yml"))
+        {
+            var yml = File.ReadAllText(file).Replace("\r\n", "\n");
+            Assert.DoesNotMatch(@"(?m)^\s*permissions:", yml);
+            Assert.True(yml.Contains("Forgejo does not support that key", StringComparison.Ordinal),
+                $"{Path.GetFileName(file)} leaves out `permissions:` and must say why (the PermissionsNote wording)");
+        }
     }
 
     [Fact]
