@@ -124,6 +124,10 @@ section nesting, so `Section__Sub` ≡ the `Section:Sub` config key) so they bin
 (committed) documents every key with placeholders. **Production is unchanged** — the same keys
 come from real environment variables, never a committed file. This **supersedes the
 `dotnet user-secrets`** approach noted in ADR-C15.
+*Amendment 2026-09-25 (argamboad/perezosoft-platform#122):* the load goes through `LocalDotEnv.Load()` (Program and the
+EF design-time factory alike), which honours `SKIP_DOTENV=1`. The test assembly sets it before any host starts, so
+a `WebApplicationFactory<Program>` never reads the developer's `.env`: with a real local `.env` the suite had been
+running against the developer's billing and SMTP settings and disagreeing with CI.
 *Rationale:* a single, visible local-config file was the explicit preference; `.env` already
 existed for docker-compose, so the app secrets join it. Trade-off vs user-secrets: secrets now
 sit in the working tree (mitigated by `.gitignore`) rather than the user profile — accepted for

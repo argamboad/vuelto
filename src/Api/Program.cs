@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Extensions;
 using Microsoft.OpenApi.Models;
+using Vuelto.Api;
 using Vuelto.Api.Authentication;
 using Vuelto.Api.Configuration;
 using Vuelto.Api.Endpoints;
@@ -31,9 +32,9 @@ using Vuelto.Infrastructure.Persistence;
 using Vuelto.Infrastructure.Vouchers;
 
 // Local dev: load secrets/config from the repo-root .env (the single local source of truth —
-// see docs/DECISIONS.md). TraversePath walks up to find it regardless of the working dir; the
-// try/catch makes it a no-op when there's no .env (e.g. production, which uses real env vars).
-try { DotNetEnv.Env.TraversePath().Load(); } catch { /* no .env present */ }
+// see docs/DECISIONS.md), walking up from the working dir; a no-op without one (production uses real env vars)
+// and skipped under SKIP_DOTENV=1, which the test assembly sets so test hosts never read a developer's .env.
+LocalDotEnv.Load();
 
 var builder = WebApplication.CreateBuilder(args);
 
