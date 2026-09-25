@@ -444,7 +444,9 @@ public class ForgejoCiParityTests
         Assert.Contains("head_sha == env.SHA", yml, StringComparison.Ordinal);
         foreach (var gate in new[] { "changes", "build-test", "secret-scan", "qa-artifacts", "license-scan", "docker-build", "e2e" })
             Assert.Contains(gate, yml, StringComparison.Ordinal);
-        Assert.Contains("native-build (", yml, StringComparison.Ordinal); // both matrix legs
+        // Both matrices, every leg, against ci.yml's own sizes (AlreadyGreenDeploy_ExpectsCiYmlsOwnMatrixSizes); the
+        // verdict's behaviour itself is fixture-tested by tests/ci-logic (target already-green).
+        Assert.Contains("\"native-build:$NATIVE_LEGS\" \"e2e:$E2E_SHARDS\"", yml, StringComparison.Ordinal);
         Assert.Matches(@"refusing to deploy", yml);
 
         // The verification runs BEFORE anything leaves this machine.
@@ -456,6 +458,23 @@ public class ForgejoCiParityTests
         Assert.Contains("push-to-github.sh", yml, StringComparison.Ordinal);
         Assert.Contains("deploy-smoke.sh", yml, StringComparison.Ordinal);
         Assert.DoesNotContain("git push", yml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AlreadyGreenDeploy_ExpectsCiYmlsOwnMatrixSizes() // v4 audit LB-DEP-3 / DEP-19 (R138)
+    {
+        // The deploy counts green legs against a floor. Typed by hand (2 and 3), a fourth shard or a third native leg
+        // would leave the floor behind, and a red leg could hide behind it. The floor is ci.yml's own matrix size.
+        var deploy = Read(DeployWorkflow);
+        var ci = Read(ForgejoCi);
+        var jobs = Jobs(ci);
+
+        var nativeLegs = Regex.Matches(jobs["native-build"], @"(?m)^\s+- tfm:").Count;
+        var shards = Regex.Match(jobs["e2e"], @"shard:\s*\[([^\]]*)\]").Groups[1].Value.Split(',', StringSplitOptions.RemoveEmptyEntries).Length;
+        Assert.True(nativeLegs > 0 && shards > 0, "could not read ci.yml's native-build / e2e matrices");
+
+        Assert.Equal(nativeLegs.ToString(), Regex.Match(deploy, @"NATIVE_LEGS:\s*(\d+)").Groups[1].Value);
+        Assert.Equal(shards.ToString(), Regex.Match(deploy, @"E2E_SHARDS:\s*(\d+)").Groups[1].Value);
     }
 
     private static HashSet<string> NeedsList(string job)

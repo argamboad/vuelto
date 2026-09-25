@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Fake curl for the ci-logic fixtures: answers `curl -s -o <file> -w "%{http_code}" ... <url>` for the Forgejo
+# Actions API. Page N of a listing comes from api/page-N.json in the case (an empty page when absent); the status
+# code is FAKE_CURL_CODE (200 by default).
+out=""; url=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -o) out="$2"; shift 2 ;;
+    -w|-H|-X|-d) shift 2 ;;
+    -*) shift ;;
+    *) url="$1"; shift ;;
+  esac
+done
+page=$(printf '%s' "$url" | sed -n 's/.*[?&]page=\([0-9]*\).*/\1/p')
+src="api/page-${page:-1}.json"
+if [ -n "$out" ]; then
+  if [ -f "$src" ]; then cp "$src" "$out"; else echo '{"workflow_runs":[],"total_count":0}' > "$out"; fi
+fi
+printf '%s' "${FAKE_CURL_CODE:-200}"

@@ -1,0 +1,4 @@
+exit 1
++refusing to deploy
+-Every gate is green
++native-build (net10.0-windows10.0.19041.0, windows-latest)=failure
