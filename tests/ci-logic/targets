@@ -1,0 +1,11 @@
+# What the ci-logic harness runs (see run.py). One per line:
+#   block  <name> <file>...   the lines between `# ci-logic begin: <name>` and `# ci-logic end: <name>`, per file
+#   script <name> <file>      the whole script, with cases/<name>/<case>/args as its arguments
+#   exempt <name> "<start of an ::error:: message>" <why no case can produce it>
+block   changes-classifier     .github/workflows/ci.yml .forgejo/workflows/ci.yml
+block   qa-runlog-guard        .github/workflows/ci.yml .forgejo/workflows/ci.yml
+block   e2e-shard              .github/workflows/ci.yml .forgejo/workflows/ci.yml
+block   slowest-journeys       .github/workflows/ci.yml .forgejo/workflows/ci.yml
+script  qa-runlog-append-only  .github/scripts/qa-runlog-append-only.sh
+script  push-to-github         .forgejo/scripts/push-to-github.sh
+exempt  e2e-shard "shard " unreachable: at least 10 journeys dealt into 3 shards always leaves every shard some

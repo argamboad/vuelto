@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Fake dotnet for the ci-logic fixtures: `--list-tests` prints FAKE_DOTNET_LIST; anything else is echoed, so a case
+# can assert the exact command (e.g. the e2e shard's --filter).
+case " $* " in
+  *" --list-tests "*) cat "${FAKE_DOTNET_LIST:?a case that lists tests sets FAKE_DOTNET_LIST}" ;;
+  *) echo "STUB dotnet $*" ;;
+esac

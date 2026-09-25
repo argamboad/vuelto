@@ -558,6 +558,12 @@ and scripts, `tools/`, `.env.example`, `.dockerignore` and the Postman collectio
 `changes` step's `code=` and `testdocs=`, identical in both workflows; `EveryRepoFileTheTestsRead_ClassifiesAsCode`
 fails when a test starts reading a file they miss (v4 T2).
 
+CI's own pass/fail logic (that classifier, the QA run-log guard, the e2e sharding, the slowest-journeys report,
+the push to GitHub) is shell, awk and Python, and `tests/ci-logic/` runs it for real against fixtures:
+`bash tests/ci-logic/run.sh` on any Linux box, and inside `Api.Tests` on the Linux leg
+(`EnforcementGateTests.CiShellLogic_PassesItsFixtures`). Each block is marked `# ci-logic begin/end: <name>` in the
+workflow; change one and its fixtures tell you what else changed (v4 T8).
+
 By default the native smokes and the deploys never run on a push. Pick both inputs in one dispatch to
 smoke and deploy in a single run.
 

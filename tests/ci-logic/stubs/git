@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Fake git for the ci-logic fixtures: each subcommand answers from FAKE_GIT_* (see the cases' env files).
+all="$*"
+while [ "${1:-}" = "-c" ]; do shift 2; done
+case "${1:-}" in
+  rev-parse)  echo "${FAKE_GIT_HEAD:-0123456789abcdef0123456789abcdef01234567}" ;;
+  cat-file)   [ "${FAKE_GIT_BASE_EXISTS:-yes}" = yes ] ;;
+  diff)       cat "${FAKE_GIT_DIFF:-/dev/null}" ;;
+  push)       echo "STUB git push $2 $3"; [ "${FAKE_GIT_PUSH:-ok}" = ok ] ;;
+  fetch)      echo "STUB git fetch ${*:2}" >&2; [ "${FAKE_GIT_FETCH:-ok}" = ok ] ;;
+  merge-base) [ "${FAKE_GIT_ANCESTOR:-yes}" = yes ] ;;
+  show)       [ -n "${FAKE_GIT_SHOW:-}" ] && [ -f "$FAKE_GIT_SHOW" ] && cat "$FAKE_GIT_SHOW" ;;
+  *)          echo "stub git: no fake for: $all" >&2; exit 97 ;;
+esac

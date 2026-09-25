@@ -446,6 +446,66 @@ public class EnforcementGateTests
             "Log templates carry an email address; log {UserId} (or another id) instead:\n  " + string.Join("\n  ", offenders));
     }
 
+    [Fact]
+    public async Task CiShellLogic_PassesItsFixtures() // v4 T8 (R136)
+    {
+        // CI's own pass/fail logic (the change classifier, the QA run-log guard, the e2e sharding, the slowest-journeys
+        // report, the mirror push) is shell, awk and Python that no C# test executes. tests/ci-logic/ runs each of
+        // them for real against fixtures. It needs the GNU tools the runners have, so it runs on Linux only — and the
+        // build-test job runs on Linux on both forges, so it is never skipped where it counts.
+        if (!OperatingSystem.IsLinux()) return;
+
+        var run = new System.Diagnostics.ProcessStartInfo("bash", "tests/ci-logic/run.sh")
+        {
+            WorkingDirectory = RepoRoot(),
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+        };
+        using var p = System.Diagnostics.Process.Start(run)!;
+        var stdout = p.StandardOutput.ReadToEndAsync();
+        var stderr = p.StandardError.ReadToEndAsync();
+        using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(5));
+        await p.WaitForExitAsync(timeout.Token);
+        Assert.True(p.ExitCode == 0, $"tests/ci-logic failed:\n{await stdout}\n{await stderr}");
+    }
+
+    [Fact]
+    public void CiShellLogic_EveryAnchoredBlockIsATarget_WithCases() // v4 T8 (R136)
+    {
+        // Runs everywhere (no bash needed): an anchored block nobody runs, a target whose anchor is gone, or a target
+        // with no cases would each let the harness pass while testing nothing.
+        var root = RepoRoot();
+        var targets = File.ReadAllLines(Path.Combine(root, "tests", "ci-logic", "targets"))
+            .Select(l => l.Trim())
+            .Where(l => l.StartsWith("block ", StringComparison.Ordinal) || l.StartsWith("script ", StringComparison.Ordinal))
+            .Select(l => l.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            .ToList();
+        Assert.NotEmpty(targets);
+
+        var anchored = new[] { ".github", ".forgejo" }
+            .SelectMany(d => Directory.EnumerateFiles(Path.Combine(root, d), "*", SearchOption.AllDirectories))
+            .SelectMany(f => Regex.Matches(File.ReadAllText(f), @"# ci-logic begin: ([\w-]+)")
+                .Select(m => (Block: m.Groups[1].Value, File: Path.GetRelativePath(root, f).Replace('\\', '/'))))
+            .ToList();
+        Assert.NotEmpty(anchored);
+
+        foreach (var (block, file) in anchored)
+            Assert.True(targets.Any(t => t[0] == "block" && t[1] == block && t.Skip(2).Contains(file)),
+                $"{file} anchors `{block}` but tests/ci-logic/targets does not run it there");
+
+        foreach (var t in targets)
+        {
+            var cases = Path.Combine(root, "tests", "ci-logic", "cases", t[1]);
+            Assert.True(Directory.Exists(cases) && Directory.EnumerateDirectories(cases).Any(), $"target `{t[1]}` has no cases");
+            foreach (var file in t.Skip(2))
+            {
+                var text = File.ReadAllText(Path.Combine(root, file));
+                Assert.True(t[0] == "script" || (text.Contains($"# ci-logic begin: {t[1]}") && text.Contains($"# ci-logic end: {t[1]}")),
+                    $"target `{t[1]}` expects its anchors in {file}");
+            }
+        }
+    }
+
     private static string RepoRoot()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);

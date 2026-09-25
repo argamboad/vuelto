@@ -1,0 +1,4 @@
+BASE_SHA=
+TOKEN=t
+FAKE_GIT_SHOW=base.md
+EVENT=push
