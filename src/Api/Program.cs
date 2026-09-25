@@ -438,4 +438,7 @@ if (serveWebClient)
     app.MapFallbackToFile("index.html");
 }
 
+// Refuse to boot on two endpoints with the same method and pattern (v4 T13): they would start fine and then
+// answer every request to that route with a 500. Last before Run, so every mapping above is in the table.
+RouteTableGuard.EnsureUnique(((IEndpointRouteBuilder)app).DataSources.SelectMany(d => d.Endpoints));
 app.Run();
