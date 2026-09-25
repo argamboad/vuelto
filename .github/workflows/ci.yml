@@ -513,7 +513,7 @@ jobs:
           done
           [ "$api" = "200" ] || { echo "::error::API did not become ready"; tail -60 api.log; exit 1; }
 
-          probes() { grep -c 'Request finished.*GET.*/api/auth/providers.*200' api.log || true; }
+          probes() { grep -cE 'Request finished [^ ]+ GET [^ ]*/api/auth/providers - 200 ' api.log || true; }
 
           echo "=== Mac Catalyst: launch + boot-to-login ==="
           CAT_BIN=$(ls src/Maui/bin/Debug/net10.0-maccatalyst/maccatalyst-*/*.app/Contents/MacOS/* | head -1)
@@ -646,7 +646,7 @@ jobs:
           $app = Start-Process -FilePath $exe -PassThru
           Write-Host "Waiting for the login page's provider probe (app pid $($app.Id))..."
 
-          function Probes { (Select-String -Path api.log -Pattern 'Request finished.*GET.*/api/auth/providers.*200' -ErrorAction SilentlyContinue | Measure-Object).Count }
+          function Probes { (Select-String -Path api.log -Pattern 'Request finished [^ ]+ GET [^ ]*/api/auth/providers - 200 ' -ErrorAction SilentlyContinue | Measure-Object).Count }
           $ok = $false
           foreach ($i in 1..40) {   # up to 2 min — first Blazor boot in a cold WebView2 is slow
             if ($app.HasExited) { Write-Host "::error::the Windows app process exited after launch (startup crash)"; break }

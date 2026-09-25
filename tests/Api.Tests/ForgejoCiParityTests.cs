@@ -352,6 +352,34 @@ public class ForgejoCiParityTests
         Assert.Equal(expected, Body(forgejo));
     }
 
+    [Fact]
+    public void NativeSmokeProviderProbe_MatchesTheStatusField_InAllFourSites() // v4 audit LB-DEP-4 (R139)
+    {
+        // The Windows and Apple smokes decide "the app booted" from a 200 on GET /api/auth/providers in api.log.
+        // `.*200` matched a 200 anywhere later on the line, e.g. the elapsed time of a 404 ("200.1234ms"), or a
+        // sibling route. Each of the four patterns (bash + PowerShell, both copies) must read the status field.
+        var patterns = new[] { GitHubCi, ForgejoCi }
+            .SelectMany(f => Regex.Matches(Read(f), @"(?:grep -cE|-Pattern) '(Request finished[^']*auth/providers[^']*)'").Select(m => (f, m.Groups[1].Value)))
+            .ToList();
+        Assert.Equal(4, patterns.Count);
+
+        const string real = "info: Microsoft.AspNetCore.Hosting.Diagnostics[2] Request finished HTTP/1.1 GET http://localhost:5238/api/auth/providers - 200 - application/json;+charset=utf-8 14.2031ms";
+        string[] impostors =
+        [
+            "info: Microsoft.AspNetCore.Hosting.Diagnostics[2] Request finished HTTP/1.1 GET http://localhost:5238/api/auth/providers - 404 - application/problem+json 200.1234ms",
+            "info: Microsoft.AspNetCore.Hosting.Diagnostics[2] Request finished HTTP/1.1 GET http://localhost:5238/api/auth/providers - 500 0 - 205.0010ms",
+            "info: Microsoft.AspNetCore.Hosting.Diagnostics[2] Request finished HTTP/1.1 GET http://localhost:5238/api/auth/providers-beta - 200 - application/json 3.1ms",
+            "info: Microsoft.AspNetCore.Hosting.Diagnostics[2] Request finished HTTP/1.1 POST http://localhost:5238/api/auth/providers - 200 - application/json 3.1ms",
+        ];
+        foreach (var (file, pattern) in patterns)
+        {
+            Assert.Contains("providers - 200 ", pattern);
+            Assert.Matches(pattern, real);
+            foreach (var line in impostors)
+                Assert.False(Regex.IsMatch(line, pattern), $"{file}: '{pattern}' matched a non-200 or sibling line: {line}");
+        }
+    }
+
     private static string Read(string relative) =>
         File.ReadAllText(Path.Combine(RepoRoot(), relative)).ReplaceLineEndings("\n");
 
