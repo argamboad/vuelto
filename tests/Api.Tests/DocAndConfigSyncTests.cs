@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Vuelto.Api.Tests.Configuration;
 
 namespace Vuelto.Api.Tests;
 
@@ -79,7 +80,7 @@ public class DocAndConfigSyncTests
     [Fact]
     public void EverySectionBoundSettingsClass_DeclaresItsSectionName()
     {
-        var unnamed = ConfigBound().Where(t => !IsBuiltKeyByKey(t) && SectionNameOf(t) is null).Select(t => t.FullName).ToList();
+        var unnamed = SettingsCatalog.ConfigBound().Where(t => !SettingsCatalog.IsBuiltKeyByKey(t) && SettingsCatalog.SectionNameOf(t) is null).Select(t => t.FullName).ToList();
         Assert.True(unnamed.Count == 0,
             $"Settings classes bound from config must declare `public const string SectionName`: {string.Join(", ", unnamed)}");
     }
@@ -87,7 +88,7 @@ public class DocAndConfigSyncTests
     [Fact]
     public void EverySettingsSection_AndItsProperties_AreDocumented()
     {
-        var missing = UndocumentedSettings(SettingsClasses(), DocumentedConfigPaths());
+        var missing = UndocumentedSettings(SettingsCatalog.All(), DocumentedConfigPaths());
         Assert.True(missing.Count == 0,
             $"Settings bound from config but not in appsettings*.json or .env.example: {string.Join(", ", missing)}");
     }
@@ -108,7 +109,7 @@ public class DocAndConfigSyncTests
     {
         // One binding mechanism: GetSection(XxxSettings.SectionName), never the section repeated as a literal that a
         // rename would miss.
-        var sections = SettingsClasses().Select(SectionNameOf).OfType<string>().ToList();
+        var sections = SettingsCatalog.All().Select(SettingsCatalog.SectionNameOf).OfType<string>().ToList();
         var offenders = SourceFiles(Path.Combine(RepoRoot(), "src"))
             .SelectMany(f => sections
                 .Where(s => Regex.IsMatch(File.ReadAllText(f), $@"GetSection\s*\(\s*""{Regex.Escape(s)}""\s*\)"))
@@ -123,9 +124,10 @@ public class DocAndConfigSyncTests
         // BILL-4: Program bound BillingSettings while Infrastructure re-read "Billing:Enabled" raw. The two reads must
         // agree (one removes the billing routes, the other relaxes the Stripe startup check), and a section rename
         // would change only one. A *Settings.Enabled switch is read through the class, never as a literal.
-        var gated = SettingsClasses()
-            .Where(t => SectionNameOf(t) is not null && t.GetProperty("Enabled")?.PropertyType == typeof(bool))
-            .Select(t => SectionNameOf(t)!)
+        var gated = SettingsCatalog.All()
+            .Where(SettingsCatalog.HasEnabledSwitch)
+            .Select(t => SettingsCatalog.SectionNameOf(t)!)
+            .OfType<string>()
             .ToList();
         Assert.NotEmpty(gated); // probe alive: Billing, PublicApi, Webhooks
 
@@ -177,7 +179,7 @@ public class DocAndConfigSyncTests
         var missing = new List<string>();
         foreach (var t in settingsTypes)
         {
-            if (SectionNameOf(t) is not { } section) continue;
+            if (SettingsCatalog.SectionNameOf(t) is not { } section) continue;
             // The section must appear; each property must appear as itself or with children (arrays, maps).
             if (!documented.Any(d => d == section || d.StartsWith(section + ":", StringComparison.Ordinal)))
                 missing.Add(section);
@@ -191,33 +193,6 @@ public class DocAndConfigSyncTests
         }
         return missing.OrderBy(m => m, StringComparer.Ordinal).ToList();
     }
-
-    private static string? SectionNameOf(Type t) =>
-        t.GetField("SectionName", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static) is { IsLiteral: true } f
-            ? (string?)f.GetRawConstantValue()
-            : null;
-
-    // The settings classes bound from configuration: those that declare a SectionName, plus any the source uses as
-    // options (Configure<T>, AddOptions<T>, IOptions*<T>, .Get<T>()). The name alone is not enough: this app's
-    // entities and EF migrations end in "Settings" too (BudgetSettings, AddBudgetSettings), and they are not config.
-    private static IEnumerable<Type> ConfigBound()
-    {
-        var use = new Regex(@"(?:Configure|AddOptions|IOptions|IOptionsMonitor|IOptionsSnapshot|\.Get)<(\w+)>");
-        var used = SourceFiles(Path.Combine(RepoRoot(), "src"))
-            .SelectMany(f => use.Matches(File.ReadAllText(f)).Select(m => m.Groups[1].Value))
-            .ToHashSet(StringComparer.Ordinal);
-        return SettingsClasses().Where(t => SectionNameOf(t) is not null || used.Contains(t.Name));
-    }
-
-    private static bool IsBuiltKeyByKey(Type t) =>
-        t.GetInterfaces().Any(i => i.Name.StartsWith('I') && i.Name.EndsWith("Settings", StringComparison.Ordinal));
-
-    private static IEnumerable<Type> SettingsClasses() =>
-        new[] { typeof(global::Vuelto.Api.Configuration.BillingSettings).Assembly, typeof(global::Vuelto.Infrastructure.Email.SmtpSettings).Assembly,
-                typeof(global::Vuelto.Core.Abstractions.IEmailSender).Assembly }
-            .Distinct()
-            .SelectMany(a => a.GetTypes())
-            .Where(t => t is { IsClass: true, IsAbstract: false, IsPublic: true } && t.Name.EndsWith("Settings", StringComparison.Ordinal));
 
     // A stand-in for a downstream slice's settings class, for the self-test above.
     private sealed class ReportsSettings
