@@ -9,7 +9,7 @@ public static class ExchangeRateServiceCollectionExtensions
 {
     public static IServiceCollection AddExchangeRates(this IServiceCollection services, IConfiguration configuration)
     {
-        services.Configure<ExchangeRateSettings>(configuration.GetSection("ExchangeRate"));
+        services.Configure<ExchangeRateSettings>(configuration.GetSection(ExchangeRateSettings.SectionName));
         // Typed client (transient) over a singleton IMemoryCache, so the freshness window spans requests.
         // ADR-V019: BCCR's buy/sell pair by default; the world feed stays selectable (ExchangeRate:Provider).
         var provider = configuration["ExchangeRate:Provider"]?.Trim().ToLowerInvariant();

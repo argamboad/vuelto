@@ -6,6 +6,8 @@ namespace Vuelto.Infrastructure.Billing;
 /// </summary>
 public sealed class StripeSettings
 {
+    public const string SectionName = "Billing:Stripe";
+
     /// <summary>Stripe secret API key. When unset, the app falls back to <c>FakeBillingProvider</c>.</summary>
     public string? SecretKey { get; init; }
 

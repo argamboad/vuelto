@@ -7,6 +7,8 @@ namespace Vuelto.Api.Configuration;
 /// </summary>
 public sealed class PlatformAdminSettings
 {
+    public const string SectionName = "Admin";
+
     /// <summary>Emails allowed to use the admin surface. Compared case-insensitively.</summary>
     public string[] StaffEmails { get; set; } = [];
 }

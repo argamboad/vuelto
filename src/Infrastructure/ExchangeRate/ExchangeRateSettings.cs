@@ -7,6 +7,8 @@ namespace Vuelto.Infrastructure.ExchangeRate;
 /// </summary>
 public sealed class ExchangeRateSettings
 {
+    public const string SectionName = "ExchangeRate";
+
     /// <summary>Which provider serves the day's quote (ADR-V019): <c>bccr</c> (default — the Banco Central reference buy/sell pair via the Finance Ministry mirror, no key) or <c>exchangerate-api</c> (the world feed, one mid rate, needs <see cref="ApiKey"/>).</summary>
     public string Provider { get; init; } = "bccr";
 

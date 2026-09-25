@@ -106,7 +106,7 @@ builder.Services.AddSwaggerGen(o =>
 
 // Infrastructure: DbContext, Data Protection, email, repositories, and the
 // External cookie + OAuth provider schemes.
-builder.Services.AddInfrastructure(builder.Configuration, builder.Environment);
+builder.Services.AddInfrastructure(builder.Configuration, builder.Environment, billingSettings.Enabled);
 
 // OpenTelemetry traces + metrics (OBS-2). Exporter is config-gated (OTLP when configured); see
 // TelemetryExtensions. Spans are tagged with tenant_id/user_id.

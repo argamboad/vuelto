@@ -2,6 +2,8 @@ namespace Vuelto.Infrastructure.Email;
 
 public class SmtpSettings
 {
+    public const string SectionName = "Email:Smtp";
+
     public required string Host { get; init; }
     public int Port { get; init; } = 1025;
     public string? Username { get; init; }
