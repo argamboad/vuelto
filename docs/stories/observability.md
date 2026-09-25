@@ -38,7 +38,10 @@ new dependency; Serilog/OTel-logs is a documented swap-in). Tests `tests/Api.Tes
 **Context / notes:** every log scope carries `tenant_id` (from the JWT `tenant_id` claim, via
 [`HttpCurrentTenant`](../../src/Api/Services/HttpCurrentTenant.cs)) and `user_id`. Enrichment comes
 from middleware that opens a logging scope per request. **No secrets/PII** beyond identifiers in log
-state (never tokens, never card data).
+state (never tokens, never card data, never an email address — log `{UserId}`; with `ParseStateValues`
+every placeholder is exported, and staging ships logs to a third-party store). The email half is held by
+`EnforcementGateTests.LogTemplates_NeverCarryAnEmailAddress` (v4 audit OBS-1, 2026-09-25); until then nine
+templates, one on every JWT issue, exported the user's email.
 
 **Acceptance criteria**
 

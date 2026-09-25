@@ -92,7 +92,7 @@ public class NativeAuthController(
                 claimsExtractor.ExtractDisplayName(User), EmailVerifiedForMerge(provider), cancellationToken);
 
             var code = nativeAuthCodeService.Issue(user.Id, provider);
-            logger.LogInformation("Native OAuth callback successful for {Email} via {Provider}", email, provider);
+            logger.LogInformation("Native OAuth callback successful for user {UserId} via {Provider}", user.Id, provider);
             return Redirect(To("code", code));
         }
         catch (UnverifiedEmailConflictException)
