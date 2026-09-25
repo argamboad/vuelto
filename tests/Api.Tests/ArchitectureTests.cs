@@ -370,7 +370,8 @@ public class ArchitectureTests
     public void FeatureFolders_DoNotReferenceEachOthersNamespaces()
     {
         // R7/TR-9: a vertical slice under Features/<X>/ must stay self-contained — it may not reference
-        // another slice's Features.<Y> namespace. Keeps slices independently deletable.
+        // another slice's Features.<Y> namespace. Keeps slices independently deletable. The match is
+        // boundary-aware (v4 ADV-P4-12), so slices named Reports and Reports2 can live side by side.
         var featuresDir = Path.Combine(RepoRoot(), "src", "Api", "Features");
         var slices = Directory.Exists(featuresDir)
             ? Directory.GetDirectories(featuresDir).Select(Path.GetFileName).ToList()
@@ -379,11 +380,10 @@ public class ArchitectureTests
         var offenders = new List<string>();
         foreach (var slice in slices)
         {
-            var others = slices.Where(s => !string.Equals(s, slice, StringComparison.Ordinal));
+            var others = slices.Where(s => !string.Equals(s, slice, StringComparison.Ordinal)).ToList();
             foreach (var file in SourceFiles(Path.Combine(featuresDir, slice!)))
             {
-                var text = File.ReadAllText(file);
-                if (others.Any(o => text.Contains($"Vuelto.Api.Features.{o}", StringComparison.Ordinal)))
+                if (Architecture.SliceReferenceInspector.ReferencedSlices(File.ReadAllText(file), others!).Count > 0)
                     offenders.Add(Path.GetFileName(file)!);
             }
         }
