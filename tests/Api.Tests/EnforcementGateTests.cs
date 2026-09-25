@@ -150,8 +150,122 @@ public class EnforcementGateTests
         // change what the code does or how it builds, wherever it sits. This models the classifier
         // script faithfully: the same regexes, applied after the same markdown exclusion, so the
         // assertion cannot pass while the workflow still bills for a README.
-        var ci = File.ReadAllText(Path.Combine(RepoRoot(), workflow));
+        var (Code, Native, Docs) = ClassifierOf(workflow);
 
+        // Markdown, wherever it lives, is neither — whatever the case of its extension (v4 LB-DEP-10).
+        Assert.False(Code("tests/Ui.Tests/README.md"), "a README under tests/ must not count as code");
+        Assert.False(Native("tests/E2E.Tests/README.md"), "a README under tests/E2E.Tests/ must not trigger the native legs");
+        // ...unless a test reads it: LocalPortsTests checks the E2E README's port table, so editing it runs the tests
+        // (testdocs), but never the native legs, whose list gets no markdown back.
+        Assert.True(Code("tests/E2E.Tests/README.md"), "the E2E README is read by LocalPortsTests, so it is code");
+        Assert.False(Code("src/Api/Features/Notes/README.md"), "a README under src/ must not count as code");
+        Assert.False(Code("src/Api/Features/Notes/README.MD"), "the markdown strip is case-insensitive");
+        Assert.False(Code("docs/ROADMAP.md"), "a doc no test reads stays free");
+
+        // And the exclusion must not have eaten anything real.
+        Assert.True(Code("tests/Api.Tests/EnforcementGateTests.cs"));
+        Assert.True(Code("src/Api/Program.cs"));
+        Assert.True(Native("src/Api/Program.cs"));
+        Assert.True(Native("tests/E2E.Tests/BillingJourneyTests.cs"));
+        Assert.True(Code(workflow), "an edit to the workflow itself can break a build no source file touched");
+        Assert.True(Code("src/Api/packages.lock.json"));
+        Assert.True(Docs("docs/QA_TEST_PLAN.md"), "docs= is computed on the UNFILTERED list, so markdown under docs/ still counts as docs");
+    }
+
+    [Theory]
+    [InlineData(".github/workflows/ci.yml")]
+    [InlineData(".forgejo/workflows/ci.yml")]
+    public void Classifier_CountsEveryFileAGateReads_AsCode(string workflow) // v4 DEP-15 (R97)
+    {
+        // One positive per file class the old regex missed: a PR touching only one of these skipped build-test (and
+        // the test guarding that very file), license-scan and docker-build, and merged green.
+        var (Code, _, _) = ClassifierOf(workflow);
+        foreach (var path in new[]
+                 {
+                     ".forgejo/scripts/push-to-github.sh", ".forgejo/workflows/deploy.yml", ".forgejo/workflows/postman-sync.yml",
+                     ".github/workflows/postman-sync.yml", ".github/forbidden-licenses.json", ".dockerignore", "docs/DEPLOYMENT.md",
+                     ".env.example", "tools/protect-branches.ps1", "Vuelto.slnx", "tools/e2e.ps1", "docs/postman/Vuelto.postman_collection.json",
+                 })
+            Assert.True(Code(path), $"{workflow}: {path} is read by a gate, so a change to it must run the gates");
+    }
+
+    [Theory]
+    [InlineData(".github/workflows/ci.yml")]
+    [InlineData(".forgejo/workflows/ci.yml")]
+    public void NativeClassifier_CoversEveryNativeInput(string workflow) // v4 NAT-16 / S0-G6 (R106)
+    {
+        var (_, Native, _) = ClassifierOf(workflow);
+        foreach (var path in new[] { "Directory.Build.props", "Directory.Packages.props", "global.json", "tools/publish-native.ps1",
+                                     "src/Maui/MauiProgram.cs", ".github/workflows/ci.yml", ".forgejo/workflows/ci.yml" })
+            Assert.True(Native(path), $"{workflow}: {path} can break a native build, so it must run the native legs");
+    }
+
+    [Theory]
+    [InlineData(".github/workflows/ci.yml")]
+    [InlineData(".forgejo/workflows/ci.yml")]
+    public void Classifier_FailsOpen_OnEveryOutput(string workflow) // v4 LB-DEP-9 (R143)
+    {
+        // The unknown-diff-base branch exists to run everything; an output it leaves false is a job it quietly skips.
+        var ci = File.ReadAllText(Path.Combine(RepoRoot(), workflow));
+        // The branch that writes the outputs when the base is unknown: from its `if` to its `exit 0`.
+        var at = ci.IndexOf("echo \"code=true\"", StringComparison.Ordinal);
+        Assert.True(at > 0, "no fail-open branch writing code=true");
+        var from = ci.LastIndexOf("if [ -z \"$BASE_SHA\" ]", at, StringComparison.Ordinal);
+        var failOpen = ci[from..ci.IndexOf("exit 0", at, StringComparison.Ordinal)];
+        foreach (var output in new[] { "code", "native", "docs" })
+            Assert.Contains($"echo \"{output}=true\"", failOpen);
+        Assert.DoesNotContain("=false\"", failOpen);
+    }
+
+    [Theory]
+    [InlineData(".github/workflows/ci.yml")]
+    [InlineData(".forgejo/workflows/ci.yml")]
+    public void EveryRepoFileTheTestsRead_ClassifiesAsCode(string workflow) // v4 DEP-15 / TB-DOC-7 (R97)
+    {
+        // Reflective: every string literal (and every Path.Combine join) in this test project that names an existing
+        // repo FILE is something a test reads, so a change to it must run the tests. Directories are not asserted:
+        // src/, tests/ and tools/ are code wholesale, and the one scan of a docs folder (the CLAUDE.md doc map lists
+        // every top-level docs/*.md) is the named exception — only an ADDED top-level doc can fail it, and counting
+        // every doc edit as code to catch that would bill the full run for every docs PR; the next code run catches it.
+        var (Code, _, _) = ClassifierOf(workflow);
+        var notCode = TestReadFiles().Where(p => !Code(p)).OrderBy(p => p).ToList();
+        Assert.True(notCode.Count == 0,
+            $"{workflow}: these files are read by tests but classify as not-code, so a PR touching only them skips the "
+            + $"tests that guard them. Add them to code= (and, if markdown, to testdocs=) in BOTH workflows: {string.Join(", ", notCode)}");
+    }
+
+    private static IEnumerable<string> TestReadFiles()
+    {
+        var root = RepoRoot();
+        var literal = new Regex(@"""((?:[^""\\]|\\.)*)""");
+        var found = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var file in Directory.EnumerateFiles(Path.Combine(root, "tests", "Api.Tests"), "*.cs", SearchOption.AllDirectories)
+                     .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}")
+                              && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}")))
+        {
+            // Paths handed to the classifier model (Code("…"), Native("…"), Docs("…")) are examples, not reads.
+            var text = Regex.Replace(File.ReadAllText(file), @"\b(?:Code|Native|Docs)\(""[^""]*""\)", "");
+            var candidates = literal.Matches(text).Select(m => m.Groups[1].Value).ToList();
+            foreach (Match call in Regex.Matches(text, @"Path\.Combine\("))
+            {
+                var end = text.IndexOf(';', call.Index);
+                var parts = literal.Matches(text[call.Index..(end < 0 ? text.Length : end)]).Select(m => m.Groups[1].Value).ToList();
+                for (var i = 1; i <= parts.Count; i++) candidates.Add(string.Join('/', parts.Take(i)));
+            }
+            foreach (var c in candidates.Select(c => c.Replace(@"\\", "/").Replace('\\', '/')))
+                if (c.Length > 0 && !c.StartsWith('/') && !c.Contains(' ') && c != ".env" // .env is the developer's, gitignored
+                    && File.Exists(Path.Combine(root, c)))
+                    found.Add(c);
+        }
+        Assert.Contains("docs/DEPLOYMENT.md", found); // probe alive
+        return found;
+    }
+
+    // The changes step, modelled faithfully: markdown (any case) is stripped before the code/native match; the
+    // markdown files tests read (testdocs=) are added back for code= only; docs= sees the unfiltered list.
+    private static (Func<string, bool> Code, Func<string, bool> Native, Func<string, bool> Docs) ClassifierOf(string workflow)
+    {
+        var ci = File.ReadAllText(Path.Combine(RepoRoot(), workflow));
         static string Extract(string ci, string name)
         {
             var m = Regex.Match(ci, name + @"=\$\(match (?:""\$\w+"" )?'([^']+)'\)");
@@ -162,28 +276,17 @@ public class EnforcementGateTests
         var native = new Regex(Extract(ci, "native"));
         var docs = new Regex(Extract(ci, "docs"));
 
-        // The exclusion the script applies before the code/native match. Absent ⇒ nothing excluded,
-        // which is exactly the defect: the test then sees the README classified as code.
-        var excl = Regex.Match(ci, @"codefiles=\$\(printf '%s\\n' ""\$files"" \| grep -vE '([^']+)'");
-        var exclude = excl.Success ? new Regex(excl.Groups[1].Value) : null;
+        var strip = Regex.Match(ci, @"grep -viE '([^']+)'");
+        Assert.True(strip.Success, "the markdown strip must be case-insensitive (grep -viE)");
+        var stripped = new Regex(strip.Groups[1].Value, RegexOptions.IgnoreCase);
+        var testdocsDecl = Regex.Match(ci, @"testdocs='([^']+)'");
+        Assert.True(testdocsDecl.Success, "the changes step must declare testdocs='…', the markdown files tests read");
+        var testdocs = new Regex(testdocsDecl.Groups[1].Value);
 
-        bool Code(string p) => (exclude is null || !exclude.IsMatch(p)) && code.IsMatch(p);
-        bool Native(string p) => (exclude is null || !exclude.IsMatch(p)) && native.IsMatch(p);
-
-        // Markdown, wherever it lives, is neither.
-        Assert.False(Code("tests/E2E.Tests/README.md"), "a README under tests/ must not count as code");
-        Assert.False(Native("tests/E2E.Tests/README.md"), "a README under tests/E2E.Tests/ must not trigger the native legs");
-        Assert.False(Code("src/Api/Features/Notes/README.md"), "a README under src/ must not count as code");
-        Assert.False(Code("docs/QA_TEST_PLAN.md"));
-
-        // And the exclusion must not have eaten anything real.
-        Assert.True(Code("tests/Api.Tests/EnforcementGateTests.cs"));
-        Assert.True(Code("src/Api/Program.cs"));
-        Assert.True(Native("src/Api/Program.cs"));
-        Assert.True(Native("tests/E2E.Tests/BillingJourneyTests.cs"));
-        Assert.True(Code(workflow), "an edit to the workflow itself can break a build no source file touched");
-        Assert.True(Code("src/Api/packages.lock.json"));
-        Assert.True(docs.IsMatch("docs/QA_TEST_PLAN.md"), "docs= is computed on the UNFILTERED list, so markdown under docs/ still counts as docs");
+        Assert.Contains(@"native=$(match ""$nativefiles""", ci);
+        return (p => (!stripped.IsMatch(p) || testdocs.IsMatch(p)) && code.IsMatch(p),
+                p => !stripped.IsMatch(p) && native.IsMatch(p),
+                p => docs.IsMatch(p));
     }
 
     [Theory]

@@ -551,6 +551,13 @@ GitHub's `develop` with auto-deploy off; GitHub keeps its hook and its pipeline)
 | **Run workflow**, `deploy=prod` (on `main`) | same, `deploy-prod` | |
 | Monday 06:00 UTC | all three smokes (the weekly safety net for legs that no longer run per push) | |
 
+"Docs only" means no file a test or gate reads. Markdown is free wherever it sits (README.MD included),
+except the few files the tests read (the root README and CLAUDE.md, this runbook, DATA_MODEL, QA_TEST_PLAN,
+REBRANDING, the Postman README, the E2E story and README): those count as code, like both forges' workflows
+and scripts, `tools/`, `.env.example`, `.dockerignore` and the Postman collection. The lists are the
+`changes` step's `code=` and `testdocs=`, identical in both workflows; `EveryRepoFileTheTestsRead_ClassifiesAsCode`
+fails when a test starts reading a file they miss (v4 T2).
+
 By default the native smokes and the deploys never run on a push. Pick both inputs in one dispatch to
 smoke and deploy in a single run.
 

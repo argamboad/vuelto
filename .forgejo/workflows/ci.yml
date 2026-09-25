@@ -435,7 +435,7 @@ jobs:
             {
               echo "code=true"
               echo "native=true"
-              echo "docs=false"
+              echo "docs=true"
             } >> "$GITHUB_OUTPUT"
             echo "::notice::Diff base unavailable — running every gate."
             exit 0
@@ -446,20 +446,26 @@ jobs:
           files=$(git -c core.quotePath=false diff --name-only "$BASE_SHA" "${{ github.sha }}")
           # A markdown file cannot change what the code does or how it builds, wherever it lives —
           # but the code/native regexes key on DIRECTORY, so tests/E2E.Tests/README.md once billed a
-          # full run including both native builds. Strip markdown before those two matches only;
-          # docs= still sees everything, so markdown under docs/ keeps counting as docs.
-          codefiles=$(printf '%s\n' "$files" | grep -vE '\.md$' || true)
+          # full run including both native builds. Strip markdown (any case: README.MD too) before those
+          # two matches; docs= still sees everything, so markdown under docs/ keeps counting as docs.
+          # Except the markdown that tests READ (testdocs): a docs PR that edits one can break the test
+          # that reads it, so it must run the tests (v4 T2, R97) — but never the native legs, which get the
+          # plain stripped list. A test that reads a new markdown file fails
+          # EnforcementGateTests.EveryRepoFileTheTestsRead_ClassifiesAsCode until it is listed here.
+          testdocs='^(README\.md|CLAUDE\.md|docs/(DEPLOYMENT|DATA_MODEL|QA_TEST_PLAN|REBRANDING)\.md|docs/postman/README\.md|docs/stories/e2e\.md|tests/E2E\.Tests/README\.md)$'
+          nativefiles=$(printf '%s\n' "$files" | grep -viE '\.md$' || true)
+          codefiles=$( { printf '%s\n' "$nativefiles"; printf '%s\n' "$files" | grep -E "$testdocs"; } || true)
           match() { printf '%s\n' "$1" | grep -qE "$2" && echo true || echo false; }
 
-          # Anything that can change what the code DOES or how it is built. Lockfiles and the
-          # workflow itself are in here on purpose: a change to either can break a build that no
-          # source file touched.
-          # LOCALCI-4: the Forgejo copy also counts its own workflow file (`\.forgejo/workflows/ci\.yml`).
-          code=$(match "$codefiles" '^(src/|tests/|Directory\.Packages\.props|Directory\.Build\.props|global\.json|Dockerfile|docker-compose\.yml|\.config/dotnet-tools\.json|\.github/(workflows/ci\.yml|scripts/)|.*packages\.lock\.json|\.forgejo/workflows/ci\.yml)')
+          # Anything that can change what the code DOES or how it is built, and every file a test or gate
+          # reads: lockfiles, both forges' workflows and scripts, the license list, .dockerignore, the
+          # config catalog, tools/, the Postman collection and the markdown in testdocs. Identical in both
+          # workflow copies. A path counts as code if in doubt; skipping a gate is the expensive mistake.
+          code=$(match "$codefiles" '^(src/|tests/|tools/|[^/]+\.slnx?$|Directory\.Packages\.props|Directory\.Build\.props|global\.json|Dockerfile|\.dockerignore|docker-compose\.yml|\.env\.example|\.config/dotnet-tools\.json|\.github/(workflows/|scripts/|forbidden-licenses\.json)|\.forgejo/(workflows/|scripts/)|.*packages\.lock\.json|docs/postman/|README\.md$|CLAUDE\.md$|docs/(DEPLOYMENT|DATA_MODEL|QA_TEST_PLAN|REBRANDING)\.md$|docs/stories/e2e\.md$)')
 
-          # Narrower, and unchanged from the old native-paths regex: what the expensive native legs
-          # can actually be broken by.
-          native=$(match "$codefiles" '^(src/|tests/E2E\.Tests/|tests/native-smoke-android/|Directory\.Packages\.props|\.github/workflows/ci\.yml|global\.json|\.forgejo/workflows/ci\.yml)')
+          # Narrower: what the expensive native legs can actually be broken by, incl. the solution-wide
+          # build props and the native publish script (v4 NAT-16).
+          native=$(match "$nativefiles" '^(src/|tests/E2E\.Tests/|tests/native-smoke-android/|Directory\.Packages\.props|Directory\.Build\.props|global\.json|tools/publish-native\.ps1|\.(github|forgejo)/workflows/ci\.yml)')
 
           {
             echo "code=$code"
