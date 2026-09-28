@@ -33,7 +33,7 @@ public sealed class MfaLoginService(
         if (await mfa.IsEnabledAsync(user.Id, cancellationToken))
             return (null, challenges.Mint(user.Id, provider, native));
 
-        var session = await sessionService.IssueAsync(user, provider, ip, native, cancellationToken);
+        var session = await sessionService.IssueAsync(user, provider, ip, native, cancellationToken: cancellationToken);
         return (session, null);
     }
 
@@ -62,7 +62,7 @@ public sealed class MfaLoginService(
         if (user is null)
             return null;
 
-        var session = await sessionService.IssueAsync(user, provider, ip, native, cancellationToken);
+        var session = await sessionService.IssueAsync(user, provider, ip, native, cancellationToken: cancellationToken);
         return new MfaVerifyOutcome(session, native);
     }
 }

@@ -234,15 +234,19 @@ sequenceDiagram
     participant SS as SessionService
     C->>AC: POST refresh (cookie for web, body for native)
     AC->>RS: InspectRefreshTokenAsync (hash lookup WITHOUT revoked filter)
-    Note over RS: revoked hash - RotatedWithinGrace if rotated at most 60 s ago AND successor live, else Reuse
+    Note over RS: revoked hash - RotatedWithinGrace if rotated at most 60 s ago AND successor live AND grace unspent, else Reuse
+    alt RotatedWithinGrace but TryMarkGraceUsedAsync returns false (grace already spent - a racing replay)
+        Note over AC: reclassified as Reuse
+    end
     alt status Reuse (revoked hash presented again)
         AC->>RR: RevokeAllForUserAsync - kill every session
         AC-->>C: generic 401 invalid_refresh_token (no signal leak)
     else status Unknown or Expired
         AC-->>C: generic 401
     else RotatedWithinGrace (benign race - two tabs, lost response)
+        AC->>RR: TryMarkGraceUsedAsync - conditional UPDATE where GraceUsedAt is null (one-shot)
         AC->>SS: IssueAsync - new refresh token + new JWT
-        Note over AC: revokes NOTHING - both chains stay valid, the unused one expires
+        Note over AC: revokes NOTHING - both chains stay valid, the unused one expires; Warning with the user's grace count
         AC-->>C: new cookie (web) / new body token (native)
     else Valid
         AC->>SS: IssueAsync - new refresh token + new JWT
@@ -255,7 +259,11 @@ sequenceDiagram
 Divergences: the reuse grace window (ADR-002 addendum 2026-09-18, `RefreshToken:ReuseGraceSeconds`,
 default 60, 0 = strict) needs a LIVE successor — logout and revoke-all revoke it, so a stale tab can
 never undo a sign-out; only rotation stamps `RotatedAt`, so a token revoked any other way is always
-reuse. The successor is read untracked, so a set-based revoke in the same context can't be masked.
+reuse. The grace is **one-shot** (addendum 2026-09-28): `GraceUsedAt` is stamped by a conditional
+set-based update before the session is issued, so of two replays racing inside the window exactly one is
+forgiven and the other trips the theft response. Logout uses the same inspection (R124): any known token —
+valid, expired, rotated-out, revoked — names its owner and the whole family is revoked; only an unknown hash
+is a no-op, so a sign-out clicked while a refresh is in flight still ends the session the refresh minted. The successor is read untracked, so a set-based revoke in the same context can't be masked.
 Rotation issues first and links second, so a failed issue leaves the presented token usable instead of
 signing the user out. Revoke/mark-rotated use a tracked load-then-flip (not `ExecuteUpdate`) deliberately, so the
 inspection read stays consistent. The hourly cleanup job deletes only **expired** rows —

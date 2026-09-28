@@ -59,6 +59,22 @@ public sealed class TestHttpHandler : HttpMessageHandler
     }
 
     /// <summary>
+    /// Stub "METHOD /path" to answer <paramref name="answers"/> in order — status and body per request, repeating
+    /// the last — for a request that is refused once and then accepted (a 401 that a refresh-and-retry cures).
+    /// </summary>
+    public TestHttpHandler OnSequence(HttpMethod method, string path, params (HttpStatusCode Status, string Json)[] answers)
+    {
+        _gated.Remove(Key(method, path));
+        var next = 0;
+        _routes[Key(method, path)] = _ =>
+        {
+            var (status, json) = answers[Math.Min(Interlocked.Increment(ref next) - 1, answers.Length - 1)];
+            return new HttpResponseMessage(status) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
+        };
+        return this;
+    }
+
+    /// <summary>
     /// Stub "METHOD /path" to HANG until the returned action is invoked — for testing concurrent requests
     /// (e.g. a rapid double-click while the first call is still in flight). Every request to this route
     /// awaits the SAME gate.
@@ -78,7 +94,7 @@ public sealed class TestHttpHandler : HttpMessageHandler
         Requests.Add(request);
         var key = Key(request.Method, request.RequestUri?.AbsolutePath ?? "/");
         if (_gated.TryGetValue(key, out var gate))
-            return gate.Task;
+            return gate.Task.WaitAsync(cancellationToken); // a caller's own timeout cancels the wait, as a real handler would
         var response = _routes.TryGetValue(key, out var factory)
             ? factory(request)
             : new HttpResponseMessage(HttpStatusCode.NotFound)

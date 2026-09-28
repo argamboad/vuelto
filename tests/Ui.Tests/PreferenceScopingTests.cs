@@ -41,8 +41,12 @@ public class PreferenceScopingTests : ComponentTestBase
     {
         CultureInfo.CurrentCulture = CultureInfo.CurrentUICulture = new CultureInfo("en");
 
-        // An impersonation session that (defensively) DOES carry the target's prefs.
-        await SignInAsync(theme: "dark", locale: "es", impersonatedBy: "00000000-0000-0000-0000-000000000009");
+        // An impersonation session that (defensively) DOES carry the target's prefs. Entered the way the app
+        // does — BeginImpersonation on a staff session; impersonation is a state, not a claim a refresh could
+        // hand back (v4 T31, R125).
+        await SignInAsync(name: "Staff Member");
+        Auth.BeginImpersonation(TestJwt.Build(name: "Target User", theme: "dark", locale: "es",
+            impersonatedBy: "00000000-0000-0000-0000-000000000009"));
         Assert.True(Auth.IsImpersonating);
 
         RenderLayout(this);

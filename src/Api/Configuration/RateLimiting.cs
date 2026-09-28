@@ -33,6 +33,15 @@ public static class RateLimiting
     /// <summary>Per-API-key throttle for the public API (PUBAPI-2) — partitions by the key id.</summary>
     public const string PublicApiPolicy = "public-api";
 
+    /// <summary>
+    /// Per-IP throttle for <c>/api/auth/refresh</c> (v4 T36, decision #4): the keep-alive needs one call an hour
+    /// per client, so even a household's worth of devices behind one NAT stays far under the budget, while someone
+    /// holding a stolen token can't mint rows cheaply. Overridable via <c>Auth:RateLimit:RefreshPermitLimit</c>
+    /// (raised for the E2E stack, whose whole browser suite shares one source IP).
+    /// </summary>
+    public const string RefreshPolicy = "refresh";
+    public const int RefreshPermitLimit = 60;
+
     /// <summary>Default requests allowed per IP per <see cref="Window"/> before the limiter returns 429.
     /// Overridable via <c>Auth:RateLimit:PasswordlessPermitLimit</c> (e.g. raised for the E2E stack,
     /// where the whole browser suite shares one source IP); production keeps this default.</summary>
@@ -58,9 +67,23 @@ public static class RateLimiting
         var passwordlessLimit = configuration?.GetValue("Auth:RateLimit:PasswordlessPermitLimit", PermitLimit) ?? PermitLimit;
         var otpMaxAttempts = configuration?.GetValue("Auth:Otp:MaxAttempts", 5) ?? 5;
         var verifyLimit = VerifyPermitFor(passwordlessLimit, otpMaxAttempts);
+        var refreshLimit = configuration?.GetValue("Auth:RateLimit:RefreshPermitLimit", RefreshPermitLimit) ?? RefreshPermitLimit;
         return services.AddRateLimiter(options =>
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+            // Refresh (v4 T36): per IP. A held refresh token is a credential; minting sessions with it must cost
+            // something per source, without touching the keep-alive's one call an hour per client.
+            options.AddPolicy(RefreshPolicy, httpContext =>
+            {
+                var ip = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+                return RateLimitPartition.GetFixedWindowLimiter(ip, _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = refreshLimit,
+                    Window = Window,
+                    QueueLimit = 0,
+                });
+            });
 
             // Passwordless SEND endpoints (email-producing): per-IP email-bomb / outbound-cost guard (CONF-5).
             options.AddPolicy(PasswordlessPolicy, httpContext =>

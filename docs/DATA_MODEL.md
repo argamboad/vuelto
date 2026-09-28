@@ -61,6 +61,12 @@ can't forge sessions.
   revocation). A revoked token whose `rotated_at` is at most `RefreshToken:ReuseGraceSeconds` (60 s) old and
   whose successor is still live (not revoked, not expired) is a benign race when presented again — a fresh
   session, nothing revoked; anything else revoked is reuse (theft). ADR-002 addendum 2026-09-18.
+- `grace_used_at` (nullable): when that forgiveness was spent on the token. Stamped once, by a conditional
+  update, so the grace is **one-shot** — any further presentation of the token is reuse. ADR-002 addendum
+  2026-09-28.
+- `session_expires_at` (nullable): the whole session's end when `RefreshToken:AbsoluteLifetimeDays` is set
+  (off by default) — stamped at sign-in, inherited by every successor at rotation, and a ceiling on
+  `expires_at`, so a chain the keep-alive renews forever still ends. v4 T36.
 
 ### LoginToken *(passwordless: magic link + email OTP)*
 A single-use, hashed, time-limited credential. The account is resolved/created at redemption, so a
@@ -106,8 +112,11 @@ stored.
 - `created_at`, `expires_at`
 
 **Derived rules (computed, never stored):**
-- `is_expired` → `now > expires_at`
-- `is_valid` → `status == pending AND !is_expired`
+- `is_expired` → `now >= expires_at` (at the expiry instant it is expired)
+- `is_valid` → `status == pending AND expires_at > now` — **one rule** (`TenantInvitation.ValidAt` for queries,
+  `IsValidAt` in memory; v4 T34, R127) used by the signup gate, the accept and the **seat count**, so a lapsed
+  pending invite reserves no seat. Nothing marks an invitation `expired`; the owner's pending list still shows
+  lapsed ones so they can be revoked or regenerated (re-inviting the same address refreshes the lapsed row).
 
 ## App entities
 

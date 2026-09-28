@@ -11,7 +11,17 @@ public interface ITenantInvitationRepository
     Task<TenantInvitation?> GetByIdUnscopedAsync(Guid id, CancellationToken cancellationToken = default);
 
     /// <summary>Pending invites for a tenant, newest first.</summary>
+    /// <summary>
+    /// Every invitation still in the Pending status — lapsed ones included, so the owner sees them and can
+    /// revoke or regenerate them. NOT the seat count: that is <see cref="CountValidForTenantAsync"/>.
+    /// </summary>
     Task<List<TenantInvitation>> GetPendingForTenantAsync(Guid tenantId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// How many invitations still reserve a seat at <paramref name="now"/>: <see cref="TenantInvitation.ValidAt"/>,
+    /// i.e. pending AND not yet expired (v4 T34, R127). A lapsed pending invite reserves nothing.
+    /// </summary>
+    Task<int> CountValidForTenantAsync(Guid tenantId, DateTimeOffset now, CancellationToken cancellationToken = default);
 
     /// <summary>An existing pending invite for (tenant, email), if any (dedup).</summary>
     Task<TenantInvitation?> GetPendingByEmailAsync(Guid tenantId, string email, CancellationToken cancellationToken = default);

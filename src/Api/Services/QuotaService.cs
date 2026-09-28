@@ -26,10 +26,10 @@ public sealed class QuotaService(
         var plan = await ResolvePlanAsync(cancellationToken);
         var tenantId = currentTenant.TenantId ?? Guid.Empty;
 
-        // Seats = current members + still-pending invites (a pending invite is a reserved seat, so N
-        // invites can't over-provision past the cap).
+        // Seats = current members + still-VALID invites (a live invite is a reserved seat, so N invites can't
+        // over-provision past the cap; a lapsed one reserves nothing — v4 T34, R127).
         var members = (await tenants.GetMembersAsync(tenantId, cancellationToken)).Count;
-        var pending = (await invitations.GetPendingForTenantAsync(tenantId, cancellationToken)).Count;
+        var pending = await invitations.CountValidForTenantAsync(tenantId, clock.GetUtcNow(), cancellationToken);
         return new SeatUsage(members + pending, plan.SeatLimit);
     }
 

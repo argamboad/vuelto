@@ -28,6 +28,11 @@ public abstract class ComponentTestBase : BunitContext
     /// The clock <see cref="Auth"/> reads — frozen at "now" so the tokens <see cref="TestJwt"/> mints are live, and
     /// the session's renewal timer fires only when a test advances it (never mid-render on a busy machine).
     /// </summary>
+    /// <summary>
+    /// The DEVICE clock the client reads. <see cref="TestJwt"/> mints tokens on the real clock — the server's —
+    /// and its <c>serverClockOffset</c> is the clock-skew seam (v4 T32, R126): a token minted 3 minutes ahead is
+    /// what a phone 3 minutes slow receives.
+    /// </summary>
     protected FakeTimeProvider Time { get; } = new(DateTimeOffset.UtcNow);
 
     protected ComponentTestBase()

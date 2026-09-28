@@ -19,7 +19,9 @@ public static class TestJwt
         string? locale = null,
         string? theme = null,
         string? impersonatedBy = null,
-        TimeSpan? lifetime = null)
+        TimeSpan? lifetime = null,
+        bool withNotBefore = true,
+        TimeSpan? serverClockOffset = null)
     {
         var claims = new List<Claim> { new(JwtRegisteredClaimNames.Sub, userId) };
         void Add(string type, string? value) { if (value is not null) claims.Add(new Claim(type, value)); }
@@ -30,12 +32,15 @@ public static class TestJwt
         Add(AppClaims.Theme, theme);
         Add(AppClaims.ImpersonatedBy, impersonatedBy);
 
-        var now = DateTime.UtcNow;
+        // The clock-skew seam (v4 T32): the issuing server's clock, relative to the device's (the test's fake
+        // clock starts at real now). +3 min is what a device 3 minutes SLOW receives; -61 min, one 61 minutes FAST.
+        var now = DateTime.UtcNow.Add(serverClockOffset ?? TimeSpan.Zero);
         var expires = now.Add(lifetime ?? TimeSpan.FromHours(1));
         var token = new JwtSecurityToken(
             claims: claims,
-            // A negative lifetime builds an ALREADY-EXPIRED token (notBefore must precede expires).
-            notBefore: expires < now ? expires.AddMinutes(-10) : now,
+            // A negative lifetime builds an ALREADY-EXPIRED token (notBefore must precede expires). The API's
+            // own tokens carry NO nbf (withNotBefore: false builds one shaped like that — v4 T32).
+            notBefore: !withNotBefore ? null : expires < now ? expires.AddMinutes(-10) : now,
             expires: expires);
         return new JwtSecurityTokenHandler().WriteToken(token);
     }

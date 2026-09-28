@@ -421,7 +421,7 @@
                 "refresh"
               ]
             },
-            "description": "Rotates the refresh token (old one is revoked; replaying it revokes every session — reuse detection — unless the replay lands within RefreshToken:ReuseGraceSeconds (60 s) of the rotation while the new token is still live: that race gets a fresh session and nothing is revoked). The stored refreshToken is updated automatically."
+            "description": "Rotates the refresh token (old one is revoked; replaying it revokes every session — reuse detection — unless the replay lands within RefreshToken:ReuseGraceSeconds (60 s) of the rotation while the new token is still live: that race gets a fresh session and nothing is revoked — once per rotated token; a further replay of it is reuse). The stored refreshToken is updated automatically."
           },
           "event": [
             {

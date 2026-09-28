@@ -24,6 +24,13 @@ public interface IRefreshTokenSettings
     /// 0 (or less) disables the window — every replay revokes all sessions. ADR-002 addendum, 2026-09-18.
     /// </summary>
     int ReuseGraceSeconds { get; }
+
+    /// <summary>
+    /// Optional absolute session lifetime (<c>RefreshToken:AbsoluteLifetimeDays</c>; null or 0 = off, the
+    /// default): the whole rotation chain ends this many days after the sign-in that started it, however often
+    /// it is renewed. With the keep-alive an open tab otherwise stays signed in indefinitely. v4 T36, decision #2.
+    /// </summary>
+    int? AbsoluteLifetimeDays { get; }
 }
 
 /// <summary>

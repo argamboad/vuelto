@@ -222,6 +222,80 @@ public class RefreshTokenServiceTests(PostgresFixture fixture) : PostgresTestBas
         Assert.Equal(userId, inspection.Token!.UserId);
     }
 
+    // ── absolute session lifetime (v4 T36, decision #2: an optional knob, off by default) ──
+
+    [Fact]
+    public async Task AbsoluteLifetime_OffByDefault_TokensOutliveNothingButTheirOwnExpiry()
+    {
+        await using var db = Fixture.CreateContext();
+        var clock = new FakeTimeProvider(GraceEpoch);
+        var sut = new ServiceHarness(db, clock).RefreshTokenService(expiryDays: 30);
+
+        var issued = await sut.IssueRefreshTokenAsync(Guid.CreateVersion7(), "127.0.0.1", "google");
+
+        Assert.Null(issued.Token.SessionExpiresAt);
+        Assert.Equal(GraceEpoch.AddDays(30), issued.Token.ExpiresAt);
+    }
+
+    [Fact]
+    public async Task AbsoluteLifetime_WhenSet_CapsTheChain_AcrossRotations()
+    {
+        // With the keep-alive an open tab stays signed in indefinitely: every rotation minted another 30 days.
+        // RefreshToken:AbsoluteLifetimeDays caps the whole chain from the first sign-in — each successor
+        // inherits the session's end and never expires later than it.
+        await using var db = Fixture.CreateContext();
+        var clock = new FakeTimeProvider(GraceEpoch);
+        var sut = new ServiceHarness(db, clock).RefreshTokenService(expiryDays: 30, absoluteLifetimeDays: 1);
+        var userId = Guid.CreateVersion7();
+
+        var first = await sut.IssueRefreshTokenAsync(userId, "127.0.0.1", "google");
+        Assert.Equal(GraceEpoch.AddDays(1), first.Token.SessionExpiresAt);
+        Assert.Equal(GraceEpoch.AddDays(1), first.Token.ExpiresAt); // the cap is nearer than 30 days
+
+        clock.Advance(TimeSpan.FromHours(20));
+        var rotated = await sut.IssueRefreshTokenAsync(userId, "127.0.0.1", "google", sessionExpiresAt: first.Token.SessionExpiresAt);
+
+        Assert.Equal(GraceEpoch.AddDays(1), rotated.Token.SessionExpiresAt);
+        Assert.Equal(GraceEpoch.AddDays(1), rotated.Token.ExpiresAt); // not now + 30 days, not even now + 1 day
+    }
+
+    [Fact]
+    public async Task TryConsumeGrace_IsOneShot_AndStampsTheClock()
+    {
+        // v4 AUTH-1 (T28, R81): the first consumer wins the stamp; a second call — a third tab, or a replay
+        // racing the forgiven presentation — gets false and is treated as reuse by the caller.
+        await using var db = Fixture.CreateContext();
+        var clock = new FakeTimeProvider(GraceEpoch);
+        var sut = new ServiceHarness(db, clock).RefreshTokenService(reuseGraceSeconds: 60);
+
+        var (old, _) = await RotateAsync(sut, Guid.CreateVersion7());
+        clock.Advance(TimeSpan.FromSeconds(2));
+
+        Assert.True(await sut.TryConsumeGraceAsync(old.Token.Id));
+        Assert.False(await sut.TryConsumeGraceAsync(old.Token.Id));
+
+        db.ChangeTracker.Clear();
+        var stored = await db.RefreshTokens.SingleAsync(t => t.Id == old.Token.Id);
+        Assert.Equal(GraceEpoch.AddSeconds(2), stored.GraceUsedAt);
+        Assert.Equal(1, await sut.CountGraceUsesAsync(old.Token.UserId));
+    }
+
+    [Fact]
+    public async Task Inspect_RotatedTokenWithinGrace_AfterTheGraceWasSpent_IsReuse()
+    {
+        // Still inside the window, successor still live — but the grace has been used on this token once.
+        await using var db = Fixture.CreateContext();
+        var clock = new FakeTimeProvider(GraceEpoch);
+        var sut = new ServiceHarness(db, clock).RefreshTokenService(reuseGraceSeconds: 60);
+
+        var (old, _) = await RotateAsync(sut, Guid.CreateVersion7());
+        Assert.True(await sut.TryConsumeGraceAsync(old.Token.Id));
+        clock.Advance(TimeSpan.FromSeconds(5));
+
+        var inspection = await sut.InspectRefreshTokenAsync(old.RawToken);
+        Assert.Equal(RefreshTokenStatus.Reuse, inspection.Status);
+    }
+
     [Fact]
     public async Task Inspect_RotatedTokenPastGrace_IsReuse()
     {
@@ -317,6 +391,15 @@ public class RefreshTokenSettingsTests
         var settings = Bind();
         Assert.Equal(30, settings.ExpiryDays);
         Assert.Equal(60, settings.ReuseGraceSeconds);
+    }
+
+    [Fact]
+    public void AbsoluteLifetimeDays_IsOffUnlessConfigured()
+    {
+        Assert.Null(Bind().AbsoluteLifetimeDays);
+        Assert.Null(Bind(("RefreshToken:AbsoluteLifetimeDays", "")).AbsoluteLifetimeDays);
+        Assert.Null(Bind(("RefreshToken:AbsoluteLifetimeDays", "0")).AbsoluteLifetimeDays); // 0 = off, not "expire now"
+        Assert.Equal(90, Bind(("RefreshToken:AbsoluteLifetimeDays", "90")).AbsoluteLifetimeDays);
     }
 
     [Fact]

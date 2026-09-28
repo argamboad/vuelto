@@ -170,6 +170,37 @@ revoked/expired, grace 0, never-rotated) + `RefreshReplayTests` (same cookie twi
 revoked; replay after the window → 401 + revoke-all; pre-logout token within the window → 401, no
 session). Migration `AddRefreshTokenRotationLink` (two nullable columns). Flow: FLOWS §7.
 
+*Addendum (2026-09-28) — the grace is one-shot, and the trade it makes is symmetric.* **Evidence (v4 audit
+AUTH-1/AUTH-13, T28):** the window above forgave a rotated-out token any number of times for 60 s, each
+replay minting an independent chain, and the grace path logged at Information with no count — so a thief
+who kept landing inside the window left no trace. And the forgiveness has no notion of who came first: if
+the thief rotates a stolen token and the victim's scheduled renewal lands within 60 s, it is the *victim's*
+presentation that is treated as the benign race, and the pair raises no alarm. **Decision:** `RefreshToken`
+gains `GraceUsedAt`, stamped by a **conditional set-based update** (`TryMarkGraceUsedAsync`, `WHERE
+GraceUsedAt IS NULL`) *before* the session is issued: exactly one presentation inside the window is
+forgiven; any further presentation of that token — a third tab, a replay racing the forgiven one, or a
+thief — is `Reuse` and revokes every session. The grace path now logs at **Warning** with the user's running
+grace count, so a run of them on one account is visible. **The symmetric trade, stated:** attacker-first
+inside the window is *accepted* — the platform cannot tell the two presentations apart, and refusing both
+would bring back the sign-outs the 2026-09-18 addendum removed. What bounds it: the grace is spent on that
+pair, so the thief's next replay (or the victim's) kills both chains; the window is 60 s; and the client's
+refresh timeout plus retry delay is pinned below it (T30), so the benign race the window exists for
+completes well inside it. `RefreshReplayTests` records both halves —
+`Refresh_ThirdPresentationInsideGrace_Is401_AndRevokesAllSessions` and
+`Refresh_AttackerRotatesFirst_VictimsRenewalInsideGrace_GetsASession_ByDesign`. Migration
+`AddRefreshTokenGraceUsedAt` (one nullable column).
+
+*Addendum (2026-09-28) — logout revokes the family of any known token.* **Evidence (v4 LB-AUTH-4, T29):**
+`POST /api/auth/logout` found the user through the live-token lookup, so a token that had just been rotated
+out or had expired resolved to nothing: no revocation, the cookie deleted anyway, 200. With the keep-alive
+above that is routine — a refresh in flight when the user clicks Sign out presents the old token, then the
+refresh response lands and restores the session (web cookie, or the native store); and a device that slept
+past expiry could not sign the user's other devices out. **Decision (R124):** logout resolves the user through
+`InspectRefreshTokenAsync` — valid, expired, rotated-out or revoked, all name their owner — and revokes the
+whole family whenever a token is found; only an unknown hash is a no-op, and the answer is 200 either way.
+The 2026-09-18 sentence "logout revokes the successor" therefore holds for the rotated-out leg too.
+Evidence: `RefreshReplayTests.Logout_With*`.
+
 *Addendum (2026-09-22) — the client keeps an open session alive, and only the server ends it.* **Evidence:**
 downstream (`y-el-vuelto`) the owner still had to sign in every day, on web and on Android, after the reuse
 grace window above. The 30-day refresh token was never the problem: the client only spent it once, at
@@ -177,17 +208,53 @@ startup. An app left open — a tab overnight, the phone app in the background �
 token past expiry and nothing renewed it, so the next call 401'd and the page looked signed out. And every
 failed refresh counted as "signed out": a timeout, a proxy's 502 while a free-tier host cold-starts, or no
 signal made the native app **delete its stored refresh token**, so a sleeping server cost the session for
-good. **Decision:** `AuthService` renews ahead of expiry on three paths — a timer (one minute before `exp`,
-capped at a quarter of the token's lifetime, never sooner than 30 s so a fast device clock can't loop it),
-the bearer handlers before each request (`GetFreshAccessTokenAsync` — the net for a device that slept
-through the timer), and the layout when the app returns to the foreground (`AppResumeNotifier`). Refresh
-outcomes split three ways: **401/400/403 = rejected** (clear the session, as before); **5xx, 429,
-network, timeout or an unreadable body = unreachable** (keep everything — the server never ruled on the
-token; mid-session the timer retries in 30 s); **200 = renewed**. At startup an unreachable refresh is
+good. **Decision:** `AuthService` renews ahead of expiry on three paths — a timer (one minute before expiry,
+capped at a quarter of the token's lifetime, never sooner than 30 s), the bearer handlers before each
+request (the net for a device that slept through the timer), and the layout when the app returns to the
+foreground (`AppResumeNotifier`). *Amended by v4 T32 (LB-UI-14/15, R126, 2026-09-28):* the lifetime the
+client counts is the **server's** — `expires_in` at receipt, on the injected clock — never the JWT's `exp`
+read against the device clock, which on a phone a few minutes slow meant 401s for part of every hour and on
+one an hour fast a signed-out screen plus a refresh rotation every 30 s; the quarter-lifetime cap comes from
+the same `expires_in` (it used to read `nbf`, which the API's tokens never carry). And both hosts' bearer
+handlers share one `BearerRetry`: a 401 on a request sent with a held session renews **once** and resends;
+a second 401 stands. The bUnit chassis mints tokens with a `serverClockOffset` so skew is a test theory.
+*And by v4 T33 (AUTH-5/UX-11, R84/R111, 2026-09-28):* the layout shows the signed-in shell while a session
+is **held** (`AuthService.HasSession`), not while the token is unexpired — through an outage that outlasts
+the token the user is still signed in, waiting on a renewal; `SignedOut` is raised from that same held
+flag, so a rejection that lands after the token expired still fires it exactly once (and the device
+preferences are wiped); and `OnSignedOut` sends a protected page to `/login` instead of leaving the user on
+chrome-less content that 401s. Evidence: `SessionKeepAliveTests` (`UnreachableThroughExpiry_*`,
+`MidSessionRejected_*`). *And v4 T36 (2026-09-28), five small gaps:* the OAuth callback signs out of the
+external carrier cookie in a `finally`, so a refused signup no longer leaves the provider's identity parked
+in the browser (AUTH-12); a remembered theme/locale is forgotten only on sign-out or when the next token
+names a different user, not on every renewal (UX-17); `TryRefreshAsync(force: true)` lets a renewal already
+on the wire land and then asks again, and Join uses it after accepting an invitation so the new household
+shows at once (LB-UI-16); an optional **absolute session lifetime** (`RefreshToken:AbsoluteLifetimeDays`,
+off by default — decision #2) stamps `SessionExpiresAt` at sign-in, inherited at every rotation and a ceiling
+on the token's expiry; and `/api/auth/refresh` is rate-limited per IP (`Auth:RateLimit:RefreshPermitLimit`,
+60/min, raised for E2E — decision #4). Refresh
+outcomes split three ways: **401, or a 400/403 carrying the API's own error body = rejected** (clear the
+session, as before); **5xx, 429, a 400/403 without that body (a proxy's challenge page), network, timeout
+or an unreadable body = unreachable** (keep everything — the server never ruled on the token; mid-session
+the timer retries after 30 s, then 1, 2 and 4 minutes, capped at 5, and a renewal resets the pause); **200 =
+renewed**. The refresh call has its own 20 s deadline on the injected clock (`AuthService.RefreshTimeout`),
+pinned with the retry pause under the server's 60 s reuse grace by a cross-project test
+(`ConfigPostureTests.ClientRefreshTimeoutPlusRetry_FitsInsideTheServersReuseGrace`), so a lost response is
+retried inside the window it exists for — v4 T30 (UX-6/7/12, R107/R108/R144), 2026-09-28. At startup an unreachable refresh is
 retried after 2, 5, 10 and 15 s behind the loading spinner before the layout sends the user to `/login`,
 and even then the stored token stays for the next launch. **Unchanged:** impersonation tokens are never
 renewed (a refresh would restore the staff identity — the timer is cancelled on `BeginImpersonation`), and
-anonymous pages never spend a refresh. **Why this is safe:** the server stays the sole authority — keeping a
+anonymous pages never spend a refresh. *Amended by v4 T31 (LB-UI-11/12/13, R125, 2026-09-28):* the client
+session carries an **epoch**, bumped by logout, by entering or leaving an impersonation and by an
+impersonation expiring; a refresh captures it when it starts and an answer that lands after the epoch moved
+is **discarded**, never applied — so a refresh on the wire when the admin clicks "Sign in as" cannot swap
+the impersonation for the staff token, and one on the wire when the user signs out cannot sign them back
+in (on native the discarded answer's rotated refresh token is still saved while a session is held, so
+leaving the impersonation can restore the staff user; never after a logout). Impersonation is a **state**
+entered and left explicitly, not a claim read off the current token, and its **expiry ends it** — the
+in-memory session is let go, `IdentityChanged` fires, and the layout reloads home so the staff identity is
+restored on a neutral page — instead of the request-time renewal that used to put the staff identity on
+the target's page. Evidence: `SessionKeepAliveTests` (`ARefreshInFlight_*`, `ImpersonationExpiry_*`). **Why this is safe:** the server stays the sole authority — keeping a
 refresh token the client can't validate only means asking again; a revoked one still gets 401 and is
 dropped. Concurrent renewals (timer + request) coalesce into one call as before, now under a lock for
 native's thread pool. Evidence: `SessionKeepAliveTests` (Ui.Tests, on a fake clock). QA: QA-SMK-04.
@@ -862,7 +929,10 @@ hatch, ADR-003; the audit log, ADR-008) rather than loosening any of them.
    user.** "Sign in as" mints an access token carrying the target's claims **plus an `impersonated_by`
    claim** (the staff user id) and a **short expiry**, with **no refresh token** — so it auto-expires and
    can't be silently extended. The impersonator acts as the target within that window; the token scopes
-   naturally via the target's `tenant_id` claim (no filter bypass).
+   naturally via the target's `tenant_id` claim (no filter bypass). *Client half, amended v4 T31
+   (2026-09-28):* the client holds impersonation as an explicit state and treats the expiry as the end of
+   the "sign in as" — no renewal, a reload home as the staff user — rather than reading the claim off a
+   token that has gone silent (ADR-002 keep-alive addendum, R125).
 4. **Every admin action is audited (ADR-008), prominently.** Cross-tenant reads and — especially —
    impersonation start record an `AuditEvent` with the staff actor + target; impersonation is stamped in
    the **target's** tenant so that tenant's owner can see "a platform admin accessed this account."

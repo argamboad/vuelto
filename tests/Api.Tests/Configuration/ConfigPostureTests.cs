@@ -60,6 +60,24 @@ public class ConfigPostureTests
         return settings;
     }
 
+    [Theory]
+    [MemberData(nameof(Configs))]
+    public void ClientRefreshTimeoutPlusRetry_FitsInsideTheServersReuseGrace(string config)
+    {
+        // v4 UX-6 (T30, R107): the benign race the grace window forgives is "a refresh whose response was lost, so
+        // the client presents the old token again". That retry must land INSIDE the window: the client's own
+        // refresh timeout plus its first retry pause has to be shorter than RefreshToken:ReuseGraceSeconds, or a
+        // lost response becomes a theft verdict that revokes every session. Two projects hold the two numbers;
+        // this pins them together under both the empty and the shipped configuration.
+        var grace = TimeSpan.FromSeconds(new RefreshTokenSettings(Config(config)).ReuseGraceSeconds);
+        var clientWorstCase = Vuelto.Shared.Ui.Auth.AuthService.RefreshTimeout + Vuelto.Shared.Ui.Auth.AuthService.RenewRetryDelay;
+
+        Assert.True(grace > TimeSpan.Zero, "the grace window is on by default");
+        Assert.True(clientWorstCase < grace,
+            $"AuthService.RefreshTimeout ({Vuelto.Shared.Ui.Auth.AuthService.RefreshTimeout}) + RenewRetryDelay " +
+            $"({Vuelto.Shared.Ui.Auth.AuthService.RenewRetryDelay}) must stay under RefreshToken:ReuseGraceSeconds ({grace}) — {config} config");
+    }
+
     [Fact]
     public void EveryEnabledSwitch_HasAPostureEntry()
     {

@@ -13,16 +13,31 @@ namespace Vuelto.Api.Configuration;
 /// </para>
 /// Both lists are matched case-insensitively. A domain entry matches the part after the <c>@</c>
 /// exactly — it is not a suffix match, so <c>example.com</c> does not admit <c>notexample.com</c>.
+/// <para>
+/// Entries are <b>normalized as they are set</b> (v4 AUTH-7, R82): trimmed, lower-cased, a leading <c>@</c>
+/// stripped, blanks dropped — so <c>" friend@x.com"</c> or <c>"@x.com"</c> admits who it meant to, and the
+/// example key uncommented with no value binds nothing rather than a list that is "on" and admits no one.
+/// </para>
 /// </summary>
 public sealed class SignupSettings
 {
     public const string SectionName = "Signup";
 
+    private string[] _allowedEmails = [];
+    private string[] _allowedDomains = [];
+
     /// <summary>Full addresses allowed to create an account.</summary>
-    public string[] AllowedEmails { get; set; } = [];
+    public string[] AllowedEmails { get => _allowedEmails; set => _allowedEmails = Normalize(value); }
 
     /// <summary>Email domains allowed to create an account, without the <c>@</c>.</summary>
-    public string[] AllowedDomains { get; set; } = [];
+    public string[] AllowedDomains { get => _allowedDomains; set => _allowedDomains = Normalize(value); }
+
+    // One rule for every list: trim, lower-case, strip a leading '@', drop what is left blank.
+    private static string[] Normalize(string[]? entries) =>
+        (entries ?? [])
+            .Select(e => (e ?? string.Empty).Trim().TrimStart('@').ToLowerInvariant())
+            .Where(e => e.Length > 0)
+            .ToArray();
 
     /// <summary>True when a green list is configured at all. Empty ⇒ signup is open to everyone.</summary>
     public bool IsRestricted => AllowedEmails.Length > 0 || AllowedDomains.Length > 0;

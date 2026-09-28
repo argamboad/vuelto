@@ -168,6 +168,29 @@ public class SignupGateTests(PostgresFixture fixture) : PostgresTestBase(fixture
     }
 
     [Fact]
+    public async Task Invitation_ExpiringNow_IsInvalidForGateAndAccept()
+    {
+        // v4 LB-AUTH-6 (T34, R127): three rules disagreed at the expiry instant — the gate's query said valid
+        // (>= now), the accept said invalid (<= now) — so at that second the green-list gate admitted the
+        // invitee and let them found a household, and the accept refused them one call later. One predicate
+        // now, and at the instant it says no to both.
+        var (tenant, _) = await SeedHouseholdAsync(ownerEmail: "friend@example.com");
+        var expiry = new DateTimeOffset(2026, 9, 28, 12, 0, 0, TimeSpan.Zero);
+        var raw = $"raw-{Guid.NewGuid():N}";
+        await SeedPendingInviteAsync(tenant, "late@example.com", expiresAt: expiry, tokenHash: new TokenHasher().HashToken(raw));
+        var clock = new Microsoft.Extensions.Time.Testing.FakeTimeProvider(expiry.AddSeconds(-1));
+
+        await using var db = Fixture.CreateContext();
+        var harness = new ServiceHarness(db, clock, signup: ListOf("friend@example.com"));
+
+        Assert.True(await harness.SignupGate().IsAllowedAsync("late@example.com")); // a second before: yes
+
+        clock.Advance(TimeSpan.FromSeconds(1)); // the expiry instant: no, from both
+        Assert.False(await harness.SignupGate().IsAllowedAsync("late@example.com"));
+        Assert.Equal(AcceptStatus.InvalidToken, await harness.InvitationService().AcceptAsync(Guid.CreateVersion7(), raw));
+    }
+
+    [Fact]
     public async Task AlreadyAcceptedInvitation_AdmitsNobody()
     {
         // Single-use in the admission sense too: a redeemed invitation is not a standing pass for the
@@ -241,7 +264,7 @@ public class SignupGateTests(PostgresFixture fixture) : PostgresTestBase(fixture
     }
 
     private async Task SeedPendingInviteAsync(Guid tenantId, string invitedEmail, Guid? invitedBy = null,
-        DateTimeOffset? expiresAt = null, string status = InvitationStatuses.Pending)
+        DateTimeOffset? expiresAt = null, string status = InvitationStatuses.Pending, string? tokenHash = null)
     {
         await using var db = Fixture.CreateContext(tenantId);
         db.TenantInvitations.Add(new TenantInvitation
@@ -251,7 +274,7 @@ public class SignupGateTests(PostgresFixture fixture) : PostgresTestBase(fixture
             InvitedEmail = invitedEmail,
             InvitedByUserId = invitedBy ?? Guid.CreateVersion7(),
             Status = status,
-            TokenHash = Guid.NewGuid().ToString("N"),
+            TokenHash = tokenHash ?? Guid.NewGuid().ToString("N"),
             CreatedAt = DateTimeOffset.UtcNow,
             ExpiresAt = expiresAt ?? DateTimeOffset.UtcNow.AddDays(7),
         });

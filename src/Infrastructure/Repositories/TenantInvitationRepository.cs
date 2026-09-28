@@ -22,11 +22,18 @@ public class TenantInvitationRepository(AppDbContext db) : ITenantInvitationRepo
         await db.TenantInvitations.IgnoreQueryFilters().TagWith(RlsTags.CrossTenant)
             .FirstOrDefaultAsync(i => i.Id == id, cancellationToken);
 
+    // Status-only by design: lapsed invites stay in the owner's list (to revoke or regenerate); they just don't count.
     public async Task<List<TenantInvitation>> GetPendingForTenantAsync(Guid tenantId, CancellationToken cancellationToken = default) =>
         await db.TenantInvitations
             .Where(i => i.TenantId == tenantId && i.Status == InvitationStatuses.Pending)
             .OrderByDescending(i => i.CreatedAt)
             .ToListAsync(cancellationToken);
+
+    public async Task<int> CountValidForTenantAsync(Guid tenantId, DateTimeOffset now, CancellationToken cancellationToken = default) =>
+        await db.TenantInvitations
+            .Where(i => i.TenantId == tenantId)
+            .Where(TenantInvitation.ValidAt(now))
+            .CountAsync(cancellationToken);
 
     public async Task<TenantInvitation?> GetPendingByEmailAsync(Guid tenantId, string email, CancellationToken cancellationToken = default)
     {
@@ -47,9 +54,8 @@ public class TenantInvitationRepository(AppDbContext db) : ITenantInvitationRepo
     {
         var normalized = email.Trim().ToLowerInvariant();
         return await db.TenantInvitations.IgnoreQueryFilters().TagWith(RlsTags.CrossTenant)
-            .Where(i => i.InvitedEmail == normalized
-                        && i.Status == InvitationStatuses.Pending
-                        && i.ExpiresAt >= now)
+            .Where(i => i.InvitedEmail == normalized)
+            .Where(TenantInvitation.ValidAt(now)) // the one validity rule (R127): the accept reads the same one
             .ToListAsync(cancellationToken);
     }
 

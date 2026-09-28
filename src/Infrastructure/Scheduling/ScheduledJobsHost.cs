@@ -24,6 +24,14 @@ public sealed class ScheduledJobsHost(
 {
     // Last run per job Name. The host is a singleton, so this persists across ticks.
     private readonly Dictionary<string, DateTimeOffset> _lastRun = [];
+    private readonly TaskCompletionSource _firstPass = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    /// <summary>
+    /// Completes once the first tick has run every job. Every job is due on that tick, which starts the moment
+    /// the host does — so an integration test that happens to start the host and then seeds a row a job would
+    /// sweep (an expired refresh token, say) races it. Awaiting this first makes that pass a thing of the past.
+    /// </summary>
+    public Task FirstPassCompleted => _firstPass.Task;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -40,6 +48,10 @@ public sealed class ScheduledJobsHost(
             catch (Exception ex)
             {
                 logger.LogError(ex, "Scheduled-jobs tick failed; continuing");
+            }
+            finally
+            {
+                _firstPass.TrySetResult();
             }
 
             try { await Task.Delay(options.TickInterval, stoppingToken); }

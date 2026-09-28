@@ -14,7 +14,7 @@
 
 @* Outside every branch: the status bar follows the theme on the sign-in screen too, where there is no
    header under it and it takes the page's ground instead. *@
-<SystemBarThemeSync Ground="@(!_initialized || !Auth.IsAuthenticated)" />
+<SystemBarThemeSync Ground="@(!_initialized || !Auth.HasSession)" />
 
 @if (!_initialized)
 {
@@ -24,9 +24,11 @@
         </div>
     </div>
 }
-else if (!Auth.IsAuthenticated)
+else if (!Auth.HasSession)
 {
-    @* Anonymous pages (login, auth-callback, auth-error, join) render chromeless. *@
+    @* Anonymous pages (login, auth-callback, auth-error, join) render chromeless. Gated on the session being
+       HELD, not on the token being unexpired (v4 T33, R84): through a server outage that outlasts the access
+       token the user is still signed in, waiting on a renewal — only the server saying no ends that. *@
     @Body
 }
 else
@@ -87,6 +89,7 @@ else
         // (e.g. sign-out clears the device prefs, ADM-9) stay wired for that window.
         Auth.SignedIn += OnSignedIn;
         Auth.SignedOut += OnSignedOut;
+        Auth.IdentityChanged += OnIdentityChanged;
         Resume.Resumed += OnResumed;
 
         // A TRUE result means the reconcile issued the locale reload: this boot is doomed, so stop
@@ -109,22 +112,44 @@ else
             return;
         }
 
-        var path = new Uri(Nav.Uri).AbsolutePath;
-        var isAnonymous = AnonymousPaths.Any(p => path.StartsWith(p, StringComparison.OrdinalIgnoreCase));
-        if (!Auth.IsAuthenticated && !isAnonymous)
+        if (!Auth.HasSession && !IsAnonymousPath())
             Nav.NavigateTo("/login", replace: true);
+    }
+
+    private bool IsAnonymousPath()
+    {
+        var path = new Uri(Nav.Uri).AbsolutePath;
+        return AnonymousPaths.Any(p => path.StartsWith(p, StringComparison.OrdinalIgnoreCase));
     }
 
     public void Dispose()
     {
         Auth.SignedIn -= OnSignedIn;
         Auth.SignedOut -= OnSignedOut;
+        Auth.IdentityChanged -= OnIdentityChanged;
         Resume.Resumed -= OnResumed;
+    }
+
+    // An impersonation that ended by expiry (v4 T31): the in-memory session is gone and nothing was renewed, on
+    // purpose — a renewal would have put the STAFF identity on the target's page. Reload home, the same way
+    // "Stop" does, so the staff user comes back from the cookie/store on a neutral page. Entering an
+    // impersonation, or Stop restoring the staff user, changes identity WITH a token and needs nothing here.
+    private void OnIdentityChanged()
+    {
+        if (Auth.IsImpersonating || Auth.IsAuthenticated) return;
+        try
+        {
+            _ = InvokeAsync(() => Nav.NavigateTo("/", forceLoad: true));
+        }
+        catch { /* best-effort — the next request finds no token and the layout bounces to /login */ }
     }
 
     // Wipe the device-stored preferences on sign-out so the next user on a shared device can't inherit
     // this account's theme/locale (ADM-9). A new sign-in can only follow a logout — the refresh cookie
     // would otherwise auto-restore this session — so clearing here fully closes the cross-user vector.
+    // Then leave a protected page (v4 T33, R111): after a mid-session rejection — logout in another tab, a
+    // revoke-all, a staff MFA reset — the user would otherwise sit on it with no chrome while every call
+    // 401'd until they reloaded. An anonymous page (/join, /login) is left alone.
     private async void OnSignedOut()
     {
         try
@@ -133,6 +158,12 @@ else
             await CulturePersistence.ClearAsync();
         }
         catch { /* best-effort — a store that can't clear is no worse than before */ }
+        try
+        {
+            if (!IsAnonymousPath())
+                await InvokeAsync(() => Nav.NavigateTo("/login", replace: true));
+        }
+        catch { /* best-effort — the next protected call finds no session and the page shows its own error */ }
     }
 
     // Back in the foreground (native: the window's Resumed). The access token may have died while the app sat

@@ -112,6 +112,7 @@ $overrides = @(
     "--ConnectionStrings:DefaultConnection=Host=localhost;Port=$dbPort;Database=e2e;Username=$dbUser;Password=$dbPassword",
     '--Email:Smtp:Host=localhost', "--Email:Smtp:Port=$smtpPort", '--Email:Smtp:Username=', '--Email:Smtp:Password=',
     '--Auth:RateLimit:PasswordlessPermitLimit=1000',   # the journeys sign in many users from one IP
+    '--Auth:RateLimit:RefreshPermitLimit=1000',        # and refresh from it too
     '--Admin:StaffEmails:0=e2e-staff@example.com',     # AnnouncementJourneyTests.StaffEmail
     '--Billing:Enabled=true', '--Billing:Stripe:SecretKey='   # the fake provider's deterministic checkout
 )

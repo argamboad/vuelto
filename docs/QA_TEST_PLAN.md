@@ -1075,7 +1075,10 @@ And "Stop impersonating" returns me to my own staff identity
    **impersonation banner** is pinned at the top; the **Admin** link is hidden while impersonating.
 3. Click **Stop impersonating**. **Expected:** you're back as yourself (staff); the banner is gone.
 4. The impersonation token is **short-lived (15 min) and non-refreshable** — a full page reload also
-   returns you to your own identity. Impersonation is **audited** in the target's tenant.
+   returns you to your own identity. When it **expires** (leave the impersonated session open 15 min),
+   the app reloads to `/` as yourself: no call from the target's page is ever made as staff, and the
+   client never renews the impersonation (v4 T31, `SessionKeepAliveTests.ImpersonationExpiry_*`).
+   Impersonation is **audited** in the target's tenant.
 
 ### QA-ADMIN-04 — Staff announcement reaches a tenant's members 🟢 (Web) ⚙️ Automated in CI
 **Gherkin**
@@ -2940,8 +2943,10 @@ the API directly:
 - **Refresh-token reuse detection** — replaying an already-rotated refresh token revokes all the
   user's sessions (`RefreshTokenServiceTests`, `RefreshReplayTests`) — unless it arrives within 60 s of
   its rotation while its successor is still live (two tabs refreshing at once, a lost response): that
-  race gets a fresh session and revokes nothing (ADR-002 addendum, 2026-09-18). Manually observable only by capturing and replaying a
-  refresh cookie/token; out of scope for routine QA.
+  race gets a fresh session and revokes nothing (ADR-002 addendum, 2026-09-18) — once per token: a third
+  presentation is reuse (2026-09-28). Logout revokes the family of any known token, expired or just
+  rotated out included (`RefreshReplayTests.Logout_With*`). Manually observable only by capturing and
+  replaying a refresh cookie/token; out of scope for routine QA.
 - **Unverified-email takeover guard** fails closed (`ClaimsExtractorTests` / `UserServiceTests`).
 - **Legacy refresh-cookie self-heal** — a stale `Path=/` refresh cookie left by an older build can
   shadow the live `Path=/api/auth` cookie and wedge sign-in into a `/refresh` 401 → "Authentication
@@ -3253,6 +3258,9 @@ But a replay WITHIN 60 seconds, while the new token is still live, is a race and
 2. **Grace window (ADR-002 addendum, 2026-09-18):** replay the **old** token within 60 s → **200** with a
    fresh token, and nothing is revoked (the new token from step 1 still refreshes). This is the two-tab /
    lost-response race, deliberately not treated as theft (`RefreshToken:ReuseGraceSeconds`, default 60).
+   **The grace is one-shot (ADR-002 addendum, 2026-09-28):** replay the same old token a **third** time,
+   still within the 60 s → **401**, and every session is revoked (both the step-1 token and the step-2
+   token now fail). Sign in again before step 3. Should **Pass**.
 3. Wait **more than 60 s** after step 1, then replay the **old** token to `POST /api/auth/refresh`.
 4. **Expected:** **401** — reuse detected — **and** the whole token family is revoked: a legitimate
    silent refresh from another live session now **fails** too (forces re-auth). Promotes QA-SEC-05's
@@ -3661,7 +3669,7 @@ Then the sign-in succeeds
 | Comp/revert a churned sub (**⚠️ v3** ADM-5) | ADV-14 | `PUT\|DELETE /api/admin/tenants/{id}/subscription` (canceled sub should be comp-able, not stuck 409) |
 | Concurrent last-seat accept (TB-BILL-19/BILLING-9) | ADV-15 | `POST /api/household/invitations/accept` (one 200, one 402 `seat_limit_reached`) |
 | Magic-link/OTP double-redemption (LB-AUTH-3) | ADV-16 | `GET /api/auth/magic-link/verify`, `POST /api/auth/otp/verify` (exactly one session) |
-| Rotated refresh-token replay revokes family (SEC-05 promoted) | ADV-17 | `POST /api/auth/refresh` (reuse past the 60 s grace window → 401 + all sessions revoked; within it, successor live → 200, nothing revoked) |
+| Rotated refresh-token replay revokes family (SEC-05 promoted) | ADV-17 | `POST /api/auth/refresh` (reuse past the 60 s grace window → 401 + all sessions revoked; within it, successor live → 200, nothing revoked — once; a third presentation → 401 + revoke-all) |
 | Locale-reload preserves deep-link (**⚠️ v3** UX-1/LB-UI-1/2) | ADV-18 (⚙️ E2E `LocaleMismatchJoinTests`) | `/join?token=…` under a PREFS-1 locale-mismatch reload |
 | No pref revert after soft sign-in (UX-3/4) | ADV-19 | OTP soft-nav sign-in reconcile (`theme`/`locale` claims) |
 | "Clear read" spares unread (LB-UI-10) | ADV-20 | `DELETE /api/notifications?read=true` vs `?read=false`; omitted scope → 400 `scope_required` |

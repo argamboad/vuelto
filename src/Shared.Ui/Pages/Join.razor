@@ -111,8 +111,9 @@
             var resp = await Http.PostAsJsonAsync("/api/household/invitations/accept", new { token });
             if (resp.IsSuccessStatusCode)
             {
-                // The tenant_name claim changed — refresh so the new household shows.
-                await Auth.TryRefreshAsync();
+                // The tenant_name claim changed — refresh so the new household shows. Forced: a renewal already
+                // on the wire started before the accept and would hand back the OLD household (v4 LB-UI-16).
+                await Auth.TryRefreshAsync(force: true);
                 _state = State.Success;
                 return;
             }

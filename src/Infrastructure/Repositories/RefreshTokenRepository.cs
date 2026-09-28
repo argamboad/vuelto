@@ -46,6 +46,29 @@ public class RefreshTokenRepository(AppDbContext db, TimeProvider clock) : IRefr
         }
     }
 
+    public async Task<bool> TryMarkGraceUsedAsync(Guid tokenId, DateTimeOffset usedAt, CancellationToken cancellationToken = default)
+    {
+        // Set-based AND conditional on purpose: the WHERE is what makes the grace one-shot under two racing
+        // replays — exactly one UPDATE matches the null. The row is not read back through the tracker
+        // afterwards (the caller only branches on the result), so the stale-tracked-copy concern of RevokeAsync
+        // does not apply here.
+        var stamped = await db.RefreshTokens
+            .Where(t => t.Id == tokenId && t.GraceUsedAt == null)
+            .ExecuteUpdateAsync(s => s.SetProperty(t => t.GraceUsedAt, usedAt), cancellationToken);
+        if (stamped == 1 && db.RefreshTokens.Local.FirstOrDefault(t => t.Id == tokenId) is { } tracked)
+        {
+            // A copy tracked in this context (an inspection read earlier in the same scope) would otherwise keep
+            // a null and mask the stamp from a later in-scope read. Mirror the persisted value without marking
+            // the entry modified: original = current, so nothing is written again on the next SaveChanges.
+            tracked.GraceUsedAt = usedAt;
+            db.Entry(tracked).Property(t => t.GraceUsedAt).OriginalValue = usedAt;
+        }
+        return stamped == 1;
+    }
+
+    public async Task<int> CountGraceUsesForUserAsync(Guid userId, CancellationToken cancellationToken = default) =>
+        await db.RefreshTokens.CountAsync(t => t.UserId == userId && t.GraceUsedAt != null, cancellationToken);
+
     public async Task RevokeAsync(Guid tokenId, CancellationToken cancellationToken = default)
     {
         // Load-then-flip (not ExecuteUpdate) on purpose: the just-rotated token is usually already
