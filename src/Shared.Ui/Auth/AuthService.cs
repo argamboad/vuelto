@@ -2,6 +2,8 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using System.Net.Http.Json;
 using System.Security.Claims;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 
 namespace Vuelto.Shared.Ui.Auth;
@@ -60,8 +62,23 @@ public class AuthService(
     /// </summary>
     public static readonly TimeSpan RenewLead = TimeSpan.FromMinutes(1);
 
-    /// <summary>After a renewal that couldn't reach the server, how long until the next attempt.</summary>
+    /// <summary>
+    /// After a renewal that couldn't reach the server, how long until the next attempt — the FIRST pause; each
+    /// further consecutive failure doubles it, up to <see cref="RenewRetryCap"/>, and a renewal resets it.
+    /// </summary>
     public static readonly TimeSpan RenewRetryDelay = TimeSpan.FromSeconds(30);
+
+    /// <summary>The longest pause between renewal attempts while the server stays unreachable.</summary>
+    public static readonly TimeSpan RenewRetryCap = TimeSpan.FromMinutes(5);
+
+    /// <summary>
+    /// How long the refresh call itself waits for an answer, on the injected clock. Shorter than the server's reuse
+    /// grace window (<c>RefreshToken:ReuseGraceSeconds</c>, 60 s) minus <see cref="RenewRetryDelay"/> on purpose: a
+    /// refresh whose response is lost is retried with the old token, and that retry must land inside the window
+    /// to be read as the benign race it is, not as theft. HttpClient's 100 s default did not. A cross-project
+    /// test in Api.Tests (<c>ConfigPostureTests</c>) pins the three numbers together.
+    /// </summary>
+    public static readonly TimeSpan RefreshTimeout = TimeSpan.FromSeconds(20);
 
     private static readonly TimeSpan MaxRenewalWait = TimeSpan.FromDays(1);
 
@@ -179,6 +196,9 @@ public class AuthService(
     {
         try
         {
+            // The call's own deadline, on the injected clock (so a fake clock can expire it in tests): a lost
+            // response must be retried inside the server's reuse grace window — see RefreshTimeout.
+            using var deadline = new CancellationTokenSource(RefreshTimeout, Time);
             HttpResponseMessage response;
             if (sessionStore.UsesBodyTransport)
             {
@@ -191,30 +211,35 @@ public class AuthService(
                     return RefreshOutcome.Rejected;
                 }
                 response = await httpClient.PostAsJsonAsync("/api/auth/refresh",
-                    new { refresh_token = stored });
+                    new { refresh_token = stored }, deadline.Token);
             }
             else
             {
                 // Web: the CookieHandler attaches the HttpOnly refresh cookie; no body.
-                response = await httpClient.PostAsync("/api/auth/refresh", null);
+                response = await httpClient.PostAsync("/api/auth/refresh", null, deadline.Token);
             }
 
-            if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.BadRequest or HttpStatusCode.Forbidden)
+            if (response.StatusCode is HttpStatusCode.Unauthorized
+                || (response.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.Forbidden
+                    && await IsApiErrorBodyAsync(response, deadline.Token)))
             {
-                // The server looked at the token and refused it (revoked, expired, unknown): it is dead.
+                // The server looked at the token and refused it (revoked, expired, unknown): it is dead. A 400/403
+                // counts only with the API's own error body — a firewall or proxy in front of the API answers
+                // those too (an HTML challenge page), and that is not a verdict on the token (v4 UX-7).
                 logger.LogWarning("Token refresh rejected: {StatusCode}", response.StatusCode);
                 await ClearSessionAsync();
                 return RefreshOutcome.Rejected;
             }
             if (!response.IsSuccessStatusCode)
             {
-                // A 5xx, a proxy's 502 while the host wakes, a 429: the server never ruled on the token.
-                // Throwing it away here is what signed people out every morning (found downstream, 2026-09-22).
+                // A 5xx, a proxy's 502 while the host wakes, a 429, a 400/403 that isn't the API's: the server
+                // never ruled on the token. Throwing it away here is what signed people out every morning
+                // (found downstream, 2026-09-22).
                 logger.LogWarning("Token refresh could not complete: {StatusCode}; keeping the session", response.StatusCode);
                 return RefreshOutcome.Unreachable;
             }
 
-            var payload = await response.Content.ReadFromJsonAsync<TokenResponse>();
+            var payload = await response.Content.ReadFromJsonAsync<TokenResponse>(deadline.Token);
             if (!string.IsNullOrEmpty(payload?.AccessToken))
             {
                 await AcceptTokensAsync(payload);
@@ -227,7 +252,7 @@ public class AuthService(
         }
         catch (Exception ex)
         {
-            // No answer at all (no network, DNS, a timeout) or an unreadable one: the token's fate is unknown.
+            // No answer at all (no network, DNS, our own deadline) or an unreadable one: the token's fate is unknown.
             logger.LogWarning(ex, "Token refresh could not reach the server; keeping the session");
             return RefreshOutcome.Unreachable;
         }
@@ -238,6 +263,23 @@ public class AuthService(
                 _refreshInFlight = null;
         }
     }
+
+    // True when the body is the API's own ErrorResponse ({"error": "...", "message": "..."}). Anything else —
+    // HTML, empty, a different JSON shape — came from something in front of the API.
+    private static async Task<bool> IsApiErrorBodyAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var body = await response.Content.ReadAsStringAsync(cancellationToken);
+            return !string.IsNullOrEmpty(JsonSerializer.Deserialize<ApiErrorBody>(body)?.Error);
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
+
+    private sealed record ApiErrorBody([property: JsonPropertyName("error")] string? Error);
 
     /// <summary>
     /// Completes native OAuth: runs the platform browser flow, exchanges the returned
@@ -643,6 +685,7 @@ public class AuthService(
         var wasAuthenticated = IsAuthenticated;
         _accessToken = payload.AccessToken;
         _sessionHeld = true;
+        _renewFailures = 0; // the server is back: the next pause starts from the base again
         _isStaff = null; // identity may have changed; re-probe on demand
         ForgetRememberedPreferences(); // a new token carries the account's preferences as they stand
         if (sessionStore.UsesBodyTransport && !string.IsNullOrEmpty(payload.RefreshToken))
@@ -737,6 +780,14 @@ public class AuthService(
         }
     }
 
+    // Consecutive renewals that couldn't reach the server; reset by a renewal. Drives the retry pause.
+    private int _renewFailures;
+
+    // The pause before the next attempt after this many consecutive failures: the base, doubled each time, capped —
+    // so a background app doesn't wake twice a minute for as long as the server stays down (v4 UX-12).
+    private static TimeSpan RetryPause(int failures) =>
+        TimeSpan.FromTicks(Math.Min(RenewRetryDelay.Ticks << Math.Clamp(failures - 1, 0, 16), RenewRetryCap.Ticks));
+
     private void CancelRenewal()
     {
         lock (_refreshGate)
@@ -759,7 +810,7 @@ public class AuthService(
             }
             // Renewed re-arms the timer (AcceptTokensAsync); Rejected ends the session (ClearSessionAsync).
             if (await RefreshAsync() == RefreshOutcome.Unreachable && _sessionHeld)
-                ScheduleRenewal(RenewRetryDelay);
+                ScheduleRenewal(RetryPause(++_renewFailures));
         }
         catch (Exception ex)
         {

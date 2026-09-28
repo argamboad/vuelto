@@ -168,6 +168,89 @@ public class SessionKeepAliveTests : ComponentTestBase
     }
 
     [Fact]
+    public async Task AHungRefresh_TimesOut_WithinTheGraceWindow()
+    {
+        // v4 UX-6 (T30, R107): a refresh whose response never comes must give up on its OWN clock — HttpClient's
+        // 100 s default outlives the server's 60 s reuse grace, so the retry with the old token would land
+        // outside the window and be read as theft (every session revoked). Timeout + retry delay < grace.
+        await SignInAsync(name: "First");
+        var signedOut = 0;
+        Auth.SignedOut += () => signedOut++;
+        Http.OnGated(HttpMethod.Post, RefreshPath); // never released: the response is lost
+
+        Time.Advance(TimeSpan.FromMinutes(59) + TimeSpan.FromSeconds(1)); // the renewal fires and hangs
+        await WaitUntil(() => Refreshes == 2);
+        var sentAt = Time.GetUtcNow();
+
+        Time.Advance(AuthService.RefreshTimeout + TimeSpan.FromSeconds(1)); // the call gives up: unreachable, not rejected
+        await AdvanceUntil(() => Refreshes == 3, limit: TimeSpan.FromSeconds(60) - AuthService.RefreshTimeout);
+
+        Assert.Equal(0, signedOut);
+        Assert.True(Time.GetUtcNow() - sentAt < TimeSpan.FromSeconds(60), "the retry must land inside the server's grace window");
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.Forbidden, "<html>Access denied</html>", true)]      // a proxy's challenge page: not the API's verdict
+    [InlineData(HttpStatusCode.Forbidden, """{"error":"invalid_refresh_token"}""", false)]
+    [InlineData(HttpStatusCode.BadRequest, "", true)]                              // an empty 400 from something in front of the API
+    [InlineData(HttpStatusCode.BadRequest, """{"error":"no_refresh_token"}""", false)]
+    [InlineData(HttpStatusCode.Unauthorized, "<html>", false)]                     // 401 is always the verdict
+    public async Task Native_RejectionNeedsTheApisOwnErrorBody(HttpStatusCode status, string body, bool keepsToken)
+    {
+        // v4 UX-7 (T30, R108): a 400/403 from a firewall or proxy in front of the API (an HTML challenge page)
+        // is not the server refusing the token — deleting the 30-day native token on it is what made the app
+        // sign out for good. Only a body shaped like the API's ErrorResponse counts as a rejection.
+        var store = await StoreHolding("rt-1");
+        var auth = NativeAuth(store);
+        Http.On(HttpMethod.Post, RefreshPath, body, status);
+
+        Assert.False(await auth.TryRefreshAsync());
+
+        Assert.Equal(keepsToken ? "rt-1" : null, await store.GetRefreshTokenAsync());
+    }
+
+    [Fact]
+    public async Task MidSession_RepeatedFailures_BackOff_UpToACap()
+    {
+        // v4 UX-12 (T30, R144): a fixed 30 s retry kept a background app waking twice a minute for as long as
+        // the server was down. The pause doubles per consecutive failure — 30 s, 1 min, 2 min, 4 min — and is
+        // capped; a renewal resets it.
+        await SignInAsync(name: "First");
+        Http.OnUnreachable(HttpMethod.Post, RefreshPath);
+        Time.Advance(TimeSpan.FromMinutes(59) + TimeSpan.FromSeconds(1));
+        await WaitUntil(() => Refreshes == 2);
+
+        var gaps = new List<TimeSpan>();
+        var previous = Time.GetUtcNow();
+        for (var attempt = 3; attempt <= 8; attempt++)
+        {
+            await AdvanceUntil(() => Refreshes == attempt, limit: AuthService.RenewRetryCap + TimeSpan.FromSeconds(5));
+            gaps.Add(Time.GetUtcNow() - previous);
+            previous = Time.GetUtcNow();
+        }
+
+        // Each gap is (within the 1 s stepping of AdvanceUntil) double the last, until the cap.
+        for (var i = 0; i < gaps.Count; i++)
+        {
+            var expected = TimeSpan.FromTicks(Math.Min(AuthService.RenewRetryDelay.Ticks << i, AuthService.RenewRetryCap.Ticks));
+            Assert.InRange(gaps[i], expected, expected + TimeSpan.FromSeconds(2));
+        }
+        Assert.Contains(gaps, g => g >= AuthService.RenewRetryCap); // the cap was reached inside the loop
+
+        StubRefresh("Renewed", lifetime: TimeSpan.FromHours(2));
+        await AdvanceUntil(() => Auth.DisplayName == "Renewed", limit: AuthService.RenewRetryCap + TimeSpan.FromSeconds(5));
+        Http.OnUnreachable(HttpMethod.Post, RefreshPath);
+        var renewedAt = Time.GetUtcNow();
+        var before = Refreshes;
+        Time.Advance(TimeSpan.FromHours(2) - AuthService.RenewLead + TimeSpan.FromSeconds(1)); // the next renewal fails again
+        await WaitUntil(() => Refreshes == before + 1);
+        var failedAt = Time.GetUtcNow();
+        await AdvanceUntil(() => Refreshes == before + 2, limit: AuthService.RenewRetryDelay + TimeSpan.FromSeconds(5));
+        Assert.InRange(Time.GetUtcNow() - failedAt, AuthService.RenewRetryDelay, AuthService.RenewRetryDelay + TimeSpan.FromSeconds(2)); // back to the base pause
+        Assert.True(renewedAt < failedAt);
+    }
+
+    [Fact]
     public async Task MidSession_ServerError_KeepsTheSession_AndTriesAgainShortly()
     {
         await SignInAsync(name: "First");

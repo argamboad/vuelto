@@ -78,7 +78,7 @@ public sealed class TestHttpHandler : HttpMessageHandler
         Requests.Add(request);
         var key = Key(request.Method, request.RequestUri?.AbsolutePath ?? "/");
         if (_gated.TryGetValue(key, out var gate))
-            return gate.Task;
+            return gate.Task.WaitAsync(cancellationToken); // a caller's own timeout cancels the wait, as a real handler would
         var response = _routes.TryGetValue(key, out var factory)
             ? factory(request)
             : new HttpResponseMessage(HttpStatusCode.NotFound)

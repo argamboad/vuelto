@@ -212,9 +212,14 @@ good. **Decision:** `AuthService` renews ahead of expiry on three paths — a ti
 capped at a quarter of the token's lifetime, never sooner than 30 s so a fast device clock can't loop it),
 the bearer handlers before each request (`GetFreshAccessTokenAsync` — the net for a device that slept
 through the timer), and the layout when the app returns to the foreground (`AppResumeNotifier`). Refresh
-outcomes split three ways: **401/400/403 = rejected** (clear the session, as before); **5xx, 429,
-network, timeout or an unreadable body = unreachable** (keep everything — the server never ruled on the
-token; mid-session the timer retries in 30 s); **200 = renewed**. At startup an unreachable refresh is
+outcomes split three ways: **401, or a 400/403 carrying the API's own error body = rejected** (clear the
+session, as before); **5xx, 429, a 400/403 without that body (a proxy's challenge page), network, timeout
+or an unreadable body = unreachable** (keep everything — the server never ruled on the token; mid-session
+the timer retries after 30 s, then 1, 2 and 4 minutes, capped at 5, and a renewal resets the pause); **200 =
+renewed**. The refresh call has its own 20 s deadline on the injected clock (`AuthService.RefreshTimeout`),
+pinned with the retry pause under the server's 60 s reuse grace by a cross-project test
+(`ConfigPostureTests.ClientRefreshTimeoutPlusRetry_FitsInsideTheServersReuseGrace`), so a lost response is
+retried inside the window it exists for — v4 T30 (UX-6/7/12, R107/R108/R144), 2026-09-28. At startup an unreachable refresh is
 retried after 2, 5, 10 and 15 s behind the loading spinner before the layout sends the user to `/login`,
 and even then the stored token stays for the next launch. **Unchanged:** impersonation tokens are never
 renewed (a refresh would restore the staff identity — the timer is cancelled on `BeginImpersonation`), and
