@@ -245,6 +245,34 @@ public class RefreshReplayTests(IntegrationTestFactory factory)
         Assert.Equal(HttpStatusCode.OK, (await PostRefreshAsync(client, phone)).StatusCode);
     }
 
+    [Fact]
+    public async Task Refresh_UnderAnAbsoluteLifetime_NeverExtendsTheChainPastIt()
+    {
+        // v4 T36 (decision #2): with RefreshToken:AbsoluteLifetimeDays set, a rotation through the endpoint
+        // inherits the session's end instead of minting another full lifetime.
+        var user = await _factory.SeedUserAsync();
+        using var host = _factory.WithWebHostBuilder(b => b.UseSetting("RefreshToken:AbsoluteLifetimeDays", "1"));
+        string rawA;
+        DateTimeOffset sessionEnd;
+        using (var scope = host.Services.CreateScope())
+        {
+            var issued = await scope.ServiceProvider.GetRequiredService<IRefreshTokenService>().IssueRefreshTokenAsync(user.UserId, "127.0.0.1", "test");
+            rawA = issued.RawToken;
+            sessionEnd = issued.Token.SessionExpiresAt ?? throw new Xunit.Sdk.XunitException("the sign-in did not stamp the session's end");
+        }
+        var client = host.CreateClient();
+
+        var rotated = await PostRefreshAsync(client, rawA);
+
+        Assert.Equal(HttpStatusCode.OK, rotated.StatusCode);
+        using var read = _factory.Services.CreateScope();
+        var db = read.ServiceProvider.GetRequiredService<AppDbContext>();
+        var successor = await db.RefreshTokens.SingleAsync(t => t.UserId == user.UserId && !t.IsRevoked);
+        // Postgres stores microseconds, .NET ticks are 100 ns: compare to the microsecond.
+        Assert.InRange(successor.SessionExpiresAt!.Value, sessionEnd.AddTicks(-9), sessionEnd.AddTicks(9));
+        Assert.True(successor.ExpiresAt <= sessionEnd.AddTicks(9), $"successor expires {successor.ExpiresAt}, past the session's end {sessionEnd}");
+    }
+
     /// <summary>Moves one token's expiry into the past (the app runs on the real clock).</summary>
     private async Task ExpireTokenAsync(string rawToken)
     {

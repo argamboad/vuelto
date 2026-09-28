@@ -26,9 +26,11 @@ public interface ISessionService
     /// Issues a refresh token + JWT access token for an authenticated user.
     /// <paramref name="native"/> selects refresh-token transport: true puts it on the response
     /// body; false leaves the body token null (the caller sets the cookie from
-    /// <see cref="AccessSession.RefreshToken"/>).
+    /// <see cref="AccessSession.RefreshToken"/>). <paramref name="sessionExpiresAt"/> is the presented
+    /// token's session end on a rotation (inherited by the successor); null starts a new session.
     /// </summary>
-    Task<AccessSession> IssueAsync(User user, string provider, string ipAddress, bool native, CancellationToken cancellationToken = default);
+    Task<AccessSession> IssueAsync(User user, string provider, string ipAddress, bool native,
+        DateTimeOffset? sessionExpiresAt = null, CancellationToken cancellationToken = default);
 
     /// <summary>Resolves the user's tenant id + name via their membership (null when none).</summary>
     Task<(Guid? Id, string? Name)> ResolveTenantAsync(Guid userId, CancellationToken cancellationToken = default);
@@ -40,9 +42,10 @@ public class SessionService(
     ITenantRepository tenants,
     IJwtSettings jwtSettings) : ISessionService
 {
-    public async Task<AccessSession> IssueAsync(User user, string provider, string ipAddress, bool native, CancellationToken cancellationToken = default)
+    public async Task<AccessSession> IssueAsync(User user, string provider, string ipAddress, bool native,
+        DateTimeOffset? sessionExpiresAt = null, CancellationToken cancellationToken = default)
     {
-        var issued = await refreshTokenService.IssueRefreshTokenAsync(user.Id, ipAddress, provider, cancellationToken);
+        var issued = await refreshTokenService.IssueRefreshTokenAsync(user.Id, ipAddress, provider, sessionExpiresAt, cancellationToken);
         var (tenantId, tenantName) = await ResolveTenantAsync(user.Id, cancellationToken);
 
         var accessToken = jwtTokenService.IssueAccessToken(

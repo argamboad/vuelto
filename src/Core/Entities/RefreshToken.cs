@@ -44,4 +44,11 @@ public class RefreshToken
     /// by the refresh path, atomically, so two racing replays cannot both be forgiven.
     /// </summary>
     public DateTimeOffset? GraceUsedAt { get; set; }
+
+    /// <summary>
+    /// When the whole session ends, if the deployment sets <c>RefreshToken:AbsoluteLifetimeDays</c> (v4 T36):
+    /// stamped at sign-in, inherited by every successor at rotation, and a ceiling on <see cref="ExpiresAt"/> —
+    /// so a chain renewed forever by the keep-alive still ends. Null when the knob is off (the default).
+    /// </summary>
+    public DateTimeOffset? SessionExpiresAt { get; set; }
 }

@@ -52,6 +52,8 @@ public class RateLimitingTests
                                 .RequireRateLimiting(RateLimiting.PasswordlessVerifyPolicy);
                        endpoints.MapGet("/pub", () => Results.Ok())
                                 .RequireRateLimiting(RateLimiting.PublicApiPolicy);
+                       endpoints.MapPost("/refresh", () => Results.Ok())
+                                .RequireRateLimiting(RateLimiting.RefreshPolicy);
                    });
                });
         });
@@ -98,6 +100,32 @@ public class RateLimitingTests
 
         // ...and only past its own, larger budget does the verify throttle finally trip.
         Assert.Equal(HttpStatusCode.TooManyRequests, (await client.PostAsync("/otp/verify", content: null)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Refresh_FloodedFromOneClient_Returns429AfterTheLimit()
+    {
+        // v4 AUTH-1 #4 (T36): /api/auth/refresh had no limiter, so someone holding a stolen token could mint
+        // rows cheaply. Per IP; the budget is far above what the keep-alive needs (one call an hour per client).
+        using var server = await StartHostAsync();
+        var client = server.CreateClient();
+
+        for (var i = 0; i < RateLimiting.RefreshPermitLimit; i++)
+            Assert.Equal(HttpStatusCode.OK, (await client.PostAsync("/refresh", content: null)).StatusCode);
+
+        Assert.Equal(HttpStatusCode.TooManyRequests, (await client.PostAsync("/refresh", content: null)).StatusCode);
+    }
+
+    [Fact]
+    public void RefreshEndpoint_CarriesTheRefreshPolicy()
+    {
+        // The policy above is only worth anything if the real endpoint asks for it.
+        var refresh = typeof(Vuelto.Api.Controllers.AuthController).GetMethod("Refresh")!;
+        var attribute = refresh.GetCustomAttributes(typeof(Microsoft.AspNetCore.RateLimiting.EnableRateLimitingAttribute), inherit: false)
+            .Cast<Microsoft.AspNetCore.RateLimiting.EnableRateLimitingAttribute>().SingleOrDefault();
+
+        Assert.NotNull(attribute);
+        Assert.Equal(RateLimiting.RefreshPolicy, attribute!.PolicyName);
     }
 
     [Fact]

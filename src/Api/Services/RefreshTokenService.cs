@@ -42,7 +42,13 @@ public record RefreshTokenInspection(RefreshTokenStatus Status, RefreshToken? To
 
 public interface IRefreshTokenService
 {
-    Task<IssuedRefreshToken> IssueRefreshTokenAsync(Guid userId, string ipAddress, string provider, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Issues a refresh token. <paramref name="sessionExpiresAt"/> is the presented token's session end when this
+    /// is a rotation (the successor inherits it); null starts a new session, whose end is set from
+    /// <see cref="IRefreshTokenSettings.AbsoluteLifetimeDays"/> when that knob is on.
+    /// </summary>
+    Task<IssuedRefreshToken> IssueRefreshTokenAsync(Guid userId, string ipAddress, string provider,
+        DateTimeOffset? sessionExpiresAt = null, CancellationToken cancellationToken = default);
     Task<RefreshToken?> ValidateRefreshTokenAsync(string rawToken, CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -86,7 +92,8 @@ public class RefreshTokenService(
     IRefreshTokenSettings settings,
     TimeProvider clock) : IRefreshTokenService
 {
-    public async Task<IssuedRefreshToken> IssueRefreshTokenAsync(Guid userId, string ipAddress, string provider, CancellationToken cancellationToken = default)
+    public async Task<IssuedRefreshToken> IssueRefreshTokenAsync(Guid userId, string ipAddress, string provider,
+        DateTimeOffset? sessionExpiresAt = null, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(ipAddress))
             ipAddress = "unknown";
@@ -97,13 +104,22 @@ public class RefreshTokenService(
         var tokenHash = tokenHasher.HashToken(rawToken);
         var now = clock.GetUtcNow();
 
+        // A rotation inherits the session's end; a sign-in starts one, with an end only when the absolute
+        // lifetime knob is on. The token never outlives the session (v4 T36, decision #2).
+        var sessionEnd = sessionExpiresAt
+            ?? (settings.AbsoluteLifetimeDays is { } days && days > 0 ? now.AddDays(days) : null);
+        var expiresAt = now.AddDays(settings.ExpiryDays);
+        if (sessionEnd is { } end && end < expiresAt)
+            expiresAt = end;
+
         var refreshToken = new RefreshToken
         {
             Id = Guid.CreateVersion7(),
             UserId = userId,
             TokenHash = tokenHash,
             IssuedAt = now,
-            ExpiresAt = now.AddDays(settings.ExpiryDays),
+            ExpiresAt = expiresAt,
+            SessionExpiresAt = sessionEnd,
             IsRevoked = false,
             IssuedFromIp = ipAddress,
             Provider = provider

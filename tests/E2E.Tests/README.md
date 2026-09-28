@@ -34,6 +34,7 @@ the script does.
    dotnet run --project src/Api --launch-profile https -- \
      --Email:Smtp:Host=localhost --Email:Smtp:Port=1026 --Email:Smtp:Username= --Email:Smtp:Password= \
      --Auth:RateLimit:PasswordlessPermitLimit=1000 \
+     --Auth:RateLimit:RefreshPermitLimit=1000 \
      --Admin:StaffEmails:0=e2e-staff@example.com \
      --Billing:Enabled=true \
      --Billing:Stripe:SecretKey=

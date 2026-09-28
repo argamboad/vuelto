@@ -75,14 +75,21 @@ public class PreferenceSyncClaimTests : ComponentTestBase
     }
 
     [Fact]
-    public async Task ARememberedChoice_GivesWayToANewToken_AndGoesWithTheSession()
+    public async Task ARememberedChoice_SurvivesARenewal_AndGoesWithTheSession()
     {
         await SignInAsync(theme: "dark", locale: "en");
         Auth.RememberTheme("light");
         Auth.RememberLocale("es");
         Assert.Equal(("light", "es"), (Auth.Theme, Auth.Locale));
 
-        // A new token is issued from the account as it now stands, so its claims are the truth again.
+        // The same account's renewal keeps the choice (v4 UX-17): that token may have been minted before the
+        // choice was saved and still carry the old claim — the memory is what bridges the gap.
+        await Auth.TryRefreshAsync();
+        Assert.Equal(("light", "es"), (Auth.Theme, Auth.Locale));
+
+        // A DIFFERENT account's token does not inherit it: its own claims are the truth.
+        Http.On(HttpMethod.Post, "/api/auth/refresh",
+            $"{{\"access_token\":\"{TestJwt.Build(userId: "99999999-9999-9999-9999-999999999999", theme: "dark", locale: "en")}\"}}");
         await Auth.TryRefreshAsync();
         Assert.Equal(("dark", "en"), (Auth.Theme, Auth.Locale));
 

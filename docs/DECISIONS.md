@@ -224,7 +224,15 @@ the token the user is still signed in, waiting on a renewal; `SignedOut` is rais
 flag, so a rejection that lands after the token expired still fires it exactly once (and the device
 preferences are wiped); and `OnSignedOut` sends a protected page to `/login` instead of leaving the user on
 chrome-less content that 401s. Evidence: `SessionKeepAliveTests` (`UnreachableThroughExpiry_*`,
-`MidSessionRejected_*`). Refresh
+`MidSessionRejected_*`). *And v4 T36 (2026-09-28), five small gaps:* the OAuth callback signs out of the
+external carrier cookie in a `finally`, so a refused signup no longer leaves the provider's identity parked
+in the browser (AUTH-12); a remembered theme/locale is forgotten only on sign-out or when the next token
+names a different user, not on every renewal (UX-17); `TryRefreshAsync(force: true)` lets a renewal already
+on the wire land and then asks again, and Join uses it after accepting an invitation so the new household
+shows at once (LB-UI-16); an optional **absolute session lifetime** (`RefreshToken:AbsoluteLifetimeDays`,
+off by default — decision #2) stamps `SessionExpiresAt` at sign-in, inherited at every rotation and a ceiling
+on the token's expiry; and `/api/auth/refresh` is rate-limited per IP (`Auth:RateLimit:RefreshPermitLimit`,
+60/min, raised for E2E — decision #4). Refresh
 outcomes split three ways: **401, or a 400/403 carrying the API's own error body = rejected** (clear the
 session, as before); **5xx, 429, a 400/403 without that body (a proxy's challenge page), network, timeout
 or an unreadable body = unreachable** (keep everything — the server never ruled on the token; mid-session

@@ -47,8 +47,8 @@ public sealed class ServiceHarness(AppDbContext db, TimeProvider? clock = null, 
     public UserService UserService() =>
         new(Users, Tenants, UnitOfWork, SignupGate(), Clock, NullLogger<UserService>.Instance);
 
-    public RefreshTokenService RefreshTokenService(int expiryDays = 30, int reuseGraceSeconds = 60) =>
-        new(RefreshTokens, TokenGen, Hasher, new TestRefreshSettings(expiryDays, reuseGraceSeconds), Clock);
+    public RefreshTokenService RefreshTokenService(int expiryDays = 30, int reuseGraceSeconds = 60, int? absoluteLifetimeDays = null) =>
+        new(RefreshTokens, TokenGen, Hasher, new TestRefreshSettings(expiryDays, reuseGraceSeconds, absoluteLifetimeDays), Clock);
 
     public PasswordlessService PasswordlessService(IPasswordlessSettings? settings = null) =>
         new(LoginTokens, UserService(), TokenGen, Hasher, settings ?? new TestPasswordlessSettings(), Clock);
@@ -116,10 +116,11 @@ public sealed class ServiceHarness(AppDbContext db, TimeProvider? clock = null, 
     ];
 }
 
-internal sealed class TestRefreshSettings(int expiryDays = 30, int reuseGraceSeconds = 60) : IRefreshTokenSettings
+internal sealed class TestRefreshSettings(int expiryDays = 30, int reuseGraceSeconds = 60, int? absoluteLifetimeDays = null) : IRefreshTokenSettings
 {
     public int ExpiryDays => expiryDays;
     public int ReuseGraceSeconds => reuseGraceSeconds;
+    public int? AbsoluteLifetimeDays => absoluteLifetimeDays;
 }
 
 internal sealed class TestPasswordlessSettings : IPasswordlessSettings

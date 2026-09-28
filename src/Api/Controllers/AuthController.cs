@@ -96,7 +96,6 @@ public class AuthController(
             if (!string.IsNullOrEmpty(linkToken))
             {
                 var linkUserId = linkTokenService.Redeem(linkToken);
-                await HttpContext.SignOutAsync(ServiceCollectionExtensions.ExternalScheme);
 
                 if (linkUserId is null)
                     return Redirect($"{appSettings.ClientUrl}/settings?link_error=expired");
@@ -110,9 +109,6 @@ public class AuthController(
 
             var user = await userService.GetOrCreateUserAsync(email, providerUserId, provider,
                 claimsExtractor.ExtractDisplayName(User), EmailVerifiedForMerge(provider), cancellationToken);
-
-            // Sign the external carrier cookie out — its job is done.
-            await HttpContext.SignOutAsync(ServiceCollectionExtensions.ExternalScheme);
 
             // MFA step-up (MFA-2/3, ADR-012): a user with MFA enabled gets a signed challenge instead of
             // a session — bounce to the client's login step-up (which posts to /mfa/verify) rather than
@@ -141,6 +137,13 @@ public class AuthController(
             logger.LogError(ex, "OAuth callback failed");
             return Redirect($"{appSettings.ClientUrl}/auth-error");
         }
+        finally
+        {
+            // Sign the external carrier cookie out whatever the outcome — its job is done. A refused signup used
+            // to redirect with the provider's identity still parked in it, so a later signup could complete
+            // without a fresh trip to the provider (v4 AUTH-12).
+            await HttpContext.SignOutAsync(ServiceCollectionExtensions.ExternalScheme);
+        }
     }
 
     /// <summary>
@@ -158,6 +161,7 @@ public class AuthController(
     /// in the body and gets the rotated token back in the body — it never had a cookie to begin with.
     /// </summary>
     [HttpPost("refresh")]
+    [EnableRateLimiting(RateLimiting.RefreshPolicy)]
     public async Task<IActionResult> Refresh(
         CancellationToken cancellationToken,
         [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] RefreshRequest? req = null)
@@ -193,7 +197,9 @@ public class AuthController(
             if (user == null)
                 return Unauthorized(new ErrorResponse("user_not_found", "User not found"));
 
-            var session = await sessionService.IssueAsync(user, presented.Provider, ClientIp, native, cancellationToken);
+            // The successor inherits the session's end (RefreshToken:AbsoluteLifetimeDays, when set): a rotation
+            // renews the token, never the session.
+            var session = await sessionService.IssueAsync(user, presented.Provider, ClientIp, native, presented.SessionExpiresAt, cancellationToken);
 
             if (status == RefreshTokenStatus.Valid)
             {

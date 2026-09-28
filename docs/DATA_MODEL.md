@@ -64,6 +64,9 @@ can't forge sessions.
 - `grace_used_at` (nullable): when that forgiveness was spent on the token. Stamped once, by a conditional
   update, so the grace is **one-shot** — any further presentation of the token is reuse. ADR-002 addendum
   2026-09-28.
+- `session_expires_at` (nullable): the whole session's end when `RefreshToken:AbsoluteLifetimeDays` is set
+  (off by default) — stamped at sign-in, inherited by every successor at rotation, and a ceiling on
+  `expires_at`, so a chain the keep-alive renews forever still ends. v4 T36.
 
 ### LoginToken *(passwordless: magic link + email OTP)*
 A single-use, hashed, time-limited credential. The account is resolved/created at redemption, so a

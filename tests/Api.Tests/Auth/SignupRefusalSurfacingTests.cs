@@ -96,5 +96,27 @@ public class SignupRefusalSurfacingTests(IntegrationTestFactory factory)
         Assert.Contains("error=signup_not_allowed", res.Headers.Location!.ToString());
     }
 
+    [Fact]
+    public async Task OAuthCallback_ForAnUninvitedAddress_DeletesTheExternalCookie()
+    {
+        // v4 AUTH-12 (T36): the refusal redirected without signing out of the temporary external cookie, so
+        // the provider's identity stayed parked in the browser — a later signup (after the green list changed)
+        // could complete without a fresh trip to the provider. The sign-out must happen whatever the outcome.
+        var host = RestrictedHost();
+        var client = ClientOf(host);
+        var request = new HttpRequestMessage(HttpMethod.Get, "/api/auth/callback/google");
+        request.Headers.Add("X-Test-Provider-User", $"google-{Guid.NewGuid():N}");
+        request.Headers.Add("X-Test-Email", "stranger-oauth@example.com");
+
+        var res = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.Redirect, res.StatusCode);
+        Assert.Contains("error=signup_not_allowed", res.Headers.Location!.ToString());
+        Assert.True(res.Headers.TryGetValues("Set-Cookie", out var cookies), "no Set-Cookie: the external cookie was left behind");
+        var external = Assert.Single(cookies!, c => c.StartsWith(".app.external=", StringComparison.Ordinal));
+        Assert.Contains("expires=", external, StringComparison.OrdinalIgnoreCase); // a deletion, not a renewal
+        Assert.Contains("1970", external);
+    }
+
     private sealed record ErrorBody(string Error);
 }

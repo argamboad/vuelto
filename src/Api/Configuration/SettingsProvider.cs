@@ -31,11 +31,15 @@ public class RefreshTokenSettings : IRefreshTokenSettings
 {
     public int ExpiryDays { get; }
     public int ReuseGraceSeconds { get; }
+    public int? AbsoluteLifetimeDays { get; }
 
     public RefreshTokenSettings(IConfiguration config)
     {
         ExpiryDays = config.GetValue("RefreshToken:ExpiryDays", 30);
         ReuseGraceSeconds = config.GetValue("RefreshToken:ReuseGraceSeconds", 60);
+        // Blank, absent or 0 all mean "no absolute lifetime" — the knob ships off (v4 T36, decision #2).
+        var absolute = config.GetValue<int?>("RefreshToken:AbsoluteLifetimeDays");
+        AbsoluteLifetimeDays = absolute is > 0 ? absolute : null;
     }
 }
 

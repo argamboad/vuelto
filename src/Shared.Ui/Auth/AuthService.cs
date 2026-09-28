@@ -200,7 +200,23 @@ public class AuthService(
     /// token. MainLayout is the single refresh entry point now, so this is mostly
     /// defense-in-depth. Blazor WASM is single-threaded, so sharing the Task suffices.
     /// </summary>
-    public async Task<bool> TryRefreshAsync() => await RefreshAsync() == RefreshOutcome.Renewed;
+    public async Task<bool> TryRefreshAsync(bool force = false)
+    {
+        if (force)
+        {
+            // The caller's reason for asking (Join's accept) postdates whatever refresh is already on the wire,
+            // so that one's answer is stale by definition: let it land, then ask again (v4 LB-UI-16).
+            Task<RefreshOutcome>? inFlight;
+            lock (_refreshGate)
+                inFlight = _refreshInFlight;
+            if (inFlight is not null)
+            {
+                try { await inFlight; }
+                catch { /* its outcome is not ours to report */ }
+            }
+        }
+        return await RefreshAsync() == RefreshOutcome.Renewed;
+    }
 
     private Task<RefreshOutcome> RefreshAsync()
     {
@@ -808,12 +824,17 @@ public class AuthService(
     private async Task AcceptTokensAsync(TokenResponse payload)
     {
         var wasAuthenticated = IsAuthenticated;
+        var previousUser = SubjectOf(_accessToken);
         _accessToken = payload.AccessToken;
         SetTokenLifetime(payload.AccessToken!, payload.ExpiresIn);
         _sessionHeld = true;
         _renewFailures = 0; // the server is back: the next pause starts from the base again
         _isStaff = null; // identity may have changed; re-probe on demand
-        ForgetRememberedPreferences(); // a new token carries the account's preferences as they stand
+        // A different account's token must not inherit this one's remembered choice; the same account's renewal
+        // keeps it — that renewal may have been on the wire while the choice was made, carrying the OLD claim
+        // (v4 UX-17). Sign-out forgets it too (ClearSessionAsync).
+        if (previousUser is null || previousUser != SubjectOf(_accessToken))
+            ForgetRememberedPreferences();
         if (sessionStore.UsesBodyTransport && !string.IsNullOrEmpty(payload.RefreshToken))
             await sessionStore.SaveRefreshTokenAsync(payload.RefreshToken);
         ScheduleRenewal(RenewalDue());
@@ -1002,6 +1023,22 @@ public class AuthService(
     {
         _rememberedTheme = null;
         _rememberedLocale = null;
+    }
+
+    // The token's subject, expiry ignored — who it names, whether or not it is still live.
+    private static string? SubjectOf(string? token)
+    {
+        if (string.IsNullOrEmpty(token))
+            return null;
+        try
+        {
+            return new JwtSecurityTokenHandler().ReadJwtToken(token)
+                .Claims.FirstOrDefault(c => c.Type is "nameid" or ClaimTypes.NameIdentifier or "sub")?.Value;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private string? Claim(string type)

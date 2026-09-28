@@ -130,6 +130,90 @@ public class SessionKeepAliveTests : ComponentTestBase
         Assert.Equal("Target User", Auth.DisplayName);
     }
 
+    // ── small auth gaps (v4 T36) ─────────────────────────────────────────────
+
+    [Fact]
+    public async Task AThemeSavedWhileARenewalIsInFlight_IsNotForgottenByThatRenewal()
+    {
+        // UX-17: every accepted token wiped the remembered theme/locale, routine renewals included. A renewal on
+        // the wire while the user picks a theme came back carrying the OLD theme claim and, with the memory
+        // gone, the next native reload showed the old theme. Forget only on sign-out or a different user.
+        await SignInAsync(name: "First", theme: "dark");
+        var release = Http.OnGated(HttpMethod.Post, RefreshPath,
+            $"{{\"access_token\":\"{TestJwt.Build(name: "First", theme: "dark", lifetime: TimeSpan.FromHours(2))}\"}}");
+        Time.Advance(TimeSpan.FromMinutes(59) + TimeSpan.FromSeconds(1)); // the renewal is on the wire
+        await WaitUntil(() => Refreshes == 2);
+
+        Auth.RememberTheme("light"); // the switcher's PUT succeeded meanwhile
+        release();
+        await WaitUntil(() => Auth.DisplayName == "First" && Refreshes == 2);
+        await Task.Delay(50);
+
+        Assert.Equal("light", Auth.Theme);
+    }
+
+    [Fact]
+    public async Task ARenewalForADifferentUser_ForgetsTheRememberedTheme()
+    {
+        // The other half: a different account's token must not inherit this one's remembered choice.
+        await SignInAsync(name: "First", theme: "dark");
+        Auth.RememberTheme("light");
+        Http.On(HttpMethod.Post, "/api/auth/logout");
+        await Auth.LogoutAsync();
+        Http.On(HttpMethod.Post, RefreshPath, $"{{\"access_token\":\"{TestJwt.Build(userId: "99999999-9999-9999-9999-999999999999", name: "Other", theme: "dark")}\"}}");
+
+        await Auth.InitializeAsync();
+
+        Assert.Equal("dark", Auth.Theme);
+    }
+
+    [Fact]
+    public async Task TryRefreshAsync_Forced_DoesNotReuseARenewalAlreadyInFlight()
+    {
+        // LB-UI-16: TryRefreshAsync coalesced with whatever refresh was already on the wire — started BEFORE the
+        // caller's reason for asking (Join's accept), so its answer predated the change. force waits it out and
+        // then asks again.
+        await SignInAsync(name: "First", tenantName: "Old Household");
+        var release = Http.OnGated(HttpMethod.Post, RefreshPath,
+            $"{{\"access_token\":\"{TestJwt.Build(name: "First", tenantName: "Old Household", lifetime: TimeSpan.FromHours(2))}\"}}");
+        Time.Advance(TimeSpan.FromMinutes(59) + TimeSpan.FromSeconds(1));
+        await WaitUntil(() => Refreshes == 2);
+
+        var forced = Auth.TryRefreshAsync(force: true);
+        await Task.Delay(50);
+        Http.On(HttpMethod.Post, RefreshPath, $"{{\"access_token\":\"{TestJwt.Build(name: "First", tenantName: "New Household", lifetime: TimeSpan.FromHours(2))}\"}}");
+        release();
+
+        Assert.True(await forced);
+        Assert.Equal(3, Refreshes);
+        Assert.Equal("New Household", Auth.TenantName);
+    }
+
+    [Fact]
+    public async Task Join_RefreshAfterAccept_DoesNotReuseARenewalStartedBeforeTheAccept()
+    {
+        // The page half of LB-UI-16: after accepting an invitation, Join refreshes so the new household shows;
+        // reusing a renewal that started before the accept left the user with a token scoped to the household
+        // they just left — for up to an hour, every page looked empty.
+        await SignInAsync(name: "First", tenantName: "Old Household");
+        var release = Http.OnGated(HttpMethod.Post, RefreshPath,
+            $"{{\"access_token\":\"{TestJwt.Build(name: "First", tenantName: "Old Household", lifetime: TimeSpan.FromHours(2))}\"}}");
+        Time.Advance(TimeSpan.FromMinutes(59) + TimeSpan.FromSeconds(1));
+        await WaitUntil(() => Refreshes == 2);
+        Http.On(HttpMethod.Post, "/api/household/invitations/accept", "{}");
+        var nav = Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
+        nav.NavigateTo("/join?token=invite-token");
+
+        var page = Render<Vuelto.Shared.Ui.Pages.Join>();
+        await Task.Delay(50); // the accept POST ran; the page is waiting on its refresh
+        Http.On(HttpMethod.Post, RefreshPath, $"{{\"access_token\":\"{TestJwt.Build(name: "First", tenantName: "New Household", lifetime: TimeSpan.FromHours(2))}\"}}");
+        release();
+        await WaitUntil(() => Auth.TenantName == "New Household");
+
+        Assert.Equal(3, Refreshes);
+        page.WaitForAssertion(() => Assert.Contains("New Household", Auth.TenantName));
+    }
+
     // ── the shell follows the session, not the token; a rejection ends it once (v4 T33, R84/R111) ──
 
     [Fact]
