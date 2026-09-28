@@ -27,10 +27,12 @@ public enum RefreshTokenStatus
     Reuse,
     /// <summary>
     /// A rotated-out token presented again within <see cref="IRefreshTokenSettings.ReuseGraceSeconds"/> of its
-    /// rotation while the token that replaced it is still live — a benign race (two tabs refreshing with the
-    /// same cookie, a refresh whose response was lost), not theft. The caller issues a fresh session and
-    /// revokes nothing. Requires a LIVE successor: logout and revoke-all revoke it, so a stale token can
-    /// never undo a sign-out. ADR-002 addendum, 2026-09-18.
+    /// rotation while the token that replaced it is still live, and the grace not yet spent on it — a benign
+    /// race (two tabs refreshing with the same cookie, a refresh whose response was lost), not theft. The
+    /// caller spends the grace (<see cref="IRefreshTokenService.TryConsumeGraceAsync"/>), issues a fresh session
+    /// and revokes nothing. Requires a LIVE successor: logout and revoke-all revoke it, so a stale token can
+    /// never undo a sign-out. One-shot: a further presentation is <see cref="Reuse"/>. ADR-002 addenda,
+    /// 2026-09-18 and 2026-09-28.
     /// </summary>
     RotatedWithinGrace,
 }
@@ -57,6 +59,17 @@ public interface IRefreshTokenService
     /// makes it eligible for the reuse grace window.
     /// </summary>
     Task MarkRotatedAsync(Guid tokenId, Guid replacedByTokenId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Spends the one-shot reuse grace on a token that <see cref="InspectRefreshTokenAsync"/> classified as
+    /// <see cref="RefreshTokenStatus.RotatedWithinGrace"/>. Atomic: true when this presentation is the one being
+    /// forgiven, false when the grace was already spent — the caller then mounts the theft response as for
+    /// <see cref="RefreshTokenStatus.Reuse"/>. Call it BEFORE issuing the session, so a losing racer never mints one.
+    /// </summary>
+    Task<bool> TryConsumeGraceAsync(Guid tokenId, CancellationToken cancellationToken = default);
+
+    /// <summary>How many times the grace has been spent across the user's tokens — carried by the Warning the grace path logs.</summary>
+    Task<int> CountGraceUsesAsync(Guid userId, CancellationToken cancellationToken = default);
 
     Task RevokeRefreshTokenAsync(Guid tokenId, CancellationToken cancellationToken = default);
     Task RevokeAllUserTokensAsync(Guid userId, CancellationToken cancellationToken = default);
@@ -134,11 +147,14 @@ public class RefreshTokenService(
     }
 
     // All must hold: the window is on; the token was revoked BY ROTATION (logout/revoke-all never stamp
-    // RotatedAt); the rotation is at most ReuseGraceSeconds old; and the successor is still live — logout and
-    // revoke-all revoke the successor, which is what keeps a sign-out final against a stale tab.
+    // RotatedAt); the grace has not been spent on it yet (one-shot, v4 AUTH-1); the rotation is at most
+    // ReuseGraceSeconds old; and the successor is still live — logout and revoke-all revoke the successor,
+    // which is what keeps a sign-out final against a stale tab.
     private async Task<bool> IsRotatedWithinGraceAsync(RefreshToken token, CancellationToken cancellationToken)
     {
         if (settings.ReuseGraceSeconds <= 0 || token.RotatedAt is not { } rotatedAt || token.ReplacedByTokenId is not { } successorId)
+            return false;
+        if (token.GraceUsedAt is not null)
             return false;
 
         var now = clock.GetUtcNow();
@@ -154,6 +170,12 @@ public class RefreshTokenService(
 
     public Task MarkRotatedAsync(Guid tokenId, Guid replacedByTokenId, CancellationToken cancellationToken = default) =>
         repository.MarkRotatedAsync(tokenId, replacedByTokenId, clock.GetUtcNow(), cancellationToken);
+
+    public Task<bool> TryConsumeGraceAsync(Guid tokenId, CancellationToken cancellationToken = default) =>
+        repository.TryMarkGraceUsedAsync(tokenId, clock.GetUtcNow(), cancellationToken);
+
+    public Task<int> CountGraceUsesAsync(Guid userId, CancellationToken cancellationToken = default) =>
+        repository.CountGraceUsesForUserAsync(userId, cancellationToken);
 
     public Task RevokeRefreshTokenAsync(Guid tokenId, CancellationToken cancellationToken = default) => repository.RevokeAsync(tokenId, cancellationToken);
 

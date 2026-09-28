@@ -151,7 +151,9 @@ public class AuthController(
     /// reuse signal isn't leaked). Exception — the reuse grace window (<c>RefreshToken:ReuseGraceSeconds</c>,
     /// default 60 s): a rotated-out token presented again that soon after its rotation, while its successor
     /// is still live, is a benign race (two tabs, a lost response) and gets a fresh session with nothing
-    /// revoked. Logout revokes the successor, so a stale token can never undo it. Transport depends on
+    /// revoked — ONCE. The grace is spent on that presentation (logged at Warning with the user's running
+    /// count); a further presentation of the same token, inside the window or not, is reuse. Logout revokes
+    /// the successor, so a stale token can never undo it. Transport depends on
     /// the client: the browser sends/receives the token via the HttpOnly cookie; a native client (header <c>X-Native-Client: true</c>) sends it
     /// in the body and gets the rotated token back in the body — it never had a cookie to begin with.
     /// </summary>
@@ -168,14 +170,22 @@ public class AuthController(
                 return Unauthorized(new ErrorResponse("no_refresh_token", "Refresh token not found"));
 
             var inspection = await refreshTokenService.InspectRefreshTokenAsync(rawToken, cancellationToken);
-            if (inspection.Status == RefreshTokenStatus.Reuse)
+            var status = inspection.Status;
+            if (status == RefreshTokenStatus.RotatedWithinGrace
+                && !await refreshTokenService.TryConsumeGraceAsync(inspection.Token!.Id, cancellationToken))
+            {
+                // Classified inside the window, but another presentation spent the grace first (a third tab,
+                // or a replay racing the forgiven one): the grace is one-shot, so this one is reuse.
+                status = RefreshTokenStatus.Reuse;
+            }
+            if (status == RefreshTokenStatus.Reuse)
             {
                 // Replay of a rotated-out token ⇒ assume theft: revoke every session for the user.
                 // Client still gets the generic error below, so the reuse signal isn't leaked.
                 await refreshTokenService.RevokeAllUserTokensAsync(inspection.Token!.UserId, cancellationToken);
                 logger.LogWarning("Refresh-token reuse detected for user {UserId}; revoked all sessions", inspection.Token.UserId);
             }
-            if (inspection.Status is not (RefreshTokenStatus.Valid or RefreshTokenStatus.RotatedWithinGrace))
+            if (status is not (RefreshTokenStatus.Valid or RefreshTokenStatus.RotatedWithinGrace))
                 return Unauthorized(new ErrorResponse("invalid_refresh_token", "Refresh token is invalid or expired"));
 
             var presented = inspection.Token!;
@@ -185,7 +195,7 @@ public class AuthController(
 
             var session = await sessionService.IssueAsync(user, presented.Provider, ClientIp, native, cancellationToken);
 
-            if (inspection.Status == RefreshTokenStatus.Valid)
+            if (status == RefreshTokenStatus.Valid)
             {
                 // Rotate: revoke the used token and link it to the one just issued (RotatedAt + successor),
                 // which is what lets a racing second presentation of it be recognised as benign.
@@ -197,10 +207,12 @@ public class AuthController(
                 // Benign race (ADR-002 addendum, 2026-09-18): the token was rotated seconds ago and its successor
                 // is still live — two tabs sharing the cookie, or a refresh whose response never arrived. Issue a
                 // fresh session and revoke NOTHING (not the successor either): both chains stay valid and rotate
-                // independently; an unused one simply expires.
-                logger.LogInformation(
-                    "Refresh token presented again within the rotation grace window for user {UserId}; issued a new session",
-                    presented.UserId);
+                // independently; an unused one simply expires. The grace was spent above (one-shot, 2026-09-28
+                // addendum); Warning, not Information, because a run of these on one account is the only trace a
+                // thief who keeps landing inside the window would leave.
+                logger.LogWarning(
+                    "Refresh token presented again within the rotation grace window for user {UserId}; issued a new session (grace use #{GraceUses} for this user)",
+                    presented.UserId, await refreshTokenService.CountGraceUsesAsync(presented.UserId, cancellationToken));
             }
 
             // Web: rotate the cookie. Native: the rotated token is already on the body.

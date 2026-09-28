@@ -223,6 +223,43 @@ public class RefreshTokenServiceTests(PostgresFixture fixture) : PostgresTestBas
     }
 
     [Fact]
+    public async Task TryConsumeGrace_IsOneShot_AndStampsTheClock()
+    {
+        // v4 AUTH-1 (T28, R81): the first consumer wins the stamp; a second call — a third tab, or a replay
+        // racing the forgiven presentation — gets false and is treated as reuse by the caller.
+        await using var db = Fixture.CreateContext();
+        var clock = new FakeTimeProvider(GraceEpoch);
+        var sut = new ServiceHarness(db, clock).RefreshTokenService(reuseGraceSeconds: 60);
+
+        var (old, _) = await RotateAsync(sut, Guid.CreateVersion7());
+        clock.Advance(TimeSpan.FromSeconds(2));
+
+        Assert.True(await sut.TryConsumeGraceAsync(old.Token.Id));
+        Assert.False(await sut.TryConsumeGraceAsync(old.Token.Id));
+
+        db.ChangeTracker.Clear();
+        var stored = await db.RefreshTokens.SingleAsync(t => t.Id == old.Token.Id);
+        Assert.Equal(GraceEpoch.AddSeconds(2), stored.GraceUsedAt);
+        Assert.Equal(1, await sut.CountGraceUsesAsync(old.Token.UserId));
+    }
+
+    [Fact]
+    public async Task Inspect_RotatedTokenWithinGrace_AfterTheGraceWasSpent_IsReuse()
+    {
+        // Still inside the window, successor still live — but the grace has been used on this token once.
+        await using var db = Fixture.CreateContext();
+        var clock = new FakeTimeProvider(GraceEpoch);
+        var sut = new ServiceHarness(db, clock).RefreshTokenService(reuseGraceSeconds: 60);
+
+        var (old, _) = await RotateAsync(sut, Guid.CreateVersion7());
+        Assert.True(await sut.TryConsumeGraceAsync(old.Token.Id));
+        clock.Advance(TimeSpan.FromSeconds(5));
+
+        var inspection = await sut.InspectRefreshTokenAsync(old.RawToken);
+        Assert.Equal(RefreshTokenStatus.Reuse, inspection.Status);
+    }
+
+    [Fact]
     public async Task Inspect_RotatedTokenPastGrace_IsReuse()
     {
         await using var db = Fixture.CreateContext();

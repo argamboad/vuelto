@@ -61,6 +61,9 @@ can't forge sessions.
   revocation). A revoked token whose `rotated_at` is at most `RefreshToken:ReuseGraceSeconds` (60 s) old and
   whose successor is still live (not revoked, not expired) is a benign race when presented again — a fresh
   session, nothing revoked; anything else revoked is reuse (theft). ADR-002 addendum 2026-09-18.
+- `grace_used_at` (nullable): when that forgiveness was spent on the token. Stamped once, by a conditional
+  update, so the grace is **one-shot** — any further presentation of the token is reuse. ADR-002 addendum
+  2026-09-28.
 
 ### LoginToken *(passwordless: magic link + email OTP)*
 A single-use, hashed, time-limited credential. The account is resolved/created at redemption, so a

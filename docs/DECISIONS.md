@@ -170,6 +170,26 @@ revoked/expired, grace 0, never-rotated) + `RefreshReplayTests` (same cookie twi
 revoked; replay after the window → 401 + revoke-all; pre-logout token within the window → 401, no
 session). Migration `AddRefreshTokenRotationLink` (two nullable columns). Flow: FLOWS §7.
 
+*Addendum (2026-09-28) — the grace is one-shot, and the trade it makes is symmetric.* **Evidence (v4 audit
+AUTH-1/AUTH-13, T28):** the window above forgave a rotated-out token any number of times for 60 s, each
+replay minting an independent chain, and the grace path logged at Information with no count — so a thief
+who kept landing inside the window left no trace. And the forgiveness has no notion of who came first: if
+the thief rotates a stolen token and the victim's scheduled renewal lands within 60 s, it is the *victim's*
+presentation that is treated as the benign race, and the pair raises no alarm. **Decision:** `RefreshToken`
+gains `GraceUsedAt`, stamped by a **conditional set-based update** (`TryMarkGraceUsedAsync`, `WHERE
+GraceUsedAt IS NULL`) *before* the session is issued: exactly one presentation inside the window is
+forgiven; any further presentation of that token — a third tab, a replay racing the forgiven one, or a
+thief — is `Reuse` and revokes every session. The grace path now logs at **Warning** with the user's running
+grace count, so a run of them on one account is visible. **The symmetric trade, stated:** attacker-first
+inside the window is *accepted* — the platform cannot tell the two presentations apart, and refusing both
+would bring back the sign-outs the 2026-09-18 addendum removed. What bounds it: the grace is spent on that
+pair, so the thief's next replay (or the victim's) kills both chains; the window is 60 s; and the client's
+refresh timeout plus retry delay is pinned below it (T30), so the benign race the window exists for
+completes well inside it. `RefreshReplayTests` records both halves —
+`Refresh_ThirdPresentationInsideGrace_Is401_AndRevokesAllSessions` and
+`Refresh_AttackerRotatesFirst_VictimsRenewalInsideGrace_GetsASession_ByDesign`. Migration
+`AddRefreshTokenGraceUsedAt` (one nullable column).
+
 *Addendum (2026-09-22) — the client keeps an open session alive, and only the server ends it.* **Evidence:**
 downstream (`y-el-vuelto`) the owner still had to sign in every day, on web and on Android, after the reuse
 grace window above. The 30-day refresh token was never the problem: the client only spent it once, at

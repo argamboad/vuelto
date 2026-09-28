@@ -109,6 +109,60 @@ public class RefreshReplayTests(IntegrationTestFactory factory)
     }
 
     [Fact]
+    public async Task Refresh_ThirdPresentationInsideGrace_Is401_AndRevokesAllSessions()
+    {
+        // v4 AUTH-1 (T28, R81): the grace is one-shot. A rotated-out token forgiven once (the benign race)
+        // must not be forgiven again — a third presentation inside the same 60 s window is reuse: the
+        // generic 401, and every session of the user revoked (both chains the grace created, and the phone).
+        var user = await _factory.SeedUserAsync();
+        var rawA = await IssueRefreshTokenAsync(user.UserId);
+        var phone = await IssueRefreshTokenAsync(user.UserId);
+        var client = _factory.CreateClient();
+
+        var first = await PostRefreshAsync(client, rawA);                       // A → B
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+        var second = await PostRefreshAsync(client, rawA);                      // A again, inside the grace: forgiven → C
+        Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+        var rawC = await ReadRefreshTokenAsync(second);
+
+        var third = await PostRefreshAsync(client, rawA);                       // A a third time: reuse
+
+        Assert.Equal(HttpStatusCode.Unauthorized, third.StatusCode);
+        Assert.Equal(await (await PostRefreshAsync(client, "never-issued-token")).Content.ReadAsStringAsync(),
+            await third.Content.ReadAsStringAsync());
+        Assert.Equal(0, await CountLiveTokensAsync(user.UserId));
+        Assert.Equal(HttpStatusCode.Unauthorized, (await PostRefreshAsync(client, rawC!)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await PostRefreshAsync(client, phone)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Refresh_AttackerRotatesFirst_VictimsRenewalInsideGrace_GetsASession_ByDesign()
+    {
+        // v4 AUTH-13 (T28): the grace is symmetric, and this test records the accepted trade-off rather than
+        // hides it (ADR-002 addendum, 2026-09-28). A thief holding a copy of A who rotates it FIRST gets B; the
+        // victim's own renewal with A, landing inside the window, is the "benign race" and gets C — the alarm
+        // does not fire for that pair. What the platform guarantees instead: the grace was spent on the
+        // victim's renewal, so the thief's NEXT replay of A (or the victim's, whichever comes) revokes everything,
+        // and the window is bounded by the client's refresh timeout + retry delay (T30) being shorter than it.
+        var user = await _factory.SeedUserAsync();
+        var rawA = await IssueRefreshTokenAsync(user.UserId);
+        var client = _factory.CreateClient();
+
+        var thief = await PostRefreshAsync(client, rawA);                       // attacker first: A → B
+        Assert.Equal(HttpStatusCode.OK, thief.StatusCode);
+        var rawB = await ReadRefreshTokenAsync(thief);
+        var victim = await PostRefreshAsync(client, rawA);                      // victim's scheduled renewal
+        Assert.Equal(HttpStatusCode.OK, victim.StatusCode);                     // forgiven — the documented trade
+        Assert.Equal(2, await CountLiveTokensAsync(user.UserId));               // both chains live
+
+        var replay = await PostRefreshAsync(client, rawA);                      // anyone presents A once more
+
+        Assert.Equal(HttpStatusCode.Unauthorized, replay.StatusCode);
+        Assert.Equal(0, await CountLiveTokensAsync(user.UserId));               // the thief's B is dead too
+        Assert.Equal(HttpStatusCode.Unauthorized, (await PostRefreshAsync(client, rawB!)).StatusCode);
+    }
+
+    [Fact]
     public async Task Refresh_PreLogoutRotatedToken_WithinGraceWindow_Is401_AndIssuesNoSession()
     {
         // Logout revokes the successor, so a stale token from another tab can never undo a sign-out —

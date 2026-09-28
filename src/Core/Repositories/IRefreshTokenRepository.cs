@@ -33,6 +33,17 @@ public interface IRefreshTokenRepository
     /// </summary>
     Task MarkRotatedAsync(Guid tokenId, Guid replacedByTokenId, DateTimeOffset rotatedAt, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Spends the one-shot reuse grace on a rotated-out token: stamps <c>GraceUsedAt</c> = <paramref name="usedAt"/>
+    /// if and only if it is still null, in one conditional statement. True when this call won the stamp; false
+    /// when the grace had already been spent (by an earlier presentation, or a racing one), in which case the
+    /// caller treats the presentation as reuse.
+    /// </summary>
+    Task<bool> TryMarkGraceUsedAsync(Guid tokenId, DateTimeOffset usedAt, CancellationToken cancellationToken = default);
+
+    /// <summary>How many of the user's tokens have had the grace spent on them (the per-user count the grace log line carries).</summary>
+    Task<int> CountGraceUsesForUserAsync(Guid userId, CancellationToken cancellationToken = default);
+
     Task RevokeAsync(Guid tokenId, CancellationToken cancellationToken = default);
     Task RevokeAllForUserAsync(Guid userId, CancellationToken cancellationToken = default);
 }
