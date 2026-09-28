@@ -50,7 +50,7 @@ public static class BillingNotifications
     public static (string Title, string Body) Activated(string planKey, DateTimeOffset? currentPeriodEnd)
     {
         var plan = string.IsNullOrWhiteSpace(planKey) ? "new" : char.ToUpperInvariant(planKey[0]) + planKey[1..];
-        var renews = currentPeriodEnd is { } end ? $" It renews on {end:yyyy-MM-dd}." : "";
+        var renews = currentPeriodEnd is { } end ? $" It renews on {end.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)}." : "";
         return ("Subscription active", $"Your {plan} plan is active — thank you.{renews} You can manage it any time from the billing page.");
     }
 

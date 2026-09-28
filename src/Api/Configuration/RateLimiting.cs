@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Vuelto.Api.Services;
 
 namespace Vuelto.Api.Configuration;
 
@@ -41,6 +42,15 @@ public static class RateLimiting
     /// </summary>
     public const string RefreshPolicy = "refresh";
     public const int RefreshPermitLimit = 60;
+
+    /// <summary>
+    /// Per-TENANT throttle for the two webhook writes that cost something per call (v4 T44, JOBS-7): the
+    /// synchronous test-send (a delivery row + a signed outbound POST) and the replay (an outbox row + a
+    /// delivery on dispatch). Both are owner-only, so the budget is the tenant's, shared by the pair: an owner
+    /// can neither grow the delivery table nor fire at a third party's URL faster than this.
+    /// </summary>
+    public const string WebhookWritePolicy = "webhook-write";
+    public const int WebhookWritePermitLimit = 10;
 
     /// <summary>Default requests allowed per IP per <see cref="Window"/> before the limiter returns 429.
     /// Overridable via <c>Auth:RateLimit:PasswordlessPermitLimit</c> (e.g. raised for the E2E stack,
@@ -80,6 +90,20 @@ public static class RateLimiting
                 return RateLimitPartition.GetFixedWindowLimiter(ip, _ => new FixedWindowRateLimiterOptions
                 {
                     PermitLimit = refreshLimit,
+                    Window = Window,
+                    QueueLimit = 0,
+                });
+            });
+
+            // Webhook test-send + replay (v4 T44): per tenant. The routes are owner-authenticated, so the principal
+            // carries the tenant id by the time the limiter runs; the IP is only the fallback for a missing claim.
+            options.AddPolicy(WebhookWritePolicy, httpContext =>
+            {
+                var tenant = httpContext.User.FindFirst(JwtClaims.TenantId)?.Value
+                             ?? httpContext.Connection.RemoteIpAddress?.ToString() ?? "anon";
+                return RateLimitPartition.GetFixedWindowLimiter(tenant, _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = WebhookWritePermitLimit,
                     Window = Window,
                     QueueLimit = 0,
                 });

@@ -94,7 +94,7 @@ public sealed class ReportPdfHandler(
         var model = ReportPdfModelBuilder.Build(new ReportPdfInput(
             household ?? "", clock.GetUtcNow(), analysis, month, trend, pending, appendix, options));
         var content = ReportPdfRenderer.Render(model);
-        return new RenderedReport(content, $"report-{period.From:yyyy-MM-dd}_{period.To:yyyy-MM-dd}.pdf", model);
+        return new RenderedReport(content, $"report-{period.From.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)}_{period.To.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)}.pdf", model);
     }
 
     public async Task<ReportPdfResponse> CreateAsync(ReportPeriod period, ReportPdfOptions options, CancellationToken cancellationToken)
@@ -103,7 +103,7 @@ public sealed class ReportPdfHandler(
 
         // Same storage shape as the CSV: the basename is the download name; a per-file folder keeps two members apart.
         var now = clock.GetUtcNow();
-        var key = $"exports/reports/{now:yyyyMMddTHHmmssZ}-{Guid.CreateVersion7():N}/{report.FileName}";
+        var key = $"exports/reports/{now.ToString("yyyyMMddTHHmmssZ", System.Globalization.CultureInfo.InvariantCulture)}-{Guid.CreateVersion7():N}/{report.FileName}";
         using (var stream = new MemoryStream(report.Content))
             await files.PutAsync(key, stream, ContentType, cancellationToken);
         var url = await files.GetDownloadUrlAsync(key, ReportHandler.LinkLifetime, cancellationToken);

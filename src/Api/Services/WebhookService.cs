@@ -37,13 +37,16 @@ public interface IWebhookSubscriptionService
     /// subscription isn't found in the current tenant. Records a <see cref="WebhookDelivery"/> row for the
     /// attempt (success and failure) so the delivery log / replay work in-template — HOOKS-2.
     /// </summary>
-    Task<WebhookTestResult?> SendTestAsync(Guid id, CancellationToken cancellationToken = default);
+    /// <param name="actorUserId">The signed-in user, for the audit row (<c>webhook.test_sent</c>); the row also
+    /// carries the impersonating staff member when there is one (v4 T44, decision 13).</param>
+    Task<WebhookTestResult?> SendTestAsync(Guid id, Guid? actorUserId = null, CancellationToken cancellationToken = default);
 
     /// <summary>Recent delivery attempts for a subscription (newest first, current tenant only) — HOOKS-2.</summary>
     Task<IReadOnlyList<WebhookDelivery>> ListDeliveriesAsync(Guid subscriptionId, CancellationToken cancellationToken = default);
 
     /// <summary>Re-enqueues a past delivery's exact payload for delivery again; false if not found — HOOKS-2.</summary>
-    Task<bool> ReplayAsync(Guid deliveryId, CancellationToken cancellationToken = default);
+    /// <param name="actorUserId">The signed-in user, for the audit row (<c>webhook.delivery_replayed</c>).</param>
+    Task<bool> ReplayAsync(Guid deliveryId, Guid? actorUserId = null, CancellationToken cancellationToken = default);
 }
 
 public sealed class WebhookSubscriptionService(
@@ -55,6 +58,7 @@ public sealed class WebhookSubscriptionService(
     IWebhookSecretProtector protector,
     IWebhookSender sender,
     IOutboundUrlGuard urlGuard,
+    IAuditLog audit,
     TimeProvider clock,
     Microsoft.Extensions.Logging.ILogger<WebhookSubscriptionService>? logger = null) : IWebhookSubscriptionService
 {
@@ -100,7 +104,7 @@ public sealed class WebhookSubscriptionService(
         return true;
     }
 
-    public async Task<WebhookTestResult?> SendTestAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<WebhookTestResult?> SendTestAsync(Guid id, Guid? actorUserId = null, CancellationToken cancellationToken = default)
     {
         var subscription = await GetAsync(id, cancellationToken); // tenant-scoped
         if (subscription is null)
@@ -140,7 +144,7 @@ public sealed class WebhookSubscriptionService(
         if (!success)
             logger?.LogWarning(failure, "Webhook test delivery for subscription {SubscriptionId} failed: {Reason} (HTTP {Status})", subscription.Id, reason, status);
 
-        await deliveries.AddAsync(new WebhookDelivery
+        var delivery = new WebhookDelivery
         {
             TenantId = currentTenant.TenantId ?? subscription.TenantId,
             SubscriptionId = subscription.Id,
@@ -151,7 +155,12 @@ public sealed class WebhookSubscriptionService(
             StatusCode = status,
             Error = reason,
             CreatedAt = clock.GetUtcNow(),
-        }, cancellationToken);
+        };
+        await deliveries.AddAsync(delivery, cancellationToken);
+        // A tenant-visible write with an outbound side effect is on the audit trail (v4 T44, decision 13): the
+        // row names the actor and — ambiently — the staff member impersonating them. Identifiers only.
+        await audit.RecordAsync("webhook.test_sent", actorUserId, nameof(WebhookSubscription), subscription.Id.ToString(),
+            new { delivery_id = delivery.Id, success, status_code = status }, cancellationToken);
         await deliveries.SaveChangesAsync(cancellationToken);
 
         // Don't leak internal DNS/connection detail to the tenant (GAP-3): the log keeps the detail, the
@@ -170,7 +179,7 @@ public sealed class WebhookSubscriptionService(
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<bool> ReplayAsync(Guid deliveryId, CancellationToken cancellationToken = default)
+    public async Task<bool> ReplayAsync(Guid deliveryId, Guid? actorUserId = null, CancellationToken cancellationToken = default)
     {
         var tenantId = currentTenant.TenantId ?? Guid.Empty;
         var delivery = await deliveries.Query()
@@ -181,7 +190,9 @@ public sealed class WebhookSubscriptionService(
         // Re-enqueue the SAME payload (subscription + event id + body) so the receiver can dedup on the id.
         var payload = new WebhookOutboxPayload(delivery.SubscriptionId, delivery.EventType, delivery.EventId, delivery.Body);
         await outbox.EnqueueAsync(WebhookOutboxHandler.MessageType, JsonSerializer.Serialize(payload), tenantId, cancellationToken);
-        await deliveries.SaveChangesAsync(cancellationToken); // flush the staged outbox message
+        await audit.RecordAsync("webhook.delivery_replayed", actorUserId, nameof(WebhookDelivery), delivery.Id.ToString(),
+            new { subscription_id = delivery.SubscriptionId, event_id = delivery.EventId }, cancellationToken);
+        await deliveries.SaveChangesAsync(cancellationToken); // flush the staged outbox message + the audit row
         return true;
     }
 

@@ -126,7 +126,7 @@ public class WebhookSubscriptionServiceTests(PostgresFixture fixture) : Postgres
             new EfOutbox(db, TimeProvider.System), new TestCurrentTenant(),
             new TokenGenerator(), protector ?? NewProtector(),
             new WebhookSender(new HttpClient(new UnusedHandler()), new AllowAllUrlGuard()), // send test not exercised here
-            new AllowAllUrlGuard(), TimeProvider.System);
+            new AllowAllUrlGuard(), new Vuelto.Infrastructure.Audit.AuditLog(new EfRepository<AuditEvent>(db), TimeProvider.System), TimeProvider.System);
 
     private sealed class UnusedHandler : HttpMessageHandler
     {

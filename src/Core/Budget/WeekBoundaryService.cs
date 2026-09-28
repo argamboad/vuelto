@@ -51,7 +51,7 @@ public class WeekBoundaryService : IWeekBoundaryService
             if (anchor <= date) return (candidate.Year, candidate.Month);
         }
 
-        throw new InvalidOperationException($"No budget month window contains {date:yyyy-MM-dd} (anchor '{monthAnchor}')");
+        throw new InvalidOperationException($"No budget month window contains {date.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)} (anchor '{monthAnchor}')");
     }
 
     private static DateOnly LastOccurrenceInPreviousMonth(int year, int month, int weekday)

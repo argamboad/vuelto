@@ -133,8 +133,8 @@ public sealed class ReportHandler(
         // The download filename is the key's basename (server-controlled); a per-export folder keeps two
         // members exporting at the same second from overwriting each other's file.
         var now = clock.GetUtcNow();
-        var fileName = $"transactions-{now:yyyy-MM-dd}.csv";
-        var key = $"exports/transactions/{now:yyyyMMddTHHmmssZ}-{Guid.CreateVersion7():N}/{fileName}";
+        var fileName = $"transactions-{now.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)}.csv";
+        var key = $"exports/transactions/{now.ToString("yyyyMMddTHHmmssZ", System.Globalization.CultureInfo.InvariantCulture)}-{Guid.CreateVersion7():N}/{fileName}";
         using (var stream = new MemoryStream(Encoding.UTF8.GetBytes(csv)))
             await files.PutAsync(key, stream, "text/csv; charset=utf-8", cancellationToken);
         var url = await files.GetDownloadUrlAsync(key, LinkLifetime, cancellationToken);

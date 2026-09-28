@@ -5,7 +5,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Vuelto.Api.Services;
 using Vuelto.Api.Tests.Infrastructure;
+using Vuelto.Core.Abstractions;
 using Vuelto.Core.Entities;
+using Vuelto.Infrastructure.Audit;
 using Vuelto.Infrastructure.Outbox;
 using Vuelto.Infrastructure.Repositories;
 using Vuelto.Infrastructure.Webhooks;
@@ -225,6 +227,53 @@ public class WebhookDeliveryLogTests(PostgresFixture fixture) : PostgresTestBase
         }
     }
 
+    // --- both writes are audited, with the impersonating staff member on the row (v4 T44, decision 13) ---
+
+    [Fact]
+    public async Task SendTest_UnderImpersonation_AuditsTheActingStaff()
+    {
+        var tenant = Guid.CreateVersion7();
+        var protector = new WebhookSecretProtector(new EphemeralDataProtectionProvider());
+        var subId = await SeedSubscriptionAsync(tenant, protector);
+        var owner = Guid.CreateVersion7();
+        var staff = Guid.CreateVersion7();
+
+        await using (var db = Fixture.CreateContext(tenant))
+        {
+            var sender = new WebhookSender(new HttpClient(new StubHandler(HttpStatusCode.OK)), new AllowAllUrlGuard());
+            Assert.NotNull(await BuildService(db, tenant, protector, sender, impersonatedBy: staff).SendTestAsync(subId, owner, default));
+        }
+
+        await using var read = Fixture.CreateContext(tenant);
+        var row = Assert.Single(await read.Set<AuditEvent>().Where(e => e.Action == "webhook.test_sent").ToListAsync());
+        Assert.Equal(owner, row.ActorUserId);   // the tenant's natural history: the owner sent a test...
+        Assert.Equal(staff, row.ImpersonatedBy); // ...and the real hands on the keyboard
+        Assert.Equal(subId.ToString(), row.EntityId);
+        Assert.DoesNotContain("http", row.Metadata ?? ""); // identifiers only — never the tenant's URL or the body
+    }
+
+    [Fact]
+    public async Task Replay_IsAudited_AndImpersonatedByIsNullForTheOwnerAlone()
+    {
+        var tenant = Guid.CreateVersion7();
+        var deliveryId = await SeedDeliveryAsync(tenant, subscriptionId: Guid.CreateVersion7(), eventId: "evt-7", body: "{}");
+        var owner = Guid.CreateVersion7();
+        var staff = Guid.CreateVersion7();
+
+        await using (var db = Fixture.CreateContext(tenant))
+        {
+            Assert.True(await BuildService(db, tenant).ReplayAsync(deliveryId, owner, default));
+            Assert.True(await BuildService(db, tenant, impersonatedBy: staff).ReplayAsync(deliveryId, owner, default));
+        }
+
+        await using var read = Fixture.CreateContext(tenant);
+        var rows = await read.Set<AuditEvent>().Where(e => e.Action == "webhook.delivery_replayed").OrderBy(e => e.CreatedAt).ToListAsync();
+        Assert.Equal(2, rows.Count);
+        Assert.All(rows, r => { Assert.Equal(owner, r.ActorUserId); Assert.Equal(deliveryId.ToString(), r.EntityId); });
+        Assert.Null(rows[0].ImpersonatedBy);
+        Assert.Equal(staff, rows[1].ImpersonatedBy);
+    }
+
     [Fact]
     public async Task Replay_ReenqueuesTheSamePayload()
     {
@@ -290,12 +339,20 @@ public class WebhookDeliveryLogTests(PostgresFixture fixture) : PostgresTestBase
 
     private static WebhookSubscriptionService BuildService(
         Vuelto.Infrastructure.Persistence.AppDbContext db, Guid tenant,
-        WebhookSecretProtector? protector = null, IWebhookSender? sender = null) =>
+        WebhookSecretProtector? protector = null, IWebhookSender? sender = null, Guid? impersonatedBy = null) =>
         new(new EfRepository<WebhookSubscription>(db), new EfRepository<WebhookDelivery>(db),
             new EfOutbox(db, TimeProvider.System), new TestCurrentTenant { TenantId = tenant },
             new TokenGenerator(), protector ?? new WebhookSecretProtector(new EphemeralDataProtectionProvider()),
             sender ?? new WebhookSender(new HttpClient(new StubHandler(HttpStatusCode.OK)), new AllowAllUrlGuard()),
-            new AllowAllUrlGuard(), TimeProvider.System);
+            new AllowAllUrlGuard(),
+            // The real audit log over the same context: the row commits with the delivery / the outbox message.
+            new AuditLog(new EfRepository<AuditEvent>(db), TimeProvider.System, new StubImpersonation(impersonatedBy)),
+            TimeProvider.System);
+
+    private sealed class StubImpersonation(Guid? by) : ICurrentImpersonation
+    {
+        public Guid? ImpersonatedBy => by;
+    }
 
     private async Task<Guid> SeedSubscriptionAsync(Guid tenant, WebhookSecretProtector protector)
     {
@@ -422,7 +479,7 @@ public class WebhookDeliveryLogTests(PostgresFixture fixture) : PostgresTestBase
         var sender = new WebhookSender(new HttpClient(new ThrowingHandler(ct => { cts.Cancel(); return new OperationCanceledException("aborted", cts.Token); })), new AllowAllUrlGuard());
 
         await using (var db = Fixture.CreateContext(tenant))
-            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => BuildService(db, tenant, protector, sender).SendTestAsync(subId, cts.Token));
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => BuildService(db, tenant, protector, sender).SendTestAsync(subId, null, cts.Token));
 
         await using var read = Fixture.CreateContext();
         Assert.Empty(await read.Set<WebhookDelivery>().ToListAsync());

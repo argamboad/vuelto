@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Time.Testing;
 using Npgsql;
@@ -97,6 +98,50 @@ public class QuotaServiceTests(PostgresFixture fixture) : PostgresTestBase(fixtu
         var count = (await new EfRepository<UsageCounter>(read).Query().ToListAsync())
             .Where(c => c.Key == UsageKeys.Export).Sum(c => c.Count);
         Assert.Equal(2, count);
+    }
+
+    [Fact]
+    public async Task PeriodKey_IsTheInvariantCalendar_WhateverTheRequestCultureIs()
+    {
+        // v4 T44 (LB-BILL-26, R134): the monthly key was now.ToString("yyyy-MM") — the CURRENT culture's
+        // calendar. Under th-TH (Thai Buddhist) July 2026 is "2569-07", under ar-SA (Umm al-Qura) "1448-01":
+        // a tenant whose requests arrive under different cultures got a separate counter per calendar, and
+        // with it a multiple of the monthly cap. The key is one calendar, the invariant one.
+        var tenant = Guid.CreateVersion7();
+        await SeedTenantWithMembersAsync(tenant, members: 1); // Free: export = 3 a month
+        var clock = new FakeTimeProvider(new DateTimeOffset(2026, 7, 15, 0, 0, 0, TimeSpan.Zero));
+
+        var before = CultureInfo.CurrentCulture;
+        try
+        {
+            foreach (var culture in new[] { "th-TH", "ar-SA", "en-US" })
+            {
+                CultureInfo.CurrentCulture = new CultureInfo(culture);
+                await using var db = Fixture.CreateContext(tenant);
+                Assert.True(await BuildQuota(db, tenant, clock).TryConsumeAsync(UsageKeys.Export));
+            }
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = before;
+        }
+
+        await using var read = Fixture.CreateContext(tenant);
+        var row = Assert.Single(await new EfRepository<UsageCounter>(read).Query().Where(c => c.Key == UsageKeys.Export).ToListAsync());
+        Assert.Equal("2026-07", row.Period);
+        Assert.Equal(3, row.Count);
+
+        // ...so the fourth consume of the month is over the cap, in any culture.
+        CultureInfo.CurrentCulture = new CultureInfo("th-TH");
+        try
+        {
+            await using var db = Fixture.CreateContext(tenant);
+            Assert.False(await BuildQuota(db, tenant, clock).TryConsumeAsync(UsageKeys.Export));
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = before;
+        }
     }
 
     [Fact]

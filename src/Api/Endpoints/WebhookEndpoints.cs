@@ -43,9 +43,11 @@ public static class WebhookEndpoints
         // Synchronous "send test" (like Stripe's) — POSTs a signed ping and returns the endpoint's status.
         // Also records a WebhookDelivery row (success or failure) so the delivery log / replay are populated
         // in-template — the test-send is the only path that fires a delivery on the shipped platform (HOOKS-2).
-        group.MapPost("/{id:guid}/test", async (Guid id, IWebhookSubscriptionService svc, CancellationToken ct) =>
+        // Throttled per tenant (v4 T44): each call is a delivery row and a signed POST at a third-party URL. Audited
+        // (`webhook.test_sent`), so staff doing it while impersonating the owner are on the row.
+        group.MapPost("/{id:guid}/test", async (Guid id, IWebhookSubscriptionService svc, HttpContext http, CancellationToken ct) =>
         {
-            var result = await svc.SendTestAsync(id, ct);
+            var result = await svc.SendTestAsync(id, CurrentUserId(http), ct);
             if (result is null)
                 return Results.NotFound();
 
@@ -53,15 +55,17 @@ public static class WebhookEndpoints
             return result.TransportFailed
                 ? Results.Ok(new { delivered = false, error = "delivery_failed" })
                 : Results.Ok(new { delivered = result.Delivered, status_code = result.StatusCode });
-        });
+        }).RequireRateLimiting(RateLimiting.WebhookWritePolicy);
 
         // Delivery log (HOOKS-2): recent attempts for a subscription — the tenant's debug trail.
         group.MapGet("/{id:guid}/deliveries", async (Guid id, IWebhookSubscriptionService svc, CancellationToken ct) =>
             Results.Ok((await svc.ListDeliveriesAsync(id, ct)).Select(WebhookDeliveryResponse.From).ToList()));
 
-        // Replay (HOOKS-2): re-enqueue a past delivery's exact payload (async via the outbox).
-        group.MapPost("/deliveries/{deliveryId:guid}/replay", async (Guid deliveryId, IWebhookSubscriptionService svc, CancellationToken ct) =>
-            await svc.ReplayAsync(deliveryId, ct) ? Results.Accepted() : Results.NotFound());
+        // Replay (HOOKS-2): re-enqueue a past delivery's exact payload (async via the outbox). Same per-tenant
+        // throttle and audit row (`webhook.delivery_replayed`) as the test-send (v4 T44).
+        group.MapPost("/deliveries/{deliveryId:guid}/replay", async (Guid deliveryId, IWebhookSubscriptionService svc, HttpContext http, CancellationToken ct) =>
+            await svc.ReplayAsync(deliveryId, CurrentUserId(http), ct) ? Results.Accepted() : Results.NotFound())
+            .RequireRateLimiting(RateLimiting.WebhookWritePolicy);
 
         return app;
     }
