@@ -300,7 +300,7 @@
                 {
                     // Swap the in-memory session to the short-lived impersonation token, then hand off
                     // to the app as that user (client-side nav keeps the token; a reload would restore staff).
-                    Auth.BeginImpersonation(body.AccessToken);
+                    Auth.BeginImpersonation(body.AccessToken, body.ExpiresIn);
                     Nav.NavigateTo("/");
                     return;
                 }

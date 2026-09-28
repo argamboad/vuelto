@@ -67,6 +67,12 @@ public class AuthService(
     private bool _impersonating;
     private ITimer? _impersonationExpiry;
 
+    // The current token's lifetime as the SERVER stated it (expires_in), counted from receipt on the device
+    // clock — never the JWT's exp read against that clock, which a device running slow or fast turns into
+    // 401 storms or a 30 s rotation loop (v4 T32, R126). Null = no token, or one whose lifetime is unknown.
+    private DateTimeOffset? _tokenExpiresAt;
+    private TimeSpan? _tokenLifetime;
+
     /// <summary>
     /// How long before the access token expires the session renews it — capped at a quarter of the token's
     /// lifetime, so a short-lived token isn't renewed the moment it arrives.
@@ -143,7 +149,10 @@ public class AuthService(
 
     private TimeProvider Time => timeProvider ?? TimeProvider.System;
 
-    public bool IsAuthenticated => !string.IsNullOrEmpty(_accessToken) && !IsTokenExpired(_accessToken);
+    public bool IsAuthenticated => !string.IsNullOrEmpty(_accessToken) && !SessionExpired;
+
+    // The current token is past the lifetime the server gave it (or has no known lifetime at all).
+    private bool SessionExpired => _tokenExpiresAt is not { } at || Time.GetUtcNow() > at;
 
     /// <summary>
     /// True on native hosts (MAUI). The Login page uses it to swap the web's full-page
@@ -159,7 +168,7 @@ public class AuthService(
     {
         get
         {
-            if (string.IsNullOrEmpty(_accessToken) || IsTokenExpired(_accessToken))
+            if (string.IsNullOrEmpty(_accessToken) || SessionExpired)
                 return null;
             try
             {
@@ -597,7 +606,7 @@ public class AuthService(
         if (string.IsNullOrEmpty(payload.AccessToken))
             return SignInResult.Failed;
 
-        await AcceptTokensAsync(new TokenResponse { AccessToken = payload.AccessToken, RefreshToken = payload.RefreshToken });
+        await AcceptTokensAsync(new TokenResponse { AccessToken = payload.AccessToken, RefreshToken = payload.RefreshToken, ExpiresIn = payload.ExpiresIn });
         return SignInResult.Success;
     }
 
@@ -691,7 +700,7 @@ public class AuthService(
     /// identity via the untouched refresh cookie, and expiry ends the impersonation (<see cref="IdentityChanged"/>,
     /// with no token) rather than renewing — the layout then reloads home as the staff user.
     /// </summary>
-    public void BeginImpersonation(string accessToken)
+    public void BeginImpersonation(string accessToken, int? expiresInSeconds = null)
     {
         // The staff session's renewal must not fire under the impersonation: a refresh restores the staff
         // identity, which would silently end the "sign in as". Stopping re-arms it through the refresh. A
@@ -701,13 +710,14 @@ public class AuthService(
         {
             _epoch++;
             _accessToken = accessToken;
+            SetTokenLifetime(accessToken, expiresInSeconds);
             _isStaff = null;
             // A token without the claim — or one that can't be read, or has already expired — is not an
             // impersonation; it reads as signed out, as any hostile token does.
             _impersonating = Claim(AppClaims.ImpersonatedBy) is not null;
             _impersonationExpiry?.Dispose();
             _impersonationExpiry = _impersonating
-                ? Time.CreateTimer(_ => EndExpiredImpersonation(), null, TimeUntilExpiry(accessToken), Timeout.InfiniteTimeSpan)
+                ? Time.CreateTimer(_ => EndExpiredImpersonation(), null, TimeUntilExpiry(), Timeout.InfiniteTimeSpan)
                 : null;
         }
         IdentityChanged?.Invoke();
@@ -726,6 +736,7 @@ public class AuthService(
             _impersonationExpiry?.Dispose();
             _impersonationExpiry = null;
             _accessToken = null;
+            ForgetTokenLifetime();
             _isStaff = null;
             _sessionHeld = true; // the staff session behind the impersonation is restorable (an expiry had let go of it)
         }
@@ -748,23 +759,19 @@ public class AuthService(
             _impersonationExpiry?.Dispose();
             _impersonationExpiry = null;
             _accessToken = null;
+            ForgetTokenLifetime();
             _sessionHeld = false;
             _isStaff = null;
         }
         IdentityChanged?.Invoke();
     }
 
-    private TimeSpan TimeUntilExpiry(string token)
+    private TimeSpan TimeUntilExpiry()
     {
-        try
-        {
-            var until = new DateTimeOffset(new JwtSecurityTokenHandler().ReadJwtToken(token).ValidTo, TimeSpan.Zero) - Time.GetUtcNow();
-            return until < TimeSpan.Zero ? TimeSpan.Zero : until > MaxRenewalWait ? MaxRenewalWait : until;
-        }
-        catch
-        {
+        if (_tokenExpiresAt is not { } at)
             return TimeSpan.Zero;
-        }
+        var until = at - Time.GetUtcNow();
+        return until < TimeSpan.Zero ? TimeSpan.Zero : until > MaxRenewalWait ? MaxRenewalWait : until;
     }
 
     public async Task LogoutAsync()
@@ -794,13 +801,14 @@ public class AuthService(
     {
         var wasAuthenticated = IsAuthenticated;
         _accessToken = payload.AccessToken;
+        SetTokenLifetime(payload.AccessToken!, payload.ExpiresIn);
         _sessionHeld = true;
         _renewFailures = 0; // the server is back: the next pause starts from the base again
         _isStaff = null; // identity may have changed; re-probe on demand
         ForgetRememberedPreferences(); // a new token carries the account's preferences as they stand
         if (sessionStore.UsesBodyTransport && !string.IsNullOrEmpty(payload.RefreshToken))
             await sessionStore.SaveRefreshTokenAsync(payload.RefreshToken);
-        ScheduleRenewal(RenewalDue(payload.AccessToken!));
+        ScheduleRenewal(RenewalDue());
 
         if (!wasAuthenticated && IsAuthenticated)
             SignedIn?.Invoke();
@@ -813,6 +821,7 @@ public class AuthService(
         {
             _epoch++; // a refresh on the wire belongs to the session being ended: its answer is discarded
             _accessToken = null;
+            ForgetTokenLifetime();
             _sessionHeld = false;
             _impersonating = false;
             _impersonationExpiry?.Dispose();
@@ -860,32 +869,41 @@ public class AuthService(
         if (IsImpersonating)
         {
             // Never renewed. Past its expiry the impersonation is over (the timer normally gets there first).
-            if (token is null || IsTokenExpired(token))
+            if (token is null || SessionExpired)
                 EndExpiredImpersonation();
             return _accessToken;
         }
         if (!_sessionHeld)
             return token;
-        if (token is not null && RenewalDue(token) > TimeSpan.Zero)
+        if (token is not null && RenewalDue() > TimeSpan.Zero)
             return token;
         await RefreshAsync();
         return _accessToken;
     }
 
-    // How long from now until this token should be renewed: its expiry, less the lead.
-    private TimeSpan RenewalDue(string token)
+    /// <summary>
+    /// The bearer handlers' second chance (v4 T32, R126): the server answered 401 to a request sent with a token
+    /// the client believed live. Renews once and returns the token to resend with — the same one when the server
+    /// couldn't be reached (nothing new to send), null when the refresh was rejected (the session is over) or
+    /// there is no session to renew. Never while impersonating: that token is not refreshable.
+    /// </summary>
+    public async Task<string?> RenewAfterRejectedRequestAsync()
     {
-        try
-        {
-            var jwt = new JwtSecurityTokenHandler().ReadJwtToken(token);
-            var lifetime = jwt.ValidFrom == DateTime.MinValue ? RenewLead * 4 : jwt.ValidTo - jwt.ValidFrom;
-            var lead = lifetime / 4 < RenewLead ? lifetime / 4 : RenewLead;
-            return new DateTimeOffset(jwt.ValidTo, TimeSpan.Zero) - lead - Time.GetUtcNow();
-        }
-        catch
-        {
+        if (!_sessionHeld || IsImpersonating)
+            return null;
+        return await RefreshAsync() == RefreshOutcome.Renewed ? _accessToken : null;
+    }
+
+    // How long from now until the current token should be renewed: the server-stated expiry, less the lead —
+    // capped at a quarter of the server-stated lifetime, so a deployment with short tokens isn't renewed the
+    // moment they arrive (the cap used to come from nbf, which the API's tokens never carry).
+    private TimeSpan RenewalDue()
+    {
+        if (_tokenExpiresAt is not { } expiresAt)
             return TimeSpan.Zero;
-        }
+        var lifetime = _tokenLifetime ?? RenewLead * 4;
+        var lead = lifetime / 4 < RenewLead ? lifetime / 4 : RenewLead;
+        return expiresAt - lead - Time.GetUtcNow();
     }
 
     private void ScheduleRenewal(TimeSpan due)
@@ -927,7 +945,7 @@ public class AuthService(
         {
             if (!_sessionHeld || IsImpersonating)
                 return;
-            if (_accessToken is { } token && RenewalDue(token) is var due && due > TimeSpan.Zero)
+            if (_accessToken is not null && RenewalDue() is var due && due > TimeSpan.Zero)
             {
                 ScheduleRenewal(due); // woke early (the wait was capped): not due yet
                 return;
@@ -978,7 +996,7 @@ public class AuthService(
 
     private string? Claim(string type)
     {
-        if (string.IsNullOrEmpty(_accessToken) || IsTokenExpired(_accessToken))
+        if (string.IsNullOrEmpty(_accessToken) || SessionExpired)
             return null;
         try
         {
@@ -991,17 +1009,35 @@ public class AuthService(
         }
     }
 
-    private bool IsTokenExpired(string token)
+    // Records the token's lifetime from the server's expires_in, counted from now on the device clock. Without
+    // one (an older server, a token handed in directly) the JWT's own exp is the fallback — the reading that
+    // device-clock skew breaks, so the API always sends expires_in. An unreadable token has no lifetime: it
+    // reads as expired, i.e. signed out, and never throws.
+    private void SetTokenLifetime(string token, int? expiresInSeconds)
     {
+        if (expiresInSeconds is > 0)
+        {
+            _tokenLifetime = TimeSpan.FromSeconds(expiresInSeconds.Value);
+            _tokenExpiresAt = Time.GetUtcNow() + _tokenLifetime;
+            return;
+        }
         try
         {
             var jwt = new JwtSecurityTokenHandler().ReadJwtToken(token);
-            return new DateTimeOffset(jwt.ValidTo, TimeSpan.Zero) < Time.GetUtcNow();
+            _tokenExpiresAt = new DateTimeOffset(jwt.ValidTo, TimeSpan.Zero);
+            _tokenLifetime = jwt.ValidFrom == DateTime.MinValue ? null : jwt.ValidTo - jwt.ValidFrom;
         }
         catch
         {
-            return true;
+            _tokenExpiresAt = null;
+            _tokenLifetime = null;
         }
+    }
+
+    private void ForgetTokenLifetime()
+    {
+        _tokenExpiresAt = null;
+        _tokenLifetime = null;
     }
 
     // GET /api/admin/me — is the caller platform staff?
@@ -1040,6 +1076,9 @@ public class AuthService(
         [System.Text.Json.Serialization.JsonPropertyName("challenge")]
         public string? Challenge { get; init; }
 
+        [System.Text.Json.Serialization.JsonPropertyName("expires_in")]
+        public int? ExpiresIn { get; init; }
+
         // Present only on a failure body (ErrorResponse); e.g. too_many_attempts on OTP lockout.
         [System.Text.Json.Serialization.JsonPropertyName("error")]
         public string? Error { get; init; }
@@ -1054,5 +1093,10 @@ public class AuthService(
         // Present only for native clients; the web flow keeps the token in the cookie.
         [System.Text.Json.Serialization.JsonPropertyName("refresh_token")]
         public string? RefreshToken { get; init; }
+
+        // The server's word on the token's lifetime, in seconds from receipt — what the client counts from,
+        // never the JWT's exp read against the device clock (v4 T32, R126).
+        [System.Text.Json.Serialization.JsonPropertyName("expires_in")]
+        public int? ExpiresIn { get; init; }
     }
 }

@@ -27,6 +27,11 @@ public class SessionKeepAliveTests : ComponentTestBase
     private void StubRefresh(string name, TimeSpan? lifetime = null) =>
         Http.On(HttpMethod.Post, RefreshPath, $"{{\"access_token\":\"{TestJwt.Build(name: name, lifetime: lifetime)}\"}}");
 
+    /// <summary>A refresh answer shaped like the API's: a token with no nbf, plus expires_in — the server's word on the lifetime.</summary>
+    private void StubServerShapedRefresh(string name, TimeSpan lifetime, TimeSpan? serverClockOffset = null) =>
+        Http.On(HttpMethod.Post, RefreshPath,
+            $"{{\"access_token\":\"{TestJwt.Build(name: name, lifetime: lifetime, withNotBefore: false, serverClockOffset: serverClockOffset)}\",\"expires_in\":{(int)lifetime.TotalSeconds}}}");
+
     private AuthService NativeAuth(FakeSessionStore store) =>
         new(new HttpClient(Http) { BaseAddress = new Uri("http://localhost") },
             NullLogger<AuthService>.Instance, store, timeProvider: Time);
@@ -123,6 +128,92 @@ public class SessionKeepAliveTests : ComponentTestBase
 
         Assert.Equal(1, Refreshes);
         Assert.Equal("Target User", Auth.DisplayName);
+    }
+
+    // ── the token's lifetime is the server's, not the device clock's (v4 T32, R126) ──
+
+    [Fact]
+    public async Task DeviceClockSlow_ARequestAfterRealExpiry_RenewsBeforeSending()
+    {
+        // LB-UI-14(a): a phone 3 minutes slow read the JWT's exp against its own clock and believed a dead token
+        // had 3 minutes left — every call in that window 401'd. The lifetime must be counted from receipt, on
+        // the device clock, using the server's expires_in. (Device 3 min slow ≡ server 3 min ahead.)
+        StubServerShapedRefresh("First", TimeSpan.FromHours(1), serverClockOffset: TimeSpan.FromMinutes(3));
+        await Auth.InitializeAsync();
+        var first = Auth.AccessToken;
+        StubServerShapedRefresh("Renewed", TimeSpan.FromHours(1));
+
+        Time.Advance(TimeSpan.FromMinutes(60) + TimeSpan.FromSeconds(10)); // past the token's REAL expiry
+
+        var token = await Auth.GetFreshAccessTokenAsync();
+        Assert.NotNull(token);
+        Assert.NotEqual(first, token);
+        Assert.Equal("Renewed", Auth.DisplayName);
+    }
+
+    [Fact]
+    public async Task DeviceClockFast_NeverLoopsRotations_AndReportsSignedIn()
+    {
+        // LB-UI-14(b): a phone an hour fast saw every fresh token as already expired — a signed-out screen while
+        // the client rotated the refresh token every 30 s, ~2,880 times a day. (Device 61 min fast ≡ server 61 min behind.)
+        StubServerShapedRefresh("First", TimeSpan.FromHours(1), serverClockOffset: TimeSpan.FromMinutes(-61));
+
+        await Auth.InitializeAsync();
+
+        Assert.True(Auth.IsAuthenticated);
+        Assert.Equal("First", Auth.DisplayName);
+        Time.Advance(TimeSpan.FromMinutes(5)); // the old 30 s loop would have rotated ~10 times by now
+        await Task.Delay(50);
+        Assert.Equal(1, Refreshes);
+    }
+
+    [Fact]
+    public async Task RenewalLead_ForAServerShapedToken_IsAQuarterOfTheLifetime()
+    {
+        // LB-UI-15: the quarter-of-lifetime cap on the renewal lead was computed from nbf, which the API's tokens
+        // never carry — so a deployment with 2-minute tokens renewed a minute early and fell into the 30 s loop.
+        // From expires_in: a 2-minute token renews at 90 s, not 60.
+        StubServerShapedRefresh("First", TimeSpan.FromMinutes(2));
+        await Auth.InitializeAsync();
+        StubServerShapedRefresh("Renewed", TimeSpan.FromMinutes(2));
+
+        Time.Advance(TimeSpan.FromSeconds(89));
+        await Task.Delay(50);
+        Assert.Equal(1, Refreshes);
+
+        Time.Advance(TimeSpan.FromSeconds(2));
+        await WaitUntil(() => Refreshes == 2);
+    }
+
+    [Fact]
+    public async Task ABearerRequest_Refused401_RefreshesAndRetriesOnce()
+    {
+        // LB-UI-14 (the handler half): whatever the clocks say, a 401 on a request sent with a held session is
+        // the server's word that the token is no good now — refresh once and resend; a second 401 stands.
+        await SignInAsync(name: "First");
+        StubRefresh("Renewed");
+        Http.OnSequence(HttpMethod.Get, "/api/household", (HttpStatusCode.Unauthorized, "{}"), (HttpStatusCode.OK, """{"name":"Casa"}"""));
+        var client = new HttpClient(new BearerRetryHandler(Auth) { InnerHandler = Http }) { BaseAddress = new Uri("http://localhost") };
+
+        var response = await client.GetAsync("/api/household");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(2, Refreshes);
+        var sends = Http.Requests.Where(r => r.RequestUri!.AbsolutePath == "/api/household").ToList();
+        Assert.Equal(2, sends.Count);
+        Assert.Equal("Renewed", Auth.DisplayName);
+        Assert.Equal(Auth.AccessToken, sends[1].Headers.Authorization!.Parameter); // resent with the NEW token
+
+        // Still refused after the refresh: the 401 stands, and there is no third attempt.
+        Http.On(HttpMethod.Get, "/api/household", "{}", HttpStatusCode.Unauthorized);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/household")).StatusCode);
+        Assert.Equal(4, Http.Requests.Count(r => r.RequestUri!.AbsolutePath == "/api/household"));
+    }
+
+    private sealed class BearerRetryHandler(AuthService auth) : DelegatingHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            BearerRetry.SendAsync(auth, request, base.SendAsync, cancellationToken);
     }
 
     // ── a refresh in flight across a change of session is discarded (v4 T31, R125) ──

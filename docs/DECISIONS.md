@@ -208,10 +208,16 @@ startup. An app left open — a tab overnight, the phone app in the background �
 token past expiry and nothing renewed it, so the next call 401'd and the page looked signed out. And every
 failed refresh counted as "signed out": a timeout, a proxy's 502 while a free-tier host cold-starts, or no
 signal made the native app **delete its stored refresh token**, so a sleeping server cost the session for
-good. **Decision:** `AuthService` renews ahead of expiry on three paths — a timer (one minute before `exp`,
-capped at a quarter of the token's lifetime, never sooner than 30 s so a fast device clock can't loop it),
-the bearer handlers before each request (`GetFreshAccessTokenAsync` — the net for a device that slept
-through the timer), and the layout when the app returns to the foreground (`AppResumeNotifier`). Refresh
+good. **Decision:** `AuthService` renews ahead of expiry on three paths — a timer (one minute before expiry,
+capped at a quarter of the token's lifetime, never sooner than 30 s), the bearer handlers before each
+request (the net for a device that slept through the timer), and the layout when the app returns to the
+foreground (`AppResumeNotifier`). *Amended by v4 T32 (LB-UI-14/15, R126, 2026-09-28):* the lifetime the
+client counts is the **server's** — `expires_in` at receipt, on the injected clock — never the JWT's `exp`
+read against the device clock, which on a phone a few minutes slow meant 401s for part of every hour and on
+one an hour fast a signed-out screen plus a refresh rotation every 30 s; the quarter-lifetime cap comes from
+the same `expires_in` (it used to read `nbf`, which the API's tokens never carry). And both hosts' bearer
+handlers share one `BearerRetry`: a 401 on a request sent with a held session renews **once** and resends;
+a second 401 stands. The bUnit chassis mints tokens with a `serverClockOffset` so skew is a test theory. Refresh
 outcomes split three ways: **401, or a 400/403 carrying the API's own error body = rejected** (clear the
 session, as before); **5xx, 429, a 400/403 without that body (a proxy's challenge page), network, timeout
 or an unreadable body = unreachable** (keep everything — the server never ruled on the token; mid-session

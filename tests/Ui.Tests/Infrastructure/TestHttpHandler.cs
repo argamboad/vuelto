@@ -59,6 +59,22 @@ public sealed class TestHttpHandler : HttpMessageHandler
     }
 
     /// <summary>
+    /// Stub "METHOD /path" to answer <paramref name="answers"/> in order — status and body per request, repeating
+    /// the last — for a request that is refused once and then accepted (a 401 that a refresh-and-retry cures).
+    /// </summary>
+    public TestHttpHandler OnSequence(HttpMethod method, string path, params (HttpStatusCode Status, string Json)[] answers)
+    {
+        _gated.Remove(Key(method, path));
+        var next = 0;
+        _routes[Key(method, path)] = _ =>
+        {
+            var (status, json) = answers[Math.Min(Interlocked.Increment(ref next) - 1, answers.Length - 1)];
+            return new HttpResponseMessage(status) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
+        };
+        return this;
+    }
+
+    /// <summary>
     /// Stub "METHOD /path" to HANG until the returned action is invoked — for testing concurrent requests
     /// (e.g. a rapid double-click while the first call is still in flight). Every request to this route
     /// awaits the SAME gate.
