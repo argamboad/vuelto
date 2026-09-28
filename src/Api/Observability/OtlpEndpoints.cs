@@ -16,7 +16,22 @@ namespace Vuelto.Api.Observability;
 internal static class OtlpEndpoints
 {
     internal const string HttpProtobuf = "http/protobuf";
+    internal const string Grpc = "grpc";
     private static readonly string[] KnownSignals = ["traces", "metrics", "logs"];
+
+    /// <summary>
+    /// The exporter protocol for the configured <c>OTEL_EXPORTER_OTLP_PROTOCOL</c> value (v4 T42, OBS-3): the
+    /// SAME value the signal paths are derived from, so a protocol set in appsettings or user-secrets — where the
+    /// SDK, which reads only process environment variables, never sees it — can no longer leave the app building
+    /// http/protobuf paths while the SDK speaks gRPC. Null (unset/unknown) leaves the SDK's own default.
+    /// </summary>
+    internal static OpenTelemetry.Exporter.OtlpExportProtocol? ProtocolFor(string? protocol)
+    {
+        var value = protocol?.Trim();
+        if (string.Equals(value, HttpProtobuf, StringComparison.OrdinalIgnoreCase)) return OpenTelemetry.Exporter.OtlpExportProtocol.HttpProtobuf;
+        if (string.Equals(value, Grpc, StringComparison.OrdinalIgnoreCase)) return OpenTelemetry.Exporter.OtlpExportProtocol.Grpc;
+        return null;
+    }
 
     /// <summary>
     /// The endpoint the <paramref name="signal"/> exporter should post to. <paramref name="protocol"/> is the

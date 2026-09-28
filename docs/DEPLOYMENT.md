@@ -611,6 +611,14 @@ over OTLP to that collector, a **third-party processor** of whatever it receives
 - **What never leaves:** email addresses (held by `EnforcementGateTests.LogTemplates_NeverCarryAnEmailAddress`:
   logs name the user by `{UserId}`), tokens and card data.
 - **Retention:** whatever the collector's plan keeps; the app sets none.
+- **When the collector can't be reached** (down, misaddressed, firewalled): the SDK drops every span, metric and
+  log line silently, with bounded memory, and startup never fails because of it. The app logs **one Warning**
+  (`Telemetry collector … cannot be reached`) at startup and on every change of state (re-checked every 15 min,
+  TCP reachability only — a TLS or auth refusal needs the collector's side), and an Information line when it is
+  back. Nothing is buffered for later: what was produced meanwhile is gone (v4 T42).
+- **Protocol:** `OTEL_EXPORTER_OTLP_PROTOCOL` is read from configuration like any other key (`.env`, user-secrets
+  or the environment) and applied to the exporter by the app itself, so the per-signal paths and the wire protocol
+  can't disagree.
 - **Production:** a deploy that exports to Grafana (or any collector outside your own infrastructure) must list it
   as a data processor in the privacy policy. Leave the endpoint empty and nothing is exported; the host's own log
   stream (Render → Logs) still has the console copy.
