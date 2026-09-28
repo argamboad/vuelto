@@ -234,6 +234,24 @@ public class EnforcementGateTests
             + $"tests that guard them. Add them to code= (and, if markdown, to testdocs=) in BOTH workflows: {string.Join(", ", notCode)}");
     }
 
+    [Fact]
+    public void JobTests_UseTheRealOutboxEmailSender() // R133 (v4 T43)
+    {
+        // A scheduled job that notifies runs the real OutboxEmailSender in its tests: that sender flushes the
+        // context mid-way (the email must be durable before the request returns), which is the one write a
+        // no-op sender hides — and hiding it is how the lapse sweep's "notification + stamp commit together"
+        // stayed a comment for two audits. No *JobTests.cs may substitute the sender.
+        var jobTests = Directory.EnumerateFiles(Path.Combine(RepoRoot(), "tests", "Api.Tests"), "*JobTests.cs", SearchOption.AllDirectories)
+            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}")
+                     && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}"))
+            .ToList();
+        Assert.Contains(jobTests, f => File.ReadAllText(f).Contains("new OutboxEmailSender(")); // probe alive: the lapse sweep
+
+        var offenders = jobTests.Where(f => File.ReadAllText(f).Contains("NoopEmailSender")).Select(Path.GetFileName).ToList();
+        Assert.True(offenders.Count == 0,
+            $"Job tests run the real OutboxEmailSender (its mid-way SaveChanges is what the transaction has to cover): {string.Join(", ", offenders)}");
+    }
+
     private static IEnumerable<string> TestReadFiles()
     {
         var root = RepoRoot();

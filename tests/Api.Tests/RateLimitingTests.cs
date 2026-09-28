@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Vuelto.Api.Configuration;
+using Vuelto.Api.Services;
 
 namespace Vuelto.Api.Tests;
 
@@ -36,11 +37,16 @@ public class RateLimitingTests
                    app.UseRouting();
                    // Simulate API-key auth: a test partitions on the X-Test-Key header (the real public
                    // policy partitions on the NameIdentifier claim the ApiKey scheme sets).
+                   // ...and the webhook-write policy partitions on the tenant_id claim (X-Test-Tenant here).
                    app.Use(async (ctx, next) =>
                    {
-                       var key = ctx.Request.Headers["X-Test-Key"].ToString();
-                       if (!string.IsNullOrEmpty(key))
-                           ctx.User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, key)], "test"));
+                       var claims = new List<Claim>();
+                       if (ctx.Request.Headers["X-Test-Key"].ToString() is { Length: > 0 } key)
+                           claims.Add(new Claim(ClaimTypes.NameIdentifier, key));
+                       if (ctx.Request.Headers["X-Test-Tenant"].ToString() is { Length: > 0 } tenant)
+                           claims.Add(new Claim(JwtClaims.TenantId, tenant));
+                       if (claims.Count > 0)
+                           ctx.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "test"));
                        await next();
                    });
                    app.UseRateLimiter();
@@ -54,6 +60,10 @@ public class RateLimitingTests
                                 .RequireRateLimiting(RateLimiting.PublicApiPolicy);
                        endpoints.MapPost("/refresh", () => Results.Ok())
                                 .RequireRateLimiting(RateLimiting.RefreshPolicy);
+                       endpoints.MapPost("/hook/test", () => Results.Ok())
+                                .RequireRateLimiting(RateLimiting.WebhookWritePolicy);
+                       endpoints.MapPost("/hook/replay", () => Results.Ok())
+                                .RequireRateLimiting(RateLimiting.WebhookWritePolicy);
                    });
                });
         });
@@ -143,6 +153,31 @@ public class RateLimitingTests
 
         // ...but key B has its own untouched budget.
         Assert.Equal(HttpStatusCode.OK, (await Get(client, "/pub", "key-B")).StatusCode);
+    }
+
+    [Fact]
+    public async Task WebhookWrites_AreRateLimitedPerTenant_AndTenantsAreIsolated()
+    {
+        // v4 T44 (JOBS-7): the test-send and the replay share ONE per-tenant budget — each call is a delivery row
+        // and an outbound signed POST, so the owner's pace is bounded per tenant, not per IP (a household's devices
+        // share an IP; two tenants must not share a budget).
+        using var server = await StartHostAsync();
+        var client = server.CreateClient();
+
+        for (var i = 0; i < RateLimiting.WebhookWritePermitLimit; i++)
+            Assert.Equal(HttpStatusCode.OK, (await PostAs(client, i % 2 == 0 ? "/hook/test" : "/hook/replay", "tenant-A")).StatusCode);
+
+        Assert.Equal(HttpStatusCode.TooManyRequests, (await PostAs(client, "/hook/test", "tenant-A")).StatusCode);
+        Assert.Equal(HttpStatusCode.TooManyRequests, (await PostAs(client, "/hook/replay", "tenant-A")).StatusCode);
+
+        Assert.Equal(HttpStatusCode.OK, (await PostAs(client, "/hook/test", "tenant-B")).StatusCode);
+    }
+
+    private static Task<HttpResponseMessage> PostAs(HttpClient client, string path, string tenant)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, path);
+        request.Headers.Add("X-Test-Tenant", tenant);
+        return client.SendAsync(request);
     }
 
     private static Task<HttpResponseMessage> Get(HttpClient client, string path, string key)

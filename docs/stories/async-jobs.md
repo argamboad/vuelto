@@ -58,6 +58,20 @@ slice **migrates the existing email sends** (passwordless, invitations) to enque
 > (`RecordFailedAttemptAsync`, re-claiming the row `FOR UPDATE`) so bookkeeping survives the rollback and a
 > poison message eventually dead-letters. Test: `ProcessDue_HandlerStagesARowThatFaultsAtCommit_StillAdvancesAttempt_AndDeadLetters`.
 
+> **2026-09-28 — claim-time accounting (v4 audit LB-JOBS-7/8, T38, R131/R135/R96).** The separate bookkeeping
+> transaction above had no fallback of its own: during a real database disconnect BOTH writes fail, so the
+> row stayed `Pending` with no attempt counted and was picked up every 5 s, re-sending the email, webhook or
+> broadcast for as long as the fault lasted. Now the **claim** transaction bumps `AttemptCount` and books
+> `NextAttemptAt` (the backoff) and commits *before* the handler runs, then re-locks the row for the handler's
+> whole run; the failure bookkeeping only writes the error text and decides dead-lettering, and is best-effort
+> (logged if it fails — the attempt is already on the row). A row that reaches the claim with its attempts
+> spent is dead-lettered there, with `ProcessedAt`, and its handler is not run again. Error text is cut with
+> `SafeTruncation` (never through an emoji — Postgres refused the half-surrogate and lost the row), and the
+> backoff exponent is clamped (`OutboxOptions.BackoffFor`) so a configurable attempt cap can't overflow it.
+> Tests: `ProcessDue_ClaimCountsTheAttempt_*`, `ProcessDue_AttemptsAlreadyExhaustedAtClaim_*`,
+> `ProcessDue_FailingHandler_WithAnEmojiAtTheTruncationBoundary_*`, `Backoff_ClampsTheExponent_*`. The
+> injected-fault half (a failing bookkeeping write still counts the attempt) waits on the DB-fault seam (T54).
+
 **Acceptance criteria**
 
 ```gherkin
@@ -189,7 +203,7 @@ name); `EmailOutboxPayload.Attachments` (nullable, defaulted); `EmailOutboxHandl
 **So that** users receive the document in their inbox through the same reliable outbox path
 
 **Context / notes:** the bytes ride inside the outbox payload (base64), so the total is capped at
-**10 MiB** (`EmailAttachment.MaxTotalBytes`, Brevo's limit) and checked **before** enqueueing — an
+**7 MiB raw** (`EmailAttachment.MaxTotalBytes`; Brevo's 10 MiB limit is on the base64-encoded message — v4 T40) and checked **before** enqueueing — an
 oversize mail must never sit in the outbox failing until it dead-letters. Payloads written by the
 previous build (no `Attachments` property) must still replay after the deploy.
 
@@ -209,12 +223,12 @@ Scenario: The SMTP message carries the attachment as a real attachment part
   And the logo is still an inline linked resource, not an attachment
 
 Scenario: Attachments at the size limit are accepted
-  Given attachments totalling exactly 10 MiB
+  Given attachments totalling exactly 7 MiB
   When the email is sent
   Then it is enqueued
 
 Scenario: Oversize attachments are rejected before anything is queued
-  Given attachments totalling more than 10 MiB
+  Given attachments totalling more than 7 MiB
   When the email is sent
   Then an ArgumentException names the total and the limit
   And no outbox message is written
@@ -231,7 +245,7 @@ Scenario: A message queued before the deploy still sends
   Then it deserializes and is sent with no attachments
 ```
 
-**Out of scope:** attachments over 10 MiB (would need storage-key references instead of inline bytes);
+**Out of scope:** attachments over 7 MiB (would need storage-key references instead of inline bytes);
 per-type allow-lists; virus scanning; any HTTP/API surface (this is an internal seam — no Postman change).
 **Definition of done:** tests first; payload round trip, old-payload compatibility, handler forwarding,
 MIME shape, and the size/format guard covered; existing email callers unchanged in meaning; merged.
@@ -258,7 +272,7 @@ Ordered, each a mergeable vertical slice. TDD throughout.
 3. ✅ **Scheduled host (JOBS-3).** — DONE. `ScheduledJobsHost : BackgroundService` + `IScheduledJob`
      (per-job intervals, failure isolation, fresh scope per run); reference `ExpiredTokenCleanupJob`.
 4. ✅ **Email attachments (JOBS-4).** — DONE 2026-09-16. `EmailAttachment` on `IEmailSender`, carried in
-     the outbox payload, 10 MiB total checked before enqueue; old payloads still replay.
+     the outbox payload, 7 MiB raw total (10 MiB once encoded) checked before enqueue; old payloads still replay.
 
 **Dissolve interaction (note):** pending outbox rows for a dissolving tenant should be drained or
 cancelled — the BILLING dissolve contributor handles billing-related ones; generic system effects
@@ -268,3 +282,13 @@ without a `TenantId` are unaffected. Audit this when wiring tenant dissolve.
 lost; all handlers must be **idempotent** (at-least-once delivery); in-process single-poller is the
 baseline — horizontal scale needs `SKIP LOCKED` claim semantics (built in here) or a real broker;
 don't reach for Redis/Hangfire until multi-node actually forces it.
+
+> **2026-09-28 — strict attachment validation (v4 audit JOBS-3/4, LB-JOBS-4, ADV-P4-8; T40, R92/R132).**
+> `EmailAttachment.Validate` only checked that the media type and file name were not blank and capped the raw
+> bytes at 10 MiB — the relay's limit, which is on the *encoded* message: a 10 MiB attachment is ~13.7 MiB in
+> base64, so Brevo refused it, five times, and it dead-lettered — the exact loop the check promised to prevent.
+> `"pdf"` passed the guard and threw inside MimeKit at every send; `../../etc/passwd` went into the MIME header
+> verbatim. Now: the media type must be `type/subtype` (RFC 2045 tokens, parameters with values), the header gets
+> `SafeFileName` (a base name, slash or backslash as separator, no control characters, ≤ 255 chars), at most 20
+> parts, and the raw cap is **7 MiB** for attachments *and* inline images together — `EncodedSize(7 MiB)` fits
+> under the relay's 10 MiB with headroom (`BuildMessage_MaximumSizeAttachment_StaysUnderTheRelayLimitOnceEncoded`).

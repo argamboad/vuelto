@@ -2595,14 +2595,14 @@
                 "test"
               ]
             },
-            "description": "Synchronously POSTs a signed test 'ping' and returns { delivered, status_code } (or { delivered:false, error:'delivery_failed' } on a transport error). Records a WebhookDelivery row for the attempt (success and failure), so the Delivery log is populated immediately — run it, then the Delivery log request."
+            "description": "Synchronously POSTs a signed test 'ping' and returns { delivered, status_code } (or { delivered:false, error:'delivery_failed' } on a transport error). Records a WebhookDelivery row for the attempt (success and failure), so the Delivery log is populated immediately — run it, then the Delivery log request. Throttled per TENANT together with Replay: 10 calls a minute across the two, then 429 (v4 T44). Audited as webhook.test_sent (actor = the owner; impersonated_by = the staff member when one is impersonating)."
           },
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test(\"2xx/404\", () => pm.expect(pm.response.code).to.be.oneOf([200, 202, 204, 404]));"
+                  "pm.test(\"2xx/404/429\", () => pm.expect(pm.response.code).to.be.oneOf([200, 202, 204, 404, 429]));"
                 ],
                 "type": "text/javascript"
               }
@@ -2625,7 +2625,7 @@
                 "deliveries"
               ]
             },
-            "description": "Recent delivery attempts for this subscription (newest first, tenant-scoped): each row has success, status_code, error, event_id. Populated by Send test event (sync) and by published/replayed events (async via the outbox). Captures the newest row's id into {{deliveryId}} for Replay."
+            "description": "Recent delivery attempts for this subscription (newest first, tenant-scoped): each row has success, status_code, error, event_id. error is a reason code, never exception text: http_NNN (the endpoint's non-2xx status), redirect_not_followed (a 3xx: redirects are never followed, register the final URL), url_refused (the outbound URL guard), timeout, dns, tls, network, error. Populated by Send test event (sync) and by published/replayed events (async via the outbox). Captures the newest row's id into {{deliveryId}} for Replay."
           },
           "event": [
             {
@@ -2659,14 +2659,14 @@
                 "replay"
               ]
             },
-            "description": "Re-enqueues the exact stored payload of {{deliveryId}} (same event id, so a receiver can dedup) → 202; delivered async via the outbox with retry/backoff, which logs its own attempt row. 404 for an unknown or other-tenant delivery id."
+            "description": "Re-enqueues the exact stored payload of {{deliveryId}} (same event id, so a receiver can dedup) → 202; delivered async via the outbox with retry/backoff, which logs its own attempt row. 404 for an unknown or other-tenant delivery id. Shares the per-tenant throttle with Send test event: 10 calls a minute across the two, then 429 (v4 T44). Audited as webhook.delivery_replayed (actor = the owner; impersonated_by = the staff member when one is impersonating)."
           },
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test(\"2xx/404\", () => pm.expect(pm.response.code).to.be.oneOf([200, 202, 204, 404]));"
+                  "pm.test(\"2xx/404/429\", () => pm.expect(pm.response.code).to.be.oneOf([200, 202, 204, 404, 429]));"
                 ],
                 "type": "text/javascript"
               }

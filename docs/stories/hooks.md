@@ -87,7 +87,7 @@ without it the log would be empty on the shipped template, since the sample app 
 /api/webhooks/deliveries/{id}/replay` (re-enqueue the exact stored payload — same event id so the receiver
 dedups). Covered by `WebhookDeliveryLogTests`. **Still out of scope (candidate HOOKS-3):** a Blazor **management UI** (the API +
 public OpenAPI doc make it usable headless — a UI for a default-off developer feature is lower value);
-per-subscription rate limiting; automatic disable after N consecutive failures.
+automatic disable after N consecutive failures (the test-send and the replay are throttled **per tenant** since v4 T44 — below).
 **Definition of done:** tests first; encrypted secret + one-time reveal; publish fans out to matching active
 subs via the outbox; HMAC-signed deliveries; retry/dead-letter via the outbox; owner-only management;
 **default-off strong gating** (404 when disabled); merged, app working; ADR-016 referenced.
@@ -104,3 +104,23 @@ subs via the outbox; HMAC-signed deliveries; retry/dead-letter via the outbox; o
 mechanism); the secret is **encrypted** (needed in plaintext to sign); deliveries are **at-least-once** —
 receivers dedup on `X-Webhook-Id`; **default off** with **strong gating**; managing subscriptions is
 **owner-only**.
+
+> **2026-09-28 — reason codes in the delivery log (v4 audit JOBS-1/5/6, T39, R89/R96).** `WebhookDelivery.Error`
+> — returned as `error` by `GET /api/webhooks/{id}/deliveries` — held the raw exception text: resolved IP and
+> port, DNS errors, the outbound URL guard's verdict that the tenant's host resolves to a private range. It is now
+> a fixed reason code (`WebhookFailure`: `http_NNN`, `redirect_not_followed`, `url_refused`, `timeout`, `dns`, `tls`, `network`, `error`),
+> truncated at both write sites, with the raw text in the server log only; a scan gate
+> (`WebhookErrorCodeGateTests`) rejects any tenant-visible `Error` assigned from `.Message`. A caller's own
+> cancellation (shutdown, client abort) is rethrown instead of recorded as a failed delivery, while HttpClient's
+> timeout is `timeout` / `delivered: false`, not a 500.
+
+> **2026-09-28 — the two writes that cost something are throttled and audited (v4 audit JOBS-7 + C21, T44, R50/R134).**
+> `POST /api/webhooks/{id}/test` and `POST /api/webhooks/deliveries/{id}/replay` each insert a delivery row and end in
+> a signed POST at a third-party URL, and had no limit: an owner could grow the table and fire at someone else's
+> endpoint as fast as the API answered. Both now share one **per-tenant** fixed window (`RateLimiting.WebhookWritePolicy`,
+> 10 a minute, partitioned on the `tenant_id` claim — a household's devices share an IP, two tenants must not share a
+> budget) → 429. Both write an **audit row** (`webhook.test_sent`, `webhook.delivery_replayed`; identifiers only) with the
+> ambient `impersonated_by`, so a staff member doing it while impersonating the owner is on the row (decision 13:
+> audit these writes rather than exempt them). `RateLimitingTests.WebhookWrites_AreRateLimitedPerTenant_AndTenantsAreIsolated`,
+> `WebhookWritePolicyTests` (the real route table), `WebhookDeliveryLogTests.SendTest_UnderImpersonation_AuditsTheActingStaff`
+> / `Replay_IsAudited_AndImpersonatedByIsNullForTheOwnerAlone`.

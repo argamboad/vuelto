@@ -163,7 +163,8 @@ public class WebhookRedirectAndPinningTests(PostgresFixture fixture) : PostgresT
         WebhookSecretProtector protector, IWebhookSender sender) =>
         new(new EfRepository<WebhookSubscription>(db), new EfRepository<WebhookDelivery>(db),
             new EfOutbox(db, TimeProvider.System), new TestCurrentTenant { TenantId = tenant },
-            new TokenGenerator(), protector, sender, new AllowAllUrlGuard(), TimeProvider.System);
+            new TokenGenerator(), protector, sender, new AllowAllUrlGuard(),
+            new Vuelto.Infrastructure.Audit.AuditLog(new EfRepository<Vuelto.Core.Entities.AuditEvent>(db), TimeProvider.System), TimeProvider.System);
 
     private async Task<Guid> SeedSubscriptionAsync(Guid tenant, WebhookSecretProtector protector)
     {

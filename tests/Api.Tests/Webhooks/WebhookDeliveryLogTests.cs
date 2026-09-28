@@ -5,7 +5,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Vuelto.Api.Services;
 using Vuelto.Api.Tests.Infrastructure;
+using Vuelto.Core.Abstractions;
 using Vuelto.Core.Entities;
+using Vuelto.Infrastructure.Audit;
 using Vuelto.Infrastructure.Outbox;
 using Vuelto.Infrastructure.Repositories;
 using Vuelto.Infrastructure.Webhooks;
@@ -225,6 +227,53 @@ public class WebhookDeliveryLogTests(PostgresFixture fixture) : PostgresTestBase
         }
     }
 
+    // --- both writes are audited, with the impersonating staff member on the row (v4 T44, decision 13) ---
+
+    [Fact]
+    public async Task SendTest_UnderImpersonation_AuditsTheActingStaff()
+    {
+        var tenant = Guid.CreateVersion7();
+        var protector = new WebhookSecretProtector(new EphemeralDataProtectionProvider());
+        var subId = await SeedSubscriptionAsync(tenant, protector);
+        var owner = Guid.CreateVersion7();
+        var staff = Guid.CreateVersion7();
+
+        await using (var db = Fixture.CreateContext(tenant))
+        {
+            var sender = new WebhookSender(new HttpClient(new StubHandler(HttpStatusCode.OK)), new AllowAllUrlGuard());
+            Assert.NotNull(await BuildService(db, tenant, protector, sender, impersonatedBy: staff).SendTestAsync(subId, owner, default));
+        }
+
+        await using var read = Fixture.CreateContext(tenant);
+        var row = Assert.Single(await read.Set<AuditEvent>().Where(e => e.Action == "webhook.test_sent").ToListAsync());
+        Assert.Equal(owner, row.ActorUserId);   // the tenant's natural history: the owner sent a test...
+        Assert.Equal(staff, row.ImpersonatedBy); // ...and the real hands on the keyboard
+        Assert.Equal(subId.ToString(), row.EntityId);
+        Assert.DoesNotContain("http", row.Metadata ?? ""); // identifiers only — never the tenant's URL or the body
+    }
+
+    [Fact]
+    public async Task Replay_IsAudited_AndImpersonatedByIsNullForTheOwnerAlone()
+    {
+        var tenant = Guid.CreateVersion7();
+        var deliveryId = await SeedDeliveryAsync(tenant, subscriptionId: Guid.CreateVersion7(), eventId: "evt-7", body: "{}");
+        var owner = Guid.CreateVersion7();
+        var staff = Guid.CreateVersion7();
+
+        await using (var db = Fixture.CreateContext(tenant))
+        {
+            Assert.True(await BuildService(db, tenant).ReplayAsync(deliveryId, owner, default));
+            Assert.True(await BuildService(db, tenant, impersonatedBy: staff).ReplayAsync(deliveryId, owner, default));
+        }
+
+        await using var read = Fixture.CreateContext(tenant);
+        var rows = await read.Set<AuditEvent>().Where(e => e.Action == "webhook.delivery_replayed").OrderBy(e => e.CreatedAt).ToListAsync();
+        Assert.Equal(2, rows.Count);
+        Assert.All(rows, r => { Assert.Equal(owner, r.ActorUserId); Assert.Equal(deliveryId.ToString(), r.EntityId); });
+        Assert.Null(rows[0].ImpersonatedBy);
+        Assert.Equal(staff, rows[1].ImpersonatedBy);
+    }
+
     [Fact]
     public async Task Replay_ReenqueuesTheSamePayload()
     {
@@ -290,12 +339,20 @@ public class WebhookDeliveryLogTests(PostgresFixture fixture) : PostgresTestBase
 
     private static WebhookSubscriptionService BuildService(
         Vuelto.Infrastructure.Persistence.AppDbContext db, Guid tenant,
-        WebhookSecretProtector? protector = null, IWebhookSender? sender = null) =>
+        WebhookSecretProtector? protector = null, IWebhookSender? sender = null, Guid? impersonatedBy = null) =>
         new(new EfRepository<WebhookSubscription>(db), new EfRepository<WebhookDelivery>(db),
             new EfOutbox(db, TimeProvider.System), new TestCurrentTenant { TenantId = tenant },
             new TokenGenerator(), protector ?? new WebhookSecretProtector(new EphemeralDataProtectionProvider()),
             sender ?? new WebhookSender(new HttpClient(new StubHandler(HttpStatusCode.OK)), new AllowAllUrlGuard()),
-            new AllowAllUrlGuard(), TimeProvider.System);
+            new AllowAllUrlGuard(),
+            // The real audit log over the same context: the row commits with the delivery / the outbox message.
+            new AuditLog(new EfRepository<AuditEvent>(db), TimeProvider.System, new StubImpersonation(impersonatedBy)),
+            TimeProvider.System);
+
+    private sealed class StubImpersonation(Guid? by) : ICurrentImpersonation
+    {
+        public Guid? ImpersonatedBy => by;
+    }
 
     private async Task<Guid> SeedSubscriptionAsync(Guid tenant, WebhookSecretProtector protector)
     {
@@ -359,9 +416,115 @@ public class WebhookDeliveryLogTests(PostgresFixture fixture) : PostgresTestBase
         }
     }
 
-    private sealed class ThrowingHandler : HttpMessageHandler
+    private sealed class ThrowingHandler(Func<CancellationToken, Exception>? factory = null) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
-            throw new HttpRequestException("connection refused"); // stands in for a transport/DNS failure
+            throw (factory?.Invoke(cancellationToken) ?? new HttpRequestException("connection refused")); // stands in for a transport/DNS failure
+    }
+
+    // ── v4 T39 (JOBS-1/5/6, R89/R96): the delivery log carries a reason code, never the exception's text ──
+
+    [Fact]
+    public async Task Handler_RecordsAnEnumeratedReason_NeverTheExceptionText()
+    {
+        // The household owner read the raw message back from GET /deliveries: resolved IP and port, DNS
+        // errors, the SSRF guard's verdict that their host resolves to a private range.
+        var tenant = Guid.CreateVersion7();
+        var protector = new WebhookSecretProtector(new EphemeralDataProtectionProvider());
+        var subId = await SeedSubscriptionAsync(tenant, protector);
+        var sender = new WebhookSender(new HttpClient(new ThrowingHandler(_ => new HttpRequestException("No connection could be made to 10.0.0.5:443 (resolved from recv.test)"))), new AllowAllUrlGuard());
+
+        await using (var db = Fixture.CreateContext())
+        {
+            var handler = new WebhookOutboxHandler(db, sender, protector, TimeProvider.System, Fixture.CreateContextFactory());
+            await Assert.ThrowsAsync<InvalidOperationException>(() => handler.HandleAsync(Message(tenant, subId, "{}"), default));
+        }
+
+        await using var read = Fixture.CreateContext();
+        var delivery = Assert.Single(await read.Set<WebhookDelivery>().ToListAsync());
+        Assert.Equal(WebhookFailure.Network, delivery.Error);
+        Assert.DoesNotContain("10.0.0.5", delivery.Error);
+    }
+
+    [Fact]
+    public async Task SendTest_HttpClientTimeout_IsDeliveredFalse_WithTheTimeoutReason()
+    {
+        // HttpClient's own timeout is a TaskCanceledException whose token is NOT the caller's: a transport
+        // failure (delivered: false, reason "timeout"), not a cancellation to rethrow as a 500.
+        var tenant = Guid.CreateVersion7();
+        var protector = new WebhookSecretProtector(new EphemeralDataProtectionProvider());
+        var subId = await SeedSubscriptionAsync(tenant, protector);
+        var sender = new WebhookSender(new HttpClient(new ThrowingHandler(_ => new TaskCanceledException("The request was canceled due to the configured HttpClient.Timeout of 30 seconds elapsing."))), new AllowAllUrlGuard());
+
+        WebhookTestResult? result;
+        await using (var db = Fixture.CreateContext(tenant))
+            result = await BuildService(db, tenant, protector, sender).SendTestAsync(subId, default);
+
+        Assert.NotNull(result);
+        Assert.False(result!.Delivered);
+        Assert.True(result.TransportFailed);
+        await using var read = Fixture.CreateContext();
+        Assert.Equal(WebhookFailure.Timeout, Assert.Single(await read.Set<WebhookDelivery>().ToListAsync()).Error);
+    }
+
+    [Fact]
+    public async Task SendTest_CallerCancellation_Propagates_AndRecordsNothing()
+    {
+        // A server shutdown or a client abort is not a failed delivery: it must not burn an attempt or leave a
+        // bogus failure row — it propagates.
+        var tenant = Guid.CreateVersion7();
+        var protector = new WebhookSecretProtector(new EphemeralDataProtectionProvider());
+        var subId = await SeedSubscriptionAsync(tenant, protector);
+        using var cts = new CancellationTokenSource();
+        var sender = new WebhookSender(new HttpClient(new ThrowingHandler(ct => { cts.Cancel(); return new OperationCanceledException("aborted", cts.Token); })), new AllowAllUrlGuard());
+
+        await using (var db = Fixture.CreateContext(tenant))
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => BuildService(db, tenant, protector, sender).SendTestAsync(subId, null, cts.Token));
+
+        await using var read = Fixture.CreateContext();
+        Assert.Empty(await read.Set<WebhookDelivery>().ToListAsync());
+    }
+
+    [Fact]
+    public async Task Handler_CallerCancellation_Propagates_WithoutADeliveryRow()
+    {
+        var tenant = Guid.CreateVersion7();
+        var protector = new WebhookSecretProtector(new EphemeralDataProtectionProvider());
+        var subId = await SeedSubscriptionAsync(tenant, protector);
+        using var cts = new CancellationTokenSource();
+        var sender = new WebhookSender(new HttpClient(new ThrowingHandler(ct => { cts.Cancel(); return new OperationCanceledException("shutting down", cts.Token); })), new AllowAllUrlGuard());
+
+        await using (var db = Fixture.CreateContext())
+        {
+            var handler = new WebhookOutboxHandler(db, sender, protector, TimeProvider.System, Fixture.CreateContextFactory());
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => handler.HandleAsync(Message(tenant, subId, "{}"), cts.Token));
+        }
+
+        await using var read = Fixture.CreateContext();
+        Assert.Empty(await read.Set<WebhookDelivery>().ToListAsync());
+    }
+
+    public static TheoryData<int?, Exception?, string> FailureReasons => new()
+    {
+        { 503, null, "http_503" },
+        { 302, null, WebhookFailure.RedirectNotFollowed }, // says why: redirects are not followed (v4 H1)
+        { null, new WebhookUrlRefusedException("url_refused: recv.test resolves to 10.0.0.5"), WebhookFailure.UrlRefused },
+        { null, new TaskCanceledException("HttpClient.Timeout elapsed"), WebhookFailure.Timeout },
+        { null, new HttpRequestException("name resolution failed", new System.Net.Sockets.SocketException((int)System.Net.Sockets.SocketError.HostNotFound)), WebhookFailure.Dns },
+        { null, new HttpRequestException("ssl", new System.Security.Authentication.AuthenticationException("The remote certificate is invalid")), WebhookFailure.Tls },
+        { null, new HttpRequestException(new string('x', 1100)), WebhookFailure.Network },
+        { null, new InvalidOperationException("something else"), WebhookFailure.Error },
+    };
+
+    [Theory]
+    [MemberData(nameof(FailureReasons))]
+    public void FailureReason_IsEnumerated_AndNeverTheMessage(int? status, Exception? exception, string expected)
+    {
+        var reason = WebhookFailure.Reason(status, exception);
+
+        Assert.Equal(expected, reason);
+        Assert.True(WebhookFailure.IsReason(reason));
+        Assert.True(reason.Length <= 24); // the column is 1000; the reasons are short by construction
+        if (exception is not null) Assert.DoesNotContain(exception.Message, reason);
     }
 }

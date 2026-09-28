@@ -47,7 +47,9 @@ public sealed class QuotaService(
             return false; // a single request already exceeds the cap
 
         var now = clock.GetUtcNow();
-        var period = now.ToString("yyyy-MM");
+        // One calendar for the key (v4 T44, R134): under a Thai or Hijri request culture a bare "yyyy-MM" names
+        // another year, and the tenant gets a counter per calendar — a multiple of the monthly cap.
+        var period = now.ToString("yyyy-MM", System.Globalization.CultureInfo.InvariantCulture);
 
         // Atomic path: a single conditional UPDATE increments the existing counter only if it stays within
         // the cap. Postgres row-locks the counter, so concurrent consumers serialize and there is no

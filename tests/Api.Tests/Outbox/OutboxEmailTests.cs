@@ -76,6 +76,23 @@ public class OutboxEmailSenderTests(PostgresFixture fixture) : PostgresTestBase(
     }
 
     [Fact]
+    public async Task SendAsync_InvalidMediaType_IsRejected_AndNothingIsEnqueued()
+    {
+        // v4 T40: "pdf" passed the old guard, got queued, then every send attempt threw inside MimeKit and it
+        // dead-lettered after five tries with no error at call time.
+        await using (var db = Fixture.CreateContext())
+        {
+            var sender = new OutboxEmailSender(new EfOutbox(db, TimeProvider.System), db, new TestCurrentTenant());
+            var ex = await Assert.ThrowsAsync<ArgumentException>(() => sender.SendAsync("to@test.local", "s", "<p/>",
+                attachments: [new EmailAttachment("r.pdf", [1, 2, 3], "pdf")]));
+            Assert.Equal("attachments", ex.ParamName);
+        }
+
+        await using var read = Fixture.CreateContext();
+        Assert.Equal(0, await read.Set<OutboxMessage>().CountAsync());
+    }
+
+    [Fact]
     public async Task SendAsync_AttachmentsOverTheLimit_AreRejected_AndNothingIsEnqueued()
     {
         await using (var db = Fixture.CreateContext())

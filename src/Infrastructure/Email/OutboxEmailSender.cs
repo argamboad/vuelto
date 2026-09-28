@@ -29,7 +29,7 @@ public sealed class OutboxEmailSender(IOutbox outbox, AppDbContext db, ICurrentT
     {
         // Reject before enqueueing: an oversize/malformed attachment would otherwise sit in the outbox
         // and fail every dispatch attempt until it dead-letters (JOBS-4).
-        EmailAttachment.Validate(attachments);
+        EmailAttachment.Validate(attachments, inlineImages);
 
         var payload = JsonSerializer.Serialize(
             new EmailOutboxPayload(to, subject, htmlBody, inlineImages, attachments));
