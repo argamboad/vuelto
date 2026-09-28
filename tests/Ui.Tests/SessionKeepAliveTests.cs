@@ -125,6 +125,130 @@ public class SessionKeepAliveTests : ComponentTestBase
         Assert.Equal("Target User", Auth.DisplayName);
     }
 
+    // ── a refresh in flight across a change of session is discarded (v4 T31, R125) ──
+
+    [Fact]
+    public async Task ARefreshInFlight_WhenImpersonationBegins_IsDiscarded()
+    {
+        // LB-UI-11: the timer's refresh is on the wire when the admin clicks "Sign in as". Its answer — a staff
+        // token — must not overwrite the impersonation token: that ended the impersonation the moment it began
+        // while the header still showed the target.
+        await SignInAsync(name: "Staff Member");
+        var signedIn = 0;
+        Auth.SignedIn += () => signedIn++;
+        // Tokens are minted on the real clock: build the target's now, with a lifetime that outlives the jump below.
+        var target = TestJwt.Build(name: "Target User", impersonatedBy: Guid.NewGuid().ToString(), lifetime: TimeSpan.FromMinutes(75));
+        var release = Http.OnGated(HttpMethod.Post, RefreshPath, $"{{\"access_token\":\"{TestJwt.Build(name: "Staff Renewed", lifetime: TimeSpan.FromHours(2))}\"}}");
+        Time.Advance(TimeSpan.FromMinutes(59) + TimeSpan.FromSeconds(1));
+        await WaitUntil(() => Refreshes == 2);
+
+        Auth.BeginImpersonation(target);
+        release();
+        await Task.Delay(50);
+
+        Assert.True(Auth.IsImpersonating);
+        Assert.Equal("Target User", Auth.DisplayName);
+        Assert.Equal(0, signedIn);
+        Time.Advance(TimeSpan.FromMinutes(10));
+        await Auth.GetFreshAccessTokenAsync();
+        Assert.Equal(2, Refreshes); // the discarded answer re-armed nothing
+    }
+
+    [Fact]
+    public async Task ARefreshInFlight_WhenLoggingOut_DoesNotResurrectTheSession()
+    {
+        // LB-UI-12 (web): the user clicks Sign out while the timer's refresh is on the wire. When its answer
+        // lands it must be dropped, not applied — or the session logout just ended comes back, SignedIn fires
+        // and the preferences logout wiped are re-applied.
+        await SignInAsync(name: "First");
+        var signedIn = 0;
+        Auth.SignedIn += () => signedIn++;
+        Http.On(HttpMethod.Post, "/api/auth/logout");
+        var release = Http.OnGated(HttpMethod.Post, RefreshPath, $"{{\"access_token\":\"{TestJwt.Build(name: "Resurrected", lifetime: TimeSpan.FromHours(2))}\"}}");
+        Time.Advance(TimeSpan.FromMinutes(59) + TimeSpan.FromSeconds(1));
+        await WaitUntil(() => Refreshes == 2);
+
+        await Auth.LogoutAsync();
+        release();
+        await Task.Delay(50);
+
+        Assert.False(Auth.IsAuthenticated);
+        Assert.Null(Auth.AccessToken);
+        Assert.Equal(0, signedIn);
+        Time.Advance(TimeSpan.FromHours(2));
+        Assert.Null(await Auth.GetFreshAccessTokenAsync());
+        Assert.Equal(2, Refreshes);
+    }
+
+    [Fact]
+    public async Task Native_ARefreshInFlight_WhenLoggingOut_DoesNotReSaveTheRotatedToken()
+    {
+        // LB-UI-12 (native): the discarded answer carried a rotated refresh token; after a logout it must not be
+        // written back to the secure store — the store stays empty, as logout left it.
+        var store = await StoreHolding("rt-1");
+        var auth = NativeAuth(store);
+        Http.On(HttpMethod.Post, RefreshPath, $"{{\"access_token\":\"{TestJwt.Build(name: "First")}\",\"refresh_token\":\"rt-2\"}}");
+        await auth.InitializeAsync();
+        Assert.Equal("rt-2", await store.GetRefreshTokenAsync());
+        Http.On(HttpMethod.Post, "/api/auth/logout");
+        var release = Http.OnGated(HttpMethod.Post, RefreshPath, $"{{\"access_token\":\"{TestJwt.Build(name: "Resurrected", lifetime: TimeSpan.FromHours(2))}\",\"refresh_token\":\"rt-3\"}}");
+        Time.Advance(TimeSpan.FromMinutes(59) + TimeSpan.FromSeconds(1));
+        await WaitUntil(() => Refreshes == 2);
+
+        await auth.LogoutAsync();
+        release();
+        await Task.Delay(50);
+
+        Assert.False(auth.IsAuthenticated);
+        Assert.Null(await store.GetRefreshTokenAsync());
+    }
+
+    [Fact]
+    public async Task ImpersonationExpiry_DoesNotSilentlyRenewIntoTheStaffIdentity()
+    {
+        // LB-UI-13: at the impersonation token's expiry the client used to renew from the staff cookie, so the
+        // admin's next click on the target's page ran as staff, in the staff household. Expiry ENDS the
+        // impersonation: no refresh, IdentityChanged raised once, and the layout takes the admin home.
+        await SignInAsync(name: "Staff Member");
+        Auth.BeginImpersonation(TestJwt.Build(name: "Target User", impersonatedBy: Guid.NewGuid().ToString(), lifetime: TimeSpan.FromMinutes(15)));
+        var identityChanged = 0;
+        Auth.IdentityChanged += () => identityChanged++;
+
+        Time.Advance(TimeSpan.FromMinutes(16));
+        var token = await Auth.GetFreshAccessTokenAsync();
+        await Auth.GetFreshAccessTokenAsync(); // a second request must not raise it again
+
+        Assert.Null(token);
+        Assert.Equal(1, Refreshes);
+        Assert.False(Auth.IsImpersonating);
+        Assert.Equal(1, identityChanged);
+    }
+
+    [Fact]
+    public async Task ImpersonationExpiry_TakesTheAdminHome_OffTheTargetsPage()
+    {
+        // The layout's half of LB-UI-13: when the impersonation ends by expiry, the admin must not be left on the
+        // target's page as themselves — the same reload-home that "Stop" does, so the staff identity is restored
+        // on a neutral page. Fires from the expiry itself, not only from the next request.
+        await SignInAsync(name: "Staff Member");
+        var nav = (Bunit.TestDoubles.BunitNavigationManager)Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
+        nav.NavigateTo("/household");
+        Render<MainLayout>(ps => ps.Add(m => m.Body, b => b.AddMarkupContent(0, "<div>the target's page</div>")));
+        Auth.BeginImpersonation(TestJwt.Build(name: "Target User", impersonatedBy: Guid.NewGuid().ToString(), lifetime: TimeSpan.FromMinutes(15)));
+        var before = nav.History.Count;
+
+        Time.Advance(TimeSpan.FromMinutes(15) + TimeSpan.FromSeconds(1));
+        await WaitUntil(() => nav.History.Count > before);
+
+        var since = nav.History.Take(nav.History.Count - before).ToList(); // History is newest-first
+        var navigations = string.Join(" | ", since.Select(h => $"{h.Uri} forceLoad={h.Options.ForceLoad}"));
+        var home = since.SingleOrDefault(h => h.Options.ForceLoad);
+        Assert.True(home is not null, "expected one reload home, got: " + navigations);
+        Assert.Equal(new Uri(nav.BaseUri), new Uri(new Uri(nav.BaseUri), home!.Uri));
+        Assert.False(Auth.IsImpersonating);
+        Assert.Equal(1, Refreshes);
+    }
+
     // ── only the server saying no ends a session ────────────────────────────
 
     [Theory]

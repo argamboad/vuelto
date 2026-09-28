@@ -1075,7 +1075,10 @@ And "Stop impersonating" returns me to my own staff identity
    **impersonation banner** is pinned at the top; the **Admin** link is hidden while impersonating.
 3. Click **Stop impersonating**. **Expected:** you're back as yourself (staff); the banner is gone.
 4. The impersonation token is **short-lived (15 min) and non-refreshable** — a full page reload also
-   returns you to your own identity. Impersonation is **audited** in the target's tenant.
+   returns you to your own identity. When it **expires** (leave the impersonated session open 15 min),
+   the app reloads to `/` as yourself: no call from the target's page is ever made as staff, and the
+   client never renews the impersonation (v4 T31, `SessionKeepAliveTests.ImpersonationExpiry_*`).
+   Impersonation is **audited** in the target's tenant.
 
 ### QA-ADMIN-04 — Staff announcement reaches a tenant's members 🟢 (Web) ⚙️ Automated in CI
 **Gherkin**

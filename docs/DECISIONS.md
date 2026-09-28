@@ -223,7 +223,17 @@ retried inside the window it exists for — v4 T30 (UX-6/7/12, R107/R108/R144), 
 retried after 2, 5, 10 and 15 s behind the loading spinner before the layout sends the user to `/login`,
 and even then the stored token stays for the next launch. **Unchanged:** impersonation tokens are never
 renewed (a refresh would restore the staff identity — the timer is cancelled on `BeginImpersonation`), and
-anonymous pages never spend a refresh. **Why this is safe:** the server stays the sole authority — keeping a
+anonymous pages never spend a refresh. *Amended by v4 T31 (LB-UI-11/12/13, R125, 2026-09-28):* the client
+session carries an **epoch**, bumped by logout, by entering or leaving an impersonation and by an
+impersonation expiring; a refresh captures it when it starts and an answer that lands after the epoch moved
+is **discarded**, never applied — so a refresh on the wire when the admin clicks "Sign in as" cannot swap
+the impersonation for the staff token, and one on the wire when the user signs out cannot sign them back
+in (on native the discarded answer's rotated refresh token is still saved while a session is held, so
+leaving the impersonation can restore the staff user; never after a logout). Impersonation is a **state**
+entered and left explicitly, not a claim read off the current token, and its **expiry ends it** — the
+in-memory session is let go, `IdentityChanged` fires, and the layout reloads home so the staff identity is
+restored on a neutral page — instead of the request-time renewal that used to put the staff identity on
+the target's page. Evidence: `SessionKeepAliveTests` (`ARefreshInFlight_*`, `ImpersonationExpiry_*`). **Why this is safe:** the server stays the sole authority — keeping a
 refresh token the client can't validate only means asking again; a revoked one still gets 401 and is
 dropped. Concurrent renewals (timer + request) coalesce into one call as before, now under a lock for
 native's thread pool. Evidence: `SessionKeepAliveTests` (Ui.Tests, on a fake clock). QA: QA-SMK-04.
@@ -898,7 +908,10 @@ hatch, ADR-003; the audit log, ADR-008) rather than loosening any of them.
    user.** "Sign in as" mints an access token carrying the target's claims **plus an `impersonated_by`
    claim** (the staff user id) and a **short expiry**, with **no refresh token** — so it auto-expires and
    can't be silently extended. The impersonator acts as the target within that window; the token scopes
-   naturally via the target's `tenant_id` claim (no filter bypass).
+   naturally via the target's `tenant_id` claim (no filter bypass). *Client half, amended v4 T31
+   (2026-09-28):* the client holds impersonation as an explicit state and treats the expiry as the end of
+   the "sign in as" — no renewal, a reload home as the staff user — rather than reading the claim off a
+   token that has gone silent (ADR-002 keep-alive addendum, R125).
 4. **Every admin action is audited (ADR-008), prominently.** Cross-tenant reads and — especially —
    impersonation start record an `AuditEvent` with the staff actor + target; impersonation is stamped in
    the **target's** tenant so that tenant's owner can see "a platform admin accessed this account."

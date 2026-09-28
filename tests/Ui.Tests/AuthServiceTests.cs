@@ -91,8 +91,10 @@ public class AuthServiceTests : ComponentTestBase
     }
 
     [Fact]
-    public async Task Impersonation_IsClaimDriven_AndStopRestoresTheStaffIdentity()
+    public async Task Impersonation_IsEnteredAndLeftExplicitly_AndStopRestoresTheStaffIdentity()
     {
+        // v4 T31 (R125): impersonation is a STATE the client enters and leaves, not a claim read off whatever
+        // token is current — a claim read went silent the moment the token expired.
         await SignInAsync(name: "Staff Member");
         Assert.False(Auth.IsImpersonating);
 

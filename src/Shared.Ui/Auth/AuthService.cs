@@ -49,12 +49,23 @@ public class AuthService(
 {
     private string? _accessToken;
     private Task<RefreshOutcome>? _refreshInFlight;
+    private int _refreshInFlightEpoch;
     private readonly object _refreshGate = new();
 
     // True from the moment tokens are accepted until the session is cleared: the one state in which renewing
     // is worth a call. Anonymous pages hit the API too, and must not spend a refresh on every request.
     private bool _sessionHeld;
     private ITimer? _renewTimer;
+
+    // The session epoch (v4 T31, R125): bumped by every change of session — logout, entering or leaving an
+    // impersonation, an impersonation expiring. A refresh captures it when it starts; an answer that lands
+    // after the epoch moved belongs to a session that is gone or superseded and is discarded, never applied.
+    private int _epoch;
+
+    // Impersonation is a STATE entered by BeginImpersonation and left by Stop, expiry or a cleared session —
+    // never a claim read off the current token, which went silent the moment the token expired.
+    private bool _impersonating;
+    private ITimer? _impersonationExpiry;
 
     /// <summary>
     /// How long before the access token expires the session renews it — capped at a quarter of the token's
@@ -97,6 +108,8 @@ public class AuthService(
         Rejected,
         /// <summary>No usable answer (network, timeout, 5xx, a proxy's error page): nothing is known, keep it.</summary>
         Unreachable,
+        /// <summary>The answer arrived after the session it belonged to ended or was superseded; not applied.</summary>
+        Discarded,
     }
 
     /// <summary>
@@ -178,7 +191,9 @@ public class AuthService(
         // off the UI thread too; on WASM (single-threaded) the lock costs nothing.
         lock (_refreshGate)
         {
-            if (_refreshInFlight is { } inFlight)
+            // Share only a refresh of THIS session: one started before the epoch moved will be discarded, and
+            // a caller from the new session (Stop restoring the staff identity) needs its own.
+            if (_refreshInFlight is { } inFlight && _refreshInFlightEpoch == _epoch)
                 return inFlight;
             var refresh = RunRefreshAsync();
             // Cache only a task that is still RUNNING (v3 T45c). When RunRefreshAsync completes
@@ -187,13 +202,17 @@ public class AuthService(
             // completed task forever: every later refresh would replay the stale result without ever
             // hitting the network, leaving a native session dead until app restart.
             if (!refresh.IsCompleted)
+            {
                 _refreshInFlight = refresh;
+                _refreshInFlightEpoch = _epoch;
+            }
             return refresh;
         }
     }
 
     private async Task<RefreshOutcome> RunRefreshAsync()
     {
+        var epoch = _epoch; // the session this refresh belongs to
         try
         {
             // The call's own deadline, on the injected clock (so a fake clock can expire it in tests): a lost
@@ -219,6 +238,8 @@ public class AuthService(
                 response = await httpClient.PostAsync("/api/auth/refresh", null, deadline.Token);
             }
 
+            if (epoch != _epoch)
+                return await DiscardStaleAsync(response, deadline.Token);
             if (response.StatusCode is HttpStatusCode.Unauthorized
                 || (response.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.Forbidden
                     && await IsApiErrorBodyAsync(response, deadline.Token)))
@@ -240,6 +261,8 @@ public class AuthService(
             }
 
             var payload = await response.Content.ReadFromJsonAsync<TokenResponse>(deadline.Token);
+            if (epoch != _epoch)
+                return await DiscardStaleAsync(payload);
             if (!string.IsNullOrEmpty(payload?.AccessToken))
             {
                 await AcceptTokensAsync(payload);
@@ -258,10 +281,38 @@ public class AuthService(
         }
         finally
         {
-            // Allow a fresh refresh next time; only *concurrent* calls are coalesced.
+            // Allow a fresh refresh next time; only *concurrent* calls are coalesced. A stale refresh must not
+            // clear a newer session's in-flight one.
             lock (_refreshGate)
-                _refreshInFlight = null;
+            {
+                if (_refreshInFlightEpoch == epoch)
+                    _refreshInFlight = null;
+            }
         }
+    }
+
+    private async Task<RefreshOutcome> DiscardStaleAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    {
+        TokenResponse? payload = null;
+        if (response.IsSuccessStatusCode)
+        {
+            try { payload = await response.Content.ReadFromJsonAsync<TokenResponse>(cancellationToken); }
+            catch (Exception ex) when (ex is JsonException or HttpRequestException or OperationCanceledException) { /* nothing to keep */ }
+        }
+        return await DiscardStaleAsync(payload);
+    }
+
+    // The answer belongs to a session that ended (logout) or was superseded (an impersonation began): the access
+    // token is never applied — it would sign the user back in, or swap the impersonation for the staff identity.
+    // The server rotated the refresh token regardless; the browser has the new cookie already, and on native the
+    // body carried it: keep it while the session is still held (the staff session behind an impersonation, so
+    // leaving it can restore them), never after a logout, which emptied the store on purpose.
+    private async Task<RefreshOutcome> DiscardStaleAsync(TokenResponse? payload)
+    {
+        if (_sessionHeld && sessionStore.UsesBodyTransport && !string.IsNullOrEmpty(payload?.RefreshToken))
+            await sessionStore.SaveRefreshTokenAsync(payload.RefreshToken);
+        logger.LogInformation("Discarded a refresh answer that belonged to a superseded session");
+        return RefreshOutcome.Discarded;
     }
 
     // True when the body is the API's own ErrorResponse ({"error": "...", "message": "..."}). Anything else —
@@ -626,21 +677,39 @@ public class AuthService(
         }
     }
 
-    /// <summary>True when the current access token is an admin "sign in as" token.</summary>
-    public bool IsImpersonating => Claim(AppClaims.ImpersonatedBy) is not null;
+    /// <summary>
+    /// True while an admin "sign in as" session is active — a state entered by <see cref="BeginImpersonation"/>
+    /// and left by <see cref="StopImpersonationAsync"/>, by the token's expiry, or by a cleared session. Not a
+    /// claim read: that read went silent when the token expired, and the client then renewed into the staff
+    /// identity on the target's page (v4 LB-UI-13).
+    /// </summary>
+    public bool IsImpersonating => _impersonating;
 
     /// <summary>
     /// Enters an impersonated session using a short-lived admin token (no refresh token — it's
-    /// non-refreshable by design). Held in memory only; a reload or expiry returns the staff user to
-    /// their own identity via the untouched refresh cookie.
+    /// non-refreshable by design). Held in memory only; a reload returns the staff user to their own
+    /// identity via the untouched refresh cookie, and expiry ends the impersonation (<see cref="IdentityChanged"/>,
+    /// with no token) rather than renewing — the layout then reloads home as the staff user.
     /// </summary>
     public void BeginImpersonation(string accessToken)
     {
         // The staff session's renewal must not fire under the impersonation: a refresh restores the staff
-        // identity, which would silently end the "sign in as". Stopping re-arms it through the refresh.
+        // identity, which would silently end the "sign in as". Stopping re-arms it through the refresh. A
+        // refresh already on the wire belongs to the staff session: the epoch moves, so its answer is discarded.
         CancelRenewal();
-        _accessToken = accessToken;
-        _isStaff = null;
+        lock (_refreshGate)
+        {
+            _epoch++;
+            _accessToken = accessToken;
+            _isStaff = null;
+            // A token without the claim — or one that can't be read, or has already expired — is not an
+            // impersonation; it reads as signed out, as any hostile token does.
+            _impersonating = Claim(AppClaims.ImpersonatedBy) is not null;
+            _impersonationExpiry?.Dispose();
+            _impersonationExpiry = _impersonating
+                ? Time.CreateTimer(_ => EndExpiredImpersonation(), null, TimeUntilExpiry(accessToken), Timeout.InfiniteTimeSpan)
+                : null;
+        }
         IdentityChanged?.Invoke();
     }
 
@@ -650,11 +719,52 @@ public class AuthService(
     /// </summary>
     public async Task<bool> StopImpersonationAsync()
     {
-        _accessToken = null;
-        _isStaff = null;
+        lock (_refreshGate)
+        {
+            _epoch++;
+            _impersonating = false;
+            _impersonationExpiry?.Dispose();
+            _impersonationExpiry = null;
+            _accessToken = null;
+            _isStaff = null;
+            _sessionHeld = true; // the staff session behind the impersonation is restorable (an expiry had let go of it)
+        }
         var restored = await TryRefreshAsync();
         IdentityChanged?.Invoke();
         return restored;
+    }
+
+    // The impersonation token expired: the "sign in as" is over. Nothing is renewed — a refresh would put the
+    // STAFF identity on the target's page. The in-memory session is let go (the staff session is still in the
+    // cookie/store for the next boot) and IdentityChanged tells the layout to reload home as the staff user.
+    private void EndExpiredImpersonation()
+    {
+        lock (_refreshGate)
+        {
+            if (!_impersonating)
+                return;
+            _epoch++;
+            _impersonating = false;
+            _impersonationExpiry?.Dispose();
+            _impersonationExpiry = null;
+            _accessToken = null;
+            _sessionHeld = false;
+            _isStaff = null;
+        }
+        IdentityChanged?.Invoke();
+    }
+
+    private TimeSpan TimeUntilExpiry(string token)
+    {
+        try
+        {
+            var until = new DateTimeOffset(new JwtSecurityTokenHandler().ReadJwtToken(token).ValidTo, TimeSpan.Zero) - Time.GetUtcNow();
+            return until < TimeSpan.Zero ? TimeSpan.Zero : until > MaxRenewalWait ? MaxRenewalWait : until;
+        }
+        catch
+        {
+            return TimeSpan.Zero;
+        }
     }
 
     public async Task LogoutAsync()
@@ -699,8 +809,15 @@ public class AuthService(
     private async Task ClearSessionAsync()
     {
         var wasAuthenticated = IsAuthenticated;
-        _accessToken = null;
-        _sessionHeld = false;
+        lock (_refreshGate)
+        {
+            _epoch++; // a refresh on the wire belongs to the session being ended: its answer is discarded
+            _accessToken = null;
+            _sessionHeld = false;
+            _impersonating = false;
+            _impersonationExpiry?.Dispose();
+            _impersonationExpiry = null;
+        }
         CancelRenewal();
         _isStaff = null;
         ForgetRememberedPreferences();
@@ -740,7 +857,14 @@ public class AuthService(
     public async Task<string?> GetFreshAccessTokenAsync()
     {
         var token = _accessToken;
-        if (!_sessionHeld || IsImpersonating)
+        if (IsImpersonating)
+        {
+            // Never renewed. Past its expiry the impersonation is over (the timer normally gets there first).
+            if (token is null || IsTokenExpired(token))
+                EndExpiredImpersonation();
+            return _accessToken;
+        }
+        if (!_sessionHeld)
             return token;
         if (token is not null && RenewalDue(token) > TimeSpan.Zero)
             return token;
@@ -808,8 +932,9 @@ public class AuthService(
                 ScheduleRenewal(due); // woke early (the wait was capped): not due yet
                 return;
             }
-            // Renewed re-arms the timer (AcceptTokensAsync); Rejected ends the session (ClearSessionAsync).
-            if (await RefreshAsync() == RefreshOutcome.Unreachable && _sessionHeld)
+            // Renewed re-arms the timer (AcceptTokensAsync); Rejected ends the session (ClearSessionAsync);
+            // Discarded means the session moved on — whatever replaced it arms its own timer.
+            if (await RefreshAsync() == RefreshOutcome.Unreachable && _sessionHeld && !IsImpersonating)
                 ScheduleRenewal(RetryPause(++_renewFailures));
         }
         catch (Exception ex)

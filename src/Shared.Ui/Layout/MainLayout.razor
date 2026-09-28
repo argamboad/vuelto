@@ -87,6 +87,7 @@ else
         // (e.g. sign-out clears the device prefs, ADM-9) stay wired for that window.
         Auth.SignedIn += OnSignedIn;
         Auth.SignedOut += OnSignedOut;
+        Auth.IdentityChanged += OnIdentityChanged;
         Resume.Resumed += OnResumed;
 
         // A TRUE result means the reconcile issued the locale reload: this boot is doomed, so stop
@@ -119,7 +120,22 @@ else
     {
         Auth.SignedIn -= OnSignedIn;
         Auth.SignedOut -= OnSignedOut;
+        Auth.IdentityChanged -= OnIdentityChanged;
         Resume.Resumed -= OnResumed;
+    }
+
+    // An impersonation that ended by expiry (v4 T31): the in-memory session is gone and nothing was renewed, on
+    // purpose — a renewal would have put the STAFF identity on the target's page. Reload home, the same way
+    // "Stop" does, so the staff user comes back from the cookie/store on a neutral page. Entering an
+    // impersonation, or Stop restoring the staff user, changes identity WITH a token and needs nothing here.
+    private void OnIdentityChanged()
+    {
+        if (Auth.IsImpersonating || Auth.IsAuthenticated) return;
+        try
+        {
+            _ = InvokeAsync(() => Nav.NavigateTo("/", forceLoad: true));
+        }
+        catch { /* best-effort — the next request finds no token and the layout bounces to /login */ }
     }
 
     // Wipe the device-stored preferences on sign-out so the next user on a shared device can't inherit
