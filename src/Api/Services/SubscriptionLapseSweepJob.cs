@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Vuelto.Api.Configuration;
 using Vuelto.Core.Abstractions;
 using Vuelto.Core.Entities;
 using Vuelto.Core.Repositories;
@@ -14,11 +15,20 @@ namespace Vuelto.Api.Services;
 /// truth: the sweep never fabricates a status, it only records that it notified (<c>LapseNotifiedAt</c>),
 /// so it fires once per lapse. Scans every tenant via the audited cross-tenant queryable, then notifies
 /// inside each tenant's scope.
+/// <para>
+/// Each tenant's nudge and stamp are one transaction (v4 T43, R133): the owner's email copy is enqueued by
+/// <c>OutboxEmailSender</c> with a SaveChanges of its own before the stamp is written, so without the
+/// transaction a stamp that failed left the nudge committed — and re-sent it every six hours until a stamp
+/// landed. With the billing gate off (GATES-1) the sweep does nothing: there is no billing page to send the
+/// owner to, and only a row left over from before the gate closed can lapse.
+/// </para>
 /// </summary>
 public sealed class SubscriptionLapseSweepJob(
     IRepository<Subscription> subscriptions,
     ITenantContext tenantContext,
     IBillingNotifier billingNotifier,
+    IUnitOfWork unitOfWork,
+    BillingSettings billing,
     TimeProvider clock,
     ILogger<SubscriptionLapseSweepJob> logger) : IScheduledJob
 {
@@ -27,6 +37,9 @@ public sealed class SubscriptionLapseSweepJob(
 
     public async Task RunAsync(CancellationToken cancellationToken = default)
     {
+        if (!billing.Enabled)
+            return; // nothing can be sold, and the nudge's "billing page" does not exist in this mode
+
         var now = clock.GetUtcNow();
 
         // Lapsed = still marked active/trialing, but the paid period ended, and we haven't nudged for
@@ -41,14 +54,19 @@ public sealed class SubscriptionLapseSweepJob(
         {
             try
             {
+                // One transaction per tenant: the in-app row, the outbox email (its own SaveChanges inside the
+                // notifier) and the stamp commit together or not at all — a failed stamp must not leave a
+                // nudge behind to be repeated on the next pass.
+                await using var scope = await unitOfWork.BeginTransactionAsync(cancellationToken);
                 using (tenantContext.EnterTenant(sub.TenantId))
                 {
                     var (title, body) = BillingNotifications.Lapsed;
                     await billingNotifier.NotifyOwnerAsync(sub.TenantId, BillingNotifications.LapsedKind, title, body, cancellationToken);
                     sub.LapseNotifiedAt = now;
                     subscriptions.Update(sub);
-                    await subscriptions.SaveChangesAsync(cancellationToken); // notification + stamp commit together
+                    await subscriptions.SaveChangesAsync(cancellationToken);
                 }
+                await scope.CommitAsync(cancellationToken);
             }
             catch (Exception ex)
             {

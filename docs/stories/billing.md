@@ -321,6 +321,15 @@ sweep is a scheduled job (JOBS-3).
 > **without fabricating a status** (Stripe stays source of truth; entitlements already fail closed on a
 > lapsed period). Tests: `BillingWebhookHandlerTests` (past-due notifies once; no-change doesn't) +
 > `SubscriptionLapseSweepJobTests` (nudge-once + stamp; in-period ignored).
+>
+> **Addendum (2026-09-28, v4 T43 — R133):** each tenant's nudge and stamp are **one transaction**
+> (`IUnitOfWork`). The owner's email copy is enqueued by `OutboxEmailSender` with a SaveChanges of its own
+> before the stamp, so without it a stamp that failed left the nudge committed and re-sent it every six
+> hours until a stamp landed — invisible to the job tests, which used a no-op sender. They now run the real
+> outbox sender (`EnforcementGateTests.JobTests_UseTheRealOutboxEmailSender` holds every `*JobTests`
+> to that) and inject the fault at the repository: `StampFailure_AfterTheNotification_LeavesNeither`.
+> With the billing gate off (GATES-1) the sweep returns at once — there is no billing page to send the owner
+> to — `BillingOff_LapsedSubscription_IsNotNudged`.
 
 **Acceptance criteria**
 
