@@ -2940,8 +2940,10 @@ the API directly:
 - **Refresh-token reuse detection** — replaying an already-rotated refresh token revokes all the
   user's sessions (`RefreshTokenServiceTests`, `RefreshReplayTests`) — unless it arrives within 60 s of
   its rotation while its successor is still live (two tabs refreshing at once, a lost response): that
-  race gets a fresh session and revokes nothing (ADR-002 addendum, 2026-09-18). Manually observable only by capturing and replaying a
-  refresh cookie/token; out of scope for routine QA.
+  race gets a fresh session and revokes nothing (ADR-002 addendum, 2026-09-18) — once per token: a third
+  presentation is reuse (2026-09-28). Logout revokes the family of any known token, expired or just
+  rotated out included (`RefreshReplayTests.Logout_With*`). Manually observable only by capturing and
+  replaying a refresh cookie/token; out of scope for routine QA.
 - **Unverified-email takeover guard** fails closed (`ClaimsExtractorTests` / `UserServiceTests`).
 - **Legacy refresh-cookie self-heal** — a stale `Path=/` refresh cookie left by an older build can
   shadow the live `Path=/api/auth` cookie and wedge sign-in into a `/refresh` 401 → "Authentication

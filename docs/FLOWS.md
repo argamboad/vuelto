@@ -261,7 +261,9 @@ default 60, 0 = strict) needs a LIVE successor — logout and revoke-all revoke 
 never undo a sign-out; only rotation stamps `RotatedAt`, so a token revoked any other way is always
 reuse. The grace is **one-shot** (addendum 2026-09-28): `GraceUsedAt` is stamped by a conditional
 set-based update before the session is issued, so of two replays racing inside the window exactly one is
-forgiven and the other trips the theft response. The successor is read untracked, so a set-based revoke in the same context can't be masked.
+forgiven and the other trips the theft response. Logout uses the same inspection (R124): any known token —
+valid, expired, rotated-out, revoked — names its owner and the whole family is revoked; only an unknown hash
+is a no-op, so a sign-out clicked while a refresh is in flight still ends the session the refresh minted. The successor is read untracked, so a set-based revoke in the same context can't be masked.
 Rotation issues first and links second, so a failed issue leaves the presented token usable instead of
 signing the user out. Revoke/mark-rotated use a tracked load-then-flip (not `ExecuteUpdate`) deliberately, so the
 inspection read stays consistent. The hourly cleanup job deletes only **expired** rows —

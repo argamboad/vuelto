@@ -186,6 +186,76 @@ public class RefreshReplayTests(IntegrationTestFactory factory)
         Assert.Equal(tokensAfterLogout, await CountTokensAsync(user.UserId)); // no session was minted
     }
 
+    [Fact]
+    public async Task Logout_WithTheTokenJustRotatedOut_StillRevokesTheSuccessor()
+    {
+        // v4 LB-AUTH-4 (T29, R124): the keep-alive makes this routine — a refresh is in flight when the user
+        // clicks Sign out, so logout presents the token the refresh just rotated out. It must still find the
+        // user and revoke the whole family (the successor the refresh minted, and the phone), or the refresh
+        // response lands a moment later and restores the session the user just ended.
+        var user = await _factory.SeedUserAsync();
+        var rawA = await IssueRefreshTokenAsync(user.UserId);
+        var phone = await IssueRefreshTokenAsync(user.UserId);
+        var client = _factory.CreateClient();
+
+        var rotated = await PostRefreshAsync(client, rawA);                     // A → B (the in-flight refresh)
+        Assert.Equal(HttpStatusCode.OK, rotated.StatusCode);
+        var rawB = await ReadRefreshTokenAsync(rotated);
+
+        var logout = await PostNativeAsync(client, "/api/auth/logout", rawA);   // Sign out, with the old token
+
+        Assert.Equal(HttpStatusCode.OK, logout.StatusCode);
+        Assert.Equal(0, await CountLiveTokensAsync(user.UserId));
+        Assert.Equal(HttpStatusCode.Unauthorized, (await PostRefreshAsync(client, rawB!)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await PostRefreshAsync(client, phone)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Logout_WithAnExpiredToken_RevokesTheUsersOtherSessions()
+    {
+        // v4 LB-AUTH-4 (T29): a device that slept past its refresh token's expiry still promises "sign out
+        // everywhere" — the endpoint must resolve the user from the expired token and revoke the others.
+        // (Until the hourly cleanup deletes the expired row, that is; an unknown hash is a no-op, below.)
+        await _factory.WaitForSchedulerFirstPassAsync(); // the cleanup sweeps expired tokens on the host's first tick
+        var user = await _factory.SeedUserAsync();
+        var rawA = await IssueRefreshTokenAsync(user.UserId);
+        var phone = await IssueRefreshTokenAsync(user.UserId);
+        var client = _factory.CreateClient();
+        await ExpireTokenAsync(rawA);
+
+        var logout = await PostNativeAsync(client, "/api/auth/logout", rawA);
+
+        Assert.Equal(HttpStatusCode.OK, logout.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await PostRefreshAsync(client, phone)).StatusCode);
+        Assert.Equal(0, await CountLiveTokensAsync(user.UserId));
+    }
+
+    [Fact]
+    public async Task Logout_WithAnUnknownToken_IsANoOp_AndStill200()
+    {
+        // Only an unknown hash is a no-op (R124): the user's real sessions are untouched, and the answer is
+        // the same 200 — logout never reveals whether the token was known.
+        var user = await _factory.SeedUserAsync();
+        var phone = await IssueRefreshTokenAsync(user.UserId);
+        var client = _factory.CreateClient();
+
+        var logout = await PostNativeAsync(client, "/api/auth/logout", "never-issued-token");
+
+        Assert.Equal(HttpStatusCode.OK, logout.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await PostRefreshAsync(client, phone)).StatusCode);
+    }
+
+    /// <summary>Moves one token's expiry into the past (the app runs on the real clock).</summary>
+    private async Task ExpireTokenAsync(string rawToken)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var hash = scope.ServiceProvider.GetRequiredService<ITokenHasher>().HashToken(rawToken);
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var expired = await db.RefreshTokens.Where(t => t.TokenHash == hash)
+            .ExecuteUpdateAsync(s => s.SetProperty(t => t.ExpiresAt, DateTimeOffset.UtcNow.AddMinutes(-1)));
+        Assert.Equal(1, expired);
+    }
+
     /// <summary>Issues a session for the user via the app's own service — the same path a login uses.</summary>
     private async Task<string> IssueRefreshTokenAsync(Guid userId)
     {

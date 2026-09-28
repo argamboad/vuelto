@@ -230,9 +230,13 @@ public class AuthController(
     }
 
     /// <summary>
-    /// Revokes all refresh tokens for the session and deletes the cookie.
-    /// Identifies the user by the refresh cookie (not [Authorize]) so it works
-    /// even with an expired access token. Idempotent.
+    /// Revokes all refresh tokens for the user and deletes the cookie. Identifies the user by the refresh
+    /// token (not [Authorize]) so it works with an expired access token — and by ANY known refresh token
+    /// (R124): valid, expired, just rotated out or revoked. The keep-alive makes the rotated-out case routine
+    /// (a refresh in flight when the user clicks Sign out), and a device that slept past expiry still promises
+    /// "sign out everywhere"; resolving through the inspection instead of the live-token lookup is what keeps
+    /// both true. Only an unknown hash is a no-op. Idempotent; always 200, so it never reveals whether the
+    /// token was known.
     /// </summary>
     [HttpPost("logout")]
     public async Task<IActionResult> Logout(
@@ -245,11 +249,11 @@ public class AuthController(
             var rawToken = native ? req?.RefreshToken : cookieService.GetRefreshTokenFromCookies(Request);
             if (!string.IsNullOrEmpty(rawToken))
             {
-                var token = await refreshTokenService.ValidateRefreshTokenAsync(rawToken, cancellationToken);
-                if (token != null)
+                var inspection = await refreshTokenService.InspectRefreshTokenAsync(rawToken, cancellationToken);
+                if (inspection.Token is { } token)
                 {
                     await refreshTokenService.RevokeAllUserTokensAsync(token.UserId, cancellationToken);
-                    logger.LogInformation("User logout: {UserId}", token.UserId);
+                    logger.LogInformation("User logout: {UserId} (token was {TokenStatus})", token.UserId, inspection.Status);
                 }
             }
 

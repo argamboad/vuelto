@@ -151,6 +151,18 @@ public sealed class IntegrationTestFactory : WebApplicationFactory<Program>, IAs
         CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
 
     /// <summary>Seeds a tenant + a user who owns it, and returns the identifiers a token needs.</summary>
+    /// <summary>
+    /// Starts the server (if this test is the first to) and waits for the scheduler's first pass, which runs
+    /// every job the moment the host starts. Call it before seeding a row a job would sweep — an EXPIRED
+    /// refresh token is deleted by <c>ExpiredTokenCleanupJob</c> — so the test never races that pass.
+    /// </summary>
+    public async Task WaitForSchedulerFirstPassAsync()
+    {
+        _ = Server;
+        await Services.GetServices<Microsoft.Extensions.Hosting.IHostedService>()
+            .OfType<Vuelto.Infrastructure.Scheduling.ScheduledJobsHost>().Single().FirstPassCompleted;
+    }
+
     public async Task<SeededUser> SeedUserAsync(string role = TenantRoles.Owner, string? email = null)
     {
         email ??= $"user-{Guid.CreateVersion7():N}@test.local";

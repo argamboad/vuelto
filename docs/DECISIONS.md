@@ -190,6 +190,17 @@ completes well inside it. `RefreshReplayTests` records both halves —
 `Refresh_AttackerRotatesFirst_VictimsRenewalInsideGrace_GetsASession_ByDesign`. Migration
 `AddRefreshTokenGraceUsedAt` (one nullable column).
 
+*Addendum (2026-09-28) — logout revokes the family of any known token.* **Evidence (v4 LB-AUTH-4, T29):**
+`POST /api/auth/logout` found the user through the live-token lookup, so a token that had just been rotated
+out or had expired resolved to nothing: no revocation, the cookie deleted anyway, 200. With the keep-alive
+above that is routine — a refresh in flight when the user clicks Sign out presents the old token, then the
+refresh response lands and restores the session (web cookie, or the native store); and a device that slept
+past expiry could not sign the user's other devices out. **Decision (R124):** logout resolves the user through
+`InspectRefreshTokenAsync` — valid, expired, rotated-out or revoked, all name their owner — and revokes the
+whole family whenever a token is found; only an unknown hash is a no-op, and the answer is 200 either way.
+The 2026-09-18 sentence "logout revokes the successor" therefore holds for the rotated-out leg too.
+Evidence: `RefreshReplayTests.Logout_With*`.
+
 *Addendum (2026-09-22) — the client keeps an open session alive, and only the server ends it.* **Evidence:**
 downstream (`y-el-vuelto`) the owner still had to sign in every day, on web and on Android, after the reuse
 grace window above. The 30-day refresh token was never the problem: the client only spent it once, at
