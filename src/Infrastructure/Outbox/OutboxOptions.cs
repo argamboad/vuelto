@@ -27,6 +27,15 @@ public sealed class OutboxOptions
     /// <summary>Maximum messages claimed per processing pass.</summary>
     public int BatchSize { get; set; } = 20;
 
+    /// <summary>
+    /// The pause before attempt number <paramref name="attempt"/> + 1 (i.e. after the nth failure): the base,
+    /// doubled per attempt, with the exponent clamped so the arithmetic can never overflow once
+    /// <see cref="MaxAttempts"/> becomes configurable (v4 T38: it overflowed at attempt 47).
+    /// </summary>
+    public TimeSpan BackoffFor(int attempt) => BackoffBase * Math.Pow(2, Math.Clamp(attempt - 1, 0, MaxBackoffExponent));
+
+    public const int MaxBackoffExponent = 20;
+
     /// <summary>Idle delay between polls when nothing is due.</summary>
     public TimeSpan PollInterval { get; set; } = TimeSpan.FromSeconds(5);
 

@@ -349,9 +349,13 @@ sequenceDiagram
     end
 ```
 
-Divergences: any failure in T2 → rollback of every staged row, then attempt bookkeeping in a
-separate transaction: `attempt_count++`, backoff `10s × 2^(n−1)`, dead-letter at 5 (terminal — no
-automatic replay; `processed_at` stamped and the payload cleared, as on success — v4 audit H7). SMTP send in T3 is a non-transactional external effect inside a DB
+Divergences: the attempt is accounted for at the **claim** (v4 T38): the claim transaction does
+`attempt_count++` and books `next_attempt_at = now + 10s × 2^(n−1)` (exponent clamped) and commits before
+the handler runs, then re-locks the row for the handler; any failure in T2 → rollback of every staged row,
+then best-effort bookkeeping in a separate transaction: the error text (rune-safe truncation) and
+dead-letter at 5 or on a permanent failure (terminal — no automatic replay; `processed_at` stamped and the
+payload cleared, as on success — v4 audit H7). A row claimed with its attempts already spent is
+dead-lettered at the claim without running the handler. SMTP send in T3 is a non-transactional external effect inside a DB
 transaction: a crash between send and commit re-sends the email (documented, accepted).
 Per-tenant `announce` (not announce-all) fans out synchronously inside one request transaction
 instead.

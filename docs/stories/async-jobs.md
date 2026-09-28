@@ -58,6 +58,20 @@ slice **migrates the existing email sends** (passwordless, invitations) to enque
 > (`RecordFailedAttemptAsync`, re-claiming the row `FOR UPDATE`) so bookkeeping survives the rollback and a
 > poison message eventually dead-letters. Test: `ProcessDue_HandlerStagesARowThatFaultsAtCommit_StillAdvancesAttempt_AndDeadLetters`.
 
+> **2026-09-28 — claim-time accounting (v4 audit LB-JOBS-7/8, T38, R131/R135/R96).** The separate bookkeeping
+> transaction above had no fallback of its own: during a real database disconnect BOTH writes fail, so the
+> row stayed `Pending` with no attempt counted and was picked up every 5 s, re-sending the email, webhook or
+> broadcast for as long as the fault lasted. Now the **claim** transaction bumps `AttemptCount` and books
+> `NextAttemptAt` (the backoff) and commits *before* the handler runs, then re-locks the row for the handler's
+> whole run; the failure bookkeeping only writes the error text and decides dead-lettering, and is best-effort
+> (logged if it fails — the attempt is already on the row). A row that reaches the claim with its attempts
+> spent is dead-lettered there, with `ProcessedAt`, and its handler is not run again. Error text is cut with
+> `SafeTruncation` (never through an emoji — Postgres refused the half-surrogate and lost the row), and the
+> backoff exponent is clamped (`OutboxOptions.BackoffFor`) so a configurable attempt cap can't overflow it.
+> Tests: `ProcessDue_ClaimCountsTheAttempt_*`, `ProcessDue_AttemptsAlreadyExhaustedAtClaim_*`,
+> `ProcessDue_FailingHandler_WithAnEmojiAtTheTruncationBoundary_*`, `Backoff_ClampsTheExponent_*`. The
+> injected-fault half (a failing bookkeeping write still counts the attempt) waits on the DB-fault seam (T54).
+
 **Acceptance criteria**
 
 ```gherkin

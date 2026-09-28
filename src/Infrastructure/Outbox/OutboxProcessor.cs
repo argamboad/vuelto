@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Vuelto.Core.Abstractions;
 using Vuelto.Core.Entities;
+using Vuelto.Core.Text;
 using Vuelto.Infrastructure.Persistence;
 
 namespace Vuelto.Infrastructure.Outbox;
@@ -10,10 +11,14 @@ namespace Vuelto.Infrastructure.Outbox;
 /// The testable core of the dispatcher: claims due outbox messages and records each outcome —
 /// sent, retry-with-backoff, or dead-lettered after <see cref="OutboxOptions.MaxAttempts"/>.
 /// <para>
-/// Each message is claimed in its own transaction with Postgres <c>FOR UPDATE SKIP LOCKED</c>, so
-/// concurrent pollers never double-claim a row and the lock is scoped to a single handler
-/// invocation (ADR-007). Kept separate from the <see cref="OutboxDispatcher"/>
-/// <c>BackgroundService</c> so it can be unit-tested without timing.
+/// Each message is claimed with Postgres <c>FOR UPDATE SKIP LOCKED</c>, so concurrent pollers never
+/// double-claim a row, and the row stays locked for the handler's whole run (ADR-007). The attempt is
+/// accounted for AT THE CLAIM (v4 T38, R131/R135): the claim transaction bumps <c>AttemptCount</c> and books
+/// <c>NextAttemptAt</c>, and commits before the handler runs — so whatever fails afterwards (the handler, its
+/// commit, or the failure bookkeeping itself during a database disconnect) the attempt is on the row and the
+/// message is not re-claimed every poll. A row that arrives at the claim with its attempts already spent is
+/// dead-lettered there, with a terminal stamp, and its handler is not run again. Kept separate from the
+/// <see cref="OutboxDispatcher"/> <c>BackgroundService</c> so it can be unit-tested without timing.
 /// </para>
 /// <para>
 /// A finished row — sent or dead — is stamped with <see cref="OutboxMessage.ProcessedAt"/> and its payload
@@ -51,14 +56,13 @@ public sealed class OutboxProcessor(
 
         var now = clock.GetUtcNow();
 
-        Guid failedMessageId;
-        Exception failure;
-        await using (var tx = await db.Database.BeginTransactionAsync(cancellationToken))
+        // 1. CLAIM — its own short transaction, committed before any work: the oldest due+pending row (skipping
+        //    any another poller holds) gets its attempt counted and its next attempt booked. The raw SQL orders
+        //    and LIMITs internally (at most one row); materialize with ToList to keep EF from layering its own
+        //    order-less First operator on top (a noisy false-positive warning on every poll).
+        Guid messageId;
+        await using (var claim = await db.Database.BeginTransactionAsync(cancellationToken))
         {
-            // Claim the oldest due+pending row, skipping any another poller already holds. The raw SQL
-            // orders and LIMITs internally (so at most one row returns); materialize with ToList to keep
-            // EF from layering its own order-less First operator on top — which only logs a noisy,
-            // false-positive "FirstOrDefault without OrderBy" warning on every poll.
             var message = (await db.Set<OutboxMessage>()
                 .FromSql($"""
                     SELECT * FROM "OutboxMessages"
@@ -71,8 +75,42 @@ public sealed class OutboxProcessor(
 
             if (message is null)
             {
-                await tx.RollbackAsync(cancellationToken);
+                await claim.RollbackAsync(cancellationToken);
                 return false;
+            }
+
+            if (message.AttemptCount >= options.MaxAttempts)
+            {
+                // Its attempts were spent and the last failure's bookkeeping never landed: decide here, with
+                // the terminal stamp, and never run the handler again.
+                DeadLetter(message, now, "attempts exhausted");
+                logger.LogError("Outbox message {Id} ({Type}) dead-lettered at claim: {Attempts} attempt(s) already spent",
+                    message.Id, message.Type, message.AttemptCount);
+                await db.SaveChangesAsync(cancellationToken);
+                await claim.CommitAsync(cancellationToken);
+                return true;
+            }
+
+            message.AttemptCount++;
+            message.NextAttemptAt = now + options.BackoffFor(message.AttemptCount);
+            await db.SaveChangesAsync(cancellationToken);
+            await claim.CommitAsync(cancellationToken);
+            messageId = message.Id;
+        }
+        db.ChangeTracker.Clear();
+
+        // 2. WORK — lock the row again for the handler's whole run (no other poller can deliver it meanwhile,
+        //    however long the handler takes), and commit the result with it.
+        Exception failure;
+        await using (var tx = await db.Database.BeginTransactionAsync(cancellationToken))
+        {
+            var message = (await db.Set<OutboxMessage>()
+                .FromSql($"""SELECT * FROM "OutboxMessages" WHERE "Id" = {messageId} AND "Status" = {OutboxStatus.Pending} FOR UPDATE SKIP LOCKED""")
+                .ToListAsync(cancellationToken)).FirstOrDefault();
+            if (message is null)
+            {
+                await tx.RollbackAsync(cancellationToken); // finished or taken elsewhere between the two steps
+                return true;
             }
 
             try
@@ -86,10 +124,9 @@ public sealed class OutboxProcessor(
                 message.LastError = null;
                 if (!handler.KeepsPayloadWhenDone)
                     message.Payload = OutboxMessage.ClearedPayload;
-                // Persist + commit INSIDE the try (v3 audit LB-BILL-2): if these fail — a transient
-                // disconnect, or a handler that staged a constraint-violating row that only faults at
-                // SaveChanges — the attempt must still be accounted for below, or the message stays Pending,
-                // re-runs the side effect every pass, and NEVER dead-letters (a poison-at-commit loop).
+                // Persist + commit INSIDE the try (v3 audit LB-BILL-2): if these fail — a transient disconnect,
+                // or a handler that staged a constraint-violating row that only faults at SaveChanges — the
+                // failure is recorded below; the attempt itself was counted at the claim.
                 await db.SaveChangesAsync(cancellationToken);
                 await tx.CommitAsync(cancellationToken);
                 return true;
@@ -97,20 +134,28 @@ public sealed class OutboxProcessor(
             catch (Exception ex)
             {
                 await SafeRollbackAsync(tx, cancellationToken); // undo the partial (handler + status) work
-                failedMessageId = message.Id;
                 failure = ex;
             }
         } // the failed transaction is disposed here, freeing the connection for a fresh one
 
-        // Record the failed attempt in its OWN transaction so the bookkeeping survives the rollback above.
-        await RecordFailedAttemptAsync(failedMessageId, failure, now, cancellationToken);
+        // 3. FAILURE bookkeeping — the error text, and dead-lettering when this was the last attempt or the
+        //    failure is permanent. Best-effort: the attempt and the retry are already on the row from the
+        //    claim, so if this write fails too (the disconnect is still on) nothing is lost but the message.
+        try
+        {
+            await RecordFailedAttemptAsync(messageId, failure, now, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Outbox message {Id}: the failure bookkeeping could not be written; the attempt was counted at claim time", messageId);
+        }
         return true;
     }
 
     /// <summary>
-    /// Advances attempt/dead-letter bookkeeping for a message whose processing failed, in a fresh
-    /// transaction (LB-BILL-2). Re-claims the row <c>FOR UPDATE</c> so it serializes with other pollers,
-    /// then either schedules a backoff retry or dead-letters once the cap is reached.
+    /// Records a failed attempt's error and, when the cap is reached or the failure is permanent, dead-letters
+    /// the message — in a fresh transaction (LB-BILL-2), re-locking the row <c>FOR UPDATE</c> so it serializes
+    /// with other pollers. The attempt count and the retry time were booked at the claim.
     /// </summary>
     private async Task RecordFailedAttemptAsync(Guid messageId, Exception cause, DateTimeOffset now, CancellationToken cancellationToken)
     {
@@ -126,22 +171,16 @@ public sealed class OutboxProcessor(
             return;
         }
 
-        message.AttemptCount++;
-        message.LastError = Truncate(cause.Message, 1000);
         // A permanent failure (a refused URL, an unreadable payload) won't change on retry (v4 audit H8).
         if (message.AttemptCount >= options.MaxAttempts || cause is OutboxPermanentFailureException)
         {
-            message.Status = OutboxStatus.DeadLettered;
-            message.ProcessedAt = now; // finished too — retention ages dead rows by it
-            // Nothing will deliver it now. A type with no registered handler has nobody to keep it either.
-            if (!_handlers.TryGetValue(message.Type, out var handler) || !handler.KeepsPayloadWhenDone)
-                message.Payload = OutboxMessage.ClearedPayload;
+            DeadLetter(message, now, cause.Message);
             logger.LogError(cause, "Outbox message {Id} ({Type}) dead-lettered after {Attempts} attempt(s)",
                 message.Id, message.Type, message.AttemptCount);
         }
         else
         {
-            message.NextAttemptAt = now + Backoff(message.AttemptCount);
+            message.LastError = SafeTruncation.Truncate(cause.Message, 1000);
             logger.LogWarning(cause, "Outbox message {Id} ({Type}) failed (attempt {Attempts}); retrying after backoff",
                 message.Id, message.Type, message.AttemptCount);
         }
@@ -150,13 +189,20 @@ public sealed class OutboxProcessor(
         await tx.CommitAsync(cancellationToken);
     }
 
+    // Terminal: nothing will deliver it now. A type with no registered handler has nobody to keep its payload either.
+    private void DeadLetter(OutboxMessage message, DateTimeOffset now, string error)
+    {
+        message.Status = OutboxStatus.DeadLettered;
+        message.ProcessedAt = now; // finished too — retention ages dead rows by it
+        message.LastError = SafeTruncation.Truncate(error, 1000);
+        if (!_handlers.TryGetValue(message.Type, out var handler) || !handler.KeepsPayloadWhenDone)
+            message.Payload = OutboxMessage.ClearedPayload;
+    }
+
     private static async Task SafeRollbackAsync(Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction tx, CancellationToken cancellationToken)
     {
         // A failed commit can leave the transaction already completed at the server; a rollback then throws.
         try { await tx.RollbackAsync(cancellationToken); } catch { /* already rolled back / completed */ }
     }
 
-    private TimeSpan Backoff(int attempt) => options.BackoffBase * Math.Pow(2, attempt - 1);
-
-    private static string Truncate(string s, int max) => s.Length <= max ? s : s[..max];
 }
