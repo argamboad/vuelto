@@ -151,6 +151,14 @@ public class AuthService(
 
     public bool IsAuthenticated => !string.IsNullOrEmpty(_accessToken) && !SessionExpired;
 
+    /// <summary>
+    /// True from the moment tokens are accepted until the session is cleared — through an unreachable server
+    /// that outlasts the access token, where <see cref="IsAuthenticated"/> already reads false. What the layout
+    /// gates the signed-in shell on (v4 T33, R84): only the server saying no ends a session, and until then the
+    /// user is still signed in, just waiting on a renewal.
+    /// </summary>
+    public bool HasSession => _sessionHeld;
+
     // The current token is past the lifetime the server gave it (or has no known lifetime at all).
     private bool SessionExpired => _tokenExpiresAt is not { } at || Time.GetUtcNow() > at;
 
@@ -816,7 +824,9 @@ public class AuthService(
 
     private async Task ClearSessionAsync()
     {
-        var wasAuthenticated = IsAuthenticated;
+        // "Was signed in" is the held session, not an unexpired token (v4 T33, R84): a rejection that lands after
+        // an outage outlasted the token must still raise SignedOut — once — so the device-preference wipe runs.
+        var wasSignedIn = _sessionHeld;
         lock (_refreshGate)
         {
             _epoch++; // a refresh on the wire belongs to the session being ended: its answer is discarded
@@ -832,7 +842,7 @@ public class AuthService(
         ForgetRememberedPreferences();
         if (sessionStore.UsesBodyTransport)
             await sessionStore.ClearAsync();
-        if (wasAuthenticated)
+        if (wasSignedIn)
             SignedOut?.Invoke();
     }
 

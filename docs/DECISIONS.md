@@ -217,7 +217,14 @@ read against the device clock, which on a phone a few minutes slow meant 401s fo
 one an hour fast a signed-out screen plus a refresh rotation every 30 s; the quarter-lifetime cap comes from
 the same `expires_in` (it used to read `nbf`, which the API's tokens never carry). And both hosts' bearer
 handlers share one `BearerRetry`: a 401 on a request sent with a held session renews **once** and resends;
-a second 401 stands. The bUnit chassis mints tokens with a `serverClockOffset` so skew is a test theory. Refresh
+a second 401 stands. The bUnit chassis mints tokens with a `serverClockOffset` so skew is a test theory.
+*And by v4 T33 (AUTH-5/UX-11, R84/R111, 2026-09-28):* the layout shows the signed-in shell while a session
+is **held** (`AuthService.HasSession`), not while the token is unexpired — through an outage that outlasts
+the token the user is still signed in, waiting on a renewal; `SignedOut` is raised from that same held
+flag, so a rejection that lands after the token expired still fires it exactly once (and the device
+preferences are wiped); and `OnSignedOut` sends a protected page to `/login` instead of leaving the user on
+chrome-less content that 401s. Evidence: `SessionKeepAliveTests` (`UnreachableThroughExpiry_*`,
+`MidSessionRejected_*`). Refresh
 outcomes split three ways: **401, or a 400/403 carrying the API's own error body = rejected** (clear the
 session, as before); **5xx, 429, a 400/403 without that body (a proxy's challenge page), network, timeout
 or an unreadable body = unreachable** (keep everything — the server never ruled on the token; mid-session

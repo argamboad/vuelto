@@ -130,6 +130,61 @@ public class SessionKeepAliveTests : ComponentTestBase
         Assert.Equal("Target User", Auth.DisplayName);
     }
 
+    // ── the shell follows the session, not the token; a rejection ends it once (v4 T33, R84/R111) ──
+
+    [Fact]
+    public async Task UnreachableThroughExpiry_ThenRejected_RaisesSignedOutExactlyOnce()
+    {
+        // AUTH-5: during a server outage that outlasts the access token the layout dropped to the anonymous
+        // shell as if signed out, and if the server then rejected the token, SignedOut was skipped (the token
+        // was already expired when the session cleared) — so the device-preference wipe never ran.
+        await SignInAsync(name: "First", theme: "dark");
+        var nav = (Bunit.TestDoubles.BunitNavigationManager)Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
+        nav.NavigateTo("/household");
+        var cut = Render<MainLayout>(ps => ps.Add(m => m.Body, b => b.AddMarkupContent(0, "<div id='page-body'>household</div>")));
+        var signedOut = 0;
+        Auth.SignedOut += () => signedOut++;
+        Http.OnUnreachable(HttpMethod.Post, RefreshPath);
+
+        Time.Advance(TimeSpan.FromMinutes(62)); // every renewal failed; the token is past its expiry
+        await Task.Delay(50);
+        cut.Render();
+
+        Assert.Equal(0, signedOut);
+        Assert.True(Auth.HasSession);
+        Assert.NotEmpty(cut.FindAll("main.main-content")); // the shell stays: nothing has said the session is over
+
+        Http.On(HttpMethod.Post, RefreshPath, """{"error":"invalid_refresh_token"}""", HttpStatusCode.Unauthorized);
+        await AdvanceUntil(() => signedOut == 1, limit: AuthService.RenewRetryCap + TimeSpan.FromSeconds(5));
+
+        Assert.False(Auth.HasSession);
+        Assert.True(ThemeStore.Cleared);
+        Assert.EndsWith("/login", nav.Uri);
+        Time.Advance(TimeSpan.FromHours(1));
+        await Task.Delay(50);
+        Assert.Equal(1, signedOut);
+    }
+
+    [Theory]
+    [InlineData("/household", true)]
+    [InlineData("/join", false)] // an anonymous page: the user stays where they are
+    public async Task MidSessionRejected_NavigatesToLogin_FromAProtectedRoute(string path, bool bounces)
+    {
+        // UX-11: after a mid-session rejection (logout in another tab, revoke-all, a staff MFA reset) the user
+        // sat on a protected page with no chrome while every call returned 401 until they reloaded.
+        await SignInAsync(name: "First");
+        var nav = (Bunit.TestDoubles.BunitNavigationManager)Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
+        nav.NavigateTo(path);
+        Render<MainLayout>(ps => ps.Add(m => m.Body, b => b.AddMarkupContent(0, "<div>page</div>")));
+        Http.On(HttpMethod.Post, RefreshPath, """{"error":"invalid_refresh_token"}""", HttpStatusCode.Unauthorized);
+
+        Time.Advance(TimeSpan.FromMinutes(59) + TimeSpan.FromSeconds(1)); // the renewal runs — and is refused
+        await WaitUntil(() => !Auth.HasSession);
+        await Task.Delay(50);
+
+        Assert.Equal(bounces, nav.Uri.EndsWith("/login", StringComparison.Ordinal));
+    }
+
     // ── the token's lifetime is the server's, not the device clock's (v4 T32, R126) ──
 
     [Fact]
