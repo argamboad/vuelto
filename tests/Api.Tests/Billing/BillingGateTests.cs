@@ -1,7 +1,11 @@
 using System.Net;
+using System.Net.Http.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
 using Vuelto.Api.Tests.Infrastructure;
+using Vuelto.Core.Billing;
 
 namespace Vuelto.Api.Tests.Billing;
 
@@ -58,6 +62,67 @@ public class BillingGateTests(IntegrationTestFactory factory)
 
         // Route present ⇒ the auth pipeline runs and refuses the tokenless caller. Anything but 404.
         Assert.Equal(HttpStatusCode.Unauthorized, res.StatusCode);
+    }
+
+    // --- the proof the relaxed Stripe startup check rests on: with the gate off, NOTHING billing-shaped is mapped ---
+
+    /// <summary>The prefixes a deployment opts into; each must be absent from the route table while its gate is off.</summary>
+    private static readonly string[] GatedPrefixes = ["api/billing", "api/public", "api/apikeys", "api/webhooks"];
+
+    private static List<string> MappedUnder(IServiceProvider services, string prefix) =>
+        services.GetServices<EndpointDataSource>()
+            .SelectMany(s => s.Endpoints)
+            .OfType<RouteEndpoint>()
+            .Select(e => e.RoutePattern.RawText?.Trim('/') ?? "")
+            .Where(raw => raw.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            .Distinct()
+            .OrderBy(r => r, StringComparer.Ordinal)
+            .ToList();
+
+    [Fact]
+    public void GateOff_NothingUnderTheGatedPrefixes_IsMapped() // v4 T45 (BILL-2, ADV-P4-6, R86)
+    {
+        // The old proof was an attribute scan over controllers whose CLASS route starts with api/billing. A
+        // minimal-API group, an action-level absolute route or a controller named otherwise slipped past it
+        // — the adversarial pass mapped a billing-prefixed group and got 200 while /api/billing gave 404. This
+        // reads the REAL route table of the host booted at the shipped defaults (every gate off): whatever
+        // maps a route under a gated prefix, by whatever mechanism, shows up here.
+        foreach (var prefix in GatedPrefixes)
+            Assert.True(MappedUnder(_factory.Services, prefix).Count == 0,
+                $"{prefix}/* is mapped while its gate is off: {string.Join(", ", MappedUnder(_factory.Services, prefix))}");
+    }
+
+    [Fact]
+    public void GateOn_TheBillingRoutes_AreMapped_AndTheOtherGatesStayClosed()
+    {
+        var services = _factory.WithWebHostBuilder(b => b.UseSetting("Billing:Enabled", "true")).Services;
+
+        Assert.Contains("api/billing", MappedUnder(services, "api/billing"));
+        Assert.Contains("api/billing/webhook", MappedUnder(services, "api/billing"));
+        foreach (var prefix in GatedPrefixes.Where(p => p != "api/billing"))
+            Assert.Empty(MappedUnder(services, prefix)); // one gate opens one surface
+    }
+
+    [Fact]
+    public async Task GateOff_AdminComp_Returns404_BeforeTheStaffCheck() // v4 T45 (BILL-3, C10)
+    {
+        // The staff comp lives under api/admin, so the route-table proof above does not cover it, and while
+        // billing is off it could still hand a tenant Pro — contradicting the "nobody holds ProFeature while
+        // off" consequence of ADR-027. It answers 404 while off, before the staff check runs (a non-staff caller
+        // sees the same 404 as staff would: the surface does not exist, rather than being refused).
+        var user = await _factory.SeedUserAsync();
+        var client = _factory.CreateClientFor(user);
+        var body = new { plan_key = PlanKeys.Pro };
+
+        var put = await client.PutAsJsonAsync($"/api/admin/tenants/{user.TenantId}/subscription", body);
+        var delete = await client.DeleteAsync($"/api/admin/tenants/{user.TenantId}/subscription");
+        Assert.Equal(HttpStatusCode.NotFound, put.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, delete.StatusCode);
+
+        // With the gate on the same caller is refused by the staff check: the route is back.
+        var on = GatedOnClient();
+        on.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _factory.IssueAccessToken(user));
+        Assert.Equal(HttpStatusCode.Forbidden, (await on.PutAsJsonAsync($"/api/admin/tenants/{user.TenantId}/subscription", body)).StatusCode);
     }
 
     [Fact]

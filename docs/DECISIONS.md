@@ -2014,6 +2014,16 @@ makes them configuration, and it puts them in the same family as the PUBAPI/HOOK
    require knowing whether the address already has an account, turning the login form into a "does
    this person use the app" oracle. Accepted cost: a non-listed visitor learns they are not invited
    only after entering their code.
+
+**Addendum (2026-09-28, v4 audit T45 — BILL-2/BILL-3/ADV-P4-6, R86):** the proof behind decision 1 is the
+**route table**, not a list of controllers. `BillingGateConvention` still removes the two billing controllers,
+but what CI holds is `BillingGateTests.GateOff_NothingUnderTheGatedPrefixes_IsMapped`: the host booted at the
+shipped defaults maps nothing under `api/billing`, `api/public`, `api/apikeys` or `api/webhooks`, by any
+mechanism (a minimal-API group, an action-level absolute route, a differently named controller — the
+adversarial pass had a billing-prefixed group answering 200 next to a 404 on `/api/billing`). The relaxed
+Stripe startup check (the fake provider is tolerated outside Development while the gate is off) depends on
+exactly that proof. The staff **comp/revert** actions under `api/admin` are part of the surface: they answer
+**404 while billing is off**, before the staff check, and the console's block follows `GET /api/features`.
 6. **The Free seat limit moves 3 → 5** (`PlanCatalog`, code/config per ADR-006). Three is exactly one
    family with no headroom, and a pending invitation already consumes a seat.
 

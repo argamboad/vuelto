@@ -289,26 +289,6 @@ public class ArchitectureTests
     }
 
     [Fact]
-    public void BillingControllers_AreAllGated() // GATES-1 (ADR-027)
-    {
-        // The billing gate is only as strong as this list. A new controller routed under api/billing that
-        // nobody added to BillingGateConvention would stay reachable with the gate off — and, worse, would
-        // be backed by the in-memory fake provider, which the registration now permits outside Development
-        // precisely BECAUSE no billing route is reachable when gated off. So the two must not drift.
-        var offenders = typeof(TenantApiControllerBase).Assembly.GetTypes()
-            .Where(t => t is { IsClass: true, IsAbstract: false } && typeof(ControllerBase).IsAssignableFrom(t))
-            .Where(t => t.GetCustomAttribute<RouteAttribute>()?.Template is { } route
-                        && route.TrimStart('/').StartsWith("api/billing", StringComparison.OrdinalIgnoreCase))
-            .Where(t => !BillingGateConvention.GatedControllers.Contains(t))
-            .Select(t => t.Name)
-            .ToList();
-
-        Assert.True(offenders.Count == 0,
-            "Controllers routed under api/billing must be listed in BillingGateConvention.GatedControllers, "
-            + $"or they stay reachable while billing is gated off: {string.Join(", ", offenders)}");
-    }
-
-    [Fact]
     public void ServerServices_UseInjectedClock_NotAmbientUtcNow()
     {
         // R15/GAP-4/LOGIC-B3: server code takes TimeProvider, so a cookie/URL/token lifetime can't drift

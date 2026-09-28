@@ -2180,7 +2180,7 @@
                 "subscription"
               ]
             },
-            "description": "Simulates a completed checkout (active, never lapses, no provider ids). 409 = tenant has a LIVE Stripe subscription — keyed on liveness (status ≠ canceled), so a churned/canceled tenant is comp-able even though it kept its Stripe id (ADR-006/021, v3 ADM-5)."
+            "description": "Simulates a completed checkout (active, never lapses, no provider ids). 409 = tenant has a LIVE Stripe subscription — keyed on liveness (status ≠ canceled), so a churned/canceled tenant is comp-able even though it kept its Stripe id (ADR-006/021, v3 ADM-5). 404 while Billing:Enabled is off — the comp is part of the billing surface (GATES-1, v4 T45)."
           },
           "event": [
             {
@@ -2211,7 +2211,7 @@
                 "subscription"
               ]
             },
-            "description": "Deletes the projection (absence ⇒ Free). Idempotent. 409 = LIVE provider subscription (status ≠ canceled); a canceled-but-lingering projection is cleaned up, not blocked (v3 ADM-5)."
+            "description": "Deletes the projection (absence ⇒ Free). Idempotent. 409 = LIVE provider subscription (status ≠ canceled); a canceled-but-lingering projection is cleaned up, not blocked (v3 ADM-5). 404 while Billing:Enabled is off (GATES-1, v4 T45)."
           },
           "event": [
             {

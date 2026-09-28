@@ -58,6 +58,14 @@ The Free seat limit moves **3 → 5** in the same slice. Three is exactly one fa
 maintainer's household is three people) with zero headroom, and a *pending* invitation already
 consumes a seat.
 
+> **Addendum (2026-09-28, v4 T45 — R86):** the gate's proof is the **route table**: `BillingGateTests`
+> boots the host at the shipped defaults and asserts nothing is mapped under `api/billing`, `api/public`,
+> `api/apikeys` or `api/webhooks` (the attribute scan it replaces saw only controllers whose class route
+> started with `api/billing`; a billing-prefixed minimal-API group slipped past it). The staff
+> **comp/revert** actions (`PUT`/`DELETE /api/admin/tenants/{id}/subscription`) are gated with the surface —
+> 404 while off, before the staff check — and the console's Comp/Revert block follows `/api/features`
+> (`AdminConsoleGateUiTests`). The relaxed Stripe startup check rests on this proof (ADR-027 addendum).
+
 **Acceptance criteria**
 
 ```gherkin
