@@ -17,7 +17,7 @@ public class SmtpEmailSender(IOptions<SmtpSettings> options, ILogger<SmtpEmailSe
     {
         // Defensive: OutboxEmailSender already validated before enqueueing, but this sender is also
         // reachable directly (keyed "smtp"), and a relay rejection would only surface as a retry loop.
-        EmailAttachment.Validate(attachments);
+        EmailAttachment.Validate(attachments, inlineImages);
 
         var message = BuildMessage(_settings, to, subject, htmlBody, inlineImages, attachments);
 
@@ -70,8 +70,8 @@ public class SmtpEmailSender(IOptions<SmtpSettings> options, ILogger<SmtpEmailSe
         }
         if (attachments is not null)
         {
-            foreach (var attachment in attachments)
-                builder.Attachments.Add(attachment.FileName, attachment.Content, ContentType.Parse(attachment.MediaType));
+            foreach (var attachment in attachments) // the header gets the safe base name, never a path (v4 T40)
+                builder.Attachments.Add(attachment.SafeFileName, attachment.Content, ContentType.Parse(attachment.MediaType));
         }
         message.Body = builder.ToMessageBody();
         return message;

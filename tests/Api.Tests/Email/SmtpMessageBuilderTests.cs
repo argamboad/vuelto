@@ -55,6 +55,33 @@ public class SmtpMessageBuilderTests
     }
 
     [Fact]
+    public void BuildMessage_MaximumSizeAttachment_StaysUnderTheRelayLimitOnceEncoded()
+    {
+        // v4 T40 (JOBS-4): a 10 MiB attachment was ~13.7 MiB once base64-encoded — the relay refused it, five
+        // times, and it dead-lettered: the exact loop the pre-enqueue check promised to prevent. The raw cap is
+        // sized so the largest message the guard lets through still fits the relay's 10 MiB.
+        var attachments = new[] { new EmailAttachment("big.bin", new byte[EmailAttachment.MaxTotalBytes], "application/octet-stream") };
+
+        var message = SmtpEmailSender.BuildMessage(Settings, "to@test.local", "s", "<p>b</p>", null, attachments);
+        using var wire = new MemoryStream();
+        message.WriteTo(wire);
+
+        Assert.True(wire.Length < EmailAttachment.RelayLimitBytes, $"encoded message is {wire.Length} bytes, over the relay's {EmailAttachment.RelayLimitBytes}");
+    }
+
+    [Fact]
+    public void BuildMessage_UsesTheSafeFileName()
+    {
+        // The name went straight into the MIME header: "../../etc/passwd" landed verbatim.
+        var attachments = new[] { new EmailAttachment("../../etc/passwd", [1, 2, 3], "application/octet-stream") };
+
+        var message = SmtpEmailSender.BuildMessage(Settings, "to@test.local", "s", "<p>b</p>", null, attachments);
+
+        var part = Assert.Single(message.Attachments.OfType<MimeKit.MimePart>());
+        Assert.Equal("passwd", part.FileName);
+    }
+
+    [Fact]
     public void BuildMessage_NoAttachments_HasNoAttachmentParts()
     {
         var message = SmtpEmailSender.BuildMessage(Settings, "to@test.local", "S", "<p/>", null, null);
