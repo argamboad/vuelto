@@ -322,6 +322,14 @@ sweep is a scheduled job (JOBS-3).
 > lapsed period). Tests: `BillingWebhookHandlerTests` (past-due notifies once; no-change doesn't) +
 > `SubscriptionLapseSweepJobTests` (nudge-once + stamp; in-period ignored).
 >
+> **Addendum (2026-09-28, v4 T24 — R129):** the webhook handler looks the tenant up **after the inbox claim
+> and before `EnterTenant`**: a dissolved household's provider subscription is cancelled after its rows are
+> gone, and the `customer.subscription.deleted` that follows re-created the projection — Stripe ids and all —
+> for a tenant no export, erasure or dissolve would ever reach again. Now claimed (a redelivery is a
+> `Duplicate`), logged at Warning, nothing written. `BillingWebhookHandlerTests.Webhook_ForUnknownTenant_*`;
+> `ArchitectureTests.EnterTenant_WithARequestSuppliedTenantId_ChecksTheTenantExists` classifies every
+> `EnterTenant` site by where its id comes from.
+>
 > **Addendum (2026-09-28, v4 T43 — R133):** each tenant's nudge and stamp are **one transaction**
 > (`IUnitOfWork`). The owner's email copy is enqueued by `OutboxEmailSender` with a SaveChanges of its own
 > before the stamp, so without it a stamp that failed left the nudge committed and re-sent it every six

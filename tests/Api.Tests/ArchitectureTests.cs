@@ -57,6 +57,47 @@ public class ArchitectureTests
     }
 
     [Fact]
+    public void EnterTenant_WithARequestSuppliedTenantId_ChecksTheTenantExists() // R129 (v4 T24)
+    {
+        // EnterTenant makes the interceptor stamp and the RLS backstop scope every write to THAT tenant — it does not
+        // ask whether the tenant exists. A tenant id that arrives with a request (a signed webhook, an admin route)
+        // must be looked up first, or a write lands for a dissolved tenant that nothing will ever clean up again
+        // (LB-BILL-23: a late customer.subscription.deleted re-created the projection with the Stripe ids).
+        // Every file that enters a tenant is classified here; a new site must say where its id comes from.
+        var requestSupplied = new Dictionary<string, string>
+        {
+            ["BillingWebhookHandler.cs"] = "tenants.GetByIdAsync(evt.TenantId", // signed payload → looked up after the claim, Ignored if gone
+            ["AdminController.cs"] = "tenants.GetByIdAsync(id",                  // route id → looked up inside the scope, 404 if gone
+        };
+        var rowSupplied = new Dictionary<string, string>
+        {
+            ["ApiKeyService.cs"] = "the key row's TenantId — the key was resolved by hash from the table first",
+            ["FilesController.cs"] = "a signed download token the app issued; a dissolved tenant's files are wiped, the lookup returns nothing",
+            ["HttpCurrentTenant.cs"] = "the implementation, not a caller",
+            ["SubscriptionLapseSweepJob.cs"] = "the subscription row's TenantId, read from the table",
+            ["TenantDissolutionService.cs"] = "the dissolve's own target, resolved by the caller from a membership",
+            ["TenantInvitationService.cs"] = "the invitation row's TenantId, read from the table",
+            ["VoucherStagingService.cs"] = "the mail connection row's household, read from the table before the poll",
+            ["IncomeUserDataContributor.cs"] = "the households of the user's own income rows, read cross-tenant from the table",
+        };
+
+        var dirs = new[] { Path.Combine(RepoRoot(), "src", "Api"), Path.Combine(RepoRoot(), "src", "Infrastructure") };
+        var sites = dirs.SelectMany(d => SourceFiles(d)).Where(f => File.ReadAllText(f).Contains("EnterTenant(")).Select(Path.GetFileName).ToList();
+        Assert.Contains("BillingWebhookHandler.cs", sites); // probe alive
+
+        var unclassified = sites.Where(f => !requestSupplied.ContainsKey(f!) && !rowSupplied.ContainsKey(f!)).ToList();
+        Assert.True(unclassified.Count == 0,
+            $"New EnterTenant sites must say where the tenant id comes from (request ⇒ look the tenant up first): {string.Join(", ", unclassified)}");
+
+        foreach (var (file, lookup) in requestSupplied)
+        {
+            var text = File.ReadAllText(dirs.SelectMany(d => SourceFiles(d)).Single(f => Path.GetFileName(f) == file));
+            Assert.True(text.Contains(lookup, StringComparison.Ordinal),
+                $"{file} enters a tenant named by the request but no longer looks it up ({lookup}) — a write for a dissolved tenant is orphaned forever.");
+        }
+    }
+
+    [Fact]
     public void EveryTenantScopedEntity_HasAGlobalQueryFilter()
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()

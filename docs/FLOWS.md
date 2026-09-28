@@ -298,6 +298,7 @@ sequenceDiagram
     alt already claimed
         WH-->>S: 200 Duplicate (provider stops retrying)
     else fresh event
+        WH->>DB: tenant exists? - a dissolved tenant's late event is claimed + Ignored, nothing written (v4 T24)
         WH->>TC: EnterTenant(evt.TenantId) - signature IS the authentication
         WH->>DB: upsert, only if strictly newer than last_event_at
         opt left active/trialing (dunning)
