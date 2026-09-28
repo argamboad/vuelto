@@ -2625,7 +2625,7 @@
                 "deliveries"
               ]
             },
-            "description": "Recent delivery attempts for this subscription (newest first, tenant-scoped): each row has success, status_code, error, event_id. Populated by Send test event (sync) and by published/replayed events (async via the outbox). Captures the newest row's id into {{deliveryId}} for Replay."
+            "description": "Recent delivery attempts for this subscription (newest first, tenant-scoped): each row has success, status_code, error, event_id. error is a reason code, never exception text: http_NNN (the endpoint's non-2xx status), redirect_not_followed (a 3xx: redirects are never followed, register the final URL), url_refused (the outbound URL guard), timeout, dns, tls, network, error. Populated by Send test event (sync) and by published/replayed events (async via the outbox). Captures the newest row's id into {{deliveryId}} for Replay."
           },
           "event": [
             {

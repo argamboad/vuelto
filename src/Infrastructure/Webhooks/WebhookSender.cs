@@ -49,9 +49,4 @@ public sealed class WebhookSender(HttpClient httpClient, IOutboundUrlGuard urlGu
 
     /// <summary>What a failed delivery records as its error (never a secret, safe to show the tenant): the transport
     /// error or refusal when there was one, else the status — and for a 3xx, why it wasn't followed (decision #7).</summary>
-    public static string DescribeFailure(int? status, string? transportError) =>
-        transportError
-        ?? (status is >= 300 and < 400
-            ? $"HTTP {status}: redirects are not followed; register the endpoint's final URL"
-            : $"HTTP {status}");
 }

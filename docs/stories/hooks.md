@@ -104,3 +104,12 @@ subs via the outbox; HMAC-signed deliveries; retry/dead-letter via the outbox; o
 mechanism); the secret is **encrypted** (needed in plaintext to sign); deliveries are **at-least-once** —
 receivers dedup on `X-Webhook-Id`; **default off** with **strong gating**; managing subscriptions is
 **owner-only**.
+
+> **2026-09-28 — reason codes in the delivery log (v4 audit JOBS-1/5/6, T39, R89/R96).** `WebhookDelivery.Error`
+> — returned as `error` by `GET /api/webhooks/{id}/deliveries` — held the raw exception text: resolved IP and
+> port, DNS errors, the outbound URL guard's verdict that the tenant's host resolves to a private range. It is now
+> a fixed reason code (`WebhookFailure`: `http_NNN`, `redirect_not_followed`, `url_refused`, `timeout`, `dns`, `tls`, `network`, `error`),
+> truncated at both write sites, with the raw text in the server log only; a scan gate
+> (`WebhookErrorCodeGateTests`) rejects any tenant-visible `Error` assigned from `.Message`. A caller's own
+> cancellation (shutdown, client abort) is rethrown instead of recorded as a failed delivery, while HttpClient's
+> timeout is `timeout` / `delivered: false`, not a 500.

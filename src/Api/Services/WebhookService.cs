@@ -3,7 +3,9 @@ using Microsoft.EntityFrameworkCore;
 using Vuelto.Core.Abstractions;
 using Vuelto.Core.Entities;
 using Vuelto.Core.Repositories;
+using Vuelto.Core.Text;
 using Vuelto.Infrastructure.Webhooks;
+using Microsoft.Extensions.Logging;
 
 namespace Vuelto.Api.Services;
 
@@ -53,7 +55,8 @@ public sealed class WebhookSubscriptionService(
     IWebhookSecretProtector protector,
     IWebhookSender sender,
     IOutboundUrlGuard urlGuard,
-    TimeProvider clock) : IWebhookSubscriptionService
+    TimeProvider clock,
+    Microsoft.Extensions.Logging.ILogger<WebhookSubscriptionService>? logger = null) : IWebhookSubscriptionService
 {
     public async Task<WebhookCreated?> CreateAsync(Guid createdByUserId, string url, IEnumerable<string>? eventTypes, CancellationToken cancellationToken = default)
     {
@@ -116,17 +119,26 @@ public sealed class WebhookSubscriptionService(
         // Same delivery shape as the async outbox handler (WebhookOutboxHandler): a returned HTTP status vs.
         // a transport error, then record ONE WebhookDelivery row either way so the log / replay are testable.
         int? status = null;
-        string? transportError = null;
+        Exception? failure = null;
         try
         {
             status = await sender.SendAsync(subscription.Url, secret, WebhookEvents.Ping, eventId, body, cancellationToken);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw; // the client went away: not a failed delivery, no row (v4 T39)
+        }
         catch (Exception ex)
         {
-            transportError = ex.Message; // network/timeout/DNS — no HTTP status
+            failure = ex; // network / HttpClient timeout / DNS — no HTTP status
         }
 
         var success = status is >= 200 and < 300;
+        // The row — and GET /deliveries, which returns it — carries a reason CODE (v4 T39, R89); the raw text
+        // (resolved addresses, DNS errors, the guard's verdict about the tenant's host) goes to the server log.
+        var reason = success ? null : SafeTruncation.Truncate(WebhookFailure.Reason(status, failure), 1000);
+        if (!success)
+            logger?.LogWarning(failure, "Webhook test delivery for subscription {SubscriptionId} failed: {Reason} (HTTP {Status})", subscription.Id, reason, status);
 
         await deliveries.AddAsync(new WebhookDelivery
         {
@@ -137,14 +149,14 @@ public sealed class WebhookSubscriptionService(
             Body = body,
             Success = success,
             StatusCode = status,
-            Error = success ? null : WebhookSender.DescribeFailure(status, transportError), // kept server-side; never a secret
+            Error = reason,
             CreatedAt = clock.GetUtcNow(),
         }, cancellationToken);
         await deliveries.SaveChangesAsync(cancellationToken);
 
-        // Don't leak internal DNS/connection detail to the tenant (GAP-3): the row keeps the detail, the
+        // Don't leak internal DNS/connection detail to the tenant (GAP-3): the log keeps the detail, the
         // caller only learns delivered/status and whether the transport failed.
-        return new WebhookTestResult(success, status, TransportFailed: transportError is not null);
+        return new WebhookTestResult(success, status, TransportFailed: failure is not null);
     }
 
     public async Task<IReadOnlyList<WebhookDelivery>> ListDeliveriesAsync(Guid subscriptionId, CancellationToken cancellationToken = default)
