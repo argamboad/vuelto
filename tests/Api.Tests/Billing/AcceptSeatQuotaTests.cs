@@ -45,6 +45,27 @@ public class AcceptSeatQuotaTests(PostgresFixture fixture) : PostgresTestBase(fi
     }
 
     [Fact]
+    public async Task ExpiredPendingInvites_DoNotReserveSeats()
+    {
+        // v4 LB-AUTH-7 (T34, R127): the seat count read Status == Pending with no expiry check, and nothing ever
+        // marks an invitation Expired — so two invites that lapsed weeks ago held a Free household at 5 of 5:
+        // the owner could invite nobody, and a valid invitee got 402 on accept.
+        var tenant = Guid.CreateVersion7();
+        await SeedTenantWithMembersAsync(tenant, members: FreeSeats - 1);
+        await SeedPendingInviteAsync(tenant, "lapsed-1@x.com", expiresAt: DateTimeOffset.UtcNow.AddDays(-14));
+        await SeedPendingInviteAsync(tenant, "lapsed-2@x.com", expiresAt: DateTimeOffset.UtcNow.AddDays(-7));
+        var token = await SeedPendingInviteAsync(tenant, "fresh@x.com");
+        var (inviteeId, _) = await ProvisionInviteeAsync("fresh@x.com");
+
+        var ambient = new TestCurrentTenant { TenantId = tenant };
+        await using var db = Fixture.CreateTestContext(ambient);
+        var harness = new ServiceHarness(db, currentTenant: ambient);
+
+        Assert.Equal(FreeSeats, (await harness.QuotaService().GetSeatUsageAsync()).Used); // members + the one live invite
+        Assert.Equal(AcceptStatus.Joined, await harness.InvitationService().AcceptAsync(inviteeId, token));
+    }
+
+    [Fact]
     public async Task Accept_AtCap_IsSeatNeutral_AndJoins()
     {
         // Members + 1 pending = exactly at the cap — the invite reserved the last seat; redeeming it
@@ -155,7 +176,7 @@ public class AcceptSeatQuotaTests(PostgresFixture fixture) : PostgresTestBase(fi
     }
 
     /// <summary>Seeds a redeemable pending invitation and returns its RAW token.</summary>
-    private async Task<string> SeedPendingInviteAsync(Guid tenant, string email)
+    private async Task<string> SeedPendingInviteAsync(Guid tenant, string email, DateTimeOffset? expiresAt = null)
     {
         var raw = $"e2e-raw-{Guid.NewGuid():N}";
         await using var db = Fixture.CreateContext(tenant);
@@ -170,7 +191,7 @@ public class AcceptSeatQuotaTests(PostgresFixture fixture) : PostgresTestBase(fi
             Status = InvitationStatuses.Pending,
             TokenHash = new TokenHasher().HashToken(raw),
             CreatedAt = DateTimeOffset.UtcNow,
-            ExpiresAt = DateTimeOffset.UtcNow.AddDays(7),
+            ExpiresAt = expiresAt ?? DateTimeOffset.UtcNow.AddDays(7),
         });
         await db.SaveChangesAsync();
         return raw;

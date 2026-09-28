@@ -109,8 +109,11 @@ stored.
 - `created_at`, `expires_at`
 
 **Derived rules (computed, never stored):**
-- `is_expired` → `now > expires_at`
-- `is_valid` → `status == pending AND !is_expired`
+- `is_expired` → `now >= expires_at` (at the expiry instant it is expired)
+- `is_valid` → `status == pending AND expires_at > now` — **one rule** (`TenantInvitation.ValidAt` for queries,
+  `IsValidAt` in memory; v4 T34, R127) used by the signup gate, the accept and the **seat count**, so a lapsed
+  pending invite reserves no seat. Nothing marks an invitation `expired`; the owner's pending list still shows
+  lapsed ones so they can be revoked or regenerated (re-inviting the same address refreshes the lapsed row).
 
 ## App entities
 

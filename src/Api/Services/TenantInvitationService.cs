@@ -178,10 +178,9 @@ public class TenantInvitationService(
         var invitation = await invitations.GetByTokenHashAsync(tokenHash, cancellationToken);
         var now = clock.GetUtcNow();
 
-        // Unknown / revoked / accepted / past-expiry → invalid (don't leak which).
-        if (invitation == null
-            || invitation.Status != InvitationStatuses.Pending
-            || invitation.ExpiresAt <= now)
+        // Unknown / revoked / accepted / expired → invalid (don't leak which). The one validity rule (R127) —
+        // the same the signup gate's query ran, so the two agree at the expiry instant.
+        if (invitation == null || !invitation.IsValidAt(now))
             return AcceptStatus.InvalidToken;
 
         var membership = await tenants.GetMembershipAsync(userId, cancellationToken);

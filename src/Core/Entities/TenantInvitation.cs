@@ -1,3 +1,5 @@
+using System.Linq.Expressions;
+
 namespace Vuelto.Core.Entities;
 
 /// <summary>
@@ -25,13 +27,35 @@ public class TenantInvitation : ITenantScoped
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset ExpiresAt { get; set; }
 
-    // Derived — computed, never stored. The *At(now) overloads are the deterministic core (testable
-    // with an explicit clock); the parameterless properties delegate to them at ambient time.
-    public bool IsExpiredAt(DateTimeOffset now) => now > ExpiresAt;
-    public bool IsValidAt(DateTimeOffset now) => Status == InvitationStatuses.Pending && !IsExpiredAt(now);
+    // Derived — computed, never stored. THE validity rule (v4 T34, R127), written ONCE: pending and not yet at
+    // its expiry instant. It is an expression so EF translates it for the signup gate's and the seat count's
+    // queries, and compiled once for the in-memory reads (the accept); nothing else may compare ExpiresAt.
+    // Three hand-written copies used to disagree at the expiry instant, and the seat count had no expiry at all.
+    // The *At(now) forms are the deterministic core (an explicit clock); the parameterless properties delegate
+    // to them at ambient time.
+    private static readonly Expression<Func<TenantInvitation, DateTimeOffset, bool>> Validity =
+        (invitation, now) => invitation.Status == InvitationStatuses.Pending && invitation.ExpiresAt > now;
+
+    private static readonly Func<TenantInvitation, DateTimeOffset, bool> IsValidCompiled = Validity.Compile();
+
+    /// <summary>The validity rule as a query predicate over <paramref name="now"/>, for EF.</summary>
+    public static Expression<Func<TenantInvitation, bool>> ValidAt(DateTimeOffset now)
+    {
+        var invitation = Validity.Parameters[0];
+        var body = new ReplaceParameter(Validity.Parameters[1], Expression.Constant(now)).Visit(Validity.Body);
+        return Expression.Lambda<Func<TenantInvitation, bool>>(body, invitation);
+    }
+
+    public bool IsValidAt(DateTimeOffset now) => IsValidCompiled(this, now);
+    public bool IsExpiredAt(DateTimeOffset now) => now >= ExpiresAt;
 
     public bool IsExpired => IsExpiredAt(DateTimeOffset.UtcNow);
     public bool IsValid => IsValidAt(DateTimeOffset.UtcNow);
+
+    private sealed class ReplaceParameter(ParameterExpression from, Expression to) : ExpressionVisitor
+    {
+        protected override Expression VisitParameter(ParameterExpression node) => node == from ? to : base.VisitParameter(node);
+    }
 }
 
 /// <summary>Status values for <see cref="TenantInvitation.Status"/>.</summary>
