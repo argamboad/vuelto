@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Stripe;
 using Stripe.Checkout;
@@ -13,7 +14,7 @@ namespace Vuelto.Infrastructure.Billing;
 /// id (<c>ClientReferenceId</c> + metadata) so the webhook (BILLING-3) reconciles it. No card data
 /// touches our system — the money mutation happens on Stripe.
 /// </summary>
-public sealed class StripeBillingProvider(IOptions<StripeSettings> options) : IBillingProvider
+public sealed class StripeBillingProvider(IOptions<StripeSettings> options, ILogger<StripeBillingProvider>? logger = null) : IBillingProvider
 {
     private readonly StripeSettings _settings = options.Value;
 
@@ -70,6 +71,15 @@ public sealed class StripeBillingProvider(IOptions<StripeSettings> options) : IB
             throw new BillingWebhookSignatureException($"Invalid Stripe webhook signature: {ex.Message}");
         }
 
+        // A test-mode event signed with the secret this deployment trusts must not move a real tenant's plan
+        // (v4 T46): with a test-mode signing secret left in production, Dashboard test events are authentic.
+        if (_settings.ExpectsLiveEvents is { } expectLive && stripeEvent.Livemode != expectLive)
+        {
+            logger?.LogWarning("Stripe event {EventId} is {Mode} but this deployment expects {Expected} events: ignored",
+                stripeEvent.Id, stripeEvent.Livemode ? "live" : "test", expectLive ? "live" : "test");
+            return null;
+        }
+
         // We reconcile only subscription-lifecycle events; everything else is acknowledged and ignored.
         if (stripeEvent.Data.Object is not Stripe.Subscription subscription)
             return null;
@@ -79,7 +89,33 @@ public sealed class StripeBillingProvider(IOptions<StripeSettings> options) : IB
 
         // Stripe's 2025 API moved current_period_end onto the subscription item.
         var item = subscription.Items?.Data?.FirstOrDefault();
-        var planKey = item?.Price?.Id is { } priceId ? _settings.PlanForPrice(priceId) : null;
+
+        // A price this deployment does not sell (Billing:Stripe:Prices) is a configuration gap, not "Free": applied
+        // as Free it would leave a paying tenant on the free plan with a "Your Free plan is active" email, and staff
+        // could not comp around it because the row is provider-managed (v4 T46). Acknowledged, not applied, loud.
+        string? planKey = null;
+        if (item?.Price?.Id is { } priceId)
+        {
+            planKey = _settings.PlanForPrice(priceId);
+            if (planKey is null)
+            {
+                logger?.LogError("Stripe event {EventId} for tenant {TenantId} carries price {PriceId}, which maps to no plan in Billing:Stripe:Prices: ignored, not applied",
+                    stripeEvent.Id, tenantId, priceId);
+                return null;
+            }
+        }
+
+        // Stripe.net's field is a non-nullable DateTime: an absent current_period_end arrives as a sentinel (the Unix
+        // epoch from its converter, or default), which the projection would store and every reader would treat as
+        // a lapsed period (v4 T46). Null, with a warning.
+        DateTimeOffset? periodEnd = null;
+        if (item is not null)
+        {
+            if (item.CurrentPeriodEnd <= DateTime.UnixEpoch)
+                logger?.LogWarning("Stripe event {EventId} for tenant {TenantId} carries no current_period_end: stored as open-ended", stripeEvent.Id, tenantId);
+            else
+                periodEnd = new DateTimeOffset(item.CurrentPeriodEnd, TimeSpan.Zero);
+        }
 
         return new BillingWebhookEvent(
             EventId: stripeEvent.Id,
@@ -88,7 +124,7 @@ public sealed class StripeBillingProvider(IOptions<StripeSettings> options) : IB
             Status: MapStatus(subscription.Status),
             StripeCustomerId: subscription.CustomerId,
             StripeSubscriptionId: subscription.Id,
-            CurrentPeriodEnd: item?.CurrentPeriodEnd is { } end ? new DateTimeOffset(end, TimeSpan.Zero) : null,
+            CurrentPeriodEnd: periodEnd,
             OccurredAt: new DateTimeOffset(stripeEvent.Created, TimeSpan.Zero)); // provider emission time — recency guard
     }
 

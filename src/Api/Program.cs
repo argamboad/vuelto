@@ -259,7 +259,7 @@ var app = builder.Build();
 // take money. One line at startup is the cheapest place to notice either.
 app.Logger.LogInformation(
     "Pre-launch gates: billing {BillingState}; signup {SignupState}.",
-    billingSettings.Enabled ? "ENABLED" : "disabled (no /api/billing routes; every tenant is Free)",
+    billingSettings.Enabled ? "ENABLED" : "disabled (no /api/billing routes; every tenant without a granting subscription is Free)",
     signupSettings.IsRestricted
         ? $"RESTRICTED to {signupSettings.AllowedEmails.Length} address(es) + {signupSettings.AllowedDomains.Length} domain(s), plus their households' invitees"
         : "open to anyone");

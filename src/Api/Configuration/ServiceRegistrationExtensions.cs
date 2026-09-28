@@ -123,6 +123,8 @@ public static class ServiceRegistrationExtensions
         // scheduled sweep that nudges once when a paid period lapses without a webhook.
         services.AddScoped<IBillingNotifier, BillingNotifier>();
         services.AddScoped<IScheduledJob, SubscriptionLapseSweepJob>();
+        // Says at startup when the gate is off but Stripe-managed rows linger (v4 T46): resolution is gate-blind.
+        services.AddHostedService<BillingPostureCheck>();
         // Billing checkout orchestration (BILLING-2), behind the platform BillingController. The
         // IBillingProvider (Stripe or fake) is registered in AddInfrastructure.
         services.AddScoped<IBillingService, BillingService>();

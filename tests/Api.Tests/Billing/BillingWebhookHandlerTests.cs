@@ -121,6 +121,29 @@ public class BillingWebhookHandlerTests(PostgresFixture fixture) : PostgresTestB
     }
 
     [Fact]
+    public async Task SignedFixture_WithAnUnmappedPrice_CreatesNoProjection() // v4 T46, through the real Stripe parser
+    {
+        var tenant = await NewTenantAsync();
+        var (payload, signature) = StripeBillingProviderTests.SignedSubscriptionEventFor(tenant, priceId: "price_not_configured");
+        var provider = new Vuelto.Infrastructure.Billing.StripeBillingProvider(Microsoft.Extensions.Options.Options.Create(
+            new Vuelto.Infrastructure.Billing.StripeSettings
+            {
+                WebhookSecret = StripeBillingProviderTests.FixtureSecret,
+                Prices = new Dictionary<string, string> { [PlanKeys.Pro] = "price_pro" },
+            }));
+
+        var current = new HttpCurrentTenant(new HttpContextAccessor());
+        await using var db = NewContext(current);
+        var handler = new BillingWebhookHandler(provider, new EfInbox(db, TimeProvider.System), new EfRepository<Subscription>(db),
+            new TenantRepository(db), current, new EfUnitOfWork(db), BuildNotifier(db), TimeProvider.System);
+
+        Assert.Equal(WebhookResult.Ignored, await handler.HandleAsync(payload, signature, default));
+
+        await using var read = Fixture.CreateContext(tenant);
+        Assert.Empty(await read.Set<Subscription>().ToListAsync()); // acknowledged, nothing applied — no "active Free" row
+    }
+
+    [Fact]
     public async Task Applied_OnlyVisibleToItsOwnTenant()
     {
         var tenant = await NewTenantAsync();

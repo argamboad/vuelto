@@ -51,8 +51,10 @@ Harmless — that household's owner is not green-listed, so it can pull nobody i
 
 **Context / notes:** mirrors the PUBAPI/HOOKS config gates (ADR-015/016) — `Billing:Enabled`,
 default **off**. `PlanCatalog.Get` already falls back to Free for an absent/unknown plan key, so
-the economics need no new code: with billing off every tenant is Free. Consequence accepted: while
-off, nobody holds `Entitlements.ProFeature`.
+the economics need no new code: with billing off every tenant **without a granting subscription** is
+Free, and nobody can be given one (routes, webhook and staff comp are gone). Resolution itself is
+gate-blind (v4 T46): a granting row keeps its plan so flipping the gate never silently downgrades anyone;
+`BillingPostureCheck` warns at startup when Stripe-managed rows linger while off.
 
 The Free seat limit moves **3 → 5** in the same slice. Three is exactly one family (the
 maintainer's household is three people) with zero headroom, and a *pending* invitation already
