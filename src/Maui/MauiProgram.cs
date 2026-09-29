@@ -106,10 +106,12 @@ public static class MauiProgram
 #endif
 
 		// Signed-URL downloads can't ride a WebView navigation — fetch + OS share sheet instead
-		// (NATIVE-3). Uses the default (Bearer) client registered below: the signed URL itself
-		// needs no auth, but absolute URLs bypass BaseAddress so the same client serves both.
-		builder.Services.AddSingleton<IFileDownloadLauncher>(sp =>
-			new ShareFileDownloadLauncher(sp.GetRequiredService<HttpClient>()));
+		// (NATIVE-3). A PLAIN client (v4 T49): the URL is either the API's tokenized /api/files/{token}
+		// (anonymous; relative, hence the BaseAddress) or a presigned S3/MinIO link, which AWS refuses when
+		// an Authorization header rides along — and the default client's handler would also spend a
+		// refresh on the file host's behalf. Nothing here needs the bearer.
+		builder.Services.AddSingleton<IFileDownloadLauncher>(_ =>
+			new ShareFileDownloadLauncher(new HttpClient { BaseAddress = new Uri(ApiBaseUrl) }));
 
 		// Fired by the window's Resumed lifecycle event (App.CreateWindow) so pages can refresh
 		// after an external round-trip returns to the app (NATIVE-4, G2).
@@ -155,7 +157,9 @@ public static class MauiProgram
 		//    exchange are anonymous or carry the body refresh token — they need no Bearer,
 		//    and this is what the handler below would depend on, so keep them separate.
 		//  - The default HttpClient (what the RCL pages inject) attaches the in-memory JWT
-		//    as a Bearer header so [Authorize] endpoints (household, linked logins) work.
+		//    as a Bearer header so [Authorize] endpoints (household, linked logins) work —
+		//    through the shared BearerScopedHandler, so only requests to the API's own origin
+		//    carry it (v4 T49).
 		//
 		// The X-Native-Client header on both selects the API's body-token transport.
 		builder.Services.AddSingleton(sp =>
@@ -172,7 +176,7 @@ public static class MauiProgram
 
 		builder.Services.AddSingleton(sp =>
 		{
-			var handler = new NativeAuthHeaderHandler(sp.GetRequiredService<AuthService>())
+			var handler = new BearerScopedHandler(sp.GetRequiredService<AuthService>(), new Uri(ApiBaseUrl))
 			{
 				InnerHandler = new HttpClientHandler()
 			};

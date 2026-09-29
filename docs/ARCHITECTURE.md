@@ -317,8 +317,11 @@ flowchart TB
 
 Client HTTP note (`src/Web/Program.cs`): `AuthService` is deliberately a **singleton**, and the
 refresh/logout calls use a second named client (`"ApiAuth"`, cookie handler only) to break the
-DI cycle with `AuthHeaderHandler`. Both hosts' bearer handlers ask `AuthService.GetFreshAccessTokenAsync`
-for the token, which renews it first when it is about to expire (ADR-002 addendum 2026-09-22).
+DI cycle with the bearer handler. Both hosts install the one `BearerScopedHandler` (`Shared.Ui/Auth`,
+over `BearerRetry`), which asks `AuthService.GetFreshAccessTokenAsync` for the token — renewed first when
+about to expire (ADR-002 addendum 2026-09-22) — and attaches it **only to the API's own origin**: a foreign
+absolute URL (a presigned S3 download) gets no token and no refresh (v4 T49, R102). The native download
+launcher uses a plain client for the same reason.
 
 ## 10. Startup & request pipeline
 

@@ -14,6 +14,27 @@ namespace Vuelto.Shared.Ui.Auth;
 /// </summary>
 public static class BearerRetry
 {
+    /// <summary>
+    /// Whether the request is for the API — a relative URI, or an absolute one on the API's own origin (scheme,
+    /// host and port). Anything else (a presigned S3/MinIO download, a CDN, a vendor) gets neither the bearer
+    /// nor a refresh on its behalf (v4 T49, R102): AWS rejects a presigned request that also carries an
+    /// Authorization header, and a foreign fetch must never spend a refresh-token rotation.
+    /// </summary>
+    public static bool IsApiRequest(Uri? requestUri, Uri apiOrigin) =>
+        requestUri is null || !requestUri.IsAbsoluteUri
+        || Uri.Compare(requestUri, apiOrigin, UriComponents.SchemeAndServer, UriFormat.Unescaped, StringComparison.OrdinalIgnoreCase) == 0;
+
+    /// <summary>The scoped form both hosts use: the bearer (and the renew-and-resend) only for the API's own requests.</summary>
+    public static Task<HttpResponseMessage> SendAsync(
+        AuthService auth,
+        Uri apiOrigin,
+        HttpRequestMessage request,
+        Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> send,
+        CancellationToken cancellationToken) =>
+        IsApiRequest(request.RequestUri, apiOrigin)
+            ? SendAsync(auth, request, send, cancellationToken)
+            : send(request, cancellationToken);
+
     public static async Task<HttpResponseMessage> SendAsync(
         AuthService auth,
         HttpRequestMessage request,
