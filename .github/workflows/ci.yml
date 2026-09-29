@@ -293,6 +293,63 @@ jobs:
             --use-project-assets-json \
             --forbidden-license-types .github/forbidden-licenses.json
 
+  # v4 T50: the ONE MAUI Release build CI runs — on demand (any manual run) and every Monday, never per
+  # push. Every other MAUI build here is Debug, so the Release guards (ReleaseGuards.targets: ApiBaseUrl
+  # present/https/origin-only, apksigner v2+ signing, HTTPS-only network config) ran nowhere before this
+  # leg. It publishes a Release APK signed with a throwaway store key, verifies the signature scheme the way
+  # a phone will, and proves a Release build without ApiBaseUrl is refused.
+  native-release-android:
+    needs: changes
+    if: >-
+      needs.changes.outputs.native == 'true'
+      && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false # v4 audit DEP-14: never leave the job token in .git/config
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install the MAUI workloads (host-aware)
+        run: dotnet workload restore src/Maui/Vuelto.Maui.csproj --version 10.0.400.1
+
+      - name: A throwaway store key (the real one never enters CI — ADR-024)
+        run: |
+          keytool -genkeypair -v -keystore ci-release.keystore -alias ci -keyalg RSA -keysize 2048 -validity 1 \
+            -storepass ci-store-pass -keypass ci-store-pass -dname "CN=ci, O=perezosoft"
+
+      - name: Publish the Release APK (store key, real host)
+        run: |
+          dotnet publish src/Maui/Vuelto.Maui.csproj -f net10.0-android -c Release \
+            -p:ApiBaseUrl=https://release-probe.invalid -p:AndroidPackageFormat=apk -p:AcceptAndroidSDKLicenses=true \
+            -p:AndroidKeyStore=true -p:AndroidSigningKeyStore="$PWD/ci-release.keystore" -p:AndroidSigningKeyAlias=ci \
+            -p:AndroidSigningStorePass=ci-store-pass -p:AndroidSigningKeyPass=ci-store-pass \
+            -o out/android
+
+      - name: apksigner verify — v2 or v3, the schemes Android 11+ installs
+        run: |
+          apk=$(ls out/android/*-Signed.apk | head -1)
+          test -n "$apk" || { echo "no *-Signed.apk produced"; exit 1; }
+          bt=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          "$bt/apksigner" verify --verbose "$apk" | tee verify.log
+          grep -E "Verified using v[23] .*true" verify.log || { echo "APK is not v2/v3 signed"; exit 1; }
+
+      - name: An ApiBaseUrl-less Release build must fail (the guard, proven)
+        run: |
+          if dotnet build src/Maui/Vuelto.Maui.csproj -f net10.0-android -c Release -p:AcceptAndroidSDKLicenses=true > guard.log 2>&1; then
+            echo "a Release build without ApiBaseUrl succeeded — the guard is off"; exit 1
+          fi
+          grep -q "Release builds require -p:ApiBaseUrl" guard.log || { cat guard.log; echo "failed, but not on the ApiBaseUrl guard"; exit 1; }
+
   # Relevance gate for the expensive native legs. Born as a free-tier cost guard (the 2026-07-03
   # NATIVE sprint burned a month of private-repo minutes in one day: ~10 develop pushes × [2 macOS
   # legs at 10× + Windows at 2×]); the repo is public now (2026-07-04) so standard-runner minutes

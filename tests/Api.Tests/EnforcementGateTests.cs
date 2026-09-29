@@ -252,6 +252,115 @@ public class EnforcementGateTests
             $"Job tests run the real OutboxEmailSender (its mid-way SaveChanges is what the transaction has to cover): {string.Join(", ", offenders)}");
     }
 
+    // ── ReleaseGuards.targets, probed without the MAUI workloads (v4 T50, R103/R141) ──
+    // A bare MSBuild project imports the file and runs its two targets with a table of inputs. Every MAUI
+    // build in CI is Debug, so nothing else exercises these guards before someone sideloads a phone.
+
+    public static TheoryData<string, string, string, bool, string?> ReleaseGuardCases => new()
+    {
+        // configuration, tfm, ApiBaseUrl, keystore present, expected error fragment (null = passes)
+        { "Release", "net10.0-android", "https://api.example.com", true, null },
+        { "Release", "net10.0-android", "https://api.example.com:8443", true, null },
+        { "Release", "net10.0-android", "  https://api.example.com  ", true, null },              // trimmed
+        { "Staging", "net10.0-android", "https://api.example.com", true, null },                  // any non-Debug configuration
+        { "Debug", "net10.0-android", "", false, null },                                           // guards inactive
+        { "Release", "net10.0-windows10.0.19041.0", "https://api.example.com", false, null },     // keystore rule is Android's
+        { "Release", "net10.0-android", "", true, "require -p:ApiBaseUrl" },
+        { "Release", "net10.0-android", "   ", true, "require -p:ApiBaseUrl" },
+        { "Staging", "net10.0-android", "", true, "require -p:ApiBaseUrl" },                      // the gap: -c Staging used to pass
+        { "Release", "net10.0-android", "http://api.example.com", true, "https:// ORIGIN" },
+        { "Release", "net10.0-android", "https://api.example.com/", true, "https:// ORIGIN" },
+        { "Release", "net10.0-android", "https://api.example.com/api", true, "https:// ORIGIN" },
+        { "Release", "net10.0-android", "https://api.example.com?x=1", true, "https:// ORIGIN" },
+        { "Release", "net10.0-android", "example.com", true, "https:// ORIGIN" },
+        { "Release", "net10.0-android", "https://api.example.com", false, "No keystore" },
+    };
+
+    [Theory]
+    [MemberData(nameof(ReleaseGuardCases))]
+    public async Task ReleaseGuards_RefuseBadInputs_AndPassGoodOnes(string configuration, string tfm, string apiBaseUrl, bool keystore, string? expectedError)
+    {
+        var dir = Directory.CreateTempSubdirectory("release-guards-");
+        try
+        {
+            var keystorePath = Path.Combine(dir.FullName, "debug.keystore");
+            if (keystore) File.WriteAllText(keystorePath, "not-a-real-keystore");
+            var targets = Path.Combine(RepoRoot(), "src", "Maui", "ReleaseGuards.targets");
+            File.WriteAllText(Path.Combine(dir.FullName, "probe.proj"), $"""
+                <Project>
+                  <PropertyGroup><TargetFramework>{tfm}</TargetFramework></PropertyGroup>
+                  <Import Project="{targets}" />
+                  <Target Name="Probe" DependsOnTargets="ValidateReleaseApiBaseUrl;ResolveReleaseKeystore" />
+                </Project>
+                """);
+
+            var run = new System.Diagnostics.ProcessStartInfo("dotnet")
+            {
+                WorkingDirectory = dir.FullName, RedirectStandardOutput = true, RedirectStandardError = true,
+            };
+            foreach (var arg in new[] { "msbuild", "probe.proj", "-t:Probe", "-nologo", "-v:m",
+                         $"-p:Configuration={configuration}", $"-p:ApiBaseUrl={apiBaseUrl}", $"-p:ReleaseGuardsKeystoreCandidates={keystorePath}" })
+                run.ArgumentList.Add(arg);
+            using var p = System.Diagnostics.Process.Start(run)!;
+            var output = await p.StandardOutput.ReadToEndAsync() + await p.StandardError.ReadToEndAsync();
+            using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+            await p.WaitForExitAsync(timeout.Token);
+
+            if (expectedError is null)
+                Assert.True(p.ExitCode == 0, $"expected the guards to pass:\n{output}");
+            else
+            {
+                Assert.True(p.ExitCode != 0, $"expected the guards to refuse ({expectedError}):\n{output}");
+                Assert.Contains(expectedError, output);
+            }
+        }
+        finally
+        {
+            dir.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public void ReleaseGuards_LiveInOneFile_UnderOneCondition()
+    {
+        // The csproj keeps none of the Release logic: three checks under three conditions is how `-c Staging`
+        // got the HTTPS-only config but no ApiBaseUrl check.
+        var csproj = File.ReadAllText(Path.Combine(RepoRoot(), "src", "Maui", "Vuelto.Maui.csproj"));
+        Assert.Contains("<Import Project=\"ReleaseGuards.targets\" />", csproj);
+        Assert.DoesNotContain("'$(Configuration)' == 'Release'", csproj);
+        Assert.DoesNotContain("$(ApiBaseUrl)", csproj);
+
+        var targets = File.ReadAllText(Path.Combine(RepoRoot(), "src", "Maui", "ReleaseGuards.targets"));
+        Assert.DoesNotContain("== 'Release'", targets); // != 'Debug', once
+        Assert.Single(Regex.Matches(targets, @"'\$\(Configuration\)' != 'Debug'"));
+    }
+
+    [Fact]
+    public void PublishScript_ThrowsUnlessTheSignatureIsVerified_AndFindsTheSdkThroughAndroidHome()
+    {
+        var script = File.ReadAllText(Path.Combine(RepoRoot(), "tools", "publish-native.ps1"));
+        Assert.Contains("$env:ANDROID_HOME", script);
+        Assert.Contains("throw \"APK signature NOT verified", script);
+        // "Send THIS file" is printed only after the throw-unless-verified line, never before it.
+        Assert.True(script.IndexOf("APK signature NOT verified", StringComparison.Ordinal) < script.IndexOf("Send THIS file", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData(".github/workflows/ci.yml")]
+    [InlineData(".forgejo/workflows/ci.yml")]
+    public void ReleaseLeg_BuildsRelease_VerifiesV2OrV3_AndProvesTheGuardFires(string workflow)
+    {
+        // The only MAUI Release build CI runs: on demand and on the Monday schedule (never per push).
+        var ci = File.ReadAllText(Path.Combine(RepoRoot(), workflow));
+        var job = ci[ci.IndexOf("\n  native-release-android:", StringComparison.Ordinal)..];
+        job = job[..(job.IndexOf("\n  # ", StringComparison.Ordinal) is var n and > 0 ? n : job.Length)];
+        Assert.Contains("-c Release", job);
+        Assert.Contains("apksigner", job);
+        Assert.Contains("Verified using v[23]", job);
+        Assert.Contains("ApiBaseUrl-less Release build must fail", job);
+        Assert.DoesNotContain("github.event_name == 'push'", job);
+    }
+
     private static IEnumerable<string> TestReadFiles()
     {
         var root = RepoRoot();

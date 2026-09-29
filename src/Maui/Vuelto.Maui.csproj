@@ -124,43 +124,8 @@
     </Target>
 
 
-    <!-- Release APKs must carry APK Signature Scheme v2+ — Android 11+ refuses a v1-only APK and the package
-         installer simply does nothing (first sideload of a downstream app, 2026-09-08). Without a keystore the
-         toolchain falls back to jarsigner (v1 only), so a Release build ALWAYS signs through apksigner: the
-         developer's debug key by default (sideload builds), or the store key when the AndroidSigning* properties
-         are supplied on the command line / in the release pipeline. -->
-    <PropertyGroup Condition="'$(Configuration)' == 'Release' And '$(AndroidKeyStore)' == '' And Exists('$(LOCALAPPDATA)\Xamarin\Mono for Android\debug.keystore')">
-        <AndroidKeyStore>true</AndroidKeyStore>
-        <AndroidSigningKeyStore Condition="'$(AndroidSigningKeyStore)' == ''">$(LOCALAPPDATA)\Xamarin\Mono for Android\debug.keystore</AndroidSigningKeyStore>
-        <AndroidSigningKeyAlias Condition="'$(AndroidSigningKeyAlias)' == ''">androiddebugkey</AndroidSigningKeyAlias>
-        <AndroidSigningKeyPass Condition="'$(AndroidSigningKeyPass)' == ''">android</AndroidSigningKeyPass>
-        <AndroidSigningStorePass Condition="'$(AndroidSigningStorePass)' == ''">android</AndroidSigningStorePass>
-    </PropertyGroup>
-    <!-- ═══ Release must not ship the dev localhost API base (v3 audit NAT-3) ═══════════════════════
-         A Debug build keeps the localhost fallback + VUELTO_API_BASE_URL override (dev + CI smoke).
-         A Release build compiles in the real base from $(ApiBaseUrl) and REFUSES to build without it —
-         otherwise a by-the-book Release AAB would send OTP codes + refresh tokens cleartext to whatever
-         binds device-localhost:5338. Supply it: dotnet build -c Release -p:ApiBaseUrl=https://api.example.com -->
-    <Target Name="RequireApiBaseUrlInRelease" BeforeTargets="BeforeBuild"
-            Condition="'$(Configuration)' == 'Release' And '$(ApiBaseUrl)' == ''">
-        <Error Text="Release builds require -p:ApiBaseUrl=https://your-api-host — refusing to ship the dev localhost API base (v3 NAT-3). Set it in your release pipeline." />
-    </Target>
-    <ItemGroup Condition="'$(Configuration)' == 'Release' And '$(ApiBaseUrl)' != ''">
-        <!-- MauiProgram.ReleaseApiBaseUrl reads this back at runtime. -->
-        <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
-            <_Parameter1>ApiBaseUrl</_Parameter1>
-            <_Parameter2>$(ApiBaseUrl)</_Parameter2>
-        </AssemblyAttribute>
-    </ItemGroup>
-
-    <!-- Cleartext-to-localhost is a DEBUG-ONLY posture (v3 NAT-3). Debug uses the convention-included
-         Resources/xml/network_security_config.xml (permits cleartext to the dev host). Release removes it
-         and Links the HTTPS-only variant (kept outside Resources/xml/ so it isn't auto-globbed) to the same
-         resource name, so the manifest's @xml/network_security_config reference stays valid either way. -->
-    <ItemGroup Condition="$(TargetFramework.Contains('-android')) And '$(Configuration)' != 'Debug'">
-        <AndroidResource Remove="Platforms/Android/Resources/xml/network_security_config.xml" />
-        <AndroidResource Include="Platforms/Android/network_security_config_release.xml"
-                         Link="Resources/xml/network_security_config.xml" />
-    </ItemGroup>
+    <!-- Everything a non-Debug build must refuse or supply — the ApiBaseUrl check, Android signing, the
+         HTTPS-only network config — lives in ONE file under ONE condition (v4 T50). -->
+    <Import Project="ReleaseGuards.targets" />
 
 </Project>

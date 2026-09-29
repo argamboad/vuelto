@@ -104,6 +104,25 @@ public sealed class S3FileStorageMinioTests(MinioFixture fixture) : IClassFixtur
     }
 
     [Fact]
+    public async Task PresignedUrl_WithABearerHeader_IsRefused_SoTheDownloadClientMustBePlain() // v4 T49
+    {
+        // AWS documents that a presigned request must not also carry an Authorization header. This settles it
+        // for the S3-compatible endpoint the platform is actually tested against: the same URL succeeds plain
+        // and is refused with a bearer — which is why BearerScopedHandler never signs a foreign host.
+        var storage = NewStorage(Guid.NewGuid());
+        await storage.PutAsync("b.txt", Bytes("plain-only"), "text/plain");
+        var url = await storage.GetDownloadUrlAsync("b.txt", TimeSpan.FromMinutes(5));
+
+        using var http = new HttpClient();
+        Assert.Equal("plain-only", await http.GetStringAsync(url));
+
+        using var withBearer = new HttpRequestMessage(HttpMethod.Get, url);
+        withBearer.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", "tenant-scoped-token");
+        using var refused = await http.SendAsync(withBearer);
+        Assert.False(refused.IsSuccessStatusCode, $"MinIO accepted a presigned GET with a bearer: {(int)refused.StatusCode}");
+    }
+
+    [Fact]
     public async Task Delete_MissingKey_IsNoOp()
     {
         await NewStorage(Guid.NewGuid()).DeleteAsync("ghost"); // must not throw
