@@ -26,6 +26,20 @@ public class EntitlementServiceTests(PostgresFixture fixture) : PostgresTestBase
     }
 
     [Fact]
+    public void GateOff_GrantingSubscription_StillResolvesItsPlan_ByDesign()
+    {
+        // v4 T46 (BILL-1, R128): resolution is GATE-BLIND on purpose. EntitlementService does not read
+        // Billing:Enabled — a row that grants (active/trialing, period not over) resolves to its plan whether the
+        // gate is on or off, so flipping the gate never silently downgrades anyone: a comp keeps working, a Stripe
+        // row from before the gate closed keeps its plan. What "billing off" removes is the SURFACE (routes, comp,
+        // link) — not existing entitlements. BillingPostureCheck says at startup when Stripe-managed rows linger.
+        var granting = new Subscription { PlanKey = PlanKeys.Pro, Status = SubscriptionStatus.Active, CurrentPeriodEnd = null };
+
+        Assert.Equal(PlanKeys.Pro, EntitlementService.ResolvePlanKey(granting, DateTimeOffset.UtcNow));
+        Assert.DoesNotContain("Billing", string.Join(",", typeof(EntitlementService).GetConstructors().Single().GetParameters().Select(p => p.ParameterType.Name))); // no gate dependency
+    }
+
+    [Fact]
     public async Task ActiveProSubscription_GrantsProFeature()
     {
         var tenant = Guid.CreateVersion7();

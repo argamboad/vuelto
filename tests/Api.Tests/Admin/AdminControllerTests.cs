@@ -732,7 +732,7 @@ public class AdminControllerTests(PostgresFixture fixture) : PostgresTestBase(fi
     // Captures the email copies NotifyAsync sends, so tests can assert delivery (e.g. the MFA reset).
     private readonly CapturingEmailSender _email = new();
 
-    private (AdminController controller, AppDbContext db) BuildController(Guid callerId, Guid? impersonatedBy = null)
+    private (AdminController controller, AppDbContext db) BuildController(Guid callerId, Guid? impersonatedBy = null, bool billingEnabled = true)
     {
         var ctx = new HttpCurrentTenant(new HttpContextAccessor { HttpContext = new DefaultHttpContext() });
         var options = new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(Fixture.ConnectionString).Options;
@@ -755,6 +755,7 @@ public class AdminControllerTests(PostgresFixture fixture) : PostgresTestBase(fi
             new RefreshTokenService(new RefreshTokenRepository(db, TimeProvider.System), new TokenGenerator(),
                 new TokenHasher(), new TestRefreshSettings(), TimeProvider.System),
             new EfOutbox(db, TimeProvider.System), new EfUnitOfWork(db),
+            new BillingSettings { Enabled = billingEnabled },
             NullLogger<AdminController>.Instance, TimeProvider.System);
 
         var claims = new List<Claim> { new(ClaimTypes.NameIdentifier, callerId.ToString()) };

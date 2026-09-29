@@ -51,12 +51,22 @@ Harmless — that household's owner is not green-listed, so it can pull nobody i
 
 **Context / notes:** mirrors the PUBAPI/HOOKS config gates (ADR-015/016) — `Billing:Enabled`,
 default **off**. `PlanCatalog.Get` already falls back to Free for an absent/unknown plan key, so
-the economics need no new code: with billing off every tenant is Free. Consequence accepted: while
-off, nobody holds `Entitlements.ProFeature`.
+the economics need no new code: with billing off every tenant **without a granting subscription** is
+Free, and nobody can be given one (routes, webhook and staff comp are gone). Resolution itself is
+gate-blind (v4 T46): a granting row keeps its plan so flipping the gate never silently downgrades anyone;
+`BillingPostureCheck` warns at startup when Stripe-managed rows linger while off.
 
 The Free seat limit moves **3 → 5** in the same slice. Three is exactly one family (the
 maintainer's household is three people) with zero headroom, and a *pending* invitation already
 consumes a seat.
+
+> **Addendum (2026-09-28, v4 T45 — R86):** the gate's proof is the **route table**: `BillingGateTests`
+> boots the host at the shipped defaults and asserts nothing is mapped under `api/billing`, `api/public`,
+> `api/apikeys` or `api/webhooks` (the attribute scan it replaces saw only controllers whose class route
+> started with `api/billing`; a billing-prefixed minimal-API group slipped past it). The staff
+> **comp/revert** actions (`PUT`/`DELETE /api/admin/tenants/{id}/subscription`) are gated with the surface —
+> 404 while off, before the staff check — and the console's Comp/Revert block follows `/api/features`
+> (`AdminConsoleGateUiTests`). The relaxed Stripe startup check rests on this proof (ADR-027 addendum).
 
 **Acceptance criteria**
 

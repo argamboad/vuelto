@@ -122,6 +122,7 @@ public class SweepTests : ComponentTestBase
     {
         const string T = "44444444-4444-4444-4444-444444444444";
         await SignInAsync();
+        StubFeatures(billing: true); // the Comp/Revert block follows /api/features since v4 T45
         Http.On(HttpMethod.Get, "/api/admin/me", """{"is_staff":true}""");
         Http.On(HttpMethod.Get, "/api/admin/tenants", $$"""[{"id":"{{T}}","name":"Casa Gamboa","member_count":2,"created_at":"2026-01-01T00:00:00+00:00"}]""");
         Http.On(HttpMethod.Get, $"/api/admin/tenants/{T}", $$"""{"id":"{{T}}","name":"Casa Gamboa","created_at":"2026-01-01T00:00:00+00:00","members":[{"user_id":"{{Other}}","display_name":"Bob","email":"bob@example.com","role":"owner"}],"subscription_status":"active","plan_key":"free","provider_managed":false,"audit_event_count":3}""");

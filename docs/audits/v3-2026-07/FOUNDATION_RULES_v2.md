@@ -121,7 +121,10 @@ Each rule: **[machine]** (arch test / analyzer / CI gate) or **[review]** · cat
   `:latest` image tags, and raw binary downloads are checksum-verified; pinned CI tool/pip versions live in
   a committed manifest. *(R57/R58/R59/R80-cand; DEP-6, DEP-7, DEP-8, DEP-9, §7-nit.)*
 - **R64 [machine]** — Outside Development, the Stripe key's `sk_live_`/`sk_test_` mode matches an explicit
-  config expectation (fail-closed startup guard). *(R60-cand; DEP-10.)*
+  config expectation (fail-closed startup guard). *(R60-cand; DEP-10.)* The guard is relaxed only while
+  `Billing:Enabled` is off, on the proof that **nothing is then mapped under a gated prefix** (the real route
+  table, `BillingGateTests.GateOff_NothingUnderTheGatedPrefixes_IsMapped` — v4 T45, R86): a billing route
+  reachable while off would be backed by the fake provider, which accepts a literal signature.
 - **R65 [machine]** — The license gate inventories the transitive licenses of the server **and** client
   projects (Api, Web, Shared.Ui, Maui), not `src/Api` alone. *(R77-cand; TOOL-1.)*
 - **R66 [review]** — Load-bearing single-maintainer dependencies (today: `Otp.NET` behind MFA) are

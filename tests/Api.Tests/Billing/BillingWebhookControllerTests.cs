@@ -48,6 +48,8 @@ public class BillingWebhookControllerTests(PostgresFixture fixture) : PostgresTe
     {
         var tenant = Guid.CreateVersion7();
         await using var db = Fixture.CreateContext();
+        db.Set<Tenant>().Add(new Tenant { Id = tenant, Name = "T", CreatedAt = DateTimeOffset.UtcNow }); // the handler checks it exists (v4 T24)
+        await db.SaveChangesAsync();
         var logger = new CapturingLogger<BillingWebhookController>();
         var controller = NewController(db, logger, remoteIp: "203.0.113.9",
             body: JsonSerializer.Serialize(Event(tenant)), signature: FakeBillingProvider.ValidSignature);
@@ -72,6 +74,7 @@ public class BillingWebhookControllerTests(PostgresFixture fixture) : PostgresTe
             new FakeBillingProvider(),
             new EfInbox(db, TimeProvider.System),
             new EfRepository<Subscription>(db),
+            new TenantRepository(db),
             current,
             new EfUnitOfWork(db),
             BuildNotifier(db),

@@ -1996,8 +1996,12 @@ makes them configuration, and it puts them in the same family as the PUBAPI/HOOK
    webhook are removed from the application model at startup, so the routes do not exist (404) rather
    than existing and refusing. The client hides the billing link and refuses the route, but the API
    remains the authority. No new economics code is needed: `PlanCatalog.Get` already falls back to
-   Free for an absent plan key, so billing-off means every tenant is Free. **Accepted consequence:**
-   while off, nobody holds `Entitlements.ProFeature`.
+   Free for an absent plan key, so with billing off **every tenant without a granting subscription is
+   Free** — and nobody can be *given* one (the routes, the webhook and the staff comp are gone).
+   *(Corrected 2026-09-28, v4 T46: the original text said "every tenant is Free"; plan resolution is
+   gate-blind by design — a granting row, a comp or a Stripe row from before the gate closed, keeps its
+   plan so that flipping the gate never silently downgrades anyone. `BillingPostureCheck` warns at startup
+   when Stripe-managed rows linger while off, since the webhook that would cancel them is gone.)*
 2. **`Signup:AllowedEmails` / `Signup:AllowedDomains`, empty means open.** Non-empty restricts
    account creation. The green list decides **who may found a household**; inside a household owned
    by a green-listed person, membership is that owner's business, bounded by the seat cap.
@@ -2014,6 +2018,25 @@ makes them configuration, and it puts them in the same family as the PUBAPI/HOOK
    require knowing whether the address already has an account, turning the login form into a "does
    this person use the app" oracle. Accepted cost: a non-listed visitor learns they are not invited
    only after entering their code.
+
+**Addendum (2026-09-28, v4 audit T45 — BILL-2/BILL-3/ADV-P4-6, R86):** the proof behind decision 1 is the
+**route table**, not a list of controllers. `BillingGateConvention` still removes the two billing controllers,
+but what CI holds is `BillingGateTests.GateOff_NothingUnderTheGatedPrefixes_IsMapped`: the host booted at the
+shipped defaults maps nothing under `api/billing`, `api/public`, `api/apikeys` or `api/webhooks`, by any
+mechanism (a minimal-API group, an action-level absolute route, a differently named controller — the
+adversarial pass had a billing-prefixed group answering 200 next to a 404 on `/api/billing`). The relaxed
+Stripe startup check (the fake provider is tolerated outside Development while the gate is off) depends on
+exactly that proof. The staff **comp/revert** actions under `api/admin` are part of the surface: they answer
+**404 while billing is off**, before the staff check, and the console's block follows `GET /api/features`.
+
+**Addendum (2026-09-28, v4 audit T46 — LB-BILL-21/22/27, R128):** the Stripe mapping **fails safe and
+loud**. A missing `current_period_end` (Stripe.net's field is a non-nullable `DateTime`) is stored as null
+with a Warning, not as the converter's sentinel date (the Unix epoch — which read as a lapsed period: a paying
+tenant on Free, "renews on 1970-01-01", nudged every six hours). A price absent from `Billing:Stripe:Prices` is acknowledged, **not
+applied**, and logged as an Error — never an "active Free" row staff cannot comp around. An event whose
+`livemode` disagrees with the deployment's expectation (`Billing:Stripe:ExpectLiveKey`, else inferred from
+the key prefix) is ignored with a Warning, so a test-mode signing secret in production cannot let Dashboard
+test events move real tenants' plans. Signed fixtures drive all three (`StripeBillingProviderTests`).
 6. **The Free seat limit moves 3 → 5** (`PlanCatalog`, code/config per ADR-006). Three is exactly one
    family with no headroom, and a pending invitation already consumes a seat.
 

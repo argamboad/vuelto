@@ -20,6 +20,16 @@ public sealed class StripeSettings
     /// <summary>Stripe webhook signing secret (<c>whsec_…</c>) used to verify inbound webhooks (BILLING-3).</summary>
     public string? WebhookSecret { get; init; }
 
+    /// <summary>
+    /// The mode this deployment expects its Stripe traffic in (<c>true</c> = live). Unset ⇒ inferred from the
+    /// secret key's prefix. A webhook whose <c>livemode</c> disagrees is ignored (v4 T46): a test-mode signing
+    /// secret left in production would otherwise let Dashboard test events change real tenants' plans.
+    /// </summary>
+    public bool? ExpectLiveKey { get; init; }
+
+    /// <summary>Whether events are expected live; null when nothing says (no key, no expectation).</summary>
+    public bool? ExpectsLiveEvents => ExpectLiveKey ?? (SecretKey is { } key ? key.StartsWith("sk_live_", StringComparison.Ordinal) : null);
+
     /// <summary>Reverse of <see cref="Prices"/>: Stripe price id → plan key, or null if unmapped.</summary>
     public string? PlanForPrice(string priceId) =>
         Prices.FirstOrDefault(kv => kv.Value == priceId).Key;
