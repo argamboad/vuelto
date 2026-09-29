@@ -1,0 +1,75 @@
+<Project>
+  <!-- ═══ Release guards (v4 audit T50 — NAT-13/14/18, LB-NAT-1/2; R103, R141) ══════════════════════════════
+       Everything a non-Debug build must refuse or supply, under ONE condition: `Configuration != Debug`.
+       They used to sit in the csproj under three conditions (two keyed on Release, one on not-Debug), so a custom
+       configuration such as `-c Staging` got the HTTPS-only network config but no ApiBaseUrl check, and
+       shipped pointing at http://localhost. Every MAUI build in CI is Debug, which is why none of this ran
+       there; the native-release-android job (both ci.yml copies) now builds Release on demand and every Monday.
+       Probed without workloads by EnforcementGateTests.ReleaseGuards_* (a bare project imports this file). -->
+
+  <PropertyGroup>
+    <ReleaseGuardsActive Condition="'$(Configuration)' != 'Debug'">true</ReleaseGuardsActive>
+    <!-- Trimmed once, here (a -p: global property cannot be reassigned, so the guards read this copy):
+         " https://host " must not read as a different host than "https://host", and "   " is "unset". -->
+    <_ReleaseApiBaseUrl Condition="'$(ApiBaseUrl)' != ''">$(ApiBaseUrl.Trim())</_ReleaseApiBaseUrl>
+    <!-- Where a debug keystore lives, per host. Windows (the IDE's), macOS/Linux (the .NET Android SDK's),
+         and Android Studio's on any host. Overridable so the probe can point at a temp file or at nothing. -->
+    <ReleaseGuardsKeystoreCandidates Condition="'$(ReleaseGuardsKeystoreCandidates)' == ''">$(LOCALAPPDATA)\Xamarin\Mono for Android\debug.keystore;$(HOME)/.local/share/Xamarin/Mono for Android/debug.keystore;$(HOME)/.android/debug.keystore;$(USERPROFILE)\.android\debug.keystore</ReleaseGuardsKeystoreCandidates>
+  </PropertyGroup>
+
+  <!-- 1. The API base: present, https://, and an ORIGIN only (scheme, host, optional port). A path, a query or
+       a trailing slash is refused too — MauiProgram concatenates "/api/auth/native/login/…" onto this, and a
+       base of "https://host/" produced "https://host//api/…" (found downstream 2026-09-14). A bare host or an
+       http:// base ships cleartext on Windows, iOS and macOS, where no network-security config stops it. -->
+  <Target Name="ValidateReleaseApiBaseUrl" BeforeTargets="BeforeBuild" Condition="'$(ReleaseGuardsActive)' == 'true'">
+    <Error Condition="'$(_ReleaseApiBaseUrl)' == ''"
+           Text="Release builds require -p:ApiBaseUrl=https://your-api-host — refusing to ship the dev localhost API base (v3 NAT-3 / v4 T50). Set it in your release pipeline." />
+    <Error Condition="'$(_ReleaseApiBaseUrl)' != '' And !$([System.Text.RegularExpressions.Regex]::IsMatch('$(_ReleaseApiBaseUrl)', '^https://[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?(:[0-9]{1,5})?$'))"
+           Text="ApiBaseUrl must be an https:// ORIGIN — scheme, host, optional port; no path, query or trailing slash (got '$(_ReleaseApiBaseUrl)'). Example: https://myapp.example.com (v4 T50)." />
+  </Target>
+
+  <!-- MauiProgram.ReleaseApiBaseUrl reads this back at runtime. -->
+  <ItemGroup Condition="'$(ReleaseGuardsActive)' == 'true' And '$(_ReleaseApiBaseUrl)' != ''">
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>ApiBaseUrl</_Parameter1>
+      <_Parameter2>$(_ReleaseApiBaseUrl)</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <!-- 2. Android signing. A Release APK must carry APK Signature Scheme v2+ — Android 11+ refuses a v1-only
+       APK and the installer simply does nothing (first sideload of a downstream app, 2026-09-08). Without a
+       keystore the toolchain falls back to jarsigner (v1 only), so a non-Debug build ALWAYS signs through
+       apksigner: the store key when the AndroidSigning* properties are supplied, else the developer's debug
+       key found on THIS host — and it is an ERROR when none is found on any host (the old fallback looked
+       only under $(LOCALAPPDATA), so a Mac or Linux box silently took the v1-only route). -->
+  <Target Name="ResolveReleaseKeystore" BeforeTargets="BeforeBuild"
+          Condition="'$(ReleaseGuardsActive)' == 'true' And $(TargetFramework.Contains('-android')) And '$(AndroidKeyStore)' == ''">
+    <ItemGroup>
+      <_ReleaseKeystoreCandidate Include="$(ReleaseGuardsKeystoreCandidates)" />
+      <_ReleaseKeystoreFound Include="@(_ReleaseKeystoreCandidate)" Condition="Exists('%(_ReleaseKeystoreCandidate.Identity)')" />
+    </ItemGroup>
+    <PropertyGroup>
+      <_ReleaseKeystore>%(_ReleaseKeystoreFound.Identity)</_ReleaseKeystore>
+    </PropertyGroup>
+    <Error Condition="'$(_ReleaseKeystore)' == ''"
+           Text="No keystore for the Release APK: pass -p:AndroidKeyStore=true -p:AndroidSigningKeyStore=… -p:AndroidSigningKeyAlias=… -p:AndroidSigningStorePass=… -p:AndroidSigningKeyPass=… (the store key), or install a debug keystore at one of: $(ReleaseGuardsKeystoreCandidates). Without one the build would sign v1-only, which Android 11+ refuses to install (v4 T50)." />
+    <PropertyGroup Condition="'$(_ReleaseKeystore)' != ''">
+      <AndroidKeyStore>true</AndroidKeyStore>
+      <AndroidSigningKeyStore Condition="'$(AndroidSigningKeyStore)' == ''">$(_ReleaseKeystore)</AndroidSigningKeyStore>
+      <AndroidSigningKeyAlias Condition="'$(AndroidSigningKeyAlias)' == ''">androiddebugkey</AndroidSigningKeyAlias>
+      <AndroidSigningKeyPass Condition="'$(AndroidSigningKeyPass)' == ''">android</AndroidSigningKeyPass>
+      <AndroidSigningStorePass Condition="'$(AndroidSigningStorePass)' == ''">android</AndroidSigningStorePass>
+    </PropertyGroup>
+    <Message Importance="high" Text="[release] signing the APK with $(AndroidSigningKeyStore) (apksigner, v2+)" />
+  </Target>
+
+  <!-- 3. Cleartext-to-localhost is a DEBUG-ONLY posture (v3 NAT-3). Debug uses the convention-included
+       Resources/xml/network_security_config.xml (permits cleartext to the dev host). Every other configuration
+       removes it and Links the HTTPS-only variant (kept outside Resources/xml/ so it isn't auto-globbed) to
+       the same resource name, so the manifest's @xml/network_security_config reference stays valid either way. -->
+  <ItemGroup Condition="'$(ReleaseGuardsActive)' == 'true' And $(TargetFramework.Contains('-android'))">
+    <AndroidResource Remove="Platforms/Android/Resources/xml/network_security_config.xml" />
+    <AndroidResource Include="Platforms/Android/network_security_config_release.xml"
+                     Link="Resources/xml/network_security_config.xml" />
+  </ItemGroup>
+</Project>

@@ -437,8 +437,20 @@ pwsh tools/publish-native.ps1 -ApiBaseUrl https://<your-host>            # both 
 pwsh tools/publish-native.ps1 -ApiBaseUrl https://<your-host> -Android   # just the phone
 ```
 
-Send `out/<app>.apk`. Expect `Verified using v2 scheme … true` in the output; if you do not see it, do not
-ship the file.
+Send `out/<app>.apk`. The script **refuses to finish** unless `apksigner` reports `Verified using v2/v3 …
+true` (v4 T50): it finds the SDK through `ANDROID_HOME`/`ANDROID_SDK_ROOT`, then Visual Studio's install,
+then Android Studio's, and throws when none is there — an unverified APK is never presented as "send THIS".
+
+**The Release guards** live in `src/Maui/ReleaseGuards.targets`, under one condition (`Configuration !=
+Debug`, so `-c Staging` is guarded like `-c Release`): `ApiBaseUrl` must be present, `https://` and an
+**origin only** (no path, query or trailing slash — the OAuth URLs are concatenated onto it); the Android
+build signs through `apksigner` with the store key when the `AndroidSigning*` properties are supplied, else
+the developer's debug keystore found on **this** host (Windows, macOS/Linux and Android Studio locations),
+and it is an **error** when none exists — the old fallback looked only under `%LOCALAPPDATA%`, so a Mac took
+the v1-only route silently. `EnforcementGateTests.ReleaseGuards_*` probes the file without the MAUI
+workloads, and the `native-release-android` CI leg (Run workflow → `release: android`, and every Monday)
+publishes a Release APK with a throwaway store key, verifies v2/v3 the way a phone will, and proves a
+Release build without `ApiBaseUrl` fails.
 
 **The three ways a sideload fails without telling you:**
 

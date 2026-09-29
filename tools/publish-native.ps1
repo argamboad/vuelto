@@ -55,13 +55,19 @@ if ($Android) {
                Where-Object { Test-Path (Join-Path $_.FullName "bin\java.exe") } | Sort-Object Name | Select-Object -Last 1
         if ($jdk) { $env:JAVA_HOME = $jdk.FullName }
     }
-    $bt = Get-ChildItem (Join-Path $env:LOCALAPPDATA "Android/Sdk/build-tools") -Directory -ErrorAction SilentlyContinue |
+    # The SDK is wherever the toolchain put it: ANDROID_HOME / ANDROID_SDK_ROOT first (what the .NET Android
+    # SDK and CI honour), then Visual Studio's install, then Android Studio's (v4 T50 — the old lookup knew
+    # only the last one and reported success without verifying anything).
+    $sdkRoots = @($env:ANDROID_HOME, $env:ANDROID_SDK_ROOT,
+                  (Join-Path ${env:ProgramFiles(x86)} "Android\android-sdk"),
+                  (Join-Path $env:LOCALAPPDATA "Android\Sdk")) | Where-Object { $_ -and (Test-Path $_) }
+    $bt = $sdkRoots | ForEach-Object { Get-ChildItem (Join-Path $_ "build-tools") -Directory -ErrorAction SilentlyContinue } |
           Sort-Object { [version]($_.Name -replace '[^\d.].*$','') } | Select-Object -Last 1
-    if ($bt -and ($env:JAVA_HOME -or (Get-Command java -ErrorAction SilentlyContinue))) {
-        & (Join-Path $bt.FullName "apksigner.bat") verify --verbose $apk 2>&1 | Select-String "Verified using v[123] "
-    } else {
-        Write-Host "(no apksigner or JDK found — signature NOT verified)" -ForegroundColor Yellow
-    }
+    if (-not $bt) { throw "No Android build-tools found (set ANDROID_HOME): the APK's signature scheme cannot be verified, and an unverified APK must not be handed out." }
+    if (-not ($env:JAVA_HOME -or (Get-Command java -ErrorAction SilentlyContinue))) { throw "No JDK found for apksigner (set JAVA_HOME): the APK's signature cannot be verified." }
+    $verified = & (Join-Path $bt.FullName "apksigner.bat") verify --verbose $apk 2>&1 | Select-String "Verified using v[23] .*true"
+    if (-not $verified) { throw "APK signature NOT verified as v2/v3 by apksigner ($apk) — Android 11+ refuses a v1-only APK; do not ship this file." }
+    $verified | ForEach-Object { Write-Host $_.Line }
 
     Write-Host "APK: $apk" -ForegroundColor Green
     Write-Host "Send THIS file. Close the app on the phone first — Android will not replace a running one." -ForegroundColor Yellow

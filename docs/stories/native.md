@@ -378,6 +378,18 @@ Scenario: Native smoke runs on every push
 
 ### NATIVE-8 — Android: signed AAB/APK in CI
 
+> **2026-09-28 — the Release guards, and a Release leg in CI (v4 audit T50 — NAT-13/14/18, LB-NAT-1/2;
+> R103/R141).** The three Release-only checks moved from the csproj into `src/Maui/ReleaseGuards.targets`
+> under one condition (`!= 'Debug'`): `ApiBaseUrl` trimmed, `https://`, origin-only; the APK signed through
+> `apksigner` with the store key or a debug keystore found on any host (error when none — no more silent
+> v1-only route on a Mac); the HTTPS-only network config. A workload-free MSBuild probe
+> (`EnforcementGateTests.ReleaseGuards_RefuseBadInputs_AndPassGoodOnes`) runs a table of good and bad inputs.
+> `native-release-android` (both workflow copies; manual `release: android` on Forgejo, any manual run on
+> GitHub, and the Monday schedule) publishes Release with a throwaway store key, requires `Verified using
+> v2/v3`, and proves an `ApiBaseUrl`-less Release build fails. `tools/publish-native.ps1` throws unless
+> apksigner verified the APK and finds the SDK through `ANDROID_HOME`. The real signing key stays
+> downstream (ADR-024).
+
 **Context / notes (decisions scoped 2026-07-07):** the keystore IS the app's identity — updates only
 install over the same signature, so losing it is unrecoverable and it never enters git (base64 →
 repo secrets + an offline backup; ADR-001 discipline). Generated once locally with `keytool`.
