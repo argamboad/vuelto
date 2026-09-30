@@ -235,23 +235,31 @@ sequenceDiagram
     C->>AC: POST refresh (cookie for web, body for native)
     AC->>RS: InspectRefreshTokenAsync (hash lookup WITHOUT revoked filter)
     Note over RS: revoked hash - RotatedWithinGrace if rotated at most 60 s ago AND successor live AND grace unspent, else Reuse
-    alt RotatedWithinGrace but TryMarkGraceUsedAsync returns false (grace already spent - a racing replay)
-        Note over AC: reclassified as Reuse
-    end
     alt status Reuse (revoked hash presented again)
         AC->>RR: RevokeAllForUserAsync - kill every session
         AC-->>C: generic 401 invalid_refresh_token (no signal leak)
     else status Unknown or Expired
         AC-->>C: generic 401
-    else RotatedWithinGrace (benign race - two tabs, lost response)
-        AC->>RR: TryMarkGraceUsedAsync - conditional UPDATE where GraceUsedAt is null (one-shot)
-        AC->>SS: IssueAsync - new refresh token + new JWT
-        Note over AC: revokes NOTHING - both chains stay valid, the unused one expires; Warning with the user's grace count
-        AC-->>C: new cookie (web) / new body token (native)
-    else Valid
-        AC->>SS: IssueAsync - new refresh token + new JWT
-        Note over SS: tenant re-resolved on every rotation - tenant moves propagate here
-        AC->>RS: MarkRotatedAsync (old token revoked + RotatedAt + ReplacedByTokenId = new)
+    else RotatedWithinGrace or Valid
+        Note over AC: one transaction from here to the commit, serialized per user against revoke-all (v4 T54)
+        alt RotatedWithinGrace (benign race - two tabs, lost response)
+            AC->>RR: TryMarkGraceUsedAsync - under the chain lock, conditional UPDATE where GraceUsedAt is null AND the successor is live
+            alt returns false (grace already spent by a racing replay, or a revoke-all killed the successor meanwhile)
+                AC->>RR: RevokeAllForUserAsync, commit - reclassified as Reuse
+                AC-->>C: generic 401
+            end
+            AC->>SS: IssueAsync - new refresh token + new JWT
+            Note over AC: revokes NOTHING - both chains stay valid, the unused one expires; Warning with the user's grace count
+        else Valid
+            AC->>SS: IssueAsync - new refresh token + new JWT
+            Note over SS: tenant re-resolved on every rotation - tenant moves propagate here
+            AC->>RS: TryMarkRotatedAsync - under the chain lock, conditional UPDATE where the old token is still live (revoked + RotatedAt + ReplacedByTokenId = new)
+            alt returns false (a logout, an erasure or the theft response revoked it since the inspection)
+                Note over AC: no commit - the successor rolls back
+                AC-->>C: generic 401
+            end
+        end
+        Note over AC: commit
         AC-->>C: new cookie (web) / new body token (native)
     end
 ```
@@ -265,8 +273,14 @@ forgiven and the other trips the theft response. Logout uses the same inspection
 valid, expired, rotated-out, revoked — names its owner and the whole family is revoked; only an unknown hash
 is a no-op, so a sign-out clicked while a refresh is in flight still ends the session the refresh minted. The successor is read untracked, so a set-based revoke in the same context can't be masked.
 Rotation issues first and links second, so a failed issue leaves the presented token usable instead of
-signing the user out. Revoke/mark-rotated use a tracked load-then-flip (not `ExecuteUpdate`) deliberately, so the
-inspection read stays consistent. The hourly cleanup job deletes only **expired** rows —
+signing the user out. The issue and the link are one transaction (v4 T54, TB-AUTH-30): the inspection is a
+snapshot, and a revoke-all landing after it — "sign out everywhere" from another device, an erasure, the
+theft response — used to leave the freshly minted successor live. Now the mark and the grace claim are
+conditional, set-based updates taken under a per-user **chain lock** (a Postgres advisory lock held for the
+rest of the transaction) that revoke-all takes too: the revoke-all either goes first, and the claim fails
+and the successor rolls back, or waits for the commit and revokes the successor as well. The single revoke
+(`RevokeAsync`) stays a tracked load-then-flip so the inspection read in the same scope stays consistent;
+the set-based writers mirror their result onto the tracked copy for the same reason. The hourly cleanup job deletes only **expired** rows —
 revoked-but-unexpired hashes are kept because they are what makes reuse detection work.
 
 Client side (ADR-002 addendum 2026-09-22): `AuthService` calls this endpoint on four occasions — once at

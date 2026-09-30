@@ -8,6 +8,7 @@ using Vuelto.Api.Models;
 using Vuelto.Api.Services;
 using Vuelto.Core.Abstractions;
 using Vuelto.Core.Entities;
+using Vuelto.Core.Repositories;
 using Vuelto.Infrastructure;
 using Vuelto.Infrastructure.Email;
 
@@ -23,6 +24,7 @@ public class AuthController(
     IUserService userService,
     ISessionService sessionService,
     IRefreshTokenService refreshTokenService,
+    IUnitOfWork unitOfWork,
     ICookieService cookieService,
     IClaimsExtractor claimsExtractor,
     IProviderEmailTrust providerEmailTrust,
@@ -175,13 +177,6 @@ public class AuthController(
 
             var inspection = await refreshTokenService.InspectRefreshTokenAsync(rawToken, cancellationToken);
             var status = inspection.Status;
-            if (status == RefreshTokenStatus.RotatedWithinGrace
-                && !await refreshTokenService.TryConsumeGraceAsync(inspection.Token!.Id, cancellationToken))
-            {
-                // Classified inside the window, but another presentation spent the grace first (a third tab,
-                // or a replay racing the forgiven one): the grace is one-shot, so this one is reuse.
-                status = RefreshTokenStatus.Reuse;
-            }
             if (status == RefreshTokenStatus.Reuse)
             {
                 // Replay of a rotated-out token ⇒ assume theft: revoke every session for the user.
@@ -197,6 +192,26 @@ public class AuthController(
             if (user == null)
                 return Unauthorized(new ErrorResponse("user_not_found", "User not found"));
 
+            // From here to the commit is ONE transaction, serialized per user against revoke-all (v4 T54,
+            // TB-AUTH-30): the inspection above is a snapshot, and a "sign out everywhere" from another device, an
+            // erasure or the theft response to a replay can land after it. Each claim below re-checks under the
+            // user's chain lock that the inspection still holds, and a claim that fails returns before the commit,
+            // so the successor minted on a stale inspection never lands. A revoke-all that arrives once a claim
+            // holds the lock waits for the commit and then sees the successor too.
+            await using var rotation = await unitOfWork.BeginTransactionAsync(cancellationToken);
+
+            if (status == RefreshTokenStatus.RotatedWithinGrace
+                && !await refreshTokenService.TryConsumeGraceAsync(presented.Id, cancellationToken))
+            {
+                // Classified inside the window, but another presentation spent the grace first (a third tab, or a
+                // replay racing the forgiven one) — or a revoke-all killed the successor meanwhile. The grace is
+                // one-shot and the successor must be live, so this one is reuse: the theft response, committed.
+                await refreshTokenService.RevokeAllUserTokensAsync(presented.UserId, cancellationToken);
+                await rotation.CommitAsync(cancellationToken);
+                logger.LogWarning("Refresh-token reuse detected for user {UserId}; revoked all sessions", presented.UserId);
+                return Unauthorized(new ErrorResponse("invalid_refresh_token", "Refresh token is invalid or expired"));
+            }
+
             // The successor inherits the session's end (RefreshToken:AbsoluteLifetimeDays, when set): a rotation
             // renews the token, never the session.
             var session = await sessionService.IssueAsync(user, presented.Provider, ClientIp, native, presented.SessionExpiresAt, cancellationToken);
@@ -204,8 +219,14 @@ public class AuthController(
             if (status == RefreshTokenStatus.Valid)
             {
                 // Rotate: revoke the used token and link it to the one just issued (RotatedAt + successor),
-                // which is what lets a racing second presentation of it be recognised as benign.
-                await refreshTokenService.MarkRotatedAsync(presented.Id, session.RefreshTokenId, cancellationToken);
+                // which is what lets a racing second presentation of it be recognised as benign. Conditional:
+                // a token revoked since the inspection is not rotated, and the scope's disposal rolls the
+                // successor back — the same generic 401 as any dead token.
+                if (!await refreshTokenService.TryMarkRotatedAsync(presented.Id, session.RefreshTokenId, cancellationToken))
+                {
+                    logger.LogInformation("Token refresh refused for user {UserId}: the token was revoked during the refresh", presented.UserId);
+                    return Unauthorized(new ErrorResponse("invalid_refresh_token", "Refresh token is invalid or expired"));
+                }
                 logger.LogInformation("Token refreshed for user: {UserId}", presented.UserId);
             }
             else
@@ -220,6 +241,8 @@ public class AuthController(
                     "Refresh token presented again within the rotation grace window for user {UserId}; issued a new session (grace use #{GraceUses} for this user)",
                     presented.UserId, await refreshTokenService.CountGraceUsesAsync(presented.UserId, cancellationToken));
             }
+
+            await rotation.CommitAsync(cancellationToken);
 
             // Web: rotate the cookie. Native: the rotated token is already on the body.
             if (!native)

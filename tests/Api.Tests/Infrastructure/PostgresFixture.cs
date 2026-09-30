@@ -57,30 +57,33 @@ public sealed class PostgresFixture : IAsyncLifetime
     /// <summary>
     /// A fresh context bound to the container, acting as <paramref name="tenantId"/>
     /// (null = no current tenant, so tenant-scoped rows are filtered out). The caller
-    /// disposes it.
+    /// disposes it. <paramref name="faults"/> attaches the database-fault seam (v4 T54).
     /// </summary>
-    public AppDbContext CreateContext(Guid? tenantId = null) => CreateTestContext(tenantId);
+    public AppDbContext CreateContext(Guid? tenantId = null, DbFaultInjector? faults = null) => CreateTestContext(tenantId, faults);
 
     /// <summary>
     /// A fresh <see cref="TestAppDbContext"/> (real model + the <see cref="TestWidget"/> fixture entity)
     /// bound to the container. Returned typed as the concrete test context so tests can reach
     /// <c>TestWidgets</c>; existing tests use it as an <see cref="AppDbContext"/> transparently.
     /// </summary>
-    public TestAppDbContext CreateTestContext(Guid? tenantId = null)
-        => CreateTestContext(new TestCurrentTenant { TenantId = tenantId });
+    public TestAppDbContext CreateTestContext(Guid? tenantId = null, DbFaultInjector? faults = null)
+        => CreateTestContext(new TestCurrentTenant { TenantId = tenantId }, faults);
 
     /// <summary>
     /// A fresh context whose global query filter follows the GIVEN ambient-tenant instance — share it
     /// with a <see cref="ServiceHarness"/> so a service's <c>EnterTenant</c> scope drives the context's
     /// filter too, exactly like the one scoped <c>HttpCurrentTenant</c> does in production (needed by
     /// flows that enter another tenant mid-call, e.g. the invitation accept's seat re-check).
+    /// <paramref name="faults"/>, when given, sees every command and transaction this context runs and
+    /// fails the chosen one (<see cref="DbFaultInjector"/>) — the seam every fault-path spec needs.
     /// </summary>
-    public TestAppDbContext CreateTestContext(ICurrentTenant currentTenant)
+    public TestAppDbContext CreateTestContext(ICurrentTenant currentTenant, DbFaultInjector? faults = null)
     {
-        var options = new DbContextOptionsBuilder<TestAppDbContext>()
-            .UseNpgsql(ConnectionString)
-            .Options;
-        return new TestAppDbContext(options, currentTenant);
+        var builder = new DbContextOptionsBuilder<TestAppDbContext>()
+            .UseNpgsql(ConnectionString);
+        if (faults is not null)
+            builder.AddInterceptors(faults);
+        return new TestAppDbContext(builder.Options, currentTenant);
     }
 
     /// <summary>

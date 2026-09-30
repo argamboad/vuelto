@@ -142,25 +142,38 @@ public class SubscriptionLapseSweepJobTests(PostgresFixture fixture) : PostgresT
     }
 
     [Fact]
-    public async Task StampFailure_AfterTheNotification_LeavesNeither()
+    public async Task LapseSweep_NotificationAndStamp_AreOneTransaction()
     {
-        // v4 T43 (LB-BILL-24, R133): the owner's email copy is enqueued by OutboxEmailSender with a SaveChanges of
-        // its own, BEFORE the stamp. Without one transaction around the pair, a stamp that failed left the
-        // notification (and the email) committed, and the next sweep — six hours later — sent them again, for as
-        // long as the stamp kept failing. The fault is injected at the repository (the DB-fault seam is T54's):
-        // the stamp's SaveChanges throws, and nothing of the nudge survives.
+        // v4 T43 (LB-BILL-24, R133), fault half landed by T54 (TB-BILL-33): the owner's email copy is enqueued by
+        // OutboxEmailSender with a SaveChanges of its own, BEFORE the stamp. Without one transaction around the
+        // pair, a stamp that failed left the notification (and the email) committed, and the next sweep — six
+        // hours later — sent them again, for as long as the stamp kept failing. The fault is the database's own
+        // (the seam fails the stamp's UPDATE the way a disconnect would), and nothing of the nudge survives.
         var tenant = Guid.CreateVersion7();
         var clock = new FakeTimeProvider(new DateTimeOffset(2026, 7, 1, 0, 0, 0, TimeSpan.Zero));
         var ownerId = await SeedAsync(tenant, SubscriptionStatus.Active, periodEnd: clock.GetUtcNow().AddDays(-1));
+        var faults = new DbFaultInjector().FailCommand(sql => sql.Contains("UPDATE \"Subscriptions\""), reason: "the stamp did not land");
 
-        await RunSweepAsync(clock, subscriptions: inner => new FailingOnSave(inner));
+        await RunSweepAsync(clock, faults: faults);
 
+        Assert.Equal(1, faults.Fired);
         await using var read = Fixture.CreateContext(tenant);
         Assert.Empty(await read.Set<Notification>().Where(n => n.UserId == ownerId).ToListAsync());
         Assert.Empty(await read.Set<OutboxMessage>().Where(m => m.TenantId == tenant).ToListAsync());
         Assert.Null((await read.Set<Subscription>().SingleAsync()).LapseNotifiedAt);
 
+        // The SHAPE, not only the outcome: the notification, its email copy and the stamp all sit inside ONE
+        // transaction — nothing committed between the BEGIN and the fault (the two-commit shape that hid here).
+        // The rollback itself is the scope's disposal, which EF does not route through the interceptor.
+        var trace = faults.Trace;
+        var inside = trace.Skip(trace.ToList().FindLastIndex(e => e == "BEGIN") + 1).ToList();
+        Assert.Contains(inside, e => e.Contains("INSERT INTO \"Notifications\""));
+        Assert.Contains(inside, e => e.Contains("INSERT INTO \"OutboxMessages\""));
+        Assert.Contains(inside, e => e.Contains("UPDATE \"Subscriptions\""));
+        Assert.DoesNotContain("COMMIT", inside);
+
         // ...and the next sweep, with the fault gone, delivers exactly one nudge.
+        faults.Disarm();
         await RunSweepAsync(clock);
         await using var read2 = Fixture.CreateContext(tenant);
         Assert.Single(await read2.Set<Notification>().Where(n => n.UserId == ownerId).ToListAsync());
@@ -187,12 +200,10 @@ public class SubscriptionLapseSweepJobTests(PostgresFixture fixture) : PostgresT
 
     // --- helpers ---
 
-    private async Task RunSweepAsync(TimeProvider clock, bool billingEnabled = true,
-        Func<IRepository<Subscription>, IRepository<Subscription>>? subscriptions = null)
+    private async Task RunSweepAsync(TimeProvider clock, bool billingEnabled = true, DbFaultInjector? faults = null)
     {
         var ctx = new HttpCurrentTenant(new HttpContextAccessor()); // no ambient tenant; job enters each
-        await using var db = new AppDbContext(
-            new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(Fixture.ConnectionString).Options, ctx);
+        await using var db = Fixture.CreateTestContext(ctx, faults);
 
         // The real app-facing sender (ADR-007): the email copy rides the outbox and flushes the context itself.
         var emailSender = new OutboxEmailSender(new EfOutbox(db, clock), db, ctx);
@@ -202,23 +213,11 @@ public class SubscriptionLapseSweepJobTests(PostgresFixture fixture) : PostgresT
                 new EfRepository<Notification>(db), new EfRepository<NotificationPreference>(db),
                 new UserRepository(db), emailSender, clock));
 
-        IRepository<Subscription> subs = new EfRepository<Subscription>(db);
         var job = new SubscriptionLapseSweepJob(
-            subscriptions?.Invoke(subs) ?? subs, ctx, notifier, new EfUnitOfWork(db),
+            new EfRepository<Subscription>(db), ctx, notifier, new EfUnitOfWork(db),
             new BillingSettings { Enabled = billingEnabled }, clock, NullLogger<SubscriptionLapseSweepJob>.Instance);
 
         await job.RunAsync();
-    }
-
-    /// <summary>The stamp's SaveChanges fails; everything else is the real repository.</summary>
-    private sealed class FailingOnSave(IRepository<Subscription> inner) : IRepository<Subscription>
-    {
-        public IQueryable<Subscription> Query() => inner.Query();
-        public IQueryable<Subscription> QueryAllTenants() => inner.QueryAllTenants();
-        public Task AddAsync(Subscription entity, CancellationToken cancellationToken = default) => inner.AddAsync(entity, cancellationToken);
-        public void Update(Subscription entity) => inner.Update(entity);
-        public void Remove(Subscription entity) => inner.Remove(entity);
-        public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) => throw new InvalidOperationException("injected: the stamp did not land");
     }
 
     private async Task<Guid> SeedAsync(Guid tenant, string status, DateTimeOffset periodEnd)

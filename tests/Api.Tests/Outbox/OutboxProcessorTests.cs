@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using Vuelto.Api.Tests.Infrastructure;
@@ -180,6 +181,80 @@ public class OutboxProcessorTests(PostgresFixture fixture) : PostgresTestBase(fi
     }
 
     [Fact]
+    public async Task Processor_BookkeepingWriteFails_StillCountsTheAttempt() // v4 T54 · TB-JOBS-7 (LB-JOBS-7, R131)
+    {
+        // The disconnect case itself: the handler fails AND the failure bookkeeping (the second UPDATE, the one that
+        // records the error) fails too, the way it does while the database is unreachable. The attempt was counted
+        // at the claim, so the row is not re-claimed on the next poll — before T38 it was, every 5 s, re-sending the
+        // email or the webhook for as long as the fault lasted. What is lost is only the error text.
+        await SeedAsync("boom", "x");
+        var clock = new FakeTimeProvider(new DateTimeOffset(2100, 1, 1, 0, 0, 0, TimeSpan.Zero));
+        var options = new OutboxOptions { MaxAttempts = 5, BackoffBase = TimeSpan.FromSeconds(10) };
+        var handler = new ThrowingHandler("boom");
+        // The claim's UPDATE bumps AttemptCount/NextAttemptAt; the bookkeeping's UPDATE writes LastError.
+        var faults = new DbFaultInjector().FailCommand(sql => sql.Contains("UPDATE \"OutboxMessages\"") && sql.Contains("\"LastError\""));
+
+        await using (var db = Fixture.CreateContext(faults: faults))
+        {
+            Assert.Equal(1, await NewProcessor(db, handler, options, clock).ProcessDueAsync());
+            Assert.Equal(1, faults.Fired);
+            Assert.Equal(0, await NewProcessor(db, handler, options, clock).ProcessDueAsync()); // not due again: the retry is booked
+        }
+
+        Assert.Equal(1, handler.Calls); // the side effect ran once, not once per poll
+        await using var read = Fixture.CreateContext();
+        var msg = await read.Set<OutboxMessage>().SingleAsync();
+        Assert.Equal(OutboxStatus.Pending, msg.Status);
+        Assert.Equal(1, msg.AttemptCount);
+        Assert.Equal(clock.GetUtcNow() + TimeSpan.FromSeconds(10), msg.NextAttemptAt);
+        Assert.Null(msg.LastError); // the only casualty of the lost bookkeeping
+    }
+
+    [Fact]
+    public async Task Handler_SuccessThenCommitFault_RetryProducesOneSuccessRow_AndLogsTheGap() // v4 T54 · TB-JOBS-22 (LB-JOBS-7a)
+    {
+        // The handler delivered (the email went out, the POST landed) but the COMMIT that records "sent" failed.
+        // Documented, not hidden: the message is retried and the side effect runs AGAIN — the outbox is at-least-
+        // once (ADR-007), and the gap between "delivered" and "recorded" is logged with the message id, so an
+        // operator can explain a duplicate email. The retry then produces exactly one Sent row.
+        await SeedAsync("recording", "x");
+        var clock = new FakeTimeProvider(new DateTimeOffset(2100, 1, 1, 0, 0, 0, TimeSpan.Zero));
+        var options = new OutboxOptions { MaxAttempts = 5, BackoffBase = TimeSpan.FromSeconds(10) };
+        var handler = new RecordingHandler("recording");
+        var log = new CapturingLogger<OutboxProcessor>();
+        var faults = new DbFaultInjector().FailCommit(occurrence: 2); // 1st commit = the claim; 2nd = the handler's result
+
+        Guid messageId;
+        await using (var db = Fixture.CreateContext(faults: faults))
+        {
+            Assert.Equal(1, await new OutboxProcessor(db, [handler], clock, options, log).ProcessDueAsync());
+            Assert.Equal(1, faults.Fired);
+            messageId = (await db.Set<OutboxMessage>().AsNoTracking().SingleAsync()).Id;
+        }
+
+        Assert.Single(handler.Handled);
+        await using (var read = Fixture.CreateContext())
+        {
+            var msg = await read.Set<OutboxMessage>().SingleAsync();
+            Assert.Equal(OutboxStatus.Pending, msg.Status); // delivered, but the row does not know
+            Assert.Equal(1, msg.AttemptCount);
+            Assert.Contains("injected commit fault", msg.LastError);
+        }
+        Assert.Contains(log.Entries, e => e.Level == LogLevel.Warning && e.Message.Contains(messageId.ToString()) && e.Message.Contains("retrying"));
+
+        clock.Advance(TimeSpan.FromSeconds(10));
+        await using (var db = Fixture.CreateContext())
+            Assert.Equal(1, await new OutboxProcessor(db, [handler], clock, options, log).ProcessDueAsync());
+
+        Assert.Equal(2, handler.Handled.Count); // the duplicate delivery is the documented cost
+        await using var read2 = Fixture.CreateContext();
+        var sent = Assert.Single(await read2.Set<OutboxMessage>().ToListAsync());
+        Assert.Equal(OutboxStatus.Sent, sent.Status);
+        Assert.Equal(2, sent.AttemptCount);
+        Assert.Null(sent.LastError);
+    }
+
+    [Fact]
     public void Backoff_ClampsTheExponent_SoItNeverOverflows()
     {
         var options = new OutboxOptions { BackoffBase = TimeSpan.FromSeconds(10) };
@@ -299,7 +374,7 @@ public class OutboxProcessorTests(PostgresFixture fixture) : PostgresTestBase(fi
             return delivered;
         }
 
-        var counts = await Task.WhenAll(DrainAsync(handlerA), DrainAsync(handlerB));
+        var counts = await Concurrently.RunAsync(() => DrainAsync(handlerA), () => DrainAsync(handlerB));
 
         Assert.Equal(messages, counts.Sum());                       // nothing lost, nothing doubled —
         Assert.Equal(messages, handlerA.Handled.Count + handlerB.Handled.Count);
@@ -343,12 +418,16 @@ internal sealed class RecordingHandler(string type) : IOutboxHandler
 
 internal sealed class ThrowingHandler(string type, string error = "handler boom") : IOutboxHandler
 {
+    public int Calls { get; private set; }
     public string Type => type;
     public bool DissolvesWithItsTenant => true;
     public bool KeepsPayloadWhenDone => false;
 
-    public Task HandleAsync(OutboxMessage message, CancellationToken cancellationToken = default) =>
+    public Task HandleAsync(OutboxMessage message, CancellationToken cancellationToken = default)
+    {
+        Calls++;
         throw new InvalidOperationException(error);
+    }
 }
 
 /// <summary>Handler that runs a probe (a look at the database from another connection) and then succeeds.</summary>

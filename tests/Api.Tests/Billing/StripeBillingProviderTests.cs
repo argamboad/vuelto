@@ -5,6 +5,7 @@ using Stripe;
 using Microsoft.Extensions.Logging;
 using Vuelto.Core.Abstractions;
 using Vuelto.Infrastructure.Billing;
+using Vuelto.Api.Tests.Infrastructure;
 
 namespace Vuelto.Api.Tests.Billing;
 

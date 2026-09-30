@@ -10,7 +10,7 @@ namespace Vuelto.Api.Services;
 /// refresh token. The caller delivers the refresh token by transport — an HttpOnly cookie
 /// for the browser, or the response body (already on <see cref="TokenResponse.RefreshToken"/>)
 /// for a native client. <paramref name="RefreshTokenId"/> is the new refresh token's row id, so a rotation
-/// can link the token it replaced to it (<see cref="IRefreshTokenService.MarkRotatedAsync"/>).
+/// can link the token it replaced to it (<see cref="IRefreshTokenService.TryMarkRotatedAsync"/>).
 /// </summary>
 public record AccessSession(TokenResponse Response, string RefreshToken, Guid RefreshTokenId);
 

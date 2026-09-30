@@ -61,16 +61,21 @@ public interface IRefreshTokenService
 
     /// <summary>
     /// Rotation: revokes <paramref name="tokenId"/> and links it to <paramref name="replacedByTokenId"/>, stamping
-    /// the rotation time from the injected clock. The only way a token gets <c>RotatedAt</c> — which is what
-    /// makes it eligible for the reuse grace window.
+    /// the rotation time from the injected clock — if and only if the token is still live. The only way a token
+    /// gets <c>RotatedAt</c>, which is what makes it eligible for the reuse grace window. False when a revoke-all
+    /// (logout, erasure, theft response) got to the token between the inspection and this call: the caller
+    /// refuses the refresh and its transaction rolls the successor back (v4 T54, TB-AUTH-30). Serialized per user
+    /// against <see cref="RevokeAllUserTokensAsync"/> for the rest of the caller's transaction.
     /// </summary>
-    Task MarkRotatedAsync(Guid tokenId, Guid replacedByTokenId, CancellationToken cancellationToken = default);
+    Task<bool> TryMarkRotatedAsync(Guid tokenId, Guid replacedByTokenId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Spends the one-shot reuse grace on a token that <see cref="InspectRefreshTokenAsync"/> classified as
     /// <see cref="RefreshTokenStatus.RotatedWithinGrace"/>. Atomic: true when this presentation is the one being
-    /// forgiven, false when the grace was already spent — the caller then mounts the theft response as for
-    /// <see cref="RefreshTokenStatus.Reuse"/>. Call it BEFORE issuing the session, so a losing racer never mints one.
+    /// forgiven, false when the grace was already spent — or the successor the inspection saw live has been revoked
+    /// since — and the caller then mounts the theft response as for <see cref="RefreshTokenStatus.Reuse"/>. Call it
+    /// BEFORE issuing the session, inside the same transaction, so a losing racer never mints one. Serialized per
+    /// user against <see cref="RevokeAllUserTokensAsync"/> like the rotation.
     /// </summary>
     Task<bool> TryConsumeGraceAsync(Guid tokenId, CancellationToken cancellationToken = default);
 
@@ -184,8 +189,8 @@ public class RefreshTokenService(
             && successor.ExpiresAt > now;
     }
 
-    public Task MarkRotatedAsync(Guid tokenId, Guid replacedByTokenId, CancellationToken cancellationToken = default) =>
-        repository.MarkRotatedAsync(tokenId, replacedByTokenId, clock.GetUtcNow(), cancellationToken);
+    public Task<bool> TryMarkRotatedAsync(Guid tokenId, Guid replacedByTokenId, CancellationToken cancellationToken = default) =>
+        repository.TryMarkRotatedAsync(tokenId, replacedByTokenId, clock.GetUtcNow(), cancellationToken);
 
     public Task<bool> TryConsumeGraceAsync(Guid tokenId, CancellationToken cancellationToken = default) =>
         repository.TryMarkGraceUsedAsync(tokenId, clock.GetUtcNow(), cancellationToken);
