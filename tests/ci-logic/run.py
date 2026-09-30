@@ -119,10 +119,10 @@ def run_case(kind, name, source, case_dir):
 
 
 def error_patterns(text):
-    """Each ::error:: message as a regex, its $variables and $(...) as wildcards."""
+    """Each ::error:: message as a regex, its $variables, $(...) and Python f-string {fields} as wildcards."""
     pats = []
     for m in ERROR.finditer(text):
-        parts = re.split(r'\$\{[^}]*\}|\$\([^)]*\)|\$\w+', m.group(1))
+        parts = re.split(r'\$\{[^}]*\}|\$\([^)]*\)|\$\w+|\{[^{}]*\}', m.group(1))
         pats.append((m.group(1), re.compile('.*?'.join(re.escape(p) for p in parts))))
     return pats
 

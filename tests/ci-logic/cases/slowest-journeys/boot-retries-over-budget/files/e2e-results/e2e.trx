@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TestRun xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Results>
+    <UnitTestResult testName="Ns.A.Alpha_Journey" outcome="Passed" duration="00:00:12.5000000">
+      <Output><StdOut>[blazor-boot] attempt 1/3 of /login: Blazor's loader died (fetch failed: GET /_framework/dotnet.js)
+[blazor-boot] attempt 2/3 of /login: Blazor's loader died (fetch failed: GET /_framework/dotnet.js)
+[blazor-boot] attempt 1/3 of /login: Blazor's loader died (fetch failed: GET /_framework/dotnet.js)</StdOut></Output>
+    </UnitTestResult>
+    <UnitTestResult testName="Ns.A.Bravo_Journey" outcome="Passed" duration="00:00:03.0000000">
+      <Output><StdOut>[blazor-boot] attempt 1/3 of /household: Blazor's loader died (still loading after 60 s)
+[blazor-boot] attempt 2/3 of /household: Blazor's loader died (still loading after 60 s)</StdOut></Output>
+    </UnitTestResult>
+  </Results>
+  <ResultSummary outcome="Passed" />
+</TestRun>

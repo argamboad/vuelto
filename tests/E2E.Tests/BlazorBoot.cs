@@ -1,5 +1,3 @@
-using System.Collections.Concurrent;
-using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Microsoft.Playwright;
 using NUnit.Framework;
@@ -16,13 +14,21 @@ namespace Vuelto.E2E.Tests;
 /// its whole timeout for an element that will never render. This helper does what a person does: reloads.
 /// It also keeps the browser console per page, so a boot that fails for good, and any failed journey,
 /// reports what the browser saw — which is how the second failure mode was found.
+/// <para>
+/// The decision itself lives in <see cref="BlazorBootCore"/> (v4 T55, R109), unit-tested without a browser:
+/// a retry RELOADS the page the browser landed on rather than repeating the navigation (a single-use
+/// magic-link URL was being spent twice); only a network death is retried (Blazor's banner with no failed
+/// framework fetch behind it is our own startup exception, and used to be retried like a flaky network);
+/// and the run has an allowance of dead boots, so a shard that keeps losing boots fails instead of retrying
+/// its way to green. This file is the only place in the suite that calls <c>IPage.GotoAsync</c> or
+/// <c>IPage.ReloadAsync</c> (grep gate).
+/// </para>
 /// </summary>
 public static class BlazorBoot
 {
-    private const int MaxAttempts = 3;
-    private static readonly TimeSpan BootTimeout = TimeSpan.FromSeconds(60);
-    private static readonly ConditionalWeakTable<IPage, ConcurrentQueue<string>> Consoles = new();
+    private static readonly ConditionalWeakTable<IPage, BootConsole> Consoles = new();
     private static readonly Lock Gate = new();
+    private static readonly BootBudget Budget = new(BlazorBootCore.DeadBootsPerRun); // one per test process = per CI shard
 
     // 'ok' once the app rendered its root (the loader is gone); 'banner …' when Blazor showed its error UI.
     private const string BootOutcome = """
@@ -37,78 +43,43 @@ public static class BlazorBoot
         """;
 
     /// <summary>Records console messages, page errors and failed requests for <paramref name="page"/> (idempotent).</summary>
-    public static ConcurrentQueue<string> Watch(IPage page)
+    public static BootConsole Watch(IPage page)
     {
         lock (Gate)
         {
             if (Consoles.TryGetValue(page, out var existing)) return existing;
-            var log = new ConcurrentQueue<string>();
+            var log = new BootConsole();
             Consoles.Add(page, log);
-            page.Console += (_, m) => Add(log, $"console.{m.Type}: {m.Text}");
-            page.PageError += (_, e) => Add(log, $"pageerror: {e}");
-            page.RequestFailed += (_, r) => Add(log, $"requestfailed: {r.Method} {r.Url} — {r.Failure}");
+            page.Console += (_, m) => log.Add($"console.{m.Type}: {m.Text}");
+            page.PageError += (_, e) => log.Add($"pageerror: {e}");
+            page.RequestFailed += (_, r) => log.Add($"requestfailed: {r.Method} {r.Url} — {r.Failure}");
             return log;
         }
     }
 
     public static string ConsoleOf(IPage page) =>
-        Consoles.TryGetValue(page, out var log) && !log.IsEmpty ? string.Join("\n", log) : "(browser console empty)";
+        Consoles.TryGetValue(page, out var log) ? log.ToString() : "(browser console empty)";
 
-    /// <summary>Full navigation to <paramref name="url"/>, reloaded while Blazor's boot fails.</summary>
-    public static Task GotoAsync(IPage page, string url) => BootAsync(page, () => page.GotoAsync(url), url);
+    /// <summary>Full navigation to <paramref name="url"/>, reloaded while Blazor's boot dies of a network cause.</summary>
+    public static Task GotoAsync(IPage page, string url) =>
+        BlazorBootCore.BootAsync(new PlaywrightPage(page, () => page.GotoAsync(url)), Watch(page), Budget, Note, url);
 
-    /// <summary>Full reload of the current page, repeated while Blazor's boot fails.</summary>
-    public static Task ReloadAsync(IPage page) => BootAsync(page, () => page.ReloadAsync(), "reload of " + page.Url);
+    /// <summary>Full reload of the current page, repeated while Blazor's boot dies of a network cause.</summary>
+    public static Task ReloadAsync(IPage page) =>
+        BlazorBootCore.BootAsync(new PlaywrightPage(page, () => page.ReloadAsync()), Watch(page), Budget, Note, "reload of " + page.Url);
 
-    private static async Task BootAsync(IPage page, Func<Task<IResponse?>> navigate, string what)
+    // One line per dead boot, on the live console and in the test's own output (the .trx keeps the latter,
+    // and CI's "Slowest journeys" step counts these lines against the run's allowance).
+    private static void Note(string line)
     {
-        var log = Watch(page);
-        for (var attempt = 1; ; attempt++)
-        {
-            var seen = log.Count; // console lines before this navigation don't count against it
-            await navigate();
-            var verdict = await WatchBootAsync(page, log, seen);
-            if (verdict == "ok") return;
-
-            // One line per dead boot, on the live console and in the test's own output (the .trx keeps
-            // the latter, and CI's "Slowest journeys" step counts these lines).
-            var note = $"[blazor-boot] attempt {attempt}/{MaxAttempts} of {what}: Blazor's loader died ({verdict})";
-            TestContext.Progress.WriteLine(note);
-            TestContext.Out.WriteLine(note);
-            if (attempt == MaxAttempts)
-                throw new InvalidOperationException($"{note} — giving up.\nBrowser console:\n{ConsoleOf(page)}");
-        }
+        TestContext.Progress.WriteLine(line);
+        TestContext.Out.WriteLine(line);
     }
 
-    // Polls the page and the console until the app is up, the boot is visibly dead, or the timeout passes.
-    private static async Task<string> WatchBootAsync(IPage page, ConcurrentQueue<string> log, int seen)
+    private sealed class PlaywrightPage(IPage page, Func<Task<IResponse?>> navigate) : IBootPage
     {
-        var clock = Stopwatch.StartNew();
-        while (true)
-        {
-            var outcome = await page.EvaluateAsync<string>(BootOutcome);
-            if (outcome == "ok") return outcome;
-            if (outcome != "loading") return outcome;
-
-            // The silent death: a framework fetch failed (ERR_NETWORK_CHANGED, connection reset…) while the
-            // loader is still up. Blazor never shows its banner for this one; the loader just sits at NN%.
-            // ERR_ABORTED is not that: it is the browser cancelling the previous page's lazy downloads when
-            // this navigation started, and it lands in the log just after `seen` (9 needless reloads in
-            // one shard before this filter).
-            var dead = log.Skip(seen).FirstOrDefault(l =>
-                (l.StartsWith("requestfailed: ", StringComparison.Ordinal) && l.Contains("/_framework/", StringComparison.Ordinal)
-                    && !l.EndsWith("net::ERR_ABORTED", StringComparison.Ordinal))
-                || l.StartsWith("pageerror: Error: download ", StringComparison.Ordinal));
-            if (dead is not null) return "fetch failed: " + dead[(dead.IndexOf(' ') + 1)..];
-
-            if (clock.Elapsed > BootTimeout) return $"still loading after {BootTimeout.TotalSeconds:0} s";
-            await Task.Delay(250);
-        }
-    }
-
-    private static void Add(ConcurrentQueue<string> log, string line)
-    {
-        log.Enqueue(line);
-        while (log.Count > 300 && log.TryDequeue(out _)) { }
+        public Task NavigateAsync() => navigate();
+        public Task ReloadAsync() => page.ReloadAsync();
+        public Task<string> OutcomeAsync() => page.EvaluateAsync<string>(BootOutcome);
     }
 }

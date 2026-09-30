@@ -1080,7 +1080,10 @@ jobs:
 
       # Which journeys cost the time. The suite is ~85% of this job (7m11s total, 5m55s of it tests —
       # measured 2026-09-22), so any work on its speed starts with knowing which ones are slow. Prints a
-      # table; never fails the job, and runs even when the suite is red (a slow test is often the failing one).
+      # table and runs even when the suite is red (a slow test is often the failing one). It fails the job
+      # for one reason only: more dead Blazor boots than the run's allowance (v4 T55, R109) — the same
+      # number BlazorBootCore.DeadBootsPerRun stops the suite at, read here from the .trx so a shard that
+      # retried its way to green is red anyway.
       - name: Slowest journeys
         if: always()
         run: |
@@ -1108,12 +1111,17 @@ jobs:
           slow = sum(x[0] for x in rows[:5])
           print(f"\nthe 5 slowest are {slow/total*100:.0f}% of the suite's time")
           # Each journey's own output only: counting the marker anywhere in the .trx also counted the copy the
-          # run summary repeats, so every retry was reported twice (v4 DEP-22).
-          boots = [line.strip() for r in results for out in r.findall("t:Output/t:StdOut", ns)
-                   for line in (out.text or "").splitlines() if "[blazor-boot] attempt" in line]
+          # run summary repeats, so every retry was reported twice (v4 DEP-22). Deduplicated per journey too: the
+          # giving-up exception repeats the last attempt's line, and the adapter may store a line twice (LB-DEP-6b).
+          boots = [line for r in results for line in sorted({line.strip() for out in r.findall("t:Output/t:StdOut", ns)
+                   for line in (out.text or "").splitlines() if "[blazor-boot] attempt" in line})]
           print(f"Blazor boot retries: {len(boots)}" + ("  <- the app's loader died and was reloaded (BlazorBoot.cs); each one says why:" if boots else ""))
           for line in boots:
               print("   ", line[:220])
+          budget = 3  # = BlazorBootCore.DeadBootsPerRun (EnforcementGateTests.BootRetryBudget_IsOneNumber holds them together)
+          if len(boots) > budget:
+              print(f"::error::{len(boots)} dead Blazor boots in this shard, more than the run's allowance of {budget}: the environment is unhealthy (or the app's boot is), and reloads hid it")
+              raise SystemExit(1)
           PY
           # ci-logic end: slowest-journeys
 
