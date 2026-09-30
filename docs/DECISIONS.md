@@ -199,6 +199,24 @@ past expiry could not sign the user's other devices out. **Decision (R124):** lo
 `InspectRefreshTokenAsync` — valid, expired, rotated-out or revoked, all name their owner — and revokes the
 whole family whenever a token is found; only an unknown hash is a no-op, and the answer is 200 either way.
 The 2026-09-18 sentence "logout revokes the successor" therefore holds for the rotated-out leg too.
+
+*Addendum (2026-09-30) — the rotation is one transaction, serialized per user against revoke-all.* **Evidence
+(v4 audit TB-AUTH-30, landed with the harness fault seam, T54):** `POST /api/auth/refresh` inspected the
+presented token, issued its successor and marked the rotation as three autocommitted writes. A revoke-all
+landing between the inspection and the mark — "sign out everywhere" from another device, an erasure, the theft
+response to a replay — revoked the presented token and everything else that existed at that instant, and the
+successor minted a moment later survived it: a session that outlives a sign-out. **Decision:** from the
+inspection's verdict to the commit is one transaction. The two claims — `TryMarkRotatedAsync` (the token is
+still live) and `TryMarkGraceUsedAsync` (the grace is unspent AND the successor is still live) — are
+conditional, set-based updates taken under the user's **chain lock**, a Postgres advisory lock
+(`pg_advisory_xact_lock` keyed on the user id, released with the transaction) that `RevokeAllForUserAsync`
+takes as well. A revoke-all therefore either goes first, in which case the claim fails, the endpoint answers
+the same generic 401 and the scope's disposal rolls the successor back, or waits for the rotation to commit
+and then sees the successor too. No row is locked; only two writers of the same user's chain ever wait on
+each other. Proven by `RefreshReplayTests.Refresh_RevokeAllBetweenInspectAndIssue_LeavesNoLiveToken` (both
+paths, through the endpoint, with a decorator that runs the revoke-all right after the inspection) and the
+two `RefreshTokenServiceTests.Rotation_*` races driven through the fault seam's interleaving hook — the
+second of which is red with the conditional update alone and green only with the lock.
 Evidence: `RefreshReplayTests.Logout_With*`.
 
 *Addendum (2026-09-22) — the client keeps an open session alive, and only the server ends it.* **Evidence:**

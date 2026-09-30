@@ -66,19 +66,11 @@ public class PasswordlessConcurrencyTests(PostgresFixture fixture) : PostgresTes
     }
 
     /// <summary>Runs <paramref name="act"/> on <see cref="Racers"/> concurrent services, each on its own context.</summary>
-    private async Task<IReadOnlyList<T>> RaceAsync<T>(
-        Func<IPasswordlessService, Task<T>> act, TestPasswordlessSettings? settings = null)
-    {
-        var start = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var racers = Enumerable.Range(0, Racers).Select(async _ =>
+    private Task<T[]> RaceAsync<T>(
+        Func<IPasswordlessService, Task<T>> act, TestPasswordlessSettings? settings = null) =>
+        Concurrently.RunAsync(Racers, async _ =>
         {
-            await using var db = Fixture.CreateContext();
-            var sut = new ServiceHarness(db).PasswordlessService(settings);
-            await start.Task;                 // line everyone up so the writes genuinely overlap
-            return await act(sut);
-        }).ToArray();
-
-        start.SetResult();
-        return await Task.WhenAll(racers);
-    }
+            await using var db = Fixture.CreateContext(); // own context per racer: the writes genuinely overlap
+            return await act(new ServiceHarness(db).PasswordlessService(settings));
+        });
 }

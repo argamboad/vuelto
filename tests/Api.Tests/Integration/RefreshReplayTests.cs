@@ -2,10 +2,12 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Vuelto.Api.Services;
 using Vuelto.Api.Tests.Infrastructure;
+using Vuelto.Core.Entities;
 using Vuelto.Infrastructure.Persistence;
 
 namespace Vuelto.Api.Tests.Integration;
@@ -160,6 +162,73 @@ public class RefreshReplayTests(IntegrationTestFactory factory)
         Assert.Equal(HttpStatusCode.Unauthorized, replay.StatusCode);
         Assert.Equal(0, await CountLiveTokensAsync(user.UserId));               // the thief's B is dead too
         Assert.Equal(HttpStatusCode.Unauthorized, (await PostRefreshAsync(client, rawB!)).StatusCode);
+    }
+
+    [Theory]
+    [InlineData(false)] // a fresh token: the rotation path
+    [InlineData(true)]  // a token rotated seconds ago, successor live: the grace path
+    public async Task Refresh_RevokeAllBetweenInspectAndIssue_LeavesNoLiveToken(bool withinGrace) // v4 T54 · TB-AUTH-30
+    {
+        // The endpoint inspects the presented token, then issues its successor. A revoke-all landing in between —
+        // "sign out everywhere" from another device, an erasure, the theft response to a replay — must leave NO
+        // live token: the successor must not be minted on the strength of an inspection that is no longer true.
+        // The seam: a decorator over IRefreshTokenService runs the revoke-all right after the inspection returns.
+        var user = await _factory.SeedUserAsync();
+        var rawA = await IssueRefreshTokenAsync(user.UserId);
+        var interleave = new Interleave();
+        using var host = _factory.WithWebHostBuilder(b => b.ConfigureTestServices(services =>
+        {
+            services.AddSingleton(interleave);
+            services.AddScoped<IRefreshTokenService>(sp => new InterleavingRefreshTokenService(
+                ActivatorUtilities.CreateInstance<RefreshTokenService>(sp), sp.GetRequiredService<Interleave>()));
+        }));
+        var client = host.CreateClient();
+        var presented = rawA;
+        if (withinGrace)
+        {
+            var rotated = await PostRefreshAsync(client, rawA);
+            Assert.Equal(HttpStatusCode.OK, rotated.StatusCode); // A → B; A is now inside its grace window
+        }
+        interleave.AfterInspect = async () =>
+        {
+            using var scope = host.Services.CreateScope(); // another connection, like another request
+            await scope.ServiceProvider.GetRequiredService<IRefreshTokenService>().RevokeAllUserTokensAsync(user.UserId);
+        };
+
+        var refresh = await PostRefreshAsync(client, presented);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, refresh.StatusCode);
+        Assert.Equal(0, await CountLiveTokensAsync(user.UserId)); // OLD code: the successor survives the revoke-all
+    }
+
+    /// <summary>The one-shot hook <see cref="InterleavingRefreshTokenService"/> runs after an inspection.</summary>
+    private sealed class Interleave
+    {
+        public Func<Task>? AfterInspect { get; set; }
+    }
+
+    /// <summary>Real service, plus a hook right after <see cref="InspectRefreshTokenAsync"/> — the interleaving seam TB-AUTH-30 needs.</summary>
+    private sealed class InterleavingRefreshTokenService(IRefreshTokenService inner, Interleave interleave) : IRefreshTokenService
+    {
+        public async Task<RefreshTokenInspection> InspectRefreshTokenAsync(string rawToken, CancellationToken cancellationToken = default)
+        {
+            var inspection = await inner.InspectRefreshTokenAsync(rawToken, cancellationToken);
+            if (interleave.AfterInspect is { } hook)
+            {
+                interleave.AfterInspect = null; // once: the revoke-all's own inspections must not recurse
+                await hook();
+            }
+            return inspection;
+        }
+
+        public Task<IssuedRefreshToken> IssueRefreshTokenAsync(Guid userId, string ipAddress, string provider, DateTimeOffset? sessionExpiresAt = null, CancellationToken cancellationToken = default) =>
+            inner.IssueRefreshTokenAsync(userId, ipAddress, provider, sessionExpiresAt, cancellationToken);
+        public Task<RefreshToken?> ValidateRefreshTokenAsync(string rawToken, CancellationToken cancellationToken = default) => inner.ValidateRefreshTokenAsync(rawToken, cancellationToken);
+        public Task<bool> TryMarkRotatedAsync(Guid tokenId, Guid replacedByTokenId, CancellationToken cancellationToken = default) => inner.TryMarkRotatedAsync(tokenId, replacedByTokenId, cancellationToken);
+        public Task<bool> TryConsumeGraceAsync(Guid tokenId, CancellationToken cancellationToken = default) => inner.TryConsumeGraceAsync(tokenId, cancellationToken);
+        public Task<int> CountGraceUsesAsync(Guid userId, CancellationToken cancellationToken = default) => inner.CountGraceUsesAsync(userId, cancellationToken);
+        public Task RevokeRefreshTokenAsync(Guid tokenId, CancellationToken cancellationToken = default) => inner.RevokeRefreshTokenAsync(tokenId, cancellationToken);
+        public Task RevokeAllUserTokensAsync(Guid userId, CancellationToken cancellationToken = default) => inner.RevokeAllUserTokensAsync(userId, cancellationToken);
     }
 
     [Fact]

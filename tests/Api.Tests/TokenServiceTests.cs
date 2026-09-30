@@ -168,7 +168,7 @@ public class RefreshTokenServiceTests(PostgresFixture fixture) : PostgresTestBas
     {
         var old = await sut.IssueRefreshTokenAsync(userId, "127.0.0.1", "google");
         var successor = await sut.IssueRefreshTokenAsync(userId, "127.0.0.1", "google");
-        await sut.MarkRotatedAsync(old.Token.Id, successor.Token.Id);
+        Assert.True(await sut.TryMarkRotatedAsync(old.Token.Id, successor.Token.Id));
         return (old, successor);
     }
 
@@ -187,6 +187,105 @@ public class RefreshTokenServiceTests(PostgresFixture fixture) : PostgresTestBas
         Assert.Equal(GraceEpoch, stored.RotatedAt);
         Assert.Equal(successor.Token.Id, stored.ReplacedByTokenId);
         Assert.Null(await sut.ValidateRefreshTokenAsync(old.RawToken));
+    }
+
+    // --- v4 T54 (TB-AUTH-30): the rotation is serialized against revoke-all, per user ---
+    // POST /refresh inspects the presented token, issues its successor and marks the rotation, in one transaction.
+    // A revoke-all (logout everywhere, erasure, the theft response) that lands anywhere in between must leave no
+    // live token: the mark is CONDITIONAL on the presented token still being live, and both writers take the
+    // same per-user lock for the rest of their transaction, so the revoke-all either goes first (the rotation is
+    // refused and its successor rolled back) or waits and then sees the successor too.
+
+    [Fact]
+    public async Task Rotation_RevokeAllLandsBeforeTheMark_IsRefused_AndTheSuccessorRollsBack()
+    {
+        var userId = Guid.CreateVersion7();
+        string rawA;
+        await using (var seed = Fixture.CreateContext())
+            rawA = (await new ServiceHarness(seed).RefreshTokenService().IssueRefreshTokenAsync(userId, "127.0.0.1", "google")).RawToken;
+
+        // The revoke-all runs on another connection right before the successor's INSERT: the inspection has
+        // already said "valid", and the transaction is open.
+        var faults = new DbFaultInjector().BeforeCommand(sql => sql.Contains("INSERT INTO \"RefreshTokens\""), async () =>
+        {
+            await using var other = Fixture.CreateContext();
+            await new ServiceHarness(other).RefreshTokenService().RevokeAllUserTokensAsync(userId);
+        });
+        await using var db = Fixture.CreateContext(faults: faults);
+        var harness = new ServiceHarness(db);
+        var sut = harness.RefreshTokenService();
+
+        var inspection = await sut.InspectRefreshTokenAsync(rawA);
+        Assert.Equal(RefreshTokenStatus.Valid, inspection.Status);
+        bool marked;
+        await using (var rotation = await harness.UnitOfWork.BeginTransactionAsync())
+        {
+            var successor = await sut.IssueRefreshTokenAsync(userId, "127.0.0.1", "google");
+            marked = await sut.TryMarkRotatedAsync(inspection.Token!.Id, successor.Token.Id);
+            if (marked) await rotation.CommitAsync(); // the controller commits only a won mark
+        }
+
+        Assert.False(marked); // OLD code: MarkRotated re-revoked the already-revoked token and reported nothing
+        await using var read = Fixture.CreateContext();
+        Assert.Equal(0, await read.RefreshTokens.CountAsync(t => t.UserId == userId && !t.IsRevoked));
+        Assert.Equal(1, await read.RefreshTokens.CountAsync(t => t.UserId == userId)); // the successor never landed
+    }
+
+    [Fact]
+    public async Task Rotation_RevokeAllArrivesBeforeTheCommit_WaitsForIt_AndRevokesTheSuccessorToo()
+    {
+        var userId = Guid.CreateVersion7();
+        string rawA;
+        await using (var seed = Fixture.CreateContext())
+            rawA = (await new ServiceHarness(seed).RefreshTokenService().IssueRefreshTokenAsync(userId, "127.0.0.1", "google")).RawToken;
+
+        // The revoke-all starts right before the rotation COMMITS — the successor is inserted (uncommitted), the
+        // presented token is marked (its row locked) — and is left running: it must WAIT for the commit, then see
+        // the successor. Without the chain lock its single UPDATE, whose snapshot predates the successor, queues
+        // on the presented token's row instead, finds it already revoked when the commit releases it, and never
+        // looks at the successor — which stays live after "sign out everywhere".
+        Task? revokeAll = null;
+        var faults = new DbFaultInjector().BeforeCommit(async () =>
+        {
+            revokeAll = Task.Run(async () =>
+            {
+                await using var other = Fixture.CreateContext();
+                await new ServiceHarness(other).RefreshTokenService().RevokeAllUserTokensAsync(userId);
+            });
+            await Task.Delay(300); // long enough for it to be queued (on the chain lock, or on the row)
+        });
+        await using var db = Fixture.CreateContext(faults: faults);
+        var harness = new ServiceHarness(db);
+        var sut = harness.RefreshTokenService();
+
+        var inspection = await sut.InspectRefreshTokenAsync(rawA);
+        await using (var rotation = await harness.UnitOfWork.BeginTransactionAsync())
+        {
+            var successor = await sut.IssueRefreshTokenAsync(userId, "127.0.0.1", "google");
+            Assert.True(await sut.TryMarkRotatedAsync(inspection.Token!.Id, successor.Token.Id));
+            await rotation.CommitAsync();
+        }
+        await revokeAll!;
+
+        await using var read = Fixture.CreateContext();
+        Assert.Equal(2, await read.RefreshTokens.CountAsync(t => t.UserId == userId));
+        Assert.Equal(0, await read.RefreshTokens.CountAsync(t => t.UserId == userId && !t.IsRevoked)); // OLD code: the successor is live
+    }
+
+    [Fact]
+    public async Task TryConsumeGrace_WhenTheSuccessorWasRevokedMeanwhile_IsRefused()
+    {
+        // The grace path's claim: one-shot AND conditional on the successor still being live, so a revoke-all
+        // between the inspection (which saw a live successor) and the claim is not forgiven.
+        await using var db = Fixture.CreateContext();
+        var clock = new FakeTimeProvider(GraceEpoch);
+        var sut = new ServiceHarness(db, clock).RefreshTokenService(reuseGraceSeconds: 60);
+        var (old, _) = await RotateAsync(sut, Guid.CreateVersion7());
+        Assert.Equal(RefreshTokenStatus.RotatedWithinGrace, (await sut.InspectRefreshTokenAsync(old.RawToken)).Status);
+
+        await sut.RevokeAllUserTokensAsync(old.Token.UserId); // lands between the inspection and the claim
+
+        Assert.False(await sut.TryConsumeGraceAsync(old.Token.Id));
     }
 
     [Fact]

@@ -3,6 +3,7 @@ using System.Net.Sockets;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Vuelto.Api.Tests.Infrastructure;
 using Microsoft.Extensions.Options;
 using OpenTelemetry.Exporter;
 using Vuelto.Api.Observability;
@@ -89,14 +90,5 @@ public class OtlpProtocolAndProbeTests
         listener.Stop();
         Assert.False(await probe.ProbeAsync());
         Assert.Single(log.Entries, e => e.Level == LogLevel.Warning);
-    }
-
-    private sealed class CapturingLogger<T> : ILogger<T>
-    {
-        public List<(LogLevel Level, string Message)> Entries { get; } = [];
-        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
-        public bool IsEnabled(LogLevel logLevel) => true;
-        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
-            Entries.Add((logLevel, formatter(state, exception)));
     }
 }

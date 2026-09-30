@@ -33,6 +33,12 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <!-- The E2E boot helper's decision core (v4 T55): Playwright-free by construction, so it is compiled here
+       too and unit-tested without a browser (E2E/BlazorBootTests.cs). The E2E project stays browser-only. -->
+  <ItemGroup>
+    <Compile Include="..\E2E.Tests\BlazorBootCore.cs" Link="E2E\BlazorBootCore.cs" />
+  </ItemGroup>
+
   <!-- For the rate-limiter integration test: host the real policy in a minimal TestServer. -->
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />

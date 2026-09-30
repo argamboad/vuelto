@@ -252,6 +252,45 @@ public class EnforcementGateTests
             $"Job tests run the real OutboxEmailSender (its mid-way SaveChanges is what the transaction has to cover): {string.Join(", ", offenders)}");
     }
 
+    // ── The E2E boot helper (v4 T55, R109) ──
+
+    [Fact]
+    public void E2eNavigations_GoThroughBlazorBoot()
+    {
+        // A retry of a dead boot must RELOAD the landed page, never repeat the navigation (a single-use
+        // magic-link URL was spent twice — UX-8), and only BlazorBoot knows how. So no journey or page object
+        // navigates or reloads an IPage itself: BlazorBoot.cs is the one caller (and BlazorBootCore.cs, whose page
+        // is its own IBootPage seam). The Windows native smoke drives a WebView2 through CDP with no Blazor loader
+        // to watch, and is the one deliberate exception.
+        var e2e = Path.Combine(RepoRoot(), "tests", "E2E.Tests");
+        var receiver = new System.Text.RegularExpressions.Regex(@"\b\w*[pP]age\.(GotoAsync|ReloadAsync)\(");
+        var offenders = Directory.EnumerateFiles(e2e, "*.cs", SearchOption.AllDirectories)
+            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}")
+                     && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}"))
+            .Where(f => Path.GetFileName(f) is not ("BlazorBoot.cs" or "BlazorBootCore.cs" or "NativeSmokeTests.cs"))
+            .Where(f => receiver.IsMatch(File.ReadAllText(f)))
+            .Select(f => Path.GetRelativePath(e2e, f))
+            .ToList();
+        Assert.True(offenders.Count == 0, $"IPage.GotoAsync/ReloadAsync outside BlazorBoot.cs (use BlazorBoot.GotoAsync / ReloadAsync): {string.Join(", ", offenders)}");
+        Assert.Matches(receiver, File.ReadAllText(Path.Combine(e2e, "BlazorBoot.cs"))); // probe alive
+    }
+
+    [Theory]
+    [InlineData(".github/workflows/ci.yml")]
+    [InlineData(".forgejo/workflows/ci.yml")]
+    public void BootRetryBudget_IsOneNumber_InTheSuiteAndTheSlowestJourneysStep(string workflow)
+    {
+        // The suite stops at DeadBootsPerRun dead boots per process; the "Slowest journeys" step reads the same
+        // number from the shard's .trx and fails past it, so a shard that retried its way to green is red anyway.
+        var ci = File.ReadAllText(Path.Combine(RepoRoot(), workflow));
+        var step = ci[ci.IndexOf("- name: Slowest journeys", StringComparison.Ordinal)..];
+        step = step[..step.IndexOf("- name: ", 10, StringComparison.Ordinal)];
+        Assert.Contains($"budget = {Vuelto.E2E.Tests.BlazorBootCore.DeadBootsPerRun}  #", step);
+        Assert.Contains("if len(boots) > budget:", step);
+        Assert.Contains("raise SystemExit(1)", step);
+        Assert.Contains("sorted({line.strip()", step); // per journey, deduplicated (LB-DEP-6b)
+    }
+
     // ── ReleaseGuards.targets, probed without the MAUI workloads (v4 T50, R103/R141) ──
     // A bare MSBuild project imports the file and runs its two targets with a table of inputs. Every MAUI
     // build in CI is Debug, so nothing else exercises these guards before someone sideloads a phone.
