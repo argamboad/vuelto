@@ -313,8 +313,31 @@ jobs:
         shell: ${{ matrix.os == 'windows-latest' && 'pwsh' || 'bash -e {0}' }}
     steps:
       - uses: actions/checkout@v5
+        if: matrix.os != 'windows-latest'
         with:
           persist-credentials: false # v4 audit DEP-14: never leave the job token in .git/config
+
+      # Env L27: on the Windows leg actions/checkout spent ~110 s (plus most of its ~87 s post step) in six
+      # `git submodule foreach --recursive "sh -c ..."` auth probes - on repos with no submodules - because each
+      # starts Git's sh.exe, 8-27 s apiece on the busy desk. A plain checkout skips that housekeeping. Sparse cone
+      # of what the MAUI build reads (plus the root files); the token goes in a header on the one fetch and is never
+      # written to .git/config (DEP-14, as qa-artifacts does). The Android leg and GitHub's copy keep actions/checkout.
+      - name: Check out (Windows, plain git)
+        if: matrix.os == 'windows-latest'
+        env:
+          TOKEN: ${{ github.token }}
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          Get-ChildItem -LiteralPath . -Force | Remove-Item -Recurse -Force   # host mode: last run's workspace
+          git init --quiet .
+          git sparse-checkout set --cone src/Maui src/Shared.Ui .forgejo/scripts
+          $auth = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("x-access-token:$env:TOKEN"))
+          git -c "http.extraheader=AUTHORIZATION: basic $auth" fetch --quiet --no-tags --depth 1 $env:REPO_URL $env:SHA
+          git checkout --quiet --force FETCH_HEAD
+          git log -1 --format='Checked out %H'
 
       - uses: actions/setup-dotnet@v5
         with:

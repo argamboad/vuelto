@@ -533,6 +533,24 @@ public class ForgejoCiParityTests
     }
 
     [Fact]
+    public void ForgejoWindowsBuild_ChecksOutWithPlainGit_AndKeepsNoToken() // Env L27, 2026-10-01
+    {
+        // actions/checkout's submodule auth probes cost the Windows leg ~3 min a run (each starts sh.exe), so the
+        // Forgejo copy checks out with plain git there. The token rides one fetch as a header, never .git/config.
+        var github = Jobs(Read(GitHubCi))["native-build"];
+        var forgejo = Jobs(Read(ForgejoCi))["native-build"];
+        Assert.DoesNotContain("matrix.os != 'windows-latest'", github, StringComparison.Ordinal); // GitHub: one checkout for both legs
+
+        Assert.Contains("if: matrix.os != 'windows-latest'", forgejo, StringComparison.Ordinal);
+        Assert.Contains("name: Check out (Windows, plain git)", forgejo, StringComparison.Ordinal);
+        Assert.Contains("if: matrix.os == 'windows-latest'", forgejo, StringComparison.Ordinal);
+        Assert.Contains("git -c \"http.extraheader=AUTHORIZATION: basic $auth\" fetch", forgejo, StringComparison.Ordinal);
+        Assert.Contains("git sparse-checkout set --cone src/Maui src/Shared.Ui .forgejo/scripts", forgejo, StringComparison.Ordinal);
+        Assert.DoesNotContain("git config", forgejo, StringComparison.Ordinal);       // nothing persisted
+        Assert.DoesNotContain("git remote add", forgejo, StringComparison.Ordinal);   // the URL is passed to the fetch, not stored
+    }
+
+    [Fact]
     public void PostMergeRun_SkipsTheCodeGates_OnlyForATreeItsPrRunPassed() // Env L23, 2026-10-01
     {
         // The merge of an up-to-date PR is exactly the tree its PR run passed, so the develop/main push run skips
