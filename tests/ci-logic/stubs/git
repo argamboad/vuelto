@@ -3,7 +3,12 @@
 all="$*"
 while [ "${1:-}" = "-c" ]; do shift 2; done
 case "${1:-}" in
-  rev-parse)  echo "${FAKE_GIT_HEAD:-0123456789abcdef0123456789abcdef01234567}" ;;
+  rev-parse)  case "${2:-}" in
+                # <sha>^{tree}: FAKE_GIT_TREE_<first 7 of sha>, else a tree no other commit shares
+                *'^{tree}') c="${2%%^*}"; v="FAKE_GIT_TREE_${c:0:7}"; echo "${!v:-tree-of-$c}" ;;
+                *) echo "${FAKE_GIT_HEAD:-0123456789abcdef0123456789abcdef01234567}" ;;
+              esac ;;
+  rev-list)   echo "${FAKE_GIT_PARENTS:-}" ;;  # --parents -n 1 <sha>: "<sha> <parent>..."
   cat-file)   [ "${FAKE_GIT_BASE_EXISTS:-yes}" = yes ] ;;
   diff)       cat "${FAKE_GIT_DIFF:-/dev/null}" ;;
   push)       echo "STUB git push $2 $3"; [ "${FAKE_GIT_PUSH:-ok}" = ok ] ;;

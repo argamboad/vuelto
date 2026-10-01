@@ -7,7 +7,9 @@
 #
 # It does NOT take anyone's word for "it was green". Before touching anything it asks this Forgejo's own
 # API which jobs ran for THIS commit and requires the newest attempt of every gate to be a success, every
-# matrix leg included, and any native smoke that ran to have passed. Anything else — a missing job, a
+# matrix leg included, and any native smoke that ran to have passed (.forgejo/scripts/gates-green.sh). The
+# merge of an up-to-date PR runs no code gates of its own (Env L23); it counts as green when its tree is
+# exactly its PR head's and that head passed every gate on its pull request (tested-on-pr.sh). Anything else — a missing job, a
 # failure, a re-run still going, a docs-only run that skipped the gates, an API it cannot reach — stops
 # the deploy and tells you to use ci.yml's deploy input instead. The job token can read that API (probed
 # 2026-09-22). Treat it as able to write (v4 audit DEP-14): the checkout below keeps no copy of it, and the
@@ -47,6 +49,13 @@ jobs:
             *) echo "::error::staging deploys from develop and prod from main — ${{ github.ref }} is neither for target '${{ github.event.inputs.target }}'."; exit 1 ;;
           esac
 
+      # Before the check: it runs .forgejo/scripts/ and reads the merge's parents. Then the deploy-smoke script and
+      # the push to GitHub (which needs the full history, not a shallow tip).
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false # v4 audit DEP-14: never leave the job token in .git/config
+          fetch-depth: 0
+
       - name: This commit must already be green
         env:
           API: ${{ github.server_url }}/api/v1/repos/${{ github.repository }}
@@ -59,49 +68,23 @@ jobs:
           # ci-logic begin: already-green
           command -v jq > /dev/null || { echo "::error::jq is missing from the runner image — cannot verify, refusing to deploy."; exit 1; }
 
-          # Job-level history, newest first. Five pages is far more than a day of runs on this instance.
-          : > /tmp/jobs.json
-          for page in 1 2 3 4 5; do
-            code=$(curl -s -o /tmp/page.json -w "%{http_code}" -H "Authorization: token $TOKEN" \
-                   "$API/actions/tasks?limit=50&page=$page")
-            [ "$code" = "200" ] || { echo "::error::the Actions API answered $code — cannot verify this commit, refusing to deploy. Use ci.yml's deploy input, which runs the gates itself."; exit 1; }
-            jq -c '.workflow_runs[]? | select(.head_sha == env.SHA and .workflow_id == "ci.yml")' /tmp/page.json >> /tmp/jobs.json
-            [ "$(jq '.workflow_runs | length' /tmp/page.json)" -lt 50 ] && break
-          done
-
-          # Only the newest attempt of each job counts (v4 LB-DEP-3): a job that passed and was re-run red is red,
-          # and a re-run still going is not green yet. Any success found, however old, used to be enough.
-          jq -cs 'group_by(.name) | map(max_by(.id)) | .[]' /tmp/jobs.json > /tmp/newest.json
-          status() { jq -r --arg n "$1" 'select(.name == $n) | .status' /tmp/newest.json; }
-          missing=""
-          for job in changes build-test secret-scan qa-artifacts license-scan docker-build; do
-            [ "$(status "$job")" = "success" ] || missing="$missing $job"
-          done
-          # Matrix jobs: EVERY leg must be green — one red leg refuses even when the green ones reach the
-          # count — and the count must reach ci.yml's own matrix size, so a half-run is not green either.
-          for matrix in "native-build:$NATIVE_LEGS" "e2e:$E2E_SHARDS"; do
-            name="${matrix%%:*}"; want="${matrix##*:}"
-            red=$(jq -r --arg p "$name (" 'select(.name | startswith($p)) | select(.status != "success") | "\(.name)=\(.status)"' /tmp/newest.json | paste -sd' ' -)
-            ok=$(jq -r --arg p "$name (" 'select(.name | startswith($p)) | select(.status == "success") | .name' /tmp/newest.json | grep -c . || true)
-            [ -z "$red" ] || missing="$missing $red"
-            [ "$ok" -ge "$want" ] || missing="$missing $name($ok/$want)"
-          done
-          # A native smoke runs only when it was selected. One that ran must have passed, exactly as ci.yml's
-          # deploy jobs require; one that was skipped does not block.
-          red=$(jq -r 'select(.name | startswith("native-smoke")) | select(.status != "success" and .status != "skipped") | "\(.name)=\(.status)"' /tmp/newest.json | paste -sd' ' -)
-          [ -z "$red" ] || missing="$missing $red"
-
-          if [ -n "$missing" ]; then
-            echo "::error::$SHA is not green in its newest ci.yml run:$missing — refusing to deploy. Run ci.yml with deploy=${{ github.event.inputs.target }}, which runs the gates and then deploys."
-            exit 1
+          rc=0; verdict=$(bash .forgejo/scripts/gates-green.sh "$SHA") || rc=$?
+          if [ "$rc" -eq 1 ]; then
+            # Not green on its own: the merge of an up-to-date PR runs no code gates of its own (Env L23). It is
+            # green when its tree is exactly its PR head's and that head passed every gate on its pull request.
+            tested=0; pr=$(bash .forgejo/scripts/tested-on-pr.sh "$SHA") || tested=$?
+            if [ "$tested" -ne 1 ]; then rc=$tested; verdict=$(printf '%s\n' "$pr" | tail -n 1); fi
           fi
-          echo "Every gate is green for $SHA in its newest ci.yml run, and every native smoke that ran passed (as ci.yml's deploy requires)."
+          case "$rc" in
+            0) echo "$verdict" ;;
+            2) code=${verdict##* answered }
+               echo "::error::the Actions API answered $code — cannot verify this commit, refusing to deploy. Use ci.yml's deploy input, which runs the gates itself."
+               exit 1 ;;
+            *) missing=$(printf '%s\n' "$verdict" | sed -n 's/^missing://p')
+               echo "::error::$SHA is not green in its newest ci.yml run:$missing — refusing to deploy. Run ci.yml with deploy=${{ github.event.inputs.target }}, which runs the gates and then deploys."
+               exit 1 ;;
+          esac
           # ci-logic end: already-green
-
-      - uses: actions/checkout@v5 # for .github/scripts/deploy-smoke.sh
-        with:
-          persist-credentials: false # v4 audit DEP-14: never leave the job token in .git/config
-          fetch-depth: 0 # the push to GitHub needs the full history, not a shallow tip
 
       - name: Push the branch to GitHub
         env:

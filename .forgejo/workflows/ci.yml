@@ -472,7 +472,8 @@ jobs:
   changes:
     runs-on: ubuntu-latest
     outputs:
-      code: ${{ steps.diff.outputs.code }}
+      # false when the `tested` step proved this push's tree already passed every gate on its PR (Env L23)
+      code: ${{ steps.tested.outputs.tested == 'true' && 'false' || steps.diff.outputs.code }}
       native: ${{ steps.diff.outputs.native }}
       docs: ${{ steps.diff.outputs.docs }}
     steps:
@@ -498,6 +499,36 @@ jobs:
             fi
           done
           echo "develop and main are protected."
+      # Env L23: the merge of an up-to-date PR is exactly the tree its PR run already passed, so its push run would
+      # re-test identical code (~12 min, more when the three repos queue on the desk runners). tested-on-pr.sh says
+      # yes only for a two-parent merge whose tree is its PR head's, with every gate of that head's pull_request run
+      # green (the check deploy.yml trusts); then `code` goes false (outputs above) and the code gates skip as on a
+      # docs-only push. `native` is left alone: the Apple build runs on develop pushes only, never on a PR. Any
+      # other answer, or any doubt (API down, a stale PR, a red or re-running gate), runs everything. Not while
+      # CI_DEPLOY_ON_PUSH deploys this push: that deploy waits for this run's own gates. Forgejo only — GitHub's
+      # copy never sees a PR merge.
+      - id: tested
+        if: >-
+          github.event_name == 'push'
+          && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main')
+          && !(github.ref == 'refs/heads/develop' && vars.CI_DEPLOY_ON_PUSH == 'staging')
+        env:
+          API: ${{ github.server_url }}/api/v1/repos/${{ github.repository }}
+          TOKEN: ${{ github.token }}
+          SHA: ${{ github.sha }}
+          # ci.yml's own matrix sizes, as in deploy.yml; ForgejoCiParityTests holds them equal.
+          NATIVE_LEGS: 2
+          E2E_SHARDS: 3
+        run: |
+          # ci-logic begin: tested-on-pr
+          if verdict=$(bash .forgejo/scripts/tested-on-pr.sh "$SHA"); then
+            echo "tested=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::$(printf '%s\n' "$verdict" | tail -n 1) — build, test, e2e, docker and license gates skipped (Env L23)."
+          else
+            echo "tested=false" >> "$GITHUB_OUTPUT"
+            echo "Running the gates — $(printf '%s\n' "$verdict" | tail -n 1)"
+          fi
+          # ci-logic end: tested-on-pr
       - id: diff
         env:
           # A pull request diffs against its base; a push against what was there before.
@@ -529,13 +560,18 @@ jobs:
           # plain stripped list. A test that reads a new markdown file fails
           # EnforcementGateTests.EveryRepoFileTheTestsRead_ClassifiesAsCode until it is listed here.
           testdocs='^(README\.md|CLAUDE\.md|docs/(DEPLOYMENT|DATA_MODEL|QA_TEST_PLAN|REBRANDING|DECISIONS|WAYS_OF_WORKING)\.md|docs/postman/README\.md|docs/stories/e2e\.md|tests/E2E\.Tests/README\.md)$'
-          nativefiles=$(printf '%s\n' "$files" | grep -viE '\.md$' || true)
+          # Editor tooling CI never runs and no test reads (Env L22): the start-profile generator and its emulator
+          # helper, the local telemetry dashboard. Out of both lists, so a change to only these runs no gate. The
+          # rest of tools/ stays code; a test that starts reading one of these fails
+          # EnforcementGateTests.EveryRepoFileTheTestsRead_ClassifiesAsCode until it leaves this list.
+          devtools='^tools/(dev-profiles|android-emulator|telemetry)\.ps1$'
+          nativefiles=$(printf '%s\n' "$files" | grep -viE '\.md$' | grep -vE "$devtools" || true)
           codefiles=$( { printf '%s\n' "$nativefiles"; printf '%s\n' "$files" | grep -E "$testdocs"; } || true)
           match() { printf '%s\n' "$1" | grep -qE "$2" && echo true || echo false; }
 
           # Anything that can change what the code DOES or how it is built, and every file a test or gate
           # reads: lockfiles, both forges' workflows and scripts, the license list, .dockerignore, the
-          # config catalog, tools/, the Postman collection and the markdown in testdocs. Identical in both
+          # config catalog, tools/ (less devtools), the Postman collection and the markdown in testdocs. Identical in both
           # workflow copies. A path counts as code if in doubt; skipping a gate is the expensive mistake.
           code=$(match "$codefiles" '^(src/|tests/|tools/|[^/]+\.slnx?$|Directory\.Packages\.props|Directory\.Build\.props|global\.json|Dockerfile|\.dockerignore|docker-compose\.yml|\.env\.example|\.config/dotnet-tools\.json|\.github/(workflows/|scripts/|forbidden-licenses\.json)|\.forgejo/(workflows/|scripts/)|.*packages\.lock\.json|docs/postman/|README\.md$|CLAUDE\.md$|docs/(DEPLOYMENT|DATA_MODEL|QA_TEST_PLAN|REBRANDING|DECISIONS|WAYS_OF_WORKING)\.md$|docs/stories/e2e\.md$)')
 

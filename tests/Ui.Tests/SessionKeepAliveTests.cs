@@ -636,7 +636,9 @@ public class SessionKeepAliveTests : ComponentTestBase
 
         Http.On(HttpMethod.Post, RefreshPath,
             $"{{\"access_token\":\"{TestJwt.Build()}\",\"refresh_token\":\"rt-2\"}}");
-        await AdvanceUntil(() => init.IsCompleted, limit: AuthService.StartupRetryDelays[0]);
+        // Slack past the delay: on a loaded machine the code can re-arm its timer a fake second or two late, and a
+        // limit of exactly the delay then runs out of clock before the retry fires. Stopping is still by the condition.
+        await AdvanceUntil(() => init.IsCompleted, limit: AuthService.StartupRetryDelays[0] + TimeSpan.FromSeconds(5));
         await init;
 
         Assert.True(auth.IsAuthenticated);
@@ -652,7 +654,9 @@ public class SessionKeepAliveTests : ComponentTestBase
 
         var init = auth.InitializeAsync();
         var totalBackoff = AuthService.StartupRetryDelays.Aggregate(TimeSpan.Zero, (sum, d) => sum + d);
-        await AdvanceUntil(() => init.IsCompleted, limit: totalBackoff);
+        // Slack past the backoff (each of the four re-armed timers can land late under load); the retry count below,
+        // not this limit, is what proves there was no extra attempt.
+        await AdvanceUntil(() => init.IsCompleted, limit: totalBackoff + TimeSpan.FromSeconds(30));
         await init;
 
         Assert.Equal(1 + AuthService.StartupRetryDelays.Count, Refreshes);

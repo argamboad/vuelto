@@ -1,0 +1,2 @@
+tools/dev-profiles.ps1
+tools/e2e.ps1
