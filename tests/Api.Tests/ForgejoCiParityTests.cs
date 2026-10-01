@@ -500,6 +500,25 @@ public class ForgejoCiParityTests
     }
 
     [Fact]
+    public void ForgejoNativeBuild_RestoresWorkloadsOnlyWhenNotAlreadyRestored_AtGitHubsPin() // Env L25, 2026-10-01
+    {
+        // The Windows runner keeps its SDK between runs, so the Forgejo native build restores the MAUI workloads
+        // through a script that skips a restore it already did. It must restore the SAME workload set GitHub's copy
+        // pins (an SDK bump moves both), and its skip must be keyed on that set, the project and global.json.
+        var github = Jobs(Read(GitHubCi))["native-build"];
+        var forgejo = Jobs(Read(ForgejoCi))["native-build"];
+        var pin = Regex.Match(github, @"dotnet workload restore (\S+) --version (\S+)");
+        Assert.True(pin.Success, "GitHub's native-build no longer restores workloads at a pinned set - update this test with it");
+        Assert.Contains($"./.forgejo/scripts/workloads.ps1 -Project {pin.Groups[1].Value} -Version {pin.Groups[2].Value}", forgejo, StringComparison.Ordinal);
+
+        var script = Read(".forgejo/scripts/workloads.ps1");
+        Assert.Contains("dotnet workload --version", script, StringComparison.Ordinal);
+        Assert.Contains("Get-Content -Raw $Project", script, StringComparison.Ordinal);
+        Assert.Contains("Get-Content -Raw global.json", script, StringComparison.Ordinal);
+        Assert.Contains("dotnet workload restore $Project --version $Version", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void PostMergeRun_SkipsTheCodeGates_OnlyForATreeItsPrRunPassed() // Env L23, 2026-10-01
     {
         // The merge of an up-to-date PR is exactly the tree its PR run passed, so the develop/main push run skips

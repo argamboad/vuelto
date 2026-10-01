@@ -331,7 +331,11 @@ jobs:
       # when building just one (-f), so each runner needs the workloads for all TFMs its OS exposes —
       # e.g. macOS needs android too (NETSDK1147 otherwise). restore resolves that per-host, forever.
       - name: Install the MAUI workloads (host-aware)
-        run: dotnet workload restore src/Maui/Vuelto.Maui.csproj --version 10.0.400.1
+        # Env L25: skipped when this runner already restored exactly these workloads for this project. The Windows
+        # runner keeps its SDK between runs (host mode), and a repeat restore re-installed every manifest for ~3 min.
+        # The Linux leg's container is fresh each run, so it always restores. See the script's header.
+        shell: pwsh
+        run: ./.forgejo/scripts/workloads.ps1 -Project src/Maui/Vuelto.Maui.csproj -Version 10.0.400.1
 
       - name: Build (compile-only gate)
         run: dotnet build src/Maui/Vuelto.Maui.csproj -f ${{ matrix.tfm }} -c Debug -p:AcceptAndroidSDKLicenses=true
