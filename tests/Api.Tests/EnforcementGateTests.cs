@@ -224,7 +224,7 @@ public class EnforcementGateTests
     {
         // Reflective: every string literal (and every Path.Combine join) in this test project that names an existing
         // repo FILE is something a test reads, so a change to it must run the tests. Directories are not asserted:
-        // src/, tests/ and tools/ are code wholesale, and the one scan of a docs folder (the CLAUDE.md doc map lists
+        // src/, tests/ and tools/ (less the editor tooling in devtools=) are code wholesale, and the one scan of a docs folder (the CLAUDE.md doc map lists
         // every top-level docs/*.md) is the named exception — only an ADDED top-level doc can fail it, and counting
         // every doc edit as code to catch that would bill the full run for every docs PR; the next code run catches it.
         var (Code, _, _) = ClassifierOf(workflow);
@@ -449,9 +449,13 @@ public class EnforcementGateTests
         Assert.True(testdocsDecl.Success, "the changes step must declare testdocs='…', the markdown files tests read");
         var testdocs = new Regex(testdocsDecl.Groups[1].Value);
 
+        var devtoolsDecl = Regex.Match(ci, @"devtools='([^']+)'");
+        Assert.True(devtoolsDecl.Success, "the changes step must declare devtools='…', the editor tooling that is not code (Env L22)");
+        var devtools = new Regex(devtoolsDecl.Groups[1].Value);
+
         Assert.Contains(@"native=$(match ""$nativefiles""", ci);
-        return (p => (!stripped.IsMatch(p) || testdocs.IsMatch(p)) && code.IsMatch(p),
-                p => !stripped.IsMatch(p) && native.IsMatch(p),
+        return (p => !devtools.IsMatch(p) && (!stripped.IsMatch(p) || testdocs.IsMatch(p)) && code.IsMatch(p),
+                p => !devtools.IsMatch(p) && !stripped.IsMatch(p) && native.IsMatch(p),
                 p => docs.IsMatch(p));
     }
 

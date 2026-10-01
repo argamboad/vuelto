@@ -529,13 +529,18 @@ jobs:
           # plain stripped list. A test that reads a new markdown file fails
           # EnforcementGateTests.EveryRepoFileTheTestsRead_ClassifiesAsCode until it is listed here.
           testdocs='^(README\.md|CLAUDE\.md|docs/(DEPLOYMENT|DATA_MODEL|QA_TEST_PLAN|REBRANDING|DECISIONS|WAYS_OF_WORKING)\.md|docs/postman/README\.md|docs/stories/e2e\.md|tests/E2E\.Tests/README\.md)$'
-          nativefiles=$(printf '%s\n' "$files" | grep -viE '\.md$' || true)
+          # Editor tooling CI never runs and no test reads (Env L22): the start-profile generator and its emulator
+          # helper, the local telemetry dashboard. Out of both lists, so a change to only these runs no gate. The
+          # rest of tools/ stays code; a test that starts reading one of these fails
+          # EnforcementGateTests.EveryRepoFileTheTestsRead_ClassifiesAsCode until it leaves this list.
+          devtools='^tools/(dev-profiles|android-emulator|telemetry)\.ps1$'
+          nativefiles=$(printf '%s\n' "$files" | grep -viE '\.md$' | grep -vE "$devtools" || true)
           codefiles=$( { printf '%s\n' "$nativefiles"; printf '%s\n' "$files" | grep -E "$testdocs"; } || true)
           match() { printf '%s\n' "$1" | grep -qE "$2" && echo true || echo false; }
 
           # Anything that can change what the code DOES or how it is built, and every file a test or gate
           # reads: lockfiles, both forges' workflows and scripts, the license list, .dockerignore, the
-          # config catalog, tools/, the Postman collection and the markdown in testdocs. Identical in both
+          # config catalog, tools/ (less devtools), the Postman collection and the markdown in testdocs. Identical in both
           # workflow copies. A path counts as code if in doubt; skipping a gate is the expensive mistake.
           code=$(match "$codefiles" '^(src/|tests/|tools/|[^/]+\.slnx?$|Directory\.Packages\.props|Directory\.Build\.props|global\.json|Dockerfile|\.dockerignore|docker-compose\.yml|\.env\.example|\.config/dotnet-tools\.json|\.github/(workflows/|scripts/|forbidden-licenses\.json)|\.forgejo/(workflows/|scripts/)|.*packages\.lock\.json|docs/postman/|README\.md$|CLAUDE\.md$|docs/(DEPLOYMENT|DATA_MODEL|QA_TEST_PLAN|REBRANDING|DECISIONS|WAYS_OF_WORKING)\.md$|docs/stories/e2e\.md$)')
 
