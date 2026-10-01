@@ -216,7 +216,7 @@ run an automated post-deploy smoke, wire the pipeline in `.github/workflows/ci.y
    - Create a **`production`** GitHub Environment (repo Settings → Environments) and add a **required
      reviewer**. ⚠️ **Do not skip this.** The `deploy-prod` job names the environment, but the *approval*
      lives only in repo settings — it cannot be committed. A clone that adds the hook without the reviewer
-     gets **un-gated auto-deploy to prod on every `main` push** (v3 audit DEP-7).
+     gets **un-gated auto-deploy to prod on every `main` push on GitHub** (v3 audit DEP-7).
    - Secret **`RENDER_DEPLOY_HOOK_PROD`** = the prod deploy hook URL.
    - Variable **`PROD_BASE_URL`** = the prod service URL. Same pairing rule as staging: hook without base
      URL fails the run rather than shipping unverified.

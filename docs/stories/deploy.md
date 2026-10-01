@@ -207,7 +207,8 @@ required reviewer + `RENDER_DEPLOY_HOOK_PROD`. Turn **off** Render's native auto
 CI is the only trigger. Steps in `docs/DEPLOYMENT.md`.
 
 **As a** maintainer
-**I want** merges to `develop` to auto-deploy staging (with a smoke gate) and a protected manual path for prod
+**I want** merges to `develop` to auto-deploy staging (with a smoke gate) — on GitHub; since ADR-028 the
+Forgejo dispatch `deploy=staging` is the trigger — and a protected manual path for prod
 **So that** staging always reflects `develop` for QA, and prod stays a deliberate act from `main`
 
 **Context / notes:**

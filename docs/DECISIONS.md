@@ -1123,8 +1123,9 @@ jobs (outbox dispatcher / scheduler / lapse sweep) must not be silently broken.*
    already the platform's assumed real provider in the `.env` docs. **Consequence:** staging has no
    Mailpit, so email-based QA cases use real (plus-addressed) inboxes there, and the automated
    post-deploy smoke checks health/app-shell only, never email journeys.
-5. **Environments follow the git model:** `develop` auto-deploys **staging** (behind CI + a
-   post-deploy smoke gate); `main` deploys **prod** behind a required-approval GitHub environment —
+5. **Environments follow the git model:** `develop` deploys **staging** (on GitHub it auto-deploys
+   behind CI + a post-deploy smoke gate; on Forgejo, the primary forge since ADR-028, a `deploy=staging`
+   dispatch is the trigger); `main` deploys **prod** behind a required-approval GitHub environment —
    preserving "`main` is deploy-only". The platform proves the machinery on staging; actual prod
    provisioning is each downstream app's first deployment step (runbook: `docs/DEPLOYMENT.md`).
 6. **Proxy correctness, gated:** `UseForwardedHeaders` (for/proto) is added **config-gated, default
@@ -1151,8 +1152,8 @@ staging is its terminal environment.* Point 5 already assigned prod provisioning
 downstream app's first deployment step"; this makes it explicit after `STATUS.md` kept listing prod
 activation as a platform to-do (same scope logic as ADR-024): a live prod service for the platform
 would be a paid Stripe key, a prod Neon DB, and an always-on Render instance serving an app with
-zero users — recurring cost and operational surface proving nothing that the live, auto-deployed,
-RLS-enforced staging doesn't already prove. The `main`→prod pipeline (DEPLOY-3), the `STATUS.md`
+zero users — recurring cost and operational surface proving nothing that the live, CI-deployed
+(a Forgejo dispatch, ADR-028), RLS-enforced staging doesn't already prove. The `main`→prod pipeline (DEPLOY-3), the `STATUS.md`
 §5 walkthrough, and `DEPLOYMENT.md` §6–7 stay maintained as the **downstream Phase-8 runbook**
 (`NEW_APP_GUIDE.md`). One consequence carried as a Phase-8 note, mirroring ADR-024's signing traps:
 the pieces that only run at prod activation — the **RLS two-role topology + posture guard**

@@ -555,6 +555,40 @@ public class EnforcementGateTests
     }
 
     [Fact]
+    public void DeployTriggerWording_AutoDeploysNamesTheForge() // v4 audit TR-13 (T60), R117
+    {
+        // Under ADR-028 nothing auto-deploys from this repo: staging deploys when someone runs the Forgejo
+        // workflow with deploy=staging (or on the Monday schedule). "Merge to develop auto-deploys staging" was
+        // true on GitHub and survived in nine docs after the move, so a tester waited for a staging build that
+        // never came. Any mention of auto-deploying must say WHOSE trigger it is — GitHub's pipeline, Forgejo's
+        // dispatch, or Render's own Auto-Deploy setting — on the same line, so the sentence cannot read as this
+        // repo's behaviour. The audit folder is history and exempt.
+        var root = RepoRoot();
+        var mention = new System.Text.RegularExpressions.Regex(@"\bauto-?deploy", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        var qualified = new System.Text.RegularExpressions.Regex(@"GitHub|Forgejo|Render|ADR-028|autoDeploy|Auto-Deploy");
+        var files = Directory.EnumerateFiles(Path.Combine(root, "docs"), "*.md", SearchOption.AllDirectories)
+            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}audits{Path.DirectorySeparatorChar}"))
+            .Append(Path.Combine(root, "CLAUDE.md"))
+            .Append(Path.Combine(root, "README.md"));
+        var offenders = new List<string>();
+        var mentions = 0;
+        foreach (var file in files)
+        {
+            var lines = File.ReadAllLines(file);
+            for (var i = 0; i < lines.Length; i++)
+            {
+                if (!mention.IsMatch(lines[i])) continue;
+                mentions++;
+                if (!qualified.IsMatch(lines[i]))
+                    offenders.Add($"{Path.GetRelativePath(root, file)}:{i + 1}: {lines[i].Trim()}");
+            }
+        }
+        Assert.True(mentions > 0, "probe: DEPLOYMENT.md still mentions Render's Auto-Deploy setting");
+        Assert.True(offenders.Count == 0,
+            "An auto-deploy that does not say whose (GitHub pipeline / Forgejo dispatch / Render setting) reads as this repo's — it is not (ADR-028):\n" + string.Join("\n", offenders));
+    }
+
+    [Fact]
     public void DeployTriggerWording_PostmanSyncNamesTheForge() // v4 audit TR-14 (H9), R117
     {
         // Forgejo is the primary forge (ADR-028): develop moves there on every merge, and GitHub's develop moves

@@ -10,8 +10,8 @@ The platform is **feature-complete and continuously verified**:
 
 - **All 13 foundation epics done** — auth/tenancy, JOBS, BILLING 1–8, OBS, RBAC, FILES, GDPR, MFA,
   NOTIFY, ADMIN, PUBAPI, HOOKS, E2E.
-- **Staging live** at `https://template-staging.onrender.com` with version-gated auto-deploy from
-  develop (DEPLOY-1..3).
+- **Staging live** at `https://template-staging.onrender.com` with a version-gated CI deploy from
+  develop (DEPLOY-1..3; auto-deploy on GitHub then, a Forgejo `deploy=staging` dispatch since ADR-028).
 - **NATIVE epic at its resting point** — parity gaps G1–G7 all closed; all four MAUI targets
   (Android / Windows / iOS / macCatalyst) compile on every push; every native-relevant merge boots
   the real app through a full OTP sign-in on **Windows** (WebView2 CDP) and an **Android emulator**
