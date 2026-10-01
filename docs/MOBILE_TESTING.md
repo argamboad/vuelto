@@ -67,7 +67,9 @@ so register these once in each console:
 | Microsoft (App registration → Authentication → Web → Redirect URIs) | `http://localhost:5338/signin-microsoft` |
 
 > The Google one is likely already registered — it's the same URI the desktop/web flow uses.
-> Microsoft typically needs `http://localhost:5338/signin-microsoft` added.
+> Microsoft typically needs `http://localhost:5338/signin-microsoft` added. The complete list a
+> registration must carry — local HTTPS (`https://localhost:7260/…`), these emulator rows, and staging —
+> is in `DEPLOYMENT.md` §5.
 
 Then in the app tap **Continue with Google/Microsoft** → a browser tab opens → sign in →
 the tab shows "you can close this" → the app completes sign-in. (Account **linking** from
