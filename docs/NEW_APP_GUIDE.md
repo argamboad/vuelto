@@ -31,7 +31,9 @@ GDPR, admin, CI/CD — see `OVERVIEW.md`) never appears on this list: that's the
   `docs/TECH_STACK.md` for the currently pinned line; re-verify "latest stable" at project start).
 - **Docker Desktop** — runs local Postgres + the Mailpit email trap.
 - **Claude** — chat access for Phase 1, Claude Code for Phases 3+.
-- An IDE is optional (Claude Code does the driving); Rider/VS/VS Code all work.
+- An IDE is optional (Claude Code does the driving); Rider/VS/VS Code all work. For VS and VS Code, run
+  `pwsh tools/dev-profiles.ps1` once per clone: it writes the start profiles (API + Web, Windows desktop,
+  Android phone/tablet on a device or an emulator) into gitignored files — `MOBILE_TESTING.md` §3.
 
 No cloud accounts are needed until Phase 7.
 
