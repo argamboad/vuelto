@@ -114,7 +114,7 @@ public class ForgejoCiParityTests
     [Fact]
     public void ForgejoCopy_ClassifiesChangesLikeGitHub()
     {
-        // Character for character: each classifier regex, the markdown strip and the testdocs list. The copy used to
+        // Character for character: each classifier regex, the markdown strip, the testdocs list and devtools (Env L22). The copy used to
         // add only its own workflow file; since v4 T2 (R97) both count every file a test reads — Forgejo's workflows
         // and scripts included, which the tests read whichever forge runs them — so there is nothing left to differ.
         var github = Read(GitHubCi);
@@ -126,7 +126,7 @@ public class ForgejoCiParityTests
             var f = Classifier(forgejo, name);
             Assert.True(g == f, $"the `{name}=` regex drifted:\n  github:  {g}\n  forgejo: {f}");
         }
-        foreach (var shape in new[] { @"grep -viE '([^']+)'", @"testdocs='([^']+)'" })
+        foreach (var shape in new[] { @"grep -viE '([^']+)'", @"testdocs='([^']+)'", @"devtools='([^']+)'" })
             Assert.Equal(Regex.Match(github, shape).Groups[1].Value, Regex.Match(forgejo, shape).Groups[1].Value);
     }
 
