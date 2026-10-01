@@ -485,6 +485,54 @@ public class ForgejoCiParityTests
     }
 
     [Fact]
+    public void E2eBrowser_ComesWithItsDeps_OnlyWhereTheRunnerStartsBare() // Env L24, 2026-10-01
+    {
+        // GitHub's hosted runner starts bare, so its e2e installs Chromium's system packages too. The Forgejo image
+        // already has them (and the journeys run headless), where --with-deps only cost an apt update per shard.
+        var github = Jobs(Read(GitHubCi))["e2e"];
+        var forgejo = Jobs(Read(ForgejoCi))["e2e"];
+        Assert.Contains("playwright.ps1 install --with-deps chromium", github, StringComparison.Ordinal);
+        Assert.Contains("playwright.ps1 install chromium", forgejo, StringComparison.Ordinal);
+        Assert.DoesNotContain("install --with-deps", forgejo, StringComparison.Ordinal);
+        // ...which also retires the step that dropped Google's Chrome apt source to keep that apt update alive.
+        Assert.DoesNotContain("dl.google.com", forgejo, StringComparison.Ordinal);
+        Assert.Contains("<Headless>true</Headless>", Read("tests/E2E.Tests/playwright.runsettings"), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ForgejoNativeBuild_RestoresWorkloadsOnlyWhenNotAlreadyRestored_AtGitHubsPin() // Env L25, 2026-10-01
+    {
+        // The Windows runner keeps its SDK between runs, so the Forgejo native build restores the MAUI workloads
+        // through a script that skips a restore it already did. It must restore the SAME workload set GitHub's copy
+        // pins (an SDK bump moves both), and its skip must be keyed on that set, the project and global.json.
+        var github = Jobs(Read(GitHubCi))["native-build"];
+        var forgejo = Jobs(Read(ForgejoCi))["native-build"];
+        var pin = Regex.Match(github, @"dotnet workload restore (\S+) --version (\S+)");
+        Assert.True(pin.Success, "GitHub's native-build no longer restores workloads at a pinned set - update this test with it");
+        Assert.Contains($"./.forgejo/scripts/workloads.ps1 -Project {pin.Groups[1].Value} -Version {pin.Groups[2].Value}", forgejo, StringComparison.Ordinal);
+
+        var script = Read(".forgejo/scripts/workloads.ps1");
+        Assert.Contains("dotnet workload --version", script, StringComparison.Ordinal);
+        Assert.Contains("Get-Content -Raw $Project", script, StringComparison.Ordinal);
+        Assert.Contains("Get-Content -Raw global.json", script, StringComparison.Ordinal);
+        Assert.Contains("dotnet workload restore $Project --version $Version", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ForgejoAndroidBuild_UsesTheImagesJdk17_GitHubSetsItUp() // Env L26, 2026-10-01
+    {
+        // The Forgejo CI image ships OpenJDK 17 in JAVA_HOME, so the per-PR Android build checks it instead of
+        // downloading Temurin every run; GitHub's hosted runner has no JAVA_HOME of ours and keeps setup-java.
+        var github = Jobs(Read(GitHubCi))["native-build"];
+        var forgejo = Jobs(Read(ForgejoCi))["native-build"];
+        Assert.Contains("actions/setup-java@", github, StringComparison.Ordinal);
+        Assert.Contains("java-version: \"17\"", github, StringComparison.Ordinal);
+        Assert.DoesNotContain("uses: actions/setup-java@", forgejo, StringComparison.Ordinal);
+        Assert.Contains("\"$JAVA_HOME/bin/java\" -version", forgejo, StringComparison.Ordinal);
+        Assert.Contains(@"grep -q 'version ""17\.'", forgejo, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void PostMergeRun_SkipsTheCodeGates_OnlyForATreeItsPrRunPassed() // Env L23, 2026-10-01
     {
         // The merge of an up-to-date PR is exactly the tree its PR run passed, so the develop/main push run skips

@@ -605,6 +605,14 @@ behind its base is a tree nothing tested, so it runs everything; so does any dou
 gate). Keep PRs up to date before merging (Forgejo's *Update branch*) to get the skip. Not while
 `CI_DEPLOY_ON_PUSH` is set: that deploy waits for the push run's own gates.
 
+**Desk-runner shortcuts (Env L24–L26), Forgejo copy only.** The `e2e` shards install the Playwright browser without
+`--with-deps`: the CI image already carries Chromium's system libraries for the same Playwright version (bump its
+`ARG PLAYWRIGHT` with `Microsoft.Playwright.NUnit`) and the journeys run headless. The Windows `native-build` restores
+the MAUI workloads through `.forgejo/scripts/workloads.ps1`, which skips a restore the host-mode runner already did
+for the same workload set, project and `global.json` (it stamps the SDK folder). The Android build uses the image's
+JDK 17 (`JAVA_HOME`) instead of `actions/setup-java`, and fails loudly if the image lost it. GitHub's copy keeps all
+three: a hosted runner starts bare.
+
 By default the native smokes and the deploys never run on a push. Pick both inputs in one dispatch to
 smoke and deploy in a single run.
 

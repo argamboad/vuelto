@@ -321,17 +321,25 @@ jobs:
           global-json-file: global.json
 
       # The Android target compiles against the JDK; runners preinstall the Android SDK (ANDROID_HOME).
-      - uses: actions/setup-java@v5
+      # Env L26: no actions/setup-java here. The Forgejo CI image ships OpenJDK 17 with JAVA_HOME set (sdkmanager
+      # builds the image with it), and setup-java downloaded a Temurin 17 on every run (~1.8 min). Any JDK 17 builds
+      # the Android TFM; a stale image fails here, loudly. GitHub's copy keeps setup-java: a hosted runner has no
+      # JAVA_HOME of ours. The weekly/dispatch-only Android release and smoke keep theirs (off the per-PR path).
+      - name: JDK 17 from the CI image
         if: contains(matrix.tfm, 'android')
-        with:
-          distribution: temurin
-          java-version: "17"
+        run: |
+          "$JAVA_HOME/bin/java" -version 2>&1 | tee /tmp/java-version.txt
+          grep -q 'version "17\.' /tmp/java-version.txt || { echo "::error::JAVA_HOME ($JAVA_HOME) is not a JDK 17 - rebuild the Forgejo CI image (ci-image/Dockerfile) or put actions/setup-java back here."; exit 1; }
 
       # workload RESTORE (not install <id>): a multi-TFM project restores EVERY host-visible TFM even
       # when building just one (-f), so each runner needs the workloads for all TFMs its OS exposes —
       # e.g. macOS needs android too (NETSDK1147 otherwise). restore resolves that per-host, forever.
       - name: Install the MAUI workloads (host-aware)
-        run: dotnet workload restore src/Maui/Vuelto.Maui.csproj --version 10.0.400.1
+        # Env L25: skipped when this runner already restored exactly these workloads for this project. The Windows
+        # runner keeps its SDK between runs (host mode), and a repeat restore re-installed every manifest for ~3 min.
+        # The Linux leg's container is fresh each run, so it always restores. See the script's header.
+        shell: pwsh
+        run: ./.forgejo/scripts/workloads.ps1 -Project src/Maui/Vuelto.Maui.csproj -Version 10.0.400.1
 
       - name: Build (compile-only gate)
         run: dotnet build src/Maui/Vuelto.Maui.csproj -f ${{ matrix.tfm }} -c Debug -p:AcceptAndroidSDKLicenses=true
@@ -1198,22 +1206,12 @@ jobs:
           dotnet build src/Web/Vuelto.Web.csproj -c Debug --no-restore
           dotnet build tests/E2E.Tests/Vuelto.E2E.Tests.csproj -c Debug --no-restore
 
-      - name: Drop the runner's Google Chrome apt repo
-        # Playwright fetches Chromium from its own CDN; `--with-deps` only needs the Ubuntu
-        # archives. The runner image ships Google's chrome-stable apt source, and its CDN can
-        # serve mismatched index metadata (Release vs Packages.gz "Hash Sum mismatch"), which
-        # hard-fails the apt-get update inside `install --with-deps` — killed the 2026-09-09
-        # develop run twice (34383035730). A repo we never install from can't be allowed to
-        # fail the job. Match by CONTENT, not filename — a hardcoded google-chrome.list missed
-        # it on the live image (the source ships under varying names/formats: .list vs deb822
-        # .sources). The `ls` documents the actual layout in the job log. Ubuntu's own sources
-        # (ubuntu.sources) never reference dl.google.com, so they can't match.
-        run: |
-          ls -la /etc/apt/sources.list.d/
-          grep -rl "dl.google.com" /etc/apt/sources.list.d/ | xargs -r sudo rm -fv
-
       - name: Install Chromium (Playwright)
-        run: pwsh tests/E2E.Tests/bin/Debug/net10.0/playwright.ps1 install --with-deps chromium
+        # No --with-deps here (Env L24): the Forgejo CI image already installs Chromium's system libraries for this
+        # Playwright version (its ARG PLAYWRIGHT = Directory.Packages.props) and the browser lives in the runners'
+        # forgejo-playwright volume, so --with-deps only ran apt-get update + upgrades (1.5-3.5 min a shard). The
+        # journeys run headless, so xvfb is never needed. GitHub's copy keeps --with-deps: a hosted runner starts bare.
+        run: pwsh tests/E2E.Tests/bin/Debug/net10.0/playwright.ps1 install chromium
 
       - name: Boot the stack + run E2E
         # Servers must be started in the SAME step as the test run — GitHub tears down a step's process
