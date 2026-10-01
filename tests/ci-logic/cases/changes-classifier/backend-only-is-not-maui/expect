@@ -1,6 +1,4 @@
 exit 0
 +code=true
 +native=true
-+docs=true
--=false
-+maui=true
++maui=false

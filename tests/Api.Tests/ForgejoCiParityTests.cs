@@ -120,7 +120,7 @@ public class ForgejoCiParityTests
         var github = Read(GitHubCi);
         var forgejo = Read(ForgejoCi);
 
-        foreach (var name in new[] { "code", "native", "docs" })
+        foreach (var name in new[] { "code", "native", "maui", "docs" })
         {
             var g = Classifier(github, name);
             var f = Classifier(forgejo, name);
@@ -541,13 +541,40 @@ public class ForgejoCiParityTests
         var forgejo = Jobs(Read(ForgejoCi))["native-build"];
         Assert.DoesNotContain("matrix.os != 'windows-latest'", github, StringComparison.Ordinal); // GitHub: one checkout for both legs
 
-        Assert.Contains("if: matrix.os != 'windows-latest'", forgejo, StringComparison.Ordinal);
+        Assert.Contains("(matrix.os != 'windows-latest')", forgejo, StringComparison.Ordinal);
         Assert.Contains("name: Check out (Windows, plain git)", forgejo, StringComparison.Ordinal);
-        Assert.Contains("if: matrix.os == 'windows-latest'", forgejo, StringComparison.Ordinal);
+        Assert.Contains("(matrix.os == 'windows-latest')", forgejo, StringComparison.Ordinal);
         Assert.Contains("git -c \"http.extraheader=AUTHORIZATION: basic $auth\" fetch", forgejo, StringComparison.Ordinal);
         Assert.Contains("git sparse-checkout set --cone src/Maui src/Shared.Ui .forgejo/scripts", forgejo, StringComparison.Ordinal);
         Assert.DoesNotContain("git config", forgejo, StringComparison.Ordinal);       // nothing persisted
         Assert.DoesNotContain("git remote add", forgejo, StringComparison.Ordinal);   // the URL is passed to the fetch, not stored
+    }
+
+    [Theory]
+    [InlineData(".github/workflows/ci.yml")]
+    [InlineData(".forgejo/workflows/ci.yml")]
+    public void MauiClassifier_CoversWhatTheAppIsBuiltFrom_AndNothingElse(string workflow) // Env L29
+    {
+        // src/Maui references only src/Shared.Ui, which references nothing. A change outside these inputs runs
+        // native-build's legs as a no-op; one inside them must build.
+        var ci = Read(workflow);
+        var m = Regex.Match(ci, @"maui=\$\(match ""\$nativefiles"" '([^']+)'\)");
+        Assert.True(m.Success, $"{workflow}: no `maui=` classifier");
+        var maui = new Regex(m.Groups[1].Value);
+        foreach (var path in new[] { "src/Maui/MauiProgram.cs", "src/Shared.Ui/Pages/Login.razor", "Directory.Build.props",
+                                     "Directory.Packages.props", "global.json", ".github/workflows/ci.yml", ".forgejo/workflows/ci.yml",
+                                     ".forgejo/scripts/workloads.ps1", ".config/dotnet-tools.json", ".github/forbidden-licenses.json" })
+            Assert.True(maui.IsMatch(path), $"{workflow}: {path} can break the MAUI build, so it must count as maui");
+        foreach (var path in new[] { "src/Api/Program.cs", "src/Core/Entities/Tenant.cs", "src/Infrastructure/Email/BrandedEmail.cs",
+                                     "src/Web/Program.cs", "tests/Api.Tests/AuthTests.cs", "tests/E2E.Tests/Journeys.cs", "docs/notes/not-a-real-doc.md" })
+            Assert.False(maui.IsMatch(path), $"{workflow}: {path} cannot affect the MAUI app (it references only Shared.Ui)");
+
+        // ...and that it is what native-build's steps run on: every step but the notice is gated on it.
+        var job = Jobs(ci)["native-build"];
+        var steps = Regex.Matches(job, @"(?m)^      - ").Count;
+        var gated = Regex.Matches(job, @"(?m)^        if: needs\.changes\.outputs\.maui == 'true'").Count;
+        Assert.True(steps == gated + 1, $"{workflow}: native-build has {steps} steps but only {gated} run on maui (plus the notice)");
+        Assert.Contains("if: needs.changes.outputs.maui != 'true'", job, StringComparison.Ordinal);
     }
 
     [Fact]

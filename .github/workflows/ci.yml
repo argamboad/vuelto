@@ -253,17 +253,26 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     steps:
+      # Env L29: when the change cannot affect the MAUI app (`maui` false) every step below is skipped and the job
+      # succeeds in seconds, without a checkout. Not a job-level skip: the deploy requires native-build to succeed,
+      # and the already-green / merge-skip verdicts need its legs on record.
+      - name: MAUI unaffected - nothing to build
+        if: needs.changes.outputs.maui != 'true'
+        run: echo "::notice::This change cannot affect the MAUI app (src/Maui, src/Shared.Ui, build props, the SDK pin, ci.yml) - nothing to build (Env L29)."
+
       - uses: actions/checkout@v5
+        if: needs.changes.outputs.maui == 'true'
         with:
           persist-credentials: false # v4 audit DEP-14: never leave the job token in .git/config
 
       - uses: actions/setup-dotnet@v5
+        if: needs.changes.outputs.maui == 'true'
         with:
           global-json-file: global.json
 
       # The Android target compiles against the JDK; runners preinstall the Android SDK (ANDROID_HOME).
       - uses: actions/setup-java@v5
-        if: contains(matrix.tfm, 'android')
+        if: needs.changes.outputs.maui == 'true' && (contains(matrix.tfm, 'android'))
         with:
           distribution: temurin
           java-version: "17"
@@ -272,9 +281,11 @@ jobs:
       # when building just one (-f), so each runner needs the workloads for all TFMs its OS exposes —
       # e.g. macOS needs android too (NETSDK1147 otherwise). restore resolves that per-host, forever.
       - name: Install the MAUI workloads (host-aware)
+        if: needs.changes.outputs.maui == 'true'
         run: dotnet workload restore src/Maui/Vuelto.Maui.csproj --version 10.0.400.1
 
       - name: Build (compile-only gate)
+        if: needs.changes.outputs.maui == 'true'
         run: dotnet build src/Maui/Vuelto.Maui.csproj -f ${{ matrix.tfm }} -c Debug -p:AcceptAndroidSDKLicenses=true
 
       # The Maui half of the license gate (v3 audit TOOL-1, T46): the license-scan job can't restore
@@ -282,7 +293,7 @@ jobs:
       # produced project.assets.json. Android leg only — the package graph is TFM-invariant enough
       # for license purposes, and one leg keeps it off the paid-runner path.
       - name: dotnet-project-licenses (Maui graph, fail on copyleft)
-        if: contains(matrix.tfm, 'android')
+        if: needs.changes.outputs.maui == 'true' && (contains(matrix.tfm, 'android'))
         env:
           DOTNET_ROLL_FORWARD: LatestMajor
         run: |
@@ -373,6 +384,7 @@ jobs:
     outputs:
       code: ${{ steps.diff.outputs.code }}
       native: ${{ steps.diff.outputs.native }}
+      maui: ${{ steps.diff.outputs.maui }}
       docs: ${{ steps.diff.outputs.docs }}
     steps:
       - uses: actions/checkout@v5
@@ -392,6 +404,7 @@ jobs:
             {
               echo "code=true"
               echo "native=true"
+              echo "maui=true"
               echo "docs=true"
             } >> "$GITHUB_OUTPUT"
             echo "::notice::Diff base unavailable — running every gate."
@@ -429,9 +442,15 @@ jobs:
           # build props and the native publish script (v4 NAT-16).
           native=$(match "$nativefiles" '^(src/|tests/E2E\.Tests/|tests/native-smoke-android/|Directory\.Packages\.props|Directory\.Build\.props|global\.json|tools/publish-native\.ps1|\.(github|forgejo)/workflows/ci\.yml)')
 
+          # Narrower still: what the MAUI app is built from (Env L29). src/Maui references only src/Shared.Ui, which
+          # references nothing, so the API, Core, Infrastructure, Web and the tests cannot break it; plus the solution
+          # build props, the SDK pin, both ci.yml, the workload script and the Android leg's license-scan inputs.
+          maui=$(match "$nativefiles" '^(src/(Maui|Shared\.Ui)/|Directory\.Packages\.props|Directory\.Build\.props|global\.json|\.(github|forgejo)/workflows/ci\.yml|\.forgejo/scripts/workloads\.ps1|\.config/dotnet-tools\.json|\.github/forbidden-licenses\.json)')
+
           {
             echo "code=$code"
             echo "native=$native"
+            echo "maui=$maui"
             echo "docs=$(match "$files" '^docs/')"
           } >> "$GITHUB_OUTPUT"
 
