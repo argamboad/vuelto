@@ -261,8 +261,12 @@ pinned with the retry pause under the server's 60 s reuse grace by a cross-proje
 retried inside the window it exists for — v4 T30 (UX-6/7/12, R107/R108/R144), 2026-09-28. At startup an unreachable refresh is
 retried after 2, 5, 10 and 15 s behind the loading spinner before the layout sends the user to `/login`,
 and even then the stored token stays for the next launch. **Unchanged:** impersonation tokens are never
-renewed (a refresh would restore the staff identity — the timer is cancelled on `BeginImpersonation`), and
-anonymous pages never spend a refresh. *Amended by v4 T31 (LB-UI-11/12/13, R125, 2026-09-28):* the client
+renewed *as impersonation* (the timer is cancelled on `BeginImpersonation`), and anonymous pages never spend
+a refresh. *Precision added by v4 T64 (C12, 2026-10-01):* before T31 the sentence hid a renewal — when the
+impersonation token expired, the bearer handler's next refresh minted the STAFF identity and the page carried
+on as that user mid-screen, which is what ADR-014's "expiry returns the staff user to their own identity"
+described without saying it was silent. T31's epoch (R125) made the end explicit: the client ends the
+impersonation, reloads home as the staff user, and never swaps identities inside a page. *Amended by v4 T31 (LB-UI-11/12/13, R125, 2026-09-28):* the client
 session carries an **epoch**, bumped by logout, by entering or leaving an impersonation and by an
 impersonation expiring; a refresh captures it when it starts and an answer that lands after the epoch moved
 is **discarded**, never applied — so a refresh on the wire when the admin clicks "Sign in as" cannot swap
@@ -378,6 +382,20 @@ enforced by the `RlsMigrationGateTests` parity gate). Read "without touching cen
 bounded ~6-touchpoint contract above — never as literally zero; the durable half of the claim is what
 Phase 4 confirmed HOLDS: the EF filter, stamping interceptor, RLS backstop, and the group auth policy
 are all inherited with no slice re-implementation.
+
+*Amendment (v4 audit Phase 4, 2026-10-01, T64 / ADV-P4-17, R158) — the contract is the measured list, not a
+count.* The v4 re-drill built another entity-bearing slice by the recipe alone and logged every existing file
+it had to edit: **seven forced** — `AppDbContext` (DbSet), `Program.cs` (bind, register, map), the migration
+(scaffolded) and its hand-appended RLS policy, `docs/DATA_MODEL.md` (the `EveryEntity_IsDocumentedInDataModel`
+gate fired), the tenant-axis canary's `handled` set in `ArchitectureTests` (the
+`EveryTenantOwnedEntity_IsWiredIntoTenantDissolution` gate fired) and the Postman collection
+(`PostmanParityTests` fired) — plus two the gates did not force but the catalog and the parity rule expect:
+`.env.example` and the EN/ES resx. The "~6" of the 2026-07-27 amendment was a count with two gate-forced
+members missing from it and from the checklist, whose fixture-reset step had been dead since v2 TR-3. The
+checklist in `WAYS_OF_WORKING.md` now carries that list with each step's gate, and
+`EnforcementGateTests.AddASliceChecklist_NamesEveryArtifactAGateForces` holds the two together: a gate that
+forces a new artifact must appear there. Read "without touching central code" as *this list and nothing
+else* — the durable half of the claim (filter, stamping, RLS, group auth all inherited) still holds.
 
 **ADR-005 — Apple Sign In fits the agnostic provider model; implementation DEFERRED, web-first. (2026-06-24)**
 A third OAuth provider (Apple) was assessed against the provider-agnostic auth stack (ADR-002). The
@@ -1123,8 +1141,9 @@ jobs (outbox dispatcher / scheduler / lapse sweep) must not be silently broken.*
    already the platform's assumed real provider in the `.env` docs. **Consequence:** staging has no
    Mailpit, so email-based QA cases use real (plus-addressed) inboxes there, and the automated
    post-deploy smoke checks health/app-shell only, never email journeys.
-5. **Environments follow the git model:** `develop` auto-deploys **staging** (behind CI + a
-   post-deploy smoke gate); `main` deploys **prod** behind a required-approval GitHub environment —
+5. **Environments follow the git model:** `develop` deploys **staging** (on GitHub it auto-deploys
+   behind CI + a post-deploy smoke gate; on Forgejo, the primary forge since ADR-028, a `deploy=staging`
+   dispatch is the trigger); `main` deploys **prod** behind a required-approval GitHub environment —
    preserving "`main` is deploy-only". The platform proves the machinery on staging; actual prod
    provisioning is each downstream app's first deployment step (runbook: `docs/DEPLOYMENT.md`).
 6. **Proxy correctness, gated:** `UseForwardedHeaders` (for/proto) is added **config-gated, default
@@ -1151,8 +1170,8 @@ staging is its terminal environment.* Point 5 already assigned prod provisioning
 downstream app's first deployment step"; this makes it explicit after `STATUS.md` kept listing prod
 activation as a platform to-do (same scope logic as ADR-024): a live prod service for the platform
 would be a paid Stripe key, a prod Neon DB, and an always-on Render instance serving an app with
-zero users — recurring cost and operational surface proving nothing that the live, auto-deployed,
-RLS-enforced staging doesn't already prove. The `main`→prod pipeline (DEPLOY-3), the `STATUS.md`
+zero users — recurring cost and operational surface proving nothing that the live, CI-deployed
+(a Forgejo dispatch, ADR-028), RLS-enforced staging doesn't already prove. The `main`→prod pipeline (DEPLOY-3), the `STATUS.md`
 §5 walkthrough, and `DEPLOYMENT.md` §6–7 stay maintained as the **downstream Phase-8 runbook**
 (`NEW_APP_GUIDE.md`). One consequence carried as a Phase-8 note, mirroring ADR-024's signing traps:
 the pieces that only run at prod activation — the **RLS two-role topology + posture guard**
@@ -1377,6 +1396,18 @@ pre-paint, and the columns already serve that; only the sync behavior changes.
    no-reload approach — it couldn't work on WASM (satellite assemblies) — while keeping its actual
    goal: the reload happens only on a real mismatch, never as a guaranteed double load. Theme
    applies live (`data-bs-theme`), no reload.
+*Amendment (v4 T64 / UX-18, 2026-10-01) — two accepted client-side races, recorded here instead of only in code
+comments (R72).* (a) A theme or language saved from Settings is **remembered beside the token, not refreshed
+into it**: the reconcile on reload trusts the access token's claims, and the Android app keeps that token across
+a WebView reload, so a save followed by a reload re-applied the old value (found downstream, 2026-09-16). The
+first fix refreshed the session after each save, and on the web that rotated the refresh cookie under the
+ThemeJourney's reload and came back signed out. So `AuthService.RememberTheme`/`RememberLocale` overlay the saved
+value until the next genuine refresh (`PreferenceSyncClaimTests`); between the save and that refresh, a second
+device that changes the same preference wins only at the next sign-in — accepted. (b) A theme change made while
+the PUT is in flight (or that fails) keeps the device's choice and marks the sync failed; the next sign-in's
+reconcile resolves it the usual way (server wins). Neither race loses data; both are visible, and neither is
+worth a round-trip on every keystroke.
+
 5. **"system" is stored verbatim** (amends THEME-1): `User.Theme` null now means "never chose",
    which is what makes adoption (3) well-defined and lets System propagate across devices like the
    other two values. No schema change — same nullable column, same endpoints.
@@ -2071,7 +2102,15 @@ code lifecycle (issuance, redemption, single-use, expiry, revocation) for no add
 
 **Known and accepted:** `TenantService.ReHomeAsync` gives any departing member a fresh tenant-of-one
 they own, so someone who arrived by invitation can end up owning a household. That household's owner
-is not green-listed, so it admits nobody new — the leak is cosmetic, not a hole.
+is not green-listed, so it admits nobody new — the leak is cosmetic, not a hole. *Same family, added by v4
+T64 (AUTH-8, decision #3, 2026-10-01):* an invited-but-unlisted person **founds** their household of one at
+sign-in, before accepting anything — `CreateUserWithTenantAsync` is the single choke point and it always
+provisions tenant + owner membership. If they never accept, the invitation is revoked, or accepting would
+abandon data they have since created (`WouldAbandonData`), that household stays, owned by someone the list
+never named. Deferring the household until the invitation is accepted was considered and rejected: it would
+give every path that mints a user a second shape (a user with no tenant), which the tenant filter, the
+JWT's `tenant_id` claim and the RLS backstop all assume away. The household admits nobody new, same as
+above; it is a cosmetic orphan, not an access path.
 
 **Ports downstream** (`vuelto`, `jigger-jot`) once the platform suite is green, like LOCALCI-3.
 

@@ -101,7 +101,8 @@ The rhythm, per `docs/WAYS_OF_WORKING.md`:
    code), end-to-end (API + UI + tests), leaving the app working.
 3. Copy **`src/Api/Features/Notes`** as the reference slice shape; **delete the Notes sample**
    when your first real feature lands.
-4. CI gates every PR; merge to `develop` auto-deploys staging once Phase 7 is done.
+4. CI gates every PR; once Phase 7 is done, a Forgejo *Run workflow* with `deploy=staging` deploys
+   `develop` to staging (a GitHub-only clone auto-deploys it on merge instead).
 
 Scope discipline: before building anything, check the OUT list in `PROJECT_BRIEF.md`.
 
@@ -116,8 +117,9 @@ Follow **`docs/DEPLOYMENT.md`** top to bottom — it's the runbook. The order an
 4. **§4 Render** — apply `render.yaml` as a Blueprint, paste the secrets from 1–3, deploy.
 5. **§5 OAuth (optional)** — register your staging domain with Google/Microsoft, add the client
    id/secret env vars. One provider console entry per domain.
-6. **§6 CI auto-deploy** — GitHub secret **`RENDER_DEPLOY_HOOK_STAGING`**; from then on every
-   merge to `develop` deploys staging and runs the version-gated smoke.
+6. **§10 / §6 CI deploy** — the **`RENDER_DEPLOY_HOOK_STAGING`** secret; on Forgejo a *Run workflow*
+   with `deploy=staging` deploys `develop` and runs the version-gated smoke (§10); on a clone that
+   lives on GitHub alone, the same secret makes every merge to `develop` auto-deploy staging (§6).
 
 ## Phase 8 — Activate production (~10 min, when ready for customers)
 

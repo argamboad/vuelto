@@ -123,11 +123,13 @@ Neon Postgres and Brevo email. Point the browser at the staging URL (e.g.
 - **Billing** uses Stripe **test mode** — exercise webhooks with `stripe trigger …` against the staging
   `/api/billing/webhook`.
 
-**Auto-deploy + smoke gate.** A merge to `develop` that passes CI auto-deploys staging, waits for the new
-build to be live (`/api/version` reports the pushed commit), and runs an automated post-deploy smoke
-(liveness/readiness, SPA shell + deep-link, `/api` returns an API-shaped 404, `/api/auth/providers`). A red
-smoke blocks — so a broken deploy is caught before manual QA starts. Manual QA on staging complements it
-(the human-only paths: real email, OAuth, billing, visual checks).
+**Deploy + smoke gate (ADR-028).** A merge to `develop` deploys nothing. Staging is deployed from **Forgejo** →
+Actions → `ci.yml` → Run workflow with `deploy=staging` (or `deploy.yml` for an already-green commit): the run
+fast-forwards GitHub's `develop`, fires the Render hook, waits for the new build to be live (`/api/version`
+reports the commit) and runs the automated post-deploy smoke (liveness/readiness, SPA shell + deep-link, `/api`
+returns an API-shaped 404, `/api/auth/providers`). A red smoke blocks — so a broken deploy is caught before
+manual QA starts. Manual QA on staging complements it (the human-only paths: real email, OAuth, billing,
+visual checks).
 
 ---
 

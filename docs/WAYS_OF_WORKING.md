@@ -67,25 +67,44 @@ method, author a bespoke per-entity repository (use `IRepository<T>`), use `Igno
 (banned in `src/Api/Features/**` — use `IRepository<T>.QueryAllTenants()`), or inline UI in the Web
 app (UI components go in the Shared.Ui RCL).
 
-**Add-a-slice mechanical checklist:**
-1. **Entity** → `src/Core/Entities/<Entity>.cs`, implementing `ITenantScoped`.
+**Add-a-slice mechanical checklist** — measured, not estimated: the v4 audit built a real slice by this
+recipe and logged every existing file it had to touch (ADV-P4-17). Each step names the gate that fails
+CI when it is skipped, and `EnforcementGateTests.AddASliceChecklist_NamesEveryArtifactAGateForces`
+(R158) holds this list to those gates, so a new gate cannot force an edit the checklist never mentions.
+1. **Entity** → `src/Core/Entities/<Entity>.cs`, implementing `ITenantScoped`. A slice **cannot declare
+   its own `Permission`**: the enum and `RolePermissions` live in Core (ADR-009's coarse capabilities) —
+   reuse one, or add it to Core in its own commit.
 2. **DbSet + config** → add the `DbSet<>` to `AppDbContext` and any `IEntityTypeConfiguration`.
-3. **Migration** → `dotnet ef migrations add Add<Entity>` (in `src/Infrastructure/Persistence/Migrations/`).
-4. **RLS policy — same migration** (ADR-020, v3 audit TR-4): `dotnet ef migrations add` scaffolds
-   **no RLS DDL**, so append the new table's policy to the migration you just created —
-   `migrationBuilder.Sql(...)` with the statements from `RlsDdl.StatementsFor` (copy the shape from
-   the platform's RLS migration; `Down` drops the policy + disables RLS). The
-   `RlsMigrationGateTests` parity gate fails CI on any `ITenantScoped` table whose policy didn't
-   arrive by migration — this step is why it stays green.
-5. **DI wiring** → register the handler/services (`Add*`) and map the group (`app.Map<Feature>()`) in
-   `Program.cs`.
-6. **Contributor** → register the `ITenantDataContributor` (all four members) in DI.
-7. **Fixture reset** → add the new table(s) to the test fixture's reset/truncate list.
-8. **UI** → nav entry + component in the Shared.Ui RCL, and add the resx (`.resx`) strings (EN/ES).
-   **Namespace your keys per feature** (`Notes_Title`, `Notes_Empty`, …) — `AppStrings.resx` is one
-   shared file, and unprefixed keys (`Title`, `Empty`) collide across slices (v3 audit / Phase-4 obs).
-   Both halves are enforced: `ResourceParityTests` fails on a key without a `<Feature>_` prefix or declared
-   twice, and a duplicate also fails `dotnet build` (MSB3568 is promoted to an error, v4 T9).
+3. **Migration + RLS policy, one migration** (ADR-020, v3 audit TR-4): `dotnet ef migrations add
+   Add<Entity>` scaffolds **no RLS DDL**, so append the new table's policy to the migration it just
+   created — `migrationBuilder.Sql(...)` with the statements from `RlsDdl.StatementsFor` (copy the shape
+   from the platform's RLS migration; `Down` drops the policy + disables RLS). Gate:
+   `RlsMigrationGateTests` fails on any `ITenantScoped` table whose policy did not arrive by migration.
+4. **`docs/DATA_MODEL.md`** → an entry for the entity (fields, relationships, derived rules). Gate:
+   `EveryEntity_IsDocumentedInDataModel`.
+5. **Tenant-axis canary** → add `nameof(<Entity>)` to the `handled` set in
+   `tests/Api.Tests/ArchitectureTests.cs` once step 7's contributor covers it. Gate:
+   `EveryTenantOwnedEntity_IsWiredIntoTenantDissolution` — every tenant-owned entity must be reachable
+   by dissolve and export, and the canary is where you say which contributor does it.
+6. **DI wiring** → register the handler/services (`Add*`) and map the group (`app.Map<Feature>()`) in
+   `Program.cs`, behind the slice's `Enabled` setting. Only `Program.cs` may reference `Features.*`
+   (R8, `SliceReferenceInspector`).
+7. **Contributor** → register the `ITenantDataContributor` (all four members) in DI, in the same
+   `Program.cs` block.
+8. **Postman** → a numbered folder in `docs/postman/Vuelto.postman_collection.json` with one request
+   per endpoint (ADR-023). Gate: `PostmanParityTests` — it sees the slice's routes only while the slice is
+   switched ON in the harness, so turn it on there before trusting a green run.
+9. **`.env.example`** → the slice's `<Feature>__Enabled=false` line (and any other key it reads) in the
+   CONFIGURATION REFERENCE block. Gate: `ConfigKeys_ReadInCode_AreDocumented`.
+10. **UI** → nav entry + component in the Shared.Ui RCL, and the resx (`.resx`) strings (EN/ES).
+    **Namespace your keys per feature** (`Notes_Title`, `Notes_Empty`, …) — `AppStrings.resx` is one
+    shared file, and unprefixed keys (`Title`, `Empty`) collide across slices (v3 audit / Phase-4 obs).
+    Gate: `ResourceParityTests` fails on a key without a `<Feature>_` prefix, declared twice, or missing
+    from a language; a duplicate also fails `dotnet build` (MSB3568 is promoted to an error, v4 T9).
+
+There is no fixture step: `PostgresFixture.ResetAsync` derives its table list from the EF model (v2
+TR-3), so a new entity is reset automatically — the old "add the table to the truncate list" step was
+dead for two audits before the measurement caught it.
 
 **Reference:** `src/Api/Features/Notes` is a complete, working example (marked "🗑️ DELETE-ME").
 Copy its shape; delete it when you ship your first real feature.
