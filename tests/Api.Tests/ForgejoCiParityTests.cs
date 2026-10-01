@@ -485,6 +485,21 @@ public class ForgejoCiParityTests
     }
 
     [Fact]
+    public void E2eBrowser_ComesWithItsDeps_OnlyWhereTheRunnerStartsBare() // Env L24, 2026-10-01
+    {
+        // GitHub's hosted runner starts bare, so its e2e installs Chromium's system packages too. The Forgejo image
+        // already has them (and the journeys run headless), where --with-deps only cost an apt update per shard.
+        var github = Jobs(Read(GitHubCi))["e2e"];
+        var forgejo = Jobs(Read(ForgejoCi))["e2e"];
+        Assert.Contains("playwright.ps1 install --with-deps chromium", github, StringComparison.Ordinal);
+        Assert.Contains("playwright.ps1 install chromium", forgejo, StringComparison.Ordinal);
+        Assert.DoesNotContain("install --with-deps", forgejo, StringComparison.Ordinal);
+        // ...which also retires the step that dropped Google's Chrome apt source to keep that apt update alive.
+        Assert.DoesNotContain("dl.google.com", forgejo, StringComparison.Ordinal);
+        Assert.Contains("<Headless>true</Headless>", Read("tests/E2E.Tests/playwright.runsettings"), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void PostMergeRun_SkipsTheCodeGates_OnlyForATreeItsPrRunPassed() // Env L23, 2026-10-01
     {
         // The merge of an up-to-date PR is exactly the tree its PR run passed, so the develop/main push run skips
