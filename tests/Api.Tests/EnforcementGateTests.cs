@@ -555,6 +555,51 @@ public class EnforcementGateTests
     }
 
     [Fact]
+    public void AddASliceChecklist_NamesEveryArtifactAGateForces() // v4 audit ADV-P4-17 (T64), R158
+    {
+        // ADR-004 said "~6 touchpoints"; the v4 re-drill measured seven forced edits, two of them (the tenant-axis
+        // canary, the Postman folder) in neither the ADR nor the checklist, whose fixture-reset step had been dead
+        // since v2 TR-3. A slice author following the checklist hit gate failures it never warned about. So the
+        // checklist is held to the gates: every artifact a gate forces is a step that names its gate, each named
+        // gate exists, and the dead step is gone. ADR-004's amendment carries the same list.
+        var root = RepoRoot();
+        var wow = File.ReadAllText(Path.Combine(root, "docs", "WAYS_OF_WORKING.md")).ReplaceLineEndings("\n");
+        var start = wow.IndexOf("**Add-a-slice mechanical checklist**", StringComparison.Ordinal);
+        Assert.True(start >= 0, "WAYS_OF_WORKING.md lost its add-a-slice checklist");
+        var checklist = wow[start..wow.IndexOf("\n## ", start, StringComparison.Ordinal)];
+
+        // (artifact the step must name, the gate that forces it)
+        var forced = new (string Artifact, string Gate)[]
+        {
+            ("RlsDdl.StatementsFor", "RlsMigrationGateTests"),
+            ("docs/DATA_MODEL.md", "EveryEntity_IsDocumentedInDataModel"),
+            ("`handled` set", "EveryTenantOwnedEntity_IsWiredIntoTenantDissolution"),
+            ("Program.cs", "SliceReferenceInspector"),
+            ("docs/postman/Vuelto.postman_collection.json", "PostmanParityTests"),
+            (".env.example", "ConfigKeys_ReadInCode_AreDocumented"),
+            (".resx", "ResourceParityTests"),
+        };
+        var tests = Directory.EnumerateFiles(Path.Combine(root, "tests", "Api.Tests"), "*.cs", SearchOption.AllDirectories)
+            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}") && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}"))
+            .Select(File.ReadAllText).ToList();
+        foreach (var (artifact, gate) in forced)
+        {
+            Assert.True(checklist.Contains(artifact, StringComparison.Ordinal), $"the add-a-slice checklist must name {artifact}");
+            Assert.True(checklist.Contains(gate, StringComparison.Ordinal), $"the add-a-slice checklist step for {artifact} must name its gate {gate}");
+            Assert.True(tests.Any(t => t.Contains(gate, StringComparison.Ordinal)), $"the checklist names a gate that does not exist: {gate}");
+        }
+        Assert.DoesNotContain("Fixture reset", checklist); // dead since v2 TR-3: the fixture derives its tables from the model
+        Assert.Contains("cannot declare\n   its own `Permission`", checklist); // ADV-P4-18: inherent, so the author is told
+
+        // ADR-004's amendment states the list, and the same gates, not a count.
+        var adr = File.ReadAllText(Path.Combine(root, "docs", "DECISIONS.md")).ReplaceLineEndings("\n");
+        var amendment = adr[adr.IndexOf("the contract is the measured list, not a\ncount", StringComparison.Ordinal)..];
+        amendment = amendment[..amendment.IndexOf("\n**ADR-005", StringComparison.Ordinal)];
+        foreach (var gate in new[] { "EveryEntity_IsDocumentedInDataModel", "EveryTenantOwnedEntity_IsWiredIntoTenantDissolution", "PostmanParityTests", "AddASliceChecklist_NamesEveryArtifactAGateForces" })
+            Assert.Contains(gate, amendment);
+    }
+
+    [Fact]
     public void DeployTriggerWording_AutoDeploysNamesTheForge() // v4 audit TR-13 (T60), R117
     {
         // Under ADR-028 nothing auto-deploys from this repo: staging deploys when someone runs the Forgejo

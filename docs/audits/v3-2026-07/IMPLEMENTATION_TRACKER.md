@@ -71,8 +71,8 @@ everything else; then critical tenancy → auth → correctness → deploy/nativ
 |---|-----------|-----|------|------|-------|--------|
 | T33 | NAT-3 | Med | Fail Release builds on localhost API base; scope cleartext config + env override to Debug | R67 | yes | ✅ |
 | T34 | NAT-2 | Med | Pin MAUI workload set (`--version`) on all native legs; fix "CPM pins it" wording | R61 | no | ✅ |
-| T35 | NAT-4 / NAT-5≡DEP-5 / NAT-6 | Low | native-paths regex adds `Directory.Build.props`; non-vacuous smoke assertion; fix `companyname` logcat grep | R60/R68 | no | ✅ |
-| T36 | NAT-8/9/10/11 | Low | Loopback OAuth `state`; fix plist comment; 0600 file creation; `allowBackup=false`; date-stamp NATIVE_PARITY | R- | yes | ✅ |
+| T35 | NAT-4 / NAT-5≡DEP-5 / NAT-6 | Low | native-paths regex adds `Directory.Build.props`; non-vacuous smoke assertion; fix `companyname` logcat grep | R60/R68 | no | ✅ — **erratum 2026-10-01 (v4 C2):** the regex never gained `Directory.Build.props`; marked done on paper. Landed by v4 T53 (NAT-16, R106) |
+| T36 | NAT-8/9/10/11 | Low | Loopback OAuth `state`; fix plist comment; 0600 file creation; `allowBackup=false`; date-stamp NATIVE_PARITY | R- | yes | ✅ — **erratum 2026-10-01 (v4 C1):** `allowBackup` stayed `true` in the manifest (never flipped; single introducing commit). Landed by v4 T51 (NAT-17, R105) |
 | T37 | NAT-1 | Med | NATIVE-12: pushed + merged (decision: merge) | R69 | — | ✅ PR #172 |
 
 ## Group G — Client RCL + component-test chassis
