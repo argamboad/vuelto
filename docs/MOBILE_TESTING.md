@@ -22,7 +22,7 @@ The `https` profile binds **both** `https://localhost:7260` (web/desktop) and
 `http://localhost:5338` (mobile) in one run. `UseHttpsRedirection` is disabled in
 Development, so the cleartext `:5338` leg is not redirected.
 
-An Android emulator (AVD) running, or a physical device with USB debugging enabled.
+An Android emulator (AVD) running, or a physical device with USB or Wi-Fi debugging enabled.
 
 ## 2. Bridge the device to the host
 
@@ -42,8 +42,33 @@ device hitting `localhost:5338` (the app *and* the in-app browser tab) reaches y
 
 ## 3. Run the app
 
-From Visual Studio: select the Android target + your emulator, F5. Or CLI (emulator already
-running):
+**Start profiles.** Run `pwsh tools/dev-profiles.ps1` once per clone. It writes the same six profiles for Visual
+Studio (the startup dropdown, from `<Sln>.slnLaunch.user`) and VS Code (Run and Debug, from the `"launch"` block of
+`.vscode/settings.json`). Both files are gitignored, because the device profiles name your own phone and tablet:
+
+| Profile | Starts |
+|---|---|
+| **API + Web** | the API and the Blazor WebAssembly client in the browser |
+| **API + Windows desktop** | the API and the MAUI shell on Windows |
+| **API + Android phone (device)** | the API and the MAUI shell on your phone, over Wi-Fi (or USB) debugging |
+| **API + Android phone (emulator)** | the API and the MAUI shell on the `phone` AVD |
+| **API + Android tablet (device)** | the API and the MAUI shell on your tablet |
+| **API + Android tablet (emulator)** | the API and the MAUI shell on the `tablet` AVD |
+
+- **Emulators.** Create two AVDs, named exactly `phone` and `tablet` (Android Studio → Device Manager). VS boots the
+  one the profile names; VS Code's profile first runs `tools/android-emulator.ps1`, which boots (or reuses) `phone`
+  on console port 5554 and `tablet` on 5556, so their adb serials are always `emulator-5554` / `emulator-5556`.
+- **Devices.** Pair each once: Developer options → Wireless debugging → *Pair device with pairing code*, then
+  `adb pair <ip>:<port>` with the code. With both connected, `pwsh tools/dev-profiles.ps1 -Discover` records them in
+  `~/dev-tools/devices.json`, outside every repo, so each clone and each new app picks them up from there. VS targets a
+  device by its display name, VS Code (the MAUI extension) by its adb serial: over Wi-Fi that is the mDNS name
+  `adb-<serial>-<id>._adb-tls-connect._tcp`, which stays the same across reconnects **while the device is on the PC's
+  network**. Reached only through a VPN (Tailscale, another subnet), it gets an `IP:port` serial that changes every
+  time Wireless debugging restarts. `adb reverse` works over Wi-Fi the same as over USB.
+- A missing AVD or device just leaves its profile out (the script says which). Re-run the script after adding one.
+- VS Code needs the **.NET MAUI** extension for the Android profiles.
+
+Or CLI, with one device or emulator connected (with more, add `-p:AdbTarget=-s%20<serial>`):
 
 ```bash
 dotnet build src/Maui/Vuelto.Maui.csproj -t:Run -f net10.0-android

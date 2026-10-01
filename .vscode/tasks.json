@@ -1,32 +1,44 @@
 {
+  // The tasks behind the start profiles that tools/dev-profiles.ps1 writes into the gitignored .vscode/settings.json
+  // (run it once per clone; see docs/MOBILE_TESTING.md §3). Folder paths, not project names, so a rebrand leaves this
+  // file alone. Each profile builds only what it runs: the API's projects and the clients' share none, so its two
+  // builds can run side by side. The Windows TFM matches src/Maui's csproj.
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "build",
+      "label": "build: api",
       "command": "dotnet",
       "type": "process",
-      "args": ["build", "${workspaceFolder}/Vuelto.slnx", "-v", "q"],
+      "args": ["build", "${workspaceFolder}/src/Api", "-v", "q"],
       "problemMatcher": "$msCompile"
     },
     {
-      // Without the MAUI extension (no debugger, just run on the emulator that is already running):
-      // Terminal → Run Task → "android: run". Same command the docs and CI use.
-      "label": "android: run",
+      "label": "build: web",
       "command": "dotnet",
       "type": "process",
-      "args": ["build", "${workspaceFolder}/src/Maui/Vuelto.Maui.csproj", "-t:Run", "-f", "net10.0-android"],
+      "args": ["build", "${workspaceFolder}/src/Web", "-v", "q"],
       "problemMatcher": "$msCompile"
     },
     {
-      // Physical phone over USB (USB debugging on, `adb devices` shows it as "device"): AdbTarget=-d
-      // picks the USB device instead of an emulator. adb reverse works over USB too, so nothing
-      // else changes. For Wi-Fi debugging pair the phone first (adb pair / adb connect), then this
-      // task works the same way.
-      "label": "android: run on phone",
+      "label": "build: windows desktop",
       "command": "dotnet",
       "type": "process",
-      "args": ["build", "${workspaceFolder}/src/Maui/Vuelto.Maui.csproj", "-t:Run", "-f", "net10.0-android", "-p:AdbTarget=-d"],
+      "args": ["build", "${workspaceFolder}/src/Maui", "-f", "net10.0-windows10.0.19041.0", "-v", "q"],
       "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "android: phone emulator",
+      "command": "pwsh",
+      "type": "process",
+      "args": ["-NoProfile", "-File", "${workspaceFolder}/tools/android-emulator.ps1", "-Avd", "phone", "-Port", "5554"],
+      "problemMatcher": []
+    },
+    {
+      "label": "android: tablet emulator",
+      "command": "pwsh",
+      "type": "process",
+      "args": ["-NoProfile", "-File", "${workspaceFolder}/tools/android-emulator.ps1", "-Avd", "tablet", "-Port", "5556"],
+      "problemMatcher": []
     }
   ]
 }
