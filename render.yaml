@@ -30,7 +30,7 @@ services:
                                     # to publish free — /api/billing + the webhook then 404 and every tenant is Free,
                                     # and the Stripe key below stops being required to boot.
       - key: Billing__Stripe__SecretKey
-        sync: false                 # REQUIRED in Production (fail-closed guard) — a Stripe TEST key for staging
+        sync: false                 # REQUIRED while Billing__Enabled is true (fail-closed guard) — a Stripe TEST key for staging
       - key: Auth__AppBaseUrl
         sync: false                 # this service's public https URL — magic-link/invite emails link here
       - key: Email__Smtp__Host
