@@ -321,11 +321,15 @@ jobs:
           global-json-file: global.json
 
       # The Android target compiles against the JDK; runners preinstall the Android SDK (ANDROID_HOME).
-      - uses: actions/setup-java@v5
+      # Env L26: no actions/setup-java here. The Forgejo CI image ships OpenJDK 17 with JAVA_HOME set (sdkmanager
+      # builds the image with it), and setup-java downloaded a Temurin 17 on every run (~1.8 min). Any JDK 17 builds
+      # the Android TFM; a stale image fails here, loudly. GitHub's copy keeps setup-java: a hosted runner has no
+      # JAVA_HOME of ours. The weekly/dispatch-only Android release and smoke keep theirs (off the per-PR path).
+      - name: JDK 17 from the CI image
         if: contains(matrix.tfm, 'android')
-        with:
-          distribution: temurin
-          java-version: "17"
+        run: |
+          "$JAVA_HOME/bin/java" -version 2>&1 | tee /tmp/java-version.txt
+          grep -q 'version "17\.' /tmp/java-version.txt || { echo "::error::JAVA_HOME ($JAVA_HOME) is not a JDK 17 - rebuild the Forgejo CI image (ci-image/Dockerfile) or put actions/setup-java back here."; exit 1; }
 
       # workload RESTORE (not install <id>): a multi-TFM project restores EVERY host-visible TFM even
       # when building just one (-f), so each runner needs the workloads for all TFMs its OS exposes —

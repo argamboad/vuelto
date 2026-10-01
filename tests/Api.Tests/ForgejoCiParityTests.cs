@@ -519,6 +519,20 @@ public class ForgejoCiParityTests
     }
 
     [Fact]
+    public void ForgejoAndroidBuild_UsesTheImagesJdk17_GitHubSetsItUp() // Env L26, 2026-10-01
+    {
+        // The Forgejo CI image ships OpenJDK 17 in JAVA_HOME, so the per-PR Android build checks it instead of
+        // downloading Temurin every run; GitHub's hosted runner has no JAVA_HOME of ours and keeps setup-java.
+        var github = Jobs(Read(GitHubCi))["native-build"];
+        var forgejo = Jobs(Read(ForgejoCi))["native-build"];
+        Assert.Contains("actions/setup-java@", github, StringComparison.Ordinal);
+        Assert.Contains("java-version: \"17\"", github, StringComparison.Ordinal);
+        Assert.DoesNotContain("uses: actions/setup-java@", forgejo, StringComparison.Ordinal);
+        Assert.Contains("\"$JAVA_HOME/bin/java\" -version", forgejo, StringComparison.Ordinal);
+        Assert.Contains(@"grep -q 'version ""17\.'", forgejo, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void PostMergeRun_SkipsTheCodeGates_OnlyForATreeItsPrRunPassed() // Env L23, 2026-10-01
     {
         // The merge of an up-to-date PR is exactly the tree its PR run passed, so the develop/main push run skips
