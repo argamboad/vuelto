@@ -1069,7 +1069,35 @@ jobs:
             # error below could say why (v4 DEP-22).
             total=$(echo "$names" | grep -c . || true)
             [ "$total" -ge 10 ] || { echo "::error::only $total journeys listed — the --list-tests parse broke"; exit 1; }
-            mine=$(echo "$names" | awk -v s=${{ matrix.shard }} -v n=3 'NR % n == s % n')
+            # Deal by measured time (Env L28): longest first, each journey to the shard with the least time so far,
+            # so the three finish together instead of waiting on the slowest alphabetical third. The times are
+            # tests/E2E.Tests/journey-seconds.tsv (name<TAB>seconds, copied from the slowest-journeys report below
+            # now and then); a journey not in it counts as the table's median, and with no table every journey
+            # weighs the same, which deals them round-robin in name order as before. Ties break by name, then by
+            # the lower shard, so every shard computes the same split. Plain awk (no gawk-only functions).
+            mine=$(echo "$names" | awk -v s=${{ matrix.shard }} -v n=3 -v table=tests/E2E.Tests/journey-seconds.tsv '
+              BEGIN {
+                while ((getline line < table) > 0) {
+                  if (line ~ /^#/ || line !~ /\t/) continue
+                  split(line, f, "\t"); secs[f[1]] = f[2] + 0; v[++k] = f[2] + 0
+                }
+                for (i = 2; i <= k; i++) { x = v[i]; for (j = i - 1; j >= 1 && v[j] > x; j--) v[j + 1] = v[j]; v[j + 1] = x }
+                median = k ? v[int((k + 1) / 2)] : 1
+              }
+              NF { m++; nm[m] = $0; w[m] = ($0 in secs) ? secs[$0] : median }
+              END {
+                for (i = 2; i <= m; i++) {
+                  a = nm[i]; b = w[i]
+                  for (j = i - 1; j >= 1 && (w[j] < b || (w[j] == b && nm[j] > a)); j--) { nm[j + 1] = nm[j]; w[j + 1] = w[j] }
+                  nm[j + 1] = a; w[j + 1] = b
+                }
+                for (i = 1; i <= m; i++) {
+                  best = 1
+                  for (t = 2; t <= n; t++) if (load[t] < load[best]) best = t
+                  load[best] += w[i]
+                  if (best == s) print nm[i]
+                }
+              }')
             [ -n "$mine" ] || { echo "::error::shard ${{ matrix.shard }} of 3 matched none of the $total journeys"; exit 1; }
             echo "shard ${{ matrix.shard }} of 3: $(echo "$mine" | grep -c . || true) of $total journeys"
             echo "$mine" | sed 's/^/  /'
