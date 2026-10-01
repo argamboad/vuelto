@@ -578,6 +578,18 @@ public class ForgejoCiParityTests
     }
 
     [Fact]
+    public void ANewPushToAPullRequest_CancelsItsPreviousRun_AndNothingElse() // Env L30, 2026-10-01
+    {
+        // Grouped per pull request, so a superseded PR run stops holding the runner lanes. Any other event groups by
+        // its own run id: a develop/main push, a dispatch or the schedule is never cancelled by another run.
+        foreach (var file in new[] { GitHubCi, ForgejoCi })
+        {
+            var header = Read(file).Split("\njobs:\n")[0];
+            Assert.Contains("concurrency:\n  group: ${{ github.event_name == 'pull_request' && format('ci-pr-{0}', github.event.pull_request.number) || format('ci-run-{0}', github.run_id) }}\n  cancel-in-progress: true", header, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
     public void PostMergeRun_SkipsTheCodeGates_OnlyForATreeItsPrRunPassed() // Env L23, 2026-10-01
     {
         // The merge of an up-to-date PR is exactly the tree its PR run passed, so the develop/main push run skips

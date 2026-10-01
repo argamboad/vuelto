@@ -21,6 +21,13 @@ on:
 permissions:
   contents: read
 
+# Env L30: a new push to an open pull request cancels that PR's previous run, so a superseded run stops holding the
+# runner lanes. Every other event (develop/main pushes, dispatches, the schedule) gets a group of its own - its run
+# id - so those runs are never cancelled; the deploy jobs keep their own groups.
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('ci-pr-{0}', github.event.pull_request.number) || format('ci-run-{0}', github.run_id) }}
+  cancel-in-progress: true
+
 jobs:
   build-test:
     needs: changes
