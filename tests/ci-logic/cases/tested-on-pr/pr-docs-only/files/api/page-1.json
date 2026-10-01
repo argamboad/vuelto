@@ -1,0 +1,29 @@
+{
+ "workflow_runs": [
+  {
+   "id": 500,
+   "name": "changes",
+   "status": "success",
+   "head_sha": "a000000000000000000000000000000000000000",
+   "workflow_id": "ci.yml",
+   "event": "pull_request"
+  },
+  {
+   "id": 502,
+   "name": "secret-scan",
+   "status": "success",
+   "head_sha": "a000000000000000000000000000000000000000",
+   "workflow_id": "ci.yml",
+   "event": "pull_request"
+  },
+  {
+   "id": 503,
+   "name": "qa-artifacts",
+   "status": "success",
+   "head_sha": "a000000000000000000000000000000000000000",
+   "workflow_id": "ci.yml",
+   "event": "pull_request"
+  }
+ ],
+ "total_count": 3
+}

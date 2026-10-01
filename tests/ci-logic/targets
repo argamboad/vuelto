@@ -9,5 +9,6 @@ block   slowest-journeys       .github/workflows/ci.yml .forgejo/workflows/ci.ym
 script  qa-runlog-append-only  .github/scripts/qa-runlog-append-only.sh
 script  push-to-github         .forgejo/scripts/push-to-github.sh
 block   already-green          .forgejo/workflows/deploy.yml
+block   tested-on-pr           .forgejo/workflows/ci.yml
 exempt  e2e-shard "shard " unreachable: at least 10 journeys dealt into 3 shards always leaves every shard some
 exempt  already-green "jq is missing" the runner image ships jq, and no case can take it off PATH

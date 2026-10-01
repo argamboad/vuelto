@@ -472,7 +472,8 @@ jobs:
   changes:
     runs-on: ubuntu-latest
     outputs:
-      code: ${{ steps.diff.outputs.code }}
+      # false when the `tested` step proved this push's tree already passed every gate on its PR (Env L23)
+      code: ${{ steps.tested.outputs.tested == 'true' && 'false' || steps.diff.outputs.code }}
       native: ${{ steps.diff.outputs.native }}
       docs: ${{ steps.diff.outputs.docs }}
     steps:
@@ -498,6 +499,36 @@ jobs:
             fi
           done
           echo "develop and main are protected."
+      # Env L23: the merge of an up-to-date PR is exactly the tree its PR run already passed, so its push run would
+      # re-test identical code (~12 min, more when the three repos queue on the desk runners). tested-on-pr.sh says
+      # yes only for a two-parent merge whose tree is its PR head's, with every gate of that head's pull_request run
+      # green (the check deploy.yml trusts); then `code` goes false (outputs above) and the code gates skip as on a
+      # docs-only push. `native` is left alone: the Apple build runs on develop pushes only, never on a PR. Any
+      # other answer, or any doubt (API down, a stale PR, a red or re-running gate), runs everything. Not while
+      # CI_DEPLOY_ON_PUSH deploys this push: that deploy waits for this run's own gates. Forgejo only — GitHub's
+      # copy never sees a PR merge.
+      - id: tested
+        if: >-
+          github.event_name == 'push'
+          && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main')
+          && !(github.ref == 'refs/heads/develop' && vars.CI_DEPLOY_ON_PUSH == 'staging')
+        env:
+          API: ${{ github.server_url }}/api/v1/repos/${{ github.repository }}
+          TOKEN: ${{ github.token }}
+          SHA: ${{ github.sha }}
+          # ci.yml's own matrix sizes, as in deploy.yml; ForgejoCiParityTests holds them equal.
+          NATIVE_LEGS: 2
+          E2E_SHARDS: 3
+        run: |
+          # ci-logic begin: tested-on-pr
+          if verdict=$(bash .forgejo/scripts/tested-on-pr.sh "$SHA"); then
+            echo "tested=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::$(printf '%s\n' "$verdict" | tail -n 1) — build, test, e2e, docker and license gates skipped (Env L23)."
+          else
+            echo "tested=false" >> "$GITHUB_OUTPUT"
+            echo "Running the gates — $(printf '%s\n' "$verdict" | tail -n 1)"
+          fi
+          # ci-logic end: tested-on-pr
       - id: diff
         env:
           # A pull request diffs against its base; a push against what was there before.

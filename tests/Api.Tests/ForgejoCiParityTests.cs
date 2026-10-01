@@ -434,23 +434,26 @@ public class ForgejoCiParityTests
         // pinned here — plus the two rules it shares with ci.yml's deploy jobs: dispatch only, and the push
         // to GitHub goes through the fast-forward script, never a raw `git push`.
         var yml = Read(DeployWorkflow);
+        // The verdict itself is .forgejo/scripts/gates-green.sh, shared with ci.yml's post-merge skip (Env L23).
+        var gates = Read(".forgejo/scripts/gates-green.sh");
+        Assert.Contains("bash .forgejo/scripts/gates-green.sh \"$SHA\"", yml, StringComparison.Ordinal);
 
         Assert.Contains("workflow_dispatch", yml, StringComparison.Ordinal);
         Assert.DoesNotContain("\n  push:", yml, StringComparison.Ordinal);
         Assert.DoesNotContain("\n  schedule:", yml, StringComparison.Ordinal);
 
         // It asks the API about THIS commit and treats anything but a green gate as a refusal.
-        Assert.Contains("actions/tasks", yml, StringComparison.Ordinal);
-        Assert.Contains("head_sha == env.SHA", yml, StringComparison.Ordinal);
+        Assert.Contains("actions/tasks", gates, StringComparison.Ordinal);
+        Assert.Contains("head_sha == env.SHA", gates, StringComparison.Ordinal);
         foreach (var gate in new[] { "changes", "build-test", "secret-scan", "qa-artifacts", "license-scan", "docker-build", "e2e" })
-            Assert.Contains(gate, yml, StringComparison.Ordinal);
+            Assert.Contains(gate, gates, StringComparison.Ordinal);
         // Both matrices, every leg, against ci.yml's own sizes (AlreadyGreenDeploy_ExpectsCiYmlsOwnMatrixSizes); the
         // verdict's behaviour itself is fixture-tested by tests/ci-logic (target already-green).
-        Assert.Contains("\"native-build:$NATIVE_LEGS\" \"e2e:$E2E_SHARDS\"", yml, StringComparison.Ordinal);
+        Assert.Contains("\"native-build:$NATIVE_LEGS\" \"e2e:$E2E_SHARDS\"", gates, StringComparison.Ordinal);
         Assert.Matches(@"refusing to deploy", yml);
 
         // The verification runs BEFORE anything leaves this machine.
-        Assert.True(yml.IndexOf("actions/tasks", StringComparison.Ordinal)
+        Assert.True(yml.IndexOf("gates-green.sh", StringComparison.Ordinal)
                     < yml.IndexOf("push-to-github.sh", StringComparison.Ordinal),
             "deploy.yml must verify the commit before pushing it to GitHub.");
 
@@ -473,8 +476,42 @@ public class ForgejoCiParityTests
         var shards = Regex.Match(jobs["e2e"], @"shard:\s*\[([^\]]*)\]").Groups[1].Value.Split(',', StringSplitOptions.RemoveEmptyEntries).Length;
         Assert.True(nativeLegs > 0 && shards > 0, "could not read ci.yml's native-build / e2e matrices");
 
-        Assert.Equal(nativeLegs.ToString(), Regex.Match(deploy, @"NATIVE_LEGS:\s*(\d+)").Groups[1].Value);
-        Assert.Equal(shards.ToString(), Regex.Match(deploy, @"E2E_SHARDS:\s*(\d+)").Groups[1].Value);
+        // Every caller of gates-green.sh passes the floor: deploy.yml, and ci.yml's post-merge skip (Env L23).
+        foreach (var (where, text) in new[] { ("deploy.yml", deploy), ("ci.yml changes", jobs["changes"]) })
+        {
+            Assert.True(nativeLegs.ToString() == Regex.Match(text, @"NATIVE_LEGS:\s*(\d+)").Groups[1].Value, $"{where}: NATIVE_LEGS must be {nativeLegs}");
+            Assert.True(shards.ToString() == Regex.Match(text, @"E2E_SHARDS:\s*(\d+)").Groups[1].Value, $"{where}: E2E_SHARDS must be {shards}");
+        }
+    }
+
+    [Fact]
+    public void PostMergeRun_SkipsTheCodeGates_OnlyForATreeItsPrRunPassed() // Env L23, 2026-10-01
+    {
+        // The merge of an up-to-date PR is exactly the tree its PR run passed, so the develop/main push run skips
+        // the code gates instead of re-testing it. The shortcut is only honest while it is that narrow:
+        var changes = Jobs(Read(ForgejoCi))["changes"];
+        var script = Read(".forgejo/scripts/tested-on-pr.sh");
+
+        // `code` is overridden only by the `tested` step's yes; `native` is never (the Apple build runs on develop
+        // pushes only, so a PR never ran it); the step decides before the classifier.
+        Assert.Contains("code: ${{ steps.tested.outputs.tested == 'true' && 'false' || steps.diff.outputs.code }}", changes, StringComparison.Ordinal);
+        Assert.Contains("native: ${{ steps.diff.outputs.native }}", changes, StringComparison.Ordinal);
+        Assert.True(changes.IndexOf("id: tested", StringComparison.Ordinal) is > 0 and var t
+                    && t < changes.IndexOf("id: diff", StringComparison.Ordinal), "the `tested` step must come before the classifier");
+
+        // Pushes to develop/main only, and never when that push deploys (CI_DEPLOY_ON_PUSH waits on this run's gates).
+        Assert.Contains("github.event_name == 'push'", changes, StringComparison.Ordinal);
+        Assert.Contains("!(github.ref == 'refs/heads/develop' && vars.CI_DEPLOY_ON_PUSH == 'staging')", changes, StringComparison.Ordinal);
+
+        // Same tree as the PR head, and that head green on a pull_request run, through the deploy's own verdict.
+        Assert.Contains("git rev-list --parents -n 1", script, StringComparison.Ordinal);
+        Assert.Contains("^{tree}", script, StringComparison.Ordinal);
+        Assert.Contains("gates-green.sh\" \"$head\" pull_request", script, StringComparison.Ordinal);
+        // The deploy accepts such a merge through the same script.
+        Assert.Contains("tested-on-pr.sh", Read(DeployWorkflow), StringComparison.Ordinal);
+
+        // GitHub's copy never sees a PR merge; it keeps re-running everything.
+        Assert.DoesNotContain("tested-on-pr", Read(GitHubCi), StringComparison.Ordinal);
     }
 
     private static HashSet<string> NeedsList(string job)
