@@ -1,6 +1,0 @@
-SHA=c0ffee0000000000000000000000000000000000
-API=http://forge/api/v1/repos/o/r
-TOKEN=t
-NATIVE_LEGS=2
-E2E_SHARDS=3
-CI_github_event_inputs_target=staging

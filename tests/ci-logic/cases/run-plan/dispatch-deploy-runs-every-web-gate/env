@@ -1,0 +1,4 @@
+EVENT=workflow_dispatch
+CODE=false
+DEPLOY=staging
+DEVICES=none

@@ -169,7 +169,7 @@ Each rule: **[machine]** (arch test / analyzer / CI gate) or **[review]** · cat
 - **R76 [machine]** — The `Notes` exemplar models the shared `ErrorResponse` shape; `new { error … }`
   anonymous error objects are banned in `Features/**`; the R3 machine half (outbound-to-user-URL requests
   route through `IOutboundUrlGuard`) lands. *(R71/R76-cand; TR-5, S0-G4.)*
-- **R80 [machine]** — The Forgejo pipeline (`.forgejo/workflows/`) is a held copy of the GitHub one: same
+- **R80 [retired 2026-10-02, ADR-031]** — `.forgejo/` was removed with the CI rebuild. Was: The Forgejo pipeline (`.forgejo/workflows/`) is a held copy of the GitHub one: same
   jobs, same `runs-on` labels (port-binding Linux jobs excepted: `ubuntu-host-ports`), same pins, same change classifier (plus its own path); Apple jobs wait for
   `vars.CI_MACOS_RUNNER`; native smokes run only from the `smokes` dispatch input or the schedule; deploys run
   only from the `deploy` dispatch input, behind every gate and every selected smoke, and fast-forward

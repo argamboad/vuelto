@@ -1,2 +1,3 @@
 FAKE_DOTNET_LIST=list.txt
 CI_matrix_shard=2
+CI_strategy_job_total=3

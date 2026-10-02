@@ -79,16 +79,15 @@ public class LocalPortsTests
     }
 
     [Fact]
-    public void CiMailpit_IsWhereTheApiSendsAndTheSuiteReads_OnBothForges()
+    public void CiMailpit_IsWhereTheApiSendsAndTheSuiteReads()
     {
         // The CI API runs as Development, so it sends to appsettings.Development's SMTP port (this repo's block), and the
-        // suite reads Mailpit at MAILPIT_BASE_URL. The forges wire Mailpit differently: GitHub publishes the service's
-        // `ports:` mapping, while the Forgejo runners use host networking, which ignores it (LOCALCI-4), so there Mailpit
-        // listens on its native 1025/8025 and the API must be pointed at 1025. A repo whose block moved off 1025 without
-        // this got every E2E journey timing out on "No OTP email" (y-el-vuelto, 2026-09-24).
+        // suite reads Mailpit at MAILPIT_BASE_URL. GitHub publishes the service's `ports:` mapping, so the mapping must
+        // put Mailpit on the block's ports. A repo whose block moved off 1025 without this got every E2E journey timing
+        // out on "No OTP email" (y-el-vuelto, 2026-09-24).
         var block = Block();
         var failures = new List<string>();
-        foreach (var (file, hostNetworking) in new[] { (".github/workflows/ci.yml", false), (".forgejo/workflows/ci.yml", true) })
+        foreach (var (file, hostNetworking) in new[] { (".github/workflows/ci.yml", false) })
         {
             var ci = Read(file);
             var services = Regex.Matches(ci, @"image: axllent/mailpit[^\n]*\n\s*ports: (\[[^\]]*\])");
