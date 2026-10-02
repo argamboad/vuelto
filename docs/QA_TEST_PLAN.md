@@ -123,12 +123,11 @@ Neon Postgres and Brevo email. Point the browser at the staging URL (e.g.
 - **Billing** uses Stripe **test mode** — exercise webhooks with `stripe trigger …` against the staging
   `/api/billing/webhook`.
 
-**Deploy + smoke gate (ADR-028).** A merge to `develop` deploys nothing. Staging is deployed from **Forgejo** →
-Actions → `ci.yml` → Run workflow with `deploy=staging` (or `deploy.yml` for an already-green commit): the run
-fast-forwards GitHub's `develop`, fires the Render hook, waits for the new build to be live (`/api/version`
-reports the commit) and runs the automated post-deploy smoke (liveness/readiness, SPA shell + deep-link, `/api`
-returns an API-shaped 404, `/api/auth/providers`). A red smoke blocks — so a broken deploy is caught before
-manual QA starts. Manual QA on staging complements it (the human-only paths: real email, OAuth, billing,
+**Deploy + smoke gate (ADR-031).** A merge to `develop` deploys nothing. Staging is deployed from **GitHub** →
+Actions → `CI` → *Run workflow* on `develop` with `deploy` = staging: the run re-runs every web gate, and only
+if all pass fires the Render hook, waits for the new build to be live (`/api/version` reports the commit) and
+runs the automated post-deploy smoke (liveness/readiness, SPA shell + deep-link, `/api` returns an API-shaped
+404, `/api/auth/providers`). A red gate or smoke blocks — so a broken deploy is caught before manual QA starts. Manual QA on staging complements it (the human-only paths: real email, OAuth, billing,
 visual checks).
 
 ---
@@ -2887,16 +2886,13 @@ Full per-feature native regression (every case in §12–13b) is for releases th
 (`src/Maui/**`, the RCL seams: `ICulturePersistence` / `IFileDownloadLauncher` / `AppResumeNotifier`)
 or bumped the .NET/MAUI toolchain.
 
-> **⚠️ The Apple smoke's CI cadence is WEEKLY, not per-push (LOCALCI-3).** `native-smoke-apple` bills
-> 87 minutes on hosted runners, because macOS bills at 10×, so it runs on a Monday 06:00 UTC schedule
-> plus manual dispatch rather than on every develop push. It returns to every-push the moment a
-> self-hosted Mac is configured (`vars.CI_MACOS_RUNNER`), where it is free. The Apple **build**
-> (`native-build-apple`) still runs on every develop push that touches native-relevant paths, so
-> compile rot is still caught within one merge.
+> **⚠️ The native legs run ON REQUEST, never per push (ADR-031).** A pull request runs the web gates only.
+> The MAUI builds and the Windows / Android / Apple smokes run from GitHub → Actions → `CI` → *Run workflow*
+> → `devices` (android / windows / apple / all) — macOS bills at 10× and Windows at 2× on a private repo.
 >
-> **What that means for a release:** the newest Apple smoke result may be up to a week old. Before
-> shipping a native client, trigger the workflow by hand (`workflow_dispatch`) or run the iOS/macOS
-> cases in §13b on a Mac. Do not read a green develop run as a green Apple smoke.
+> **What that means for a release:** a green pull request says nothing about the native apps. Before
+> shipping a native client, run the device legs for that platform (or all) on the commit you ship, or run the
+> iOS/macOS cases in §13b on a Mac.
 
 ---
 
@@ -3712,8 +3708,7 @@ Postgres + Mailpit + API + Web stack — so they are continuously regression-gua
 | QA-DSK-01 (desktop boot) | the `native-smoke-windows` job boots the REAL Windows exe as a process-alive + provider-probe canary (WebView2 150 strips CDP under elevation — PRs #170/#171); the OTP journey is CI-driven on Android only. `NativeSmokeTests` remains for local non-elevated runs |
 | QA-AND-01 (Android OTP sign-in) | `tests/native-smoke-android/smoke.js` — the `native-smoke-android` job boots a real emulator and drives the app via playwright-core's `_android` module |
 
-The two native smoke jobs run on develop pushes that touch native-relevant paths (see the
-`native-paths` gate in ci.yml) — they are boot-and-sign-in canaries, not the per-feature native
+The native smoke jobs run from *Run workflow* → `devices` (ADR-031) — they are boot-and-sign-in canaries, not the per-feature native
 regression, which stays manual (§12–13b). All other cases remain manual-only or API-test-backed as
 noted per row.
 
@@ -4640,3 +4635,7 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   card as…" — identities and transactions move, history stays whole). Rows without a card are a "no card" bucket — no LEGACY row. New
   QA-CAT-05 (suite 182); QA-EMAIL-06 and QA-REP-02 name the card; Postman folder 24; migration `AddCards`;
   `CardIdentityTests`, `CardSliceTests`, `CardEndpointTests`, the ledger/voucher tests and the bUnit pages pin it.
+- **Updated 2026-10-02** — **CI on billed minutes (ADR-031).** GitHub is the only forge again (ADR-030). A pull
+  request runs the web gates only; the MAUI builds and native smokes run from *Run workflow* → `devices`; deploys
+  run from *Run workflow* → `deploy` behind every web gate. The deploy gate paragraph says GitHub; the
+  Apple-cadence note became the device-legs note.

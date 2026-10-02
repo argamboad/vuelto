@@ -1,4 +1,0 @@
-exit 1
-+refusing to deploy
--Every gate is green
-+build-test

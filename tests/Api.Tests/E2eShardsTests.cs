@@ -11,7 +11,7 @@ namespace Vuelto.Api.Tests;
 /// </summary>
 public class E2eShardsTests
 {
-    public static TheoryData<string> Workflows => [".forgejo/workflows/ci.yml", ".github/workflows/ci.yml"];
+    public static TheoryData<string> Workflows => [".github/workflows/ci.yml"];
 
     [Theory]
     [MemberData(nameof(Workflows))]

@@ -42,7 +42,7 @@ thing has been audited, remediated, and re-audited.
 3. **Build your features as vertical slices** — a documented convention with a complete reference
    feature (`Notes`) to copy: API endpoint + UI page + tests, end-to-end, one PR each.
 4. **Deploy** on the proven path (Render + Neon + Brevo, all free tiers) — staging deploys from
-   `develop` with one manual GitHub *Run workflow* click (ADR-030);
+   `develop` with one manual GitHub *Run workflow* click (ADR-031);
    production is one approval click.
 
 Everything is **web-first**: build a feature once in the shared UI library and it appears in the
@@ -153,7 +153,7 @@ The domain teams underestimate most — here it's done, including the ugly parts
   tests, secret scanning, license and supply-chain checks (locked dependencies), documentation
   drift gates, and **architecture tests** (35 machine-enforced rules covering tenancy, fail-closed
   auth, SSRF, atomic quotas, and more).
-- **Deploys**: Docker everywhere; staging deploys from `develop` on a manual GitHub dispatch (ADR-030)
+- **Deploys**: Docker everywhere; staging deploys from `develop` on a manual GitHub dispatch (ADR-031)
   with a version-gated smoke check;
   production deploys behind a manual approval. Total infra cost to start: **$0** (free tiers).
 - **Ways of working**: TDD, vertical slices, conventional commits, an ADR log explaining every

@@ -1178,7 +1178,7 @@ the pieces that only run at prod activation — the **RLS two-role topology + po
 (ADR-020, `DEPLOYMENT.md` §7) and the **Production live-Stripe-key startup guard** — get their
 first real execution during a downstream app's activation, not here.
 
-**ADR-018 — Native (MAUI) client: commit to full feature parity across Android/Windows/iOS/macOS, incl. automated native tests + signed distribution. (2026-07-02)**
+**ADR-018 — Native (MAUI) client: commit to full feature parity across Android/Windows/iOS/macOS, incl. automated native tests + signed distribution. (2026-07-02) — amended by ADR-031 (the device legs run on request)**
 Resolves the deferred "non-web framework commitment" from `docs/TECH_STACK.md`. The platform already ships
 **MAUI Blazor Hybrid** shells that reuse the shared RCL (`Shared.Ui`) and have native auth wired (OTP,
 OAuth via system browser, MFA step-up MFA-4, secure-storage tokens) — so the native clients already render
@@ -2230,8 +2230,39 @@ machine at home is not in sight, so the forge goes back to GitHub:
    macOS, iOS, Android builds and smokes) and every Render deploy runs only from a manual *Run workflow*.
    The rebuild gets its own ADR (it amends NATIVE-1 and LOCALCI-3) and deletes `.forgejo/`,
    `ForgejoCiParityTests` and R80; until then they stay, unused.
-4. **No branch protection for now:** a private repo on GitHub Free has neither branch protection nor
-   rulesets. Getting it back (Pro, or a public repo) is an open decision.
+4. **No branch protection:** a private repo on GitHub Free has neither branch protection nor rulesets.
+   Decided in ADR-031: none, the repos stay private.
 
 **Consequences.** DEPLOYMENT §10 and the LOCALCI-4 story are history. The Postman workspace sync runs
 from GitHub on every `develop` change. The platform and its downstream apps share this ADR.
+
+**ADR-031 — CI on billed minutes: pull requests run the web gates only; the device legs and every deploy run on request. (2026-10-02)**
+The repos are private (ADR-030), so every Actions minute is billed against 2,000 a month, and one develop push
+used to cost 57–147 of them (macOS bills 10×, Windows 2×). The maintainer manages the minutes by hand, and the CI
+says so:
+
+1. **Triggers:** `pull_request` into `develop`/`main`, and `workflow_dispatch`. No push trigger — a merge runs
+   nothing, its pull request already did — and no schedule.
+2. **A pull request runs the web gates only:** `changes`, `secret-scan` and `qa-artifacts` always (a docs-only
+   change can leak a credential or desync the QA PDFs), and `build-test`, `license-scan`, `docker-build`, `e2e`
+   when code changed. e2e runs as ONE shard: on hosted runners every shard boots the stack again, and that
+   setup cost more than the wall-clock it saved.
+3. **The device legs run only from *Run workflow* → `devices`** (android / windows / apple / all): the MAUI
+   builds, the Release APK and the three native smokes. This amends NATIVE-1 (ADR-018: "a change that breaks
+   the native build fails the PR") and LOCALCI-3's per-push Apple build: a change that can affect the MAUI app
+   is no longer proven by its PR. The maintainer runs them periodically and before a release. There is no
+   Linux desktop flavor (MAUI has no Linux target; the web app and the Flavors fronts cover it).
+4. **Deploys run only from *Run workflow* → `deploy`:** staging from `develop`, prod from `main` (a wrong
+   branch fails loudly). That run re-runs every web gate and deploys only if all pass — deploys are rare, and
+   re-testing beats trusting a merge commit. Choosing `prod` is the approval: GitHub Free has no Environment
+   reviewers on a private repo. The device legs are not in the deploy's needs (a native result must not block
+   a web deploy, ADR-018).
+5. **Cost hygiene:** `timeout-minutes` on every job, a NuGet cache keyed on the lockfiles, 3-day artifact
+   retention, and a new push to a pull request cancels its previous run.
+6. **No branch protection** (ADR-030's open point, decided): the repos stay private on GitHub Free.
+7. **`.forgejo/` is gone**, with `ForgejoCiParityTests`, the Forgejo branch-protection script and the
+   Forgejo-only CI-logic targets; rules **R80 and R138 retire**, **R98, R137 and R139** now speak of the one
+   workflow, and `CiWorkflowTests` holds this shape.
+
+**Consequences.** A pull request costs roughly 25–35 minutes, a docs-only one a few. The `changes` job's
+classifier still reports `native`/`maui` for the record. The platform and its downstream apps share this ADR.

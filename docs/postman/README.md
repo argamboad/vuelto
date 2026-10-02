@@ -29,10 +29,8 @@ a mirror kept fresh by CI. The `postman-sync` workflow pushes the collection + e
 `*postman_environment.json` to the workspace (matched **by name**: update if present, create if
 not) on any change to `docs/postman/**` on `develop` — so the team never imports JSON by hand.
 
-The workflow exists twice, one copy per forge (ADR-028). **Forgejo is the one that matters:**
-`develop` moves there on every merge, so `.forgejo/workflows/postman-sync.yml` is the per-merge
-sync. GitHub's `develop` only moves when a deploy pushes it, so `.github/workflows/postman-sync.yml`
-re-syncs the same files at deploy time (harmless: the sync is by name and idempotent).
+It runs on GitHub whenever `develop` moves — every merged pull request that touched `docs/postman/` — and
+from *Run workflow* (ADR-030/031).
 
 **One-time setup** (until then the job skips with a notice):
 1. Postman → avatar → **Settings → API keys** → generate a key → GitHub → repo →
@@ -42,9 +40,6 @@ re-syncs the same files at deploy time (harmless: the sync is by name and idempo
 3. Delete any duplicate same-name collections/environments in the workspace once (with
    duplicates, the first name-match wins). Trigger the first run from GitHub: repo →
    **Actions → postman-sync → Run workflow** (or merge any `docs/postman/` change).
-
-GitHub is the forge again (ADR-030); the `.forgejo/` copy of this workflow no longer runs and goes
-with the CI rebuild.
 
 **Direction is one-way.** Edits made in the Postman UI are overwritten on the next sync — change
 the JSON here (PR-reviewed, versioned) instead. Postman's built-in "connect repository" (API

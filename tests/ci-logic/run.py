@@ -6,7 +6,7 @@ tests only copy its regexes. This runs the real thing: each target in `targets` 
 step, cut out between `# ci-logic begin: <name>` and `# ci-logic end: <name>` anchors, or a whole script. Every
 case under cases/<name>/<case>/ runs it in a scratch directory with the real tools, fake `git`/`dotnet`/`curl`
 from stubs/ first on PATH, and checks the exit code and output against `expect`. A block runs as GitHub runs a
-`run:` step (`bash -e`, no pipefail; both workflow copies pin that), once per workflow copy that holds it.
+`run:` step (`bash -e`, no pipefail; the workflow pins that), once per workflow file that holds it.
 
 Case layout:
   env      KEY=VALUE lines exported for the run (${{ expr }} in a block reads CI_<expr, non-alnum -> _>)
@@ -74,7 +74,7 @@ def copy_text_tree(src, dst):
 def run_case(kind, name, source, case_dir):
     work = tempfile.mkdtemp(prefix=f'ci-logic-{name}-')
     try:
-        for scripts in ('.github/scripts', '.forgejo/scripts'):  # what the blocks call
+        for scripts in ('.github/scripts',):  # what the blocks call
             copy_text_tree(os.path.join(ROOT, scripts), os.path.join(work, scripts))
         if os.path.isdir(os.path.join(case_dir, 'files')):
             copy_text_tree(os.path.join(case_dir, 'files'), work)

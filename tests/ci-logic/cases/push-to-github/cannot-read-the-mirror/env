@@ -1,5 +1,0 @@
-HOOK=https://hook
-MIRROR_TOKEN=t
-MIRROR_REPO=owner/repo
-FAKE_GIT_PUSH=fail
-FAKE_GIT_FETCH=fail

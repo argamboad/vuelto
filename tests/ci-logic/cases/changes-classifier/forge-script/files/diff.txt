@@ -1,1 +1,0 @@
-.forgejo/scripts/push-to-github.sh

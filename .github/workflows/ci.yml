@@ -1,29 +1,40 @@
 name: CI
 
+# ADR-031 (2026-10-02): the repo is private, so every minute is billed, and the minutes are managed by hand.
+#   - A pull request into develop/main runs the WEB gates only: changes, secret-scan, qa-artifacts (always),
+#     build-test, license-scan, docker-build, e2e (when code changed). A merge runs nothing: its PR already did.
+#   - Everything else is a manual "Run workflow" with two inputs:
+#       deploy:  staging (from develop) / prod (from main) — runs the web gates first, deploys only if green.
+#       devices: android / windows / apple / all — the DEVICE legs (MAUI builds, the Release APK, the native
+#                smokes). They never run on their own; the maintainer runs them periodically and before a release.
+#   - No schedule.
 on:
-  push:
-    branches: [main, develop]
   pull_request:
     branches: [main, develop]
-  # LOCALCI-3. The Apple smoke bills 87 minutes because macOS runners cost 10x, so in hosted-fallback
-  # mode it runs on a cadence instead of on every push. A scheduled run is ONLY that job — every
-  # other one carries `github.event_name != 'schedule'`.
-  schedule:
-    - cron: "0 6 * * 1" # Mondays, 06:00 UTC
   workflow_dispatch:
+    inputs:
+      deploy:
+        description: Deploy after the web gates are green (staging deploys from develop, prod from main)
+        type: choice
+        default: none
+        options: [none, staging, prod]
+      devices:
+        description: Device legs to run (MAUI builds, Release APK, native smokes)
+        type: choice
+        default: none
+        options: [none, android, windows, apple, all]
 
 # Least privilege for every job (v3 audit DEP-8). No job here consumes GITHUB_TOKEN — nothing pushes,
 # comments, or releases — but several execute freshly-downloaded third-party binaries (gitleaks, mailpit,
 # dotnet tools), so the default write-all token would hand those a repo-write credential for no reason.
 # `contents: read` is all `actions/checkout` needs. Grant any future write scope per-job, never here.
-# Every checkout also sets `persist-credentials: false` so no step after it holds the token (v4 audit
-# DEP-14 — the Forgejo copy cannot narrow the token at all, and the two files are held together, R80).
+# Every checkout also sets `persist-credentials: false` so no step after it holds the token (v4 audit DEP-14).
 permissions:
   contents: read
 
-# Env L30: a new push to an open pull request cancels that PR's previous run, so a superseded run stops holding the
-# runner lanes. Every other event (develop/main pushes, dispatches, the schedule) gets a group of its own - its run
-# id - so those runs are never cancelled; the deploy jobs keep their own groups.
+# Env L30: a new push to an open pull request cancels that PR's previous run, so a superseded run stops billing.
+# A dispatched run gets a group of its own - its run id - so it is never cancelled; the deploy jobs keep their own
+# groups.
 concurrency:
   group: ${{ github.event_name == 'pull_request' && format('ci-pr-{0}', github.event.pull_request.number) || format('ci-run-{0}', github.run_id) }}
   cancel-in-progress: true
@@ -31,16 +42,20 @@ concurrency:
 jobs:
   build-test:
     needs: changes
-    if: github.event_name != 'schedule' && needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
         with:
           persist-credentials: false # v4 audit DEP-14: never leave the job token in .git/config
 
+      # cache: NuGet packages keyed on the committed lockfiles (ADR-031: every minute is billed).
       - uses: actions/setup-dotnet@v5
         with:
           global-json-file: global.json
+          cache: true
+          cache-dependency-path: "**/packages.lock.json"
 
       # Supply-chain (B11-6): restore in LOCKED mode against the committed packages.lock.json
       # files. --locked-mode fails if the resolved graph differs from the lockfile, so a
@@ -98,8 +113,10 @@ jobs:
   # Runs on EVERY change, including docs-only (LOCALCI-3): a credential pasted into a markdown file
   # is still a leaked credential, and this is the gate that would catch it.
   secret-scan:
-    if: github.event_name != 'schedule'
+    needs: changes
+    if: needs.changes.outputs.checks == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
         with:
@@ -128,8 +145,10 @@ jobs:
   # regenerating the PDFs is the ONLY way to break this, so gating it on code would switch it off
   # for precisely the change it exists to catch.
   qa-artifacts:
-    if: github.event_name != 'schedule'
+    needs: changes
+    if: needs.changes.outputs.checks == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
         with:
@@ -184,8 +203,9 @@ jobs:
   # job so a license failure is distinguishable from a build/test failure.
   license-scan:
     needs: changes
-    if: github.event_name != 'schedule' && needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
         with:
@@ -194,6 +214,8 @@ jobs:
       - uses: actions/setup-dotnet@v5
         with:
           global-json-file: global.json
+          cache: true
+          cache-dependency-path: "**/packages.lock.json"
 
       - name: dotnet-project-licenses (fail on copyleft)
         # Restore first so project.assets.json exists for the transitive walk (the app uses Central
@@ -226,8 +248,9 @@ jobs:
   # docs/DEPLOYMENT.md. This just stops the Dockerfile silently rotting.
   docker-build:
     needs: changes
-    if: github.event_name != 'schedule' && needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
         with:
@@ -240,46 +263,32 @@ jobs:
       - name: The app user can write its storage folder
         run: docker run --rm --entrypoint sh vuelto-app:ci -c 'touch /app/storage/.write-probe && rm /app/storage/.write-probe'
 
-  # Native (MAUI) build gate — NATIVE-1 (ADR-018). Compile-only (no emulator, no signing): a change that
-  # breaks the native build fails the PR instead of rotting until a manual run. Android + Windows run on
-  # every trigger (cheap runners); the Apple targets live in native-build-apple below (macOS = 10× billed
-  # minutes on a private repo, so they run on develop pushes only — still catches rot within one merge).
-  # The Maui project is outside the locked-mode restore path by design (host-conditional TFMs — see the
-  # csproj note); CPM pins its package versions.
+  # Native (MAUI) build — NATIVE-1 (ADR-018), a DEVICE leg since ADR-031: it runs only from "Run workflow" with
+  # devices = android / windows / all, one matrix leg per platform asked for (the `changes` job builds the matrix).
+  # Compile-only (no emulator, no signing). The Apple targets live in native-build-apple below. The Maui project is
+  # outside the locked-mode restore path by design (host-conditional TFMs — see the csproj note); CPM pins its
+  # package versions.
   native-build:
     needs: changes
-    if: github.event_name != 'schedule' && needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.buildmatrix != '[]'
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - tfm: net10.0-android
-            os: ubuntu-latest
-          - tfm: net10.0-windows10.0.19041.0
-            os: windows-latest
+        include: ${{ fromJSON(needs.changes.outputs.buildmatrix) }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     steps:
-      # Env L29: when the change cannot affect the MAUI app (`maui` false) every step below is skipped and the job
-      # succeeds in seconds, without a checkout. Not a job-level skip: the deploy requires native-build to succeed,
-      # and the already-green / merge-skip verdicts need its legs on record.
-      - name: MAUI unaffected - nothing to build
-        if: needs.changes.outputs.maui != 'true'
-        run: echo "::notice::This change cannot affect the MAUI app (src/Maui, src/Shared.Ui, build props, the SDK pin, ci.yml) - nothing to build (Env L29)."
-
       - uses: actions/checkout@v5
-        if: needs.changes.outputs.maui == 'true'
         with:
           persist-credentials: false # v4 audit DEP-14: never leave the job token in .git/config
 
       - uses: actions/setup-dotnet@v5
-        if: needs.changes.outputs.maui == 'true'
         with:
           global-json-file: global.json
 
       # The Android target compiles against the JDK; runners preinstall the Android SDK (ANDROID_HOME).
       - uses: actions/setup-java@v5
-        if: needs.changes.outputs.maui == 'true' && (contains(matrix.tfm, 'android'))
+        if: contains(matrix.tfm, 'android')
         with:
           distribution: temurin
           java-version: "17"
@@ -288,19 +297,18 @@ jobs:
       # when building just one (-f), so each runner needs the workloads for all TFMs its OS exposes —
       # e.g. macOS needs android too (NETSDK1147 otherwise). restore resolves that per-host, forever.
       - name: Install the MAUI workloads (host-aware)
-        if: needs.changes.outputs.maui == 'true'
         run: dotnet workload restore src/Maui/Vuelto.Maui.csproj --version 10.0.400.1
 
-      - name: Build (compile-only gate)
-        if: needs.changes.outputs.maui == 'true'
+      - name: Build (compile-only)
         run: dotnet build src/Maui/Vuelto.Maui.csproj -f ${{ matrix.tfm }} -c Debug -p:AcceptAndroidSDKLicenses=true
 
       # The Maui half of the license gate (v3 audit TOOL-1, T46): the license-scan job can't restore
       # this project (needs the MAUI workloads), so scan it here where the build above already
       # produced project.assets.json. Android leg only — the package graph is TFM-invariant enough
-      # for license purposes, and one leg keeps it off the paid-runner path.
+      # for license purposes, and one leg keeps it off the paid-runner path. A device leg too, so the
+      # Maui graph is scanned when the device legs run (ADR-031).
       - name: dotnet-project-licenses (Maui graph, fail on copyleft)
-        if: needs.changes.outputs.maui == 'true' && (contains(matrix.tfm, 'android'))
+        if: contains(matrix.tfm, 'android')
         env:
           DOTNET_ROLL_FORWARD: LatestMajor
         run: |
@@ -311,16 +319,14 @@ jobs:
             --use-project-assets-json \
             --forbidden-license-types .github/forbidden-licenses.json
 
-  # v4 T50: the ONE MAUI Release build CI runs — on demand (any manual run) and every Monday, never per
-  # push. Every other MAUI build here is Debug, so the Release guards (ReleaseGuards.targets: ApiBaseUrl
+  # v4 T50: the ONE MAUI Release build CI runs — a device leg (devices = android / all), never automatic.
+  # Every other MAUI build here is Debug, so the Release guards (ReleaseGuards.targets: ApiBaseUrl
   # present/https/origin-only, apksigner v2+ signing, HTTPS-only network config) ran nowhere before this
   # leg. It publishes a Release APK signed with a throwaway store key, verifies the signature scheme the way
   # a phone will, and proves a Release build without ApiBaseUrl is refused.
   native-release-android:
     needs: changes
-    if: >-
-      needs.changes.outputs.native == 'true'
-      && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+    if: needs.changes.outputs.android == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -368,31 +374,32 @@ jobs:
           fi
           grep -q "Release builds require -p:ApiBaseUrl" guard.log || { cat guard.log; echo "failed, but not on the ApiBaseUrl guard"; exit 1; }
 
-  # Relevance gate for the expensive native legs. Born as a free-tier cost guard (the 2026-07-03
-  # NATIVE sprint burned a month of private-repo minutes in one day: ~10 develop pushes × [2 macOS
-  # legs at 10× + Windows at 2×]); the repo is public now (2026-07-04) so standard-runner minutes
-  # are free, but the gate still pays for itself in wall-clock and runner-queue time — and keeps
-  # any future return to private billable-safe. This cheap job diffs each develop push; docs-only
-  # merges (stories, QA plan/PDFs, parity matrix, ...) skip the Apple builds and all three native smokes.
-  # Anything that could affect a native binary or the smoke harness (src/**, the E2E project,
-  # package pins, this workflow) still runs them. A schedule can't replace this: scheduled
-  # workflows execute from the DEFAULT branch (main here, which is deploy-only and behind develop).
-  # LOCALCI-3. One job answers "could this change have broken that?", and every other job gates on
-  # its output. It began as `native-paths`, which asked the same question for the Apple legs only,
-  # while a docs-only push still billed build-test, e2e, docker-build, license-scan and two native
-  # builds — about thirty minutes for markdown.
+  # What this run is for, decided once, and every other job gates on it (LOCALCI-3, ADR-031).
+  #   checks      secret-scan + qa-artifacts: every pull request (a docs-only one above all), and a deploy run.
+  #   web         build-test, license-scan, docker-build, e2e: a pull request that touched code (the diff
+  #               classifier below), and a deploy run (it gates the deploy).
+  #   android / windows / apple, buildmatrix
+  #               the device legs a "Run workflow" asked for (devices input); never on a pull request.
+  # The classifier (code/native/maui/docs) answers "could this change have broken that?". It began as
+  # `native-paths` for the Apple legs, then served every job so a docs-only change stopped billing ~30
+  # minutes for markdown.
   #
-  # A JOB with needs/if rather than `on: paths:`, deliberately: a trigger-level filter skips the
-  # WHOLE workflow, and two gates must run no matter what the change looks like (see below). A
-  # skipped job is not a failed one — GitHub reports a skipped required check as passing — so a
-  # docs-only pull request still merges.
+  # A JOB with needs/if rather than `on: paths:`, deliberately: a trigger-level filter skips the WHOLE
+  # workflow, and two gates must run no matter what the change looks like.
   changes:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       code: ${{ steps.diff.outputs.code }}
       native: ${{ steps.diff.outputs.native }}
       maui: ${{ steps.diff.outputs.maui }}
       docs: ${{ steps.diff.outputs.docs }}
+      checks: ${{ steps.run.outputs.checks }}
+      web: ${{ steps.run.outputs.web }}
+      android: ${{ steps.run.outputs.android }}
+      windows: ${{ steps.run.outputs.windows }}
+      apple: ${{ steps.run.outputs.apple }}
+      buildmatrix: ${{ steps.run.outputs.buildmatrix }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -440,19 +447,19 @@ jobs:
           match() { printf '%s\n' "$1" | grep -qE "$2" && echo true || echo false; }
 
           # Anything that can change what the code DOES or how it is built, and every file a test or gate
-          # reads: lockfiles, both forges' workflows and scripts, the license list, .dockerignore, the
-          # config catalog, tools/ (less devtools), the Postman collection and the markdown in testdocs. Identical in both
-          # workflow copies. A path counts as code if in doubt; skipping a gate is the expensive mistake.
-          code=$(match "$codefiles" '^(src/|tests/|tools/|[^/]+\.slnx?$|Directory\.Packages\.props|Directory\.Build\.props|global\.json|Dockerfile|\.dockerignore|docker-compose\.yml|\.env\.example|\.config/dotnet-tools\.json|\.github/(workflows/|scripts/|forbidden-licenses\.json)|\.forgejo/(workflows/|scripts/)|.*packages\.lock\.json|docs/postman/|README\.md$|CLAUDE\.md$|docs/(DEPLOYMENT|DATA_MODEL|QA_TEST_PLAN|REBRANDING|DECISIONS|WAYS_OF_WORKING)\.md$|docs/stories/e2e\.md$)')
+          # reads: lockfiles, the workflows and scripts, the license list, .dockerignore, the config catalog,
+          # tools/ (less devtools), the Postman collection and the markdown in testdocs. A path counts as code if
+          # in doubt; skipping a gate is the expensive mistake.
+          code=$(match "$codefiles" '^(src/|tests/|tools/|[^/]+\.slnx?$|Directory\.Packages\.props|Directory\.Build\.props|global\.json|Dockerfile|\.dockerignore|docker-compose\.yml|\.env\.example|\.config/dotnet-tools\.json|\.github/(workflows/|scripts/|forbidden-licenses\.json)|.*packages\.lock\.json|docs/postman/|README\.md$|CLAUDE\.md$|docs/(DEPLOYMENT|DATA_MODEL|QA_TEST_PLAN|REBRANDING|DECISIONS|WAYS_OF_WORKING)\.md$|docs/stories/e2e\.md$)')
 
-          # Narrower: what the expensive native legs can actually be broken by, incl. the solution-wide
-          # build props and the native publish script (v4 NAT-16).
-          native=$(match "$nativefiles" '^(src/|tests/E2E\.Tests/|tests/native-smoke-android/|Directory\.Packages\.props|Directory\.Build\.props|global\.json|tools/publish-native\.ps1|\.(github|forgejo)/workflows/ci\.yml)')
+          # Narrower: what the native legs can actually be broken by, incl. the solution-wide build props and the
+          # native publish script (v4 NAT-16). Reported for the record; the device legs run on request (ADR-031).
+          native=$(match "$nativefiles" '^(src/|tests/E2E\.Tests/|tests/native-smoke-android/|Directory\.Packages\.props|Directory\.Build\.props|global\.json|tools/publish-native\.ps1|\.github/workflows/ci\.yml)')
 
           # Narrower still: what the MAUI app is built from (Env L29). src/Maui references only src/Shared.Ui, which
           # references nothing, so the API, Core, Infrastructure, Web and the tests cannot break it; plus the solution
-          # build props, the SDK pin, both ci.yml, the workload script and the Android leg's license-scan inputs.
-          maui=$(match "$nativefiles" '^(src/(Maui|Shared\.Ui)/|Directory\.Packages\.props|Directory\.Build\.props|global\.json|\.(github|forgejo)/workflows/ci\.yml|\.forgejo/scripts/workloads\.ps1|\.config/dotnet-tools\.json|\.github/forbidden-licenses\.json)')
+          # build props, the SDK pin, ci.yml and the Android leg's license-scan inputs.
+          maui=$(match "$nativefiles" '^(src/(Maui|Shared\.Ui)/|Directory\.Packages\.props|Directory\.Build\.props|global\.json|\.github/workflows/ci\.yml|\.config/dotnet-tools\.json|\.github/forbidden-licenses\.json)')
 
           {
             echo "code=$code"
@@ -464,15 +471,49 @@ jobs:
           [ "$code" = "true" ] || echo "::notice::No code touched — build, test, e2e, docker and license gates skipped."
           # ci-logic end: changes-classifier
 
-  # Apple half of the native build gate (NATIVE-1). Develop pushes only, and only when the push
-  # touched native-relevant paths (see `changes`): macOS runners bill at 10× on a private repo.
+      # ADR-031: which gates and which device legs this run is for (see the header of this job).
+      - id: run
+        env:
+          EVENT: ${{ github.event_name }}
+          CODE: ${{ steps.diff.outputs.code }}
+          DEPLOY: ${{ inputs.deploy }}
+          DEVICES: ${{ inputs.devices }}
+        run: |
+          # ci-logic begin: run-plan
+          checks=false; web=false
+          if [ "$EVENT" = "pull_request" ]; then
+            checks=true; web="$CODE"
+          elif [ -n "$DEPLOY" ] && [ "$DEPLOY" != "none" ]; then
+            checks=true; web=true   # a deploy runs every web gate first, whatever the diff
+          fi
+          android=false; windows=false; apple=false
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            case "$DEVICES" in
+              android) android=true ;;
+              windows) windows=true ;;
+              apple)   apple=true ;;
+              all)     android=true; windows=true; apple=true ;;
+            esac
+          fi
+          legs=""
+          [ "$android" = "true" ] && legs="$legs,{\"tfm\":\"net10.0-android\",\"os\":\"ubuntu-latest\"}"
+          [ "$windows" = "true" ] && legs="$legs,{\"tfm\":\"net10.0-windows10.0.19041.0\",\"os\":\"windows-latest\"}"
+          {
+            echo "checks=$checks"
+            echo "web=$web"
+            echo "android=$android"
+            echo "windows=$windows"
+            echo "apple=$apple"
+            echo "buildmatrix=[${legs#,}]"
+          } >> "$GITHUB_OUTPUT"
+          echo "This run: checks=$checks web=$web devices: android=$android windows=$windows apple=$apple"
+          # ci-logic end: run-plan
+
+  # Apple half of the native build (NATIVE-1). A device leg (ADR-031): devices = apple / all only — macOS
+  # runners bill at 10× on a private repo.
   native-build-apple:
     needs: changes
-    # Develop pushes only, and only when the push could have broken it. The develop-only test moved
-    # here from the gate job when LOCALCI-3 made that gate serve every job.
-    if: >-
-      github.event_name == 'push' && github.ref == 'refs/heads/develop'
-      && needs.changes.outputs.native == 'true'
+    if: needs.changes.outputs.apple == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -526,22 +567,11 @@ jobs:
   # the login page fully renders over http — verified 2026-07-06; only real OAuth needs the
   # https/cert ceremony). Catalyst runs the Debug entitlements path (unsandboxed +
   # DebugFileSessionStore — ad-hoc builds can't reach the keychain, see PR #125). No Mailpit: no
-  # email is sent in a boot smoke. Not in deploy-staging needs (same accepted-risk note as the
-  # other native smokes). macOS bills 10× — develop pushes with native-relevant changes only.
+  # email is sent in a boot smoke. Not in the deploy needs (same accepted-risk note as the other native
+  # smokes). A device leg (ADR-031): devices = apple / all only — at ~87 macOS minutes the most expensive job.
   native-smoke-apple:
     needs: changes
-    # LOCALCI-3, and the one cadence change in this slice. At 87 billed minutes it is the most
-    # expensive job in the workflow, so in hosted-fallback mode it moves to Monday mornings and to
-    # manual dispatch. The moment a self-hosted Mac is configured it is free, and it goes back to
-    # running on every develop push that could have broken it.
-    #
-    # `vars.CI_MACOS_RUNNER` is LOCALCI-1's variable and does not exist yet; an unset variable reads
-    # as empty, which is exactly the hosted-fallback branch. Nothing here waits on that slice.
-    if: >-
-      needs.changes.outputs.native == 'true'
-      && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-          || (github.event_name == 'push' && github.ref == 'refs/heads/develop'
-              && vars.CI_MACOS_RUNNER != ''))
+    if: needs.changes.outputs.apple == 'true'
     # Same Xcode reasoning as native-build-apple: pinned image + workload set 10.0.400.1 (iOS
     # 26.5.10315, requires Xcode 26.6) + DEVELOPER_DIR pinning the image's default Xcode 26.6.
     runs-on: macos-26
@@ -666,6 +696,7 @@ jobs:
             ios-smoke.png
             mac-smoke.png
           if-no-files-found: ignore
+          retention-days: 3 # the Free plan's Actions storage is 500 MB (ADR-031)
 
       - name: Logs (diagnostics)
         # always(), not failure() — see the Android leg: a timed-out job's cancelled steps never
@@ -684,13 +715,11 @@ jobs:
   # WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS when the host runs elevated (GitHub runners do), so the CDP
   # endpoint never binds (MicrosoftEdge/WebView2Feedback#5640; runner image 20260707.563+). The
   # UI-driving journey (fill email → OTP → household) still runs end-to-end on the ANDROID leg below,
-  # so that coverage isn't lost. Develop pushes with native-relevant changes only (see `changes`).
-  # Deliberately NOT in the deploy-staging needs — a native run must not block web deploys (ADR-018).
+  # so that coverage isn't lost. A device leg (ADR-031): devices = windows / all only.
+  # Deliberately NOT in the deploy needs — a native run must not block web deploys (ADR-018).
   native-smoke-windows:
     needs: changes
-    if: >-
-      github.event_name == 'push' && github.ref == 'refs/heads/develop'
-      && needs.changes.outputs.native == 'true'
+    if: needs.changes.outputs.windows == 'true'
     runs-on: windows-latest
     timeout-minutes: 45
     steps:
@@ -795,12 +824,10 @@ jobs:
   # SDK (no marketplace action, mirroring the gitleaks approach). Two hard-won gotchas encoded here:
   # the app must be built with EmbedAssembliesIntoApk=true (a fast-deployment Debug APK silently
   # fails to start from a plain `adb install`), and the WebView devtools socket only exists after
-  # the app process is up.
+  # the app process is up. A device leg (ADR-031): devices = android / all only.
   native-smoke-android:
     needs: changes
-    if: >-
-      github.event_name == 'push' && github.ref == 'refs/heads/develop'
-      && needs.changes.outputs.native == 'true'
+    if: needs.changes.outputs.android == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     services:
@@ -967,15 +994,16 @@ jobs:
   # OAuth/desktop/Android stay manual (they need an external provider / native runners).
   e2e:
     needs: changes
-    if: github.event_name != 'schedule' && needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.web == 'true'
     strategy:
       fail-fast: false
       matrix:
-        # Three shards, one per port lane (each lane takes one job at a time, so two shards can never
-        # share a daemon and collide on the fixed ports). 37 journeys × ~15 s each was ~7 min of every
-        # run; split three ways it is ~2.5 min, at the cost of booting the stack three times.
-        shard: [1, 2, 3]
+        # ONE shard (ADR-031). Every shard boots the whole stack again, and on billed hosted runners that
+        # repeated setup costs more than the wall-clock it saves (three shards: ~8 more minutes per run). The
+        # dealing below is general — list more shard numbers here to split the journeys again.
+        shard: [1]
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     services:
       db:
         image: postgres:17
@@ -997,6 +1025,8 @@ jobs:
       - uses: actions/setup-dotnet@v5
         with:
           global-json-file: global.json
+          cache: true
+          cache-dependency-path: "**/packages.lock.json"
 
       - name: Point the WASM client at the HTTP API
         # The committed wwwroot/appsettings.json targets the dev https API; the CI stack is http.
@@ -1074,7 +1104,7 @@ jobs:
           export PLAYWRIGHT_BASE_URL=http://localhost:5269 MAILPIT_BASE_URL=http://localhost:8026 \
             E2E_API_BASE_URL=http://localhost:5338
             # ci-logic begin: e2e-shard
-            # Shard the journeys: list them, keep every third. `--list-tests` prints one method name per
+            # Shard the journeys: list them, deal them across the shards. `--list-tests` prints one method name per
             # indented line (no namespace), so the filter matches on the name, and a renamed journey simply
             # moves shard. An empty shard means the parse broke, and that must fail loudly rather than
             # quietly test nothing.
@@ -1096,12 +1126,13 @@ jobs:
             total=$(echo "$names" | grep -c . || true)
             [ "$total" -ge 10 ] || { echo "::error::only $total journeys listed — the --list-tests parse broke"; exit 1; }
             # Deal by measured time (Env L28): longest first, each journey to the shard with the least time so far,
-            # so the three finish together instead of waiting on the slowest alphabetical third. The times are
+            # so the shards finish together instead of waiting on the slowest alphabetical one. With one shard
+            # (ADR-031) every journey lands in it. The times are
             # tests/E2E.Tests/journey-seconds.tsv (name<TAB>seconds, copied from the slowest-journeys report below
             # now and then); a journey not in it counts as the table's median, and with no table every journey
             # weighs the same, which deals them round-robin in name order as before. Ties break by name, then by
             # the lower shard, so every shard computes the same split. Plain awk (no gawk-only functions).
-            mine=$(echo "$names" | awk -v s=${{ matrix.shard }} -v n=3 -v table=tests/E2E.Tests/journey-seconds.tsv '
+            mine=$(echo "$names" | awk -v s=${{ matrix.shard }} -v n=${{ strategy.job-total }} -v table=tests/E2E.Tests/journey-seconds.tsv '
               BEGIN {
                 while ((getline line < table) > 0) {
                   if (line ~ /^#/ || line !~ /\t/) continue
@@ -1124,8 +1155,8 @@ jobs:
                   if (best == s) print nm[i]
                 }
               }')
-            [ -n "$mine" ] || { echo "::error::shard ${{ matrix.shard }} of 3 matched none of the $total journeys"; exit 1; }
-            echo "shard ${{ matrix.shard }} of 3: $(echo "$mine" | grep -c . || true) of $total journeys"
+            [ -n "$mine" ] || { echo "::error::shard ${{ matrix.shard }} of ${{ strategy.job-total }} matched none of the $total journeys"; exit 1; }
+            echo "shard ${{ matrix.shard }} of ${{ strategy.job-total }}: $(echo "$mine" | grep -c . || true) of $total journeys"
             echo "$mine" | sed 's/^/  /'
             # Exact Name=, never a bare substring: `FullyQualifiedName~Foo` also matched FooBar, which then ran in
             # two shards (v4 DEP-22). Checked against the real NUnit adapter, which rejects `\(` in a filter value.
@@ -1190,25 +1221,31 @@ jobs:
         # this diagnostic silently print nothing on every failure.
         run: tail -n 80 api.log web.log || true
 
-  # Deploy staging (DEPLOY-3, ADR-017). Runs ONLY on a push to develop, and only after every test/build
-  # gate above is green — so staging always reflects a passing develop. Triggers the Render deploy via a
-  # deploy hook (repo secret), then polls the public URL and smoke-tests it. Both the hook and the base
-  # URL are optional: absent ⇒ the job logs a notice and passes, so the platform is green out of the box
-  # and a downstream app opts in by adding the secret + variable (see docs/DEPLOYMENT.md).
+  # Deploy staging (DEPLOY-3, ADR-017; manual since ADR-031). Runs ONLY from "Run workflow" on develop with
+  # deploy = staging, and only after every web gate above is green in that same run. Triggers the Render
+  # deploy via a deploy hook (repo secret), then polls the public URL and smoke-tests it. Both the hook and
+  # the base URL are optional: absent ⇒ the job logs a notice and passes, so the platform is green out of the
+  # box and a downstream app opts in by adding the secret + variable (see docs/DEPLOYMENT.md). The device
+  # legs are not in its needs: a native result must not block a web deploy (ADR-018).
   deploy-staging:
     needs: [build-test, secret-scan, qa-artifacts, license-scan, docker-build, e2e]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
-    # Back-to-back merges: Render supersedes the older build, so the older run's version-gated smoke
-    # can never see its own SHA go live and fails spuriously. Cancel the older in-flight deploy job
-    # instead — cancelled reads as neutral, and the newest push still gets its full smoke. When the
-    # runs reach this job out of order (the OLDER run's tests finish last and it cancels the NEWER
-    # job), the smoke script itself accepts a live build that is a descendant of the expected commit,
-    # so the surviving job still verifies what is actually deployed instead of timing out red.
+    if: github.event_name == 'workflow_dispatch' && inputs.deploy == 'staging'
+    # Two deploy runs in a row: Render supersedes the older build, so the older run's version-gated smoke
+    # could never see its own SHA go live. Cancel the older in-flight deploy job instead — cancelled reads as
+    # neutral — and the smoke script accepts a live build that descends from the expected commit.
     concurrency:
       group: deploy-staging
       cancel-in-progress: true
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
+      - name: Staging deploys from develop
+        run: |
+          if [ "${{ github.ref }}" != "refs/heads/develop" ]; then
+            echo "::error::staging deploys from develop — this run is on ${{ github.ref }}. Run the workflow on develop."
+            exit 1
+          fi
+
       - uses: actions/checkout@v5 # for .github/scripts/deploy-smoke.sh
         with:
           persist-credentials: false # v4 audit DEP-14: never leave the job token in .git/config
@@ -1244,22 +1281,27 @@ jobs:
           fi
           bash .github/scripts/deploy-smoke.sh "$BASE" "$EXPECT"
 
-  # Deploy prod (DEPLOY-3). Runs ONLY on a push to main, behind the `production` GitHub Environment — add a
-  # required reviewer to that environment (repo Settings → Environments) to make prod a manual approval, so
-  # main stays deploy-only + deliberate. That reviewer lives in repo settings, NOT in this file: a clone that
-  # skips it gets un-gated auto-deploy-to-prod on any main push, so it's an explicit step in
-  # docs/DEPLOYMENT.md §6. Skips cleanly until a prod service + its deploy hook exist.
+  # Deploy prod (DEPLOY-3; manual since ADR-031). Runs ONLY from "Run workflow" on main with deploy = prod,
+  # after every web gate is green in that run — choosing it IS the approval, so no `production` environment
+  # reviewer is needed (a private repo on GitHub Free cannot have one). Skips cleanly until a prod service +
+  # its deploy hook exist.
   deploy-prod:
     needs: [build-test, secret-scan, qa-artifacts, license-scan, docker-build, e2e]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    # Same rationale as deploy-staging: back-to-back merges supersede each other's builds, so an older
-    # run's version-gated smoke could never see its own SHA go live (v3 audit DEP-7).
+    if: github.event_name == 'workflow_dispatch' && inputs.deploy == 'prod'
+    # Same rationale as deploy-staging (v3 audit DEP-7).
     concurrency:
       group: deploy-prod
       cancel-in-progress: true
     runs-on: ubuntu-latest
-    environment: production
+    timeout-minutes: 25
     steps:
+      - name: Prod deploys from main
+        run: |
+          if [ "${{ github.ref }}" != "refs/heads/main" ]; then
+            echo "::error::prod deploys from main — this run is on ${{ github.ref }}. Run the workflow on main."
+            exit 1
+          fi
+
       - uses: actions/checkout@v5 # for .github/scripts/deploy-smoke.sh
         with:
           persist-credentials: false # v4 audit DEP-14: never leave the job token in .git/config
