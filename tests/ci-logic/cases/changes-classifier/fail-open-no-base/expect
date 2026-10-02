@@ -3,3 +3,4 @@ exit 0
 +native=true
 +docs=true
 -=false
++maui=true

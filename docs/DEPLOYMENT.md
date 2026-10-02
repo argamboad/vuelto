@@ -583,6 +583,10 @@ GitHub's `develop` with auto-deploy off; GitHub keeps its hook and its pipeline)
 | **Run workflow**, `deploy=prod` (on `main`) | same, `deploy-prod` | |
 | Monday 06:00 UTC | all three smokes (the weekly safety net for legs that no longer run per push) | |
 
+The native builds run whenever code does, but when the change cannot affect the MAUI app (`maui=`: `src/Maui`,
+`src/Shared.Ui` — which references nothing else — the build props, the SDK pin, `ci.yml`, the workload script) their
+legs do nothing and pass in seconds (Env L29): a backend-only PR no longer holds the single Windows lane.
+
 "Docs only" means no file a test or gate reads. Markdown is free wherever it sits (README.MD included),
 except the few files the tests read (the root README and CLAUDE.md, this runbook, DATA_MODEL, QA_TEST_PLAN,
 REBRANDING, the Postman README, the E2E story and README): those count as code, like both forges' workflows

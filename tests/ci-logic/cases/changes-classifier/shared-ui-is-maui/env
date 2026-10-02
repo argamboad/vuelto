@@ -1,0 +1,3 @@
+CI_github_sha=head
+BASE_SHA=base
+FAKE_GIT_DIFF=diff.txt

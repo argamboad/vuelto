@@ -1,0 +1,41 @@
+# Measured seconds per E2E journey, for dealing the three CI shards evenly (Env L28; the e2e-shard step in both
+# workflow copies). Copy the numbers from CI's "slowest journeys" report (every shard's e2e log ends with one) when a
+# journey is added or the shards drift apart; a journey missing here counts as the median, so it never breaks a run.
+# name<TAB>seconds
+Reconcile_DoesNotBreakInviteAcceptance_UnderLocaleMismatch	64
+Member_Leaves_The_Household	63
+Staff_Announcement_Reaches_The_Members_Bell_And_MarkRead_Clears_It	54
+Roster_Is_PermissionAware_For_NonOwner	51
+Member_Deletes_Their_Account	47
+Member_Keeps_The_Households_Income_Lines	46
+Member_Sees_The_OwnerOnly_State	44
+LocaleChoice_FollowsTheUser_AcrossBrowsers	42
+Accepting_An_Invite_After_A_Downgrade_Shows_The_HouseholdFull_State	41
+Member_Joins_By_Pasting_The_Invite_Code	41
+Owner_Transfers_Ownership	41
+ThemeChoice_AppliesLive_PersistsLocally_AndFollowsTheUser	40
+Owner_Invites_And_Member_Joins_Via_Token	39
+Owner_Removes_Member	38
+Owner_Promotes_And_Demotes_Member	35
+Owner_Upgrades_Via_Checkout_And_Webhook_Lands_On_Pro	31
+NonStaff_Gets_The_Forbidden_State	30
+Member_Downloads_The_Report_As_A_Pdf_And_Emails_It_To_Themselves	28
+Used_MagicLink_IsRejected	27
+Preferences_Are_PerUser	26
+Enroll_ThenStepUp_OnNextSignIn	25
+Owner_Downloads_The_Data_Export	25
+StepUp_WithWrongCode_DoesNotSignIn	25
+Inviting_Past_The_SeatLimit_Shows_The_Upgrade_Prompt	24
+Pasting_An_Invalid_Code_Shows_An_Inline_Error	22
+SignOut_ReturnsToLogin	22
+Sole_Owner_Dissolves_The_Household	22
+Delivery_Preferences_RoundTrip	20
+MagicLink_SignIn_LandsInTheApp	15
+Otp_Lockout_ShowsDistinctTooManyAttemptsMessage	14
+Revoking_A_Pending_Invitation_Frees_The_Seat	14
+Switching_Language_ReRendersTheUi	14
+Bell_Shows_The_Empty_State_For_A_Fresh_User	13
+Otp_SignIn_LandsInTheApp	12
+OnAPhone_TheUserMenuLinksAreTappable	11
+Invalid_Email_IsRejected_NoCodeStep	10
+Login_Page_Renders	7

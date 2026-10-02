@@ -212,7 +212,7 @@ public class EnforcementGateTests
         Assert.True(at > 0, "no fail-open branch writing code=true");
         var from = ci.LastIndexOf("if [ -z \"$BASE_SHA\" ]", at, StringComparison.Ordinal);
         var failOpen = ci[from..ci.IndexOf("exit 0", at, StringComparison.Ordinal)];
-        foreach (var output in new[] { "code", "native", "docs" })
+        foreach (var output in new[] { "code", "native", "maui", "docs" })
             Assert.Contains($"echo \"{output}=true\"", failOpen);
         Assert.DoesNotContain("=false\"", failOpen);
     }
