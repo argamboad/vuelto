@@ -193,6 +193,8 @@ PR title = a Conventional Commit line, ideally referencing the story:
      `native-paths` gate; macOS bills 10×), so an Apple-affecting change is first *proven* by the
      post-merge run. Watch that run to completion; don't stack the next merge onto an unverified
      one.
+- **Pending the CI rebuild (ADR-030):** Forgejo is retired, and a private repo on GitHub Free has no branch
+  protection at all (it needs Pro, or a public repo). What follows is the Forgejo-era setting.
 - **Required repo setting — `develop` and `main` are protected on Forgejo** (the primary forge, ADR-028):
   pushes only from the owner, no force push or deletion, merges only with the gate jobs green (a skipped
   job counts as passed, so docs-only PRs still merge). Forgejo gives every CI job a token that can write

@@ -2116,7 +2116,7 @@ above; it is a cosmetic orphan, not an access path.
 
 > *Numbering note: 025 and 026 are reserved upstream for platform-only work (local CI, the flavors program) that this app does not carry, so the sequence jumps.*
 
-**ADR-028 — The self-hosted Forgejo is the primary forge and runs the full CI/CD; GitHub stays a mirror whose own CI runs only when pushed to on purpose (LOCALCI-4). (2026-09-16)**
+**ADR-028 — The self-hosted Forgejo is the primary forge and runs the full CI/CD; GitHub stays a mirror whose own CI runs only when pushed to on purpose (LOCALCI-4). (2026-09-16) — SUPERSEDED by ADR-030 (2026-10-02)**
 The maintainer moved day-to-day git to a private Forgejo on the Windows desk (WSL2 + Docker, reachable over
 Tailscale) so that routine pushes cost nothing and leave nothing on a third-party server. GitHub keeps the
 repository — Render builds from it, and pushing there on purpose still runs the GitHub pipeline unchanged.
@@ -2212,3 +2212,26 @@ the Forgejo deploy and a deliberate `git push github develop` are its only trigg
 `DEPLOYMENT.md` §10. The Forgejo copy of `ci.yml` was built by applying the platform's GitHub→Forgejo
 changes to this repo's own `ci.yml` (a clean three-way merge); `ForgejoCiParityTests` and the
 LOCALCI-3 gate theories hold the two files together here too.
+
+**ADR-030 — GitHub is the forge again; Forgejo is retired (supersedes ADR-028). (2026-10-02)**
+Forgejo ran on the maintainer's work laptop, and a reboot or a Docker Desktop restart could stop CI
+(the 2026-10-02 morning: the Linux runner's Docker-in-Docker had restarted 187 times). An always-on
+machine at home is not in sight, so the forge goes back to GitHub:
+
+1. **`origin` is GitHub** (private) for code, PRs, merges and issues. The Forgejo issues were migrated
+   with their comments, labels and milestones; each GitHub issue's footer names its Forgejo number,
+   which old commit messages cite.
+2. **Forgejo is archived read-only, its runners are stopped.** It stays up as the rollback until it is
+   switched off; its encrypted backup is the frozen copy.
+3. **The repo is private, so every Actions minute is billed** (Free plan, 2,000 minutes a month, a $0
+   budget that stops runs at the limit). On 2026-10-01 one deploy round cost ~600 minutes, so the `CI`
+   workflow is **disabled until a CI rebuild**, whose agreed direction is: PRs and merges run backend +
+   web UI only (build-test, the scans, docker-build, e2e); every **device leg** (Windows, Linux-native,
+   macOS, iOS, Android builds and smokes) and every Render deploy runs only from a manual *Run workflow*.
+   The rebuild gets its own ADR (it amends NATIVE-1 and LOCALCI-3) and deletes `.forgejo/`,
+   `ForgejoCiParityTests` and R80; until then they stay, unused.
+4. **No branch protection for now:** a private repo on GitHub Free has neither branch protection nor
+   rulesets. Getting it back (Pro, or a public repo) is an open decision.
+
+**Consequences.** DEPLOYMENT §10 and the LOCALCI-4 story are history. The Postman workspace sync runs
+from GitHub on every `develop` change. The platform and its downstream apps share this ADR.

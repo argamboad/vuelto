@@ -35,15 +35,16 @@ sync. GitHub's `develop` only moves when a deploy pushes it, so `.github/workflo
 re-syncs the same files at deploy time (harmless: the sync is by name and idempotent).
 
 **One-time setup** (until then the job skips with a notice):
-1. Postman → avatar → **Settings → API keys** → generate a key → Forgejo → repo →
-   **Settings → Actions → Secrets** → secret `POSTMAN_API_KEY`.
-2. Postman → workspace **Overview** → copy the workspace **ID** → Forgejo → repo →
-   **Settings → Actions → Variables** → variable `POSTMAN_WORKSPACE_ID`.
-3. Optional — the deploy-time re-sync: set the same two on GitHub (repo → **Settings →
-   Secrets and variables → Actions**). Without them that copy just skips.
-4. Delete any duplicate same-name collections/environments in the workspace once (with
-   duplicates, the first name-match wins). Trigger the first run from Forgejo: repo →
-   **Actions → postman-sync.yml → Run workflow** (or merge any `docs/postman/` change).
+1. Postman → avatar → **Settings → API keys** → generate a key → GitHub → repo →
+   **Settings → Secrets and variables → Actions → Secrets** → secret `POSTMAN_API_KEY`.
+2. Postman → workspace **Overview** → copy the workspace **ID** → GitHub → repo →
+   **Settings → Secrets and variables → Actions → Variables** → variable `POSTMAN_WORKSPACE_ID`.
+3. Delete any duplicate same-name collections/environments in the workspace once (with
+   duplicates, the first name-match wins). Trigger the first run from GitHub: repo →
+   **Actions → postman-sync → Run workflow** (or merge any `docs/postman/` change).
+
+GitHub is the forge again (ADR-030); the `.forgejo/` copy of this workflow no longer runs and goes
+with the CI rebuild.
 
 **Direction is one-way.** Edits made in the Postman UI are overwritten on the next sync — change
 the JSON here (PR-reviewed, versioned) instead. Postman's built-in "connect repository" (API

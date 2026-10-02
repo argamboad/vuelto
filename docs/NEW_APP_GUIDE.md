@@ -53,7 +53,8 @@ app-facing label** (Team? Workspace? Household?), and a **logo file** (SVG or la
 1. Copy the platform tree into a new repository (don't fork — a new app is not a branch of the
    platform): `git clone`, remove `.git`, `git init`, point at your new GitHub remote.
 2. Drop the Phase-1 docs into `docs/`.
-3. Create the two branches and protect them: **`main` is deploy-only** (protect it; nothing lands
+3. Create the two branches and protect them *(pending the CI rebuild, ADR-030: a private repo on GitHub
+   Free has no branch protection — it needs Pro, or a public repo)*: **`main` is deploy-only** (protect it; nothing lands
    there except release merges), **`develop` is the working branch** — one branch + PR per slice.
 4. Push. **CI runs immediately and should be green** (build, ~500 tests, secret/license/QA-doc
    gates, native builds, browser E2E). The deploy jobs stay skipped until Phase 7's secrets exist.
@@ -103,8 +104,8 @@ The rhythm, per `docs/WAYS_OF_WORKING.md`:
    code), end-to-end (API + UI + tests), leaving the app working.
 3. Copy **`src/Api/Features/Notes`** as the reference slice shape; **delete the Notes sample**
    when your first real feature lands.
-4. CI gates every PR; once Phase 7 is done, a Forgejo *Run workflow* with `deploy=staging` deploys
-   `develop` to staging (a GitHub-only clone auto-deploys it on merge instead).
+4. CI gates every PR; once Phase 7 is done, a manual GitHub *Run workflow* with `deploy=staging` deploys
+   `develop` to staging (ADR-030; until the CI rebuild, today's GitHub pipeline auto-deploys it on merge).
 
 Scope discipline: before building anything, check the OUT list in `PROJECT_BRIEF.md`.
 
@@ -119,9 +120,9 @@ Follow **`docs/DEPLOYMENT.md`** top to bottom — it's the runbook. The order an
 4. **§4 Render** — apply `render.yaml` as a Blueprint, paste the secrets from 1–3, deploy.
 5. **§5 OAuth (optional)** — register your staging domain with Google/Microsoft, add the client
    id/secret env vars. One provider console entry per domain.
-6. **§10 / §6 CI deploy** — the **`RENDER_DEPLOY_HOOK_STAGING`** secret; on Forgejo a *Run workflow*
-   with `deploy=staging` deploys `develop` and runs the version-gated smoke (§10); on a clone that
-   lives on GitHub alone, the same secret makes every merge to `develop` auto-deploy staging (§6).
+6. **§6 CI deploy** — the **`RENDER_DEPLOY_HOOK_STAGING`** secret on GitHub; after the CI rebuild
+   (ADR-030) a manual *Run workflow* with `deploy=staging` deploys `develop` and runs the version-gated
+   smoke. Until then, today's GitHub pipeline makes every merge to `develop` auto-deploy staging (§6).
 
 ## Phase 8 — Activate production (~10 min, when ready for customers)
 
