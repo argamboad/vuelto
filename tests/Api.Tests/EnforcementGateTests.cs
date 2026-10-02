@@ -649,13 +649,13 @@ public class EnforcementGateTests
         var start = readme.IndexOf("**One-time setup**", StringComparison.Ordinal);
         Assert.True(start >= 0, "docs/postman/README.md lost its One-time setup section");
         var setup = readme[start..readme.IndexOf("**Direction is one-way.**", start, StringComparison.Ordinal)];
-        var forgejo = setup.IndexOf("Forgejo", StringComparison.Ordinal);
-        Assert.True(forgejo >= 0, "the Postman one-time setup must say where the Forgejo secret and variable go");
         var github = setup.IndexOf("GitHub", StringComparison.Ordinal);
-        Assert.True(github < 0 || forgejo < github, "the Postman one-time setup must lead with Forgejo, the primary forge");
+        Assert.True(github >= 0, "the Postman one-time setup must say where the GitHub secret and variable go");
+        var forgejo = setup.IndexOf("Forgejo", StringComparison.Ordinal);
+        Assert.True(forgejo < 0 || github < forgejo, "the Postman one-time setup must lead with GitHub, the forge (ADR-030)");
 
         // The operating manual names the forge whose develop changes drive the sync.
-        Assert.Contains("on every Forgejo `develop` change", File.ReadAllText(Path.Combine(root, "CLAUDE.md")).ReplaceLineEndings(" "),
+        Assert.Contains("on every GitHub `develop` change", File.ReadAllText(Path.Combine(root, "CLAUDE.md")).ReplaceLineEndings(" "),
             StringComparison.Ordinal);
 
         // Both workflow copies hardcode the collection path, so a rebrand that renames the files edits both.
