@@ -468,7 +468,7 @@ build signs through `apksigner` with the store key when the `AndroidSigning*` pr
 the developer's debug keystore found on **this** host (Windows, macOS/Linux and Android Studio locations),
 and it is an **error** when none exists — the old fallback looked only under `%LOCALAPPDATA%`, so a Mac took
 the v1-only route silently. `EnforcementGateTests.ReleaseGuards_*` probes the file without the MAUI
-workloads, and the `native-release-android` CI leg (Run workflow → `release: android`, and every Monday)
+workloads, and the `native-release-android` CI leg (a device leg: Run workflow → `devices` = android / all, ADR-031)
 publishes a Release APK with a throwaway store key, verifies v2/v3 the way a phone will, and proves a
 Release build without `ApiBaseUrl` fails.
 
