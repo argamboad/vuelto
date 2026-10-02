@@ -384,8 +384,8 @@ Scenario: Native smoke runs on every push
 > `apksigner` with the store key or a debug keystore found on any host (error when none — no more silent
 > v1-only route on a Mac); the HTTPS-only network config. A workload-free MSBuild probe
 > (`EnforcementGateTests.ReleaseGuards_RefuseBadInputs_AndPassGoodOnes`) runs a table of good and bad inputs.
-> `native-release-android` (both workflow copies; manual `release: android` on Forgejo, any manual run on
-> GitHub, and the Monday schedule) publishes Release with a throwaway store key, requires `Verified using
+> `native-release-android` (a device leg since ADR-031: *Run workflow* → `devices` = android / all)
+> publishes Release with a throwaway store key, requires `Verified using
 > v2/v3`, and proves an `ApiBaseUrl`-less Release build fails. `tools/publish-native.ps1` throws unless
 > apksigner verified the APK and finds the SDK through `ANDROID_HOME`. The real signing key stays
 > downstream (ADR-024).
