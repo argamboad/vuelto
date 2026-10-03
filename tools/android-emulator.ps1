@@ -1,8 +1,9 @@
 #Requires -Version 7.0
 <#
 .SYNOPSIS
-  Boots an Android emulator (AVD) on a fixed console port, or reuses it if it is already up, and waits until Android
-  has finished booting.
+  Boots an Android emulator (AVD) on a fixed console port, or reuses it if it is already up there, and waits until
+  Android has finished booting. If another AVD holds the port, or this AVD runs on another port, it closes that
+  emulator first.
 
 .DESCRIPTION
   The "API + Android phone/tablet (emulator)" debug profiles need the emulator to have a known adb serial before the
@@ -10,7 +11,8 @@
   emulator-<console port>. Starting it here on a fixed port makes that serial fixed too:
       phone  -> AVD "phone"  on 5554 -> emulator-5554
       tablet -> AVD "tablet" on 5556 -> emulator-5556
-  Visual Studio boots the emulator itself from the profile's DebugTarget, so it does not need this script.
+  Visual Studio boots the emulator itself (the toolbar's Debug Target) on the next free port, so it does not need
+  this script, but that is how the phone can end up on 5556 - which this script then undoes.
   The SDK is the one Visual Studio uses (ANDROID_HOME if set, else Android Studio's %LOCALAPPDATA%\Android\Sdk, else
   the VS-installed one), so this adb and VS's adb are the same binary and don't kill each other's server.
   Called by the emulator tasks in .vscode/tasks.json; the profiles come from tools/dev-profiles.ps1.
@@ -48,10 +50,37 @@ if ((& $emulator -list-avds) -notcontains $Avd) {
 }
 
 & $adb start-server | Out-Null
-$state = (& $adb -s $serial get-state 2>$null)
-if ($state -eq 'device') {
-    $running = ((& $adb -s $serial emu avd name 2>$null) | Select-Object -First 1)?.Trim()
-    if ($running -and $running -ne $Avd) { throw "$serial is already running AVD '$running', not '$Avd'." }
+
+# serial -> AVD name for every running emulator.
+function Get-RunningEmulators {
+    $map = @{}
+    foreach ($line in (& $adb devices)) {
+        if ($line -match '^(emulator-\d+)\s+device') {
+            $map[$Matches[1]] = ((& $adb -s $Matches[1] emu avd name 2>$null) | Select-Object -First 1)?.Trim()
+        }
+    }
+    $map
+}
+
+# Anything else (Visual Studio, Android Studio) boots emulators on the next free port, so the phone can end up on
+# the tablet's port or the other way round. Close whatever holds our port with another AVD, and our AVD if it is
+# running on another port (an AVD can't run twice), then boot it where the profile expects it.
+$running = Get-RunningEmulators
+$wrong = @($running.Keys | Where-Object { ($_ -eq $serial) -ne ($running[$_] -eq $Avd) })
+foreach ($s in $wrong) {
+    Write-Host "Closing $s (AVD '$($running[$s])') so $Avd can run as $serial..."
+    & $adb -s $s emu kill | Out-Null
+}
+if ($wrong) {
+    $closeBy = (Get-Date).AddSeconds(60)
+    while (@((Get-RunningEmulators).Keys | Where-Object { $_ -in $wrong }).Count -gt 0) {
+        if ((Get-Date) -gt $closeBy) { throw "Could not close $($wrong -join ', ') within 60 s." }
+        Start-Sleep -Seconds 1
+    }
+    Start-Sleep -Seconds 2   # let the emulator release the AVD's lock files
+}
+
+if ($running[$serial] -eq $Avd) {
     Write-Host "$Avd is already running as $serial."
 } else {
     Write-Host "Booting $Avd as $serial..."
