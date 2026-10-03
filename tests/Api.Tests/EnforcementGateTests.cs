@@ -39,6 +39,19 @@ public class EnforcementGateTests
         var ci = File.ReadAllText(Path.Combine(root, ".github", "workflows", "ci.yml"));
         Assert.Contains("global-json-file: global.json", ci);
         Assert.DoesNotContain("dotnet-version:", ci); // a hardcoded setup-dotnet version would fork the pin
+
+        // v4 T67: the prose that states the pin (the bump-together playbook's step ④) agrees with it. A doc that
+        // names an SDK or ASP.NET version names THE one; the Dockerfile tags quoted in prose are the real tags.
+        foreach (var doc in new[] { "CLAUDE.md", Path.Combine("docs", "TECH_STACK.md"), Path.Combine("docs", "DEPLOYMENT.md") })
+        {
+            var text = File.ReadAllText(Path.Combine(root, doc));
+            foreach (Match m in Regex.Matches(text, @"(?:\.NET SDK|SDK) \*{0,2}(10\.0\.\d{3})"))
+                Assert.True(m.Groups[1].Value == sdk, $"{doc} says SDK {m.Groups[1].Value}; global.json pins {sdk} (playbook step ④)");
+            foreach (Match m in Regex.Matches(text, @"sdk:(10\.0\.\d{3})"))
+                Assert.True(m.Groups[1].Value == sdk, $"{doc} quotes sdk:{m.Groups[1].Value}; the Dockerfile builds on sdk:{sdk}");
+            foreach (Match m in Regex.Matches(text, @"aspnet:(10\.0\.\d+)"))
+                Assert.True(m.Groups[1].Value == runtimeTag, $"{doc} quotes aspnet:{m.Groups[1].Value}; the Dockerfile runs on aspnet:{runtimeTag}");
+        }
     }
 
     [Fact]
@@ -80,6 +93,25 @@ public class EnforcementGateTests
         Assert.True(webOnly.Count == 0 && mauiOnly.Count == 0,
             "The two hosts' index.html RCL script sets diverged — add the script to BOTH "
             + $"(web-only: [{string.Join(", ", webOnly)}], maui-only: [{string.Join(", ", mauiOnly)}]).");
+
+        // v4 T67: the ORDER too — theme.js must run before the framework script in both hosts, and a script that
+        // depends on another cannot be ahead of it in one host only — and the two vendored wwwroot/lib trees
+        // (Bootstrap) are byte-identical: a bump applied to one host ships two Bootstraps.
+        static List<string> ScriptOrder(string path) =>
+            [.. Regex.Matches(File.ReadAllText(path), @"<script[^>]+src=""([^""]+)""").Select(m => m.Groups[1].Value)];
+        var webOrder = ScriptOrder(Path.Combine(root, "src", "Web", "wwwroot", "index.html"));
+        var mauiOrder = ScriptOrder(Path.Combine(root, "src", "Maui", "wwwroot", "index.html"));
+        var shared = webOrder.Where(mauiOrder.Contains).ToList();
+        Assert.True(shared.SequenceEqual(mauiOrder.Where(webOrder.Contains)),
+            $"The two hosts load their shared scripts in a different order — web: [{string.Join(", ", shared)}], maui: [{string.Join(", ", mauiOrder.Where(webOrder.Contains))}]");
+
+        static Dictionary<string, string> Tree(string dir) => Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories)
+            .ToDictionary(f => Path.GetRelativePath(dir, f).Replace('\\', '/'), f => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(f))));
+        var webLib = Tree(Path.Combine(root, "src", "Web", "wwwroot", "lib"));
+        var mauiLib = Tree(Path.Combine(root, "src", "Maui", "wwwroot", "lib"));
+        Assert.NotEmpty(webLib); // probe alive
+        var libDiff = webLib.Keys.Union(mauiLib.Keys).Where(k => !webLib.TryGetValue(k, out var a) || !mauiLib.TryGetValue(k, out var b) || a != b).ToList();
+        Assert.True(libDiff.Count == 0, "src/Web/wwwroot/lib and src/Maui/wwwroot/lib differ — vendor the same files into both: " + string.Join(", ", libDiff));
     }
 
     [Theory]
@@ -547,6 +579,111 @@ public class EnforcementGateTests
             $"CLAUDE.md claims {claimed} QA cases but QA_TEST_PLAN.md defines {actual} — update the doc-map row "
             + "(the figure drifted twice before this gate existed: v3 TR-2, T54).");
     }
+
+    [Fact]
+    public void EveryMachineRule_NamesAStandingCheck() // v4 audit T67, R116
+    {
+        // A rule labelled [machine] that nothing enforces is a rule on paper; the audit found v3 fixes marked done
+        // that never landed. RulesEnforcement.Manifest names, per machine rule, the test or CI step that holds it,
+        // or the tracker issue that still owes it. This gate holds the manifest to the rules file (every machine
+        // rule listed, nothing listed that is not a machine rule) and to the tree (every named check exists).
+        var root = RepoRoot();
+        var rules = File.ReadAllText(Path.Combine(root, "docs", "audits", "v4-2026-09", "FOUNDATION_RULES_v3.md")).ReplaceLineEndings("\n");
+        var machine = Regex.Matches(rules, @"^- \*\*(R\d+) \[(?:machine|review→machine)\]\*\*", RegexOptions.Multiline)
+            .Select(m => m.Groups[1].Value).ToHashSet();
+        Assert.True(machine.Count >= 60, $"probe: {machine.Count} machine rules parsed from v3.0 — the format changed");
+
+        var listed = RulesEnforcement.Manifest.Select(e => e.Rule).ToList();
+        Assert.True(listed.Count == listed.Distinct().Count(), "a rule appears twice in RulesEnforcement.Manifest");
+        var missing = machine.Except(listed).OrderBy(r => int.Parse(r[1..])).ToList();
+        Assert.True(missing.Count == 0, "machine rules with no manifest entry (name the check, or the issue that owes it): " + string.Join(", ", missing));
+        var stale = listed.Except(machine).ToList();
+        Assert.True(stale.Count == 0, "manifest entries for rules that are not [machine] in v3.0: " + string.Join(", ", stale));
+
+        // Every named check resolves: a test method or class under tests/, or a step in ci.yml.
+        var tests = Directory.EnumerateFiles(Path.Combine(root, "tests"), "*.cs", SearchOption.AllDirectories)
+            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}") && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}"))
+            .Select(File.ReadAllText).ToList();
+        var symbols = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var text in tests)
+        {
+            foreach (Match m in Regex.Matches(text, @"\b(?:Task|void)(?:<[^>]+>)?\s+([A-Za-z0-9_]+)\s*\(")) symbols.Add(m.Groups[1].Value);
+            foreach (Match m in Regex.Matches(text, @"\bclass\s+([A-Za-z0-9_]+)")) symbols.Add(m.Groups[1].Value);
+        }
+        var steps = Regex.Matches(File.ReadAllText(Path.Combine(root, ".github", "workflows", "ci.yml")), @"- name: ([^\r\n]+)")
+            .Select(m => m.Groups[1].Value.Trim()).ToHashSet();
+        var unresolved = new List<string>();
+        foreach (var entry in RulesEnforcement.Manifest)
+        {
+            Assert.True(entry.Checks.Length > 0 || entry.Pending is not null || !string.IsNullOrWhiteSpace(entry.NotHere),
+                $"{entry.Rule}: no check, no pending issue, and no reason it does not apply here");
+            if (entry.Pending is { } p) Assert.Matches(@"vuelto#\d+", p); // the issue that owes it, so it is visible
+            foreach (var check in entry.Checks)
+            {
+                var ok = check.StartsWith("ci:", StringComparison.Ordinal) ? steps.Contains(check[3..]) : symbols.Contains(check);
+                if (!ok) unresolved.Add($"{entry.Rule} -> {check}");
+            }
+        }
+        Assert.True(unresolved.Count == 0, "manifest names checks that do not exist (renamed? not in ci.yml?):\n" + string.Join("\n", unresolved));
+    }
+
+
+    [Fact]
+    public void PrTemplate_CarriesTheRuleCheckboxes() // v4 audit T67: R144's PR line, R85's exception line
+    {
+        // Two rules enforce at review time through the PR template: a coupled client+server change ships one
+        // joint-invariant test reading both constants (R144), and a deliberate exception to a numbered rule is
+        // written into the rules file in the same PR as the ADR that argues it (R85). The template is the one place
+        // those are asked; a reformat that drops a line would drop the rule.
+        var template = File.ReadAllText(Path.Combine(RepoRoot(), ".github", "pull_request_template.md")).ReplaceLineEndings(" ");
+        Assert.Contains("joint-invariant test", template);
+        Assert.Contains("FOUNDATION_RULES", template);
+    }
+
+
+    [Fact]
+    public void RuleIds_CitedInTests_AreFinalRules() // v4 audit TR-15/C8 (T11), R116
+    {
+        // A test comment is where a reader starts when a gate fires; two of them cited Phase-1 candidate ids
+        // (R82/R86, R83) for what became R43 and R44, and nothing stopped the next test from citing a number that
+        // was renumbered, retired or never existed. The final range is what FOUNDATION_RULES_v3.md's header
+        // states — parsed from the file, so a future consolidation moves the gate with it — and candidate ids
+        // (`-cand`, a letter suffix) never appear outside the audit folder (R116).
+        var root = RepoRoot();
+        var header = File.ReadAllText(Path.Combine(root, "docs", "audits", "v4-2026-09", "FOUNDATION_RULES_v3.md")).ReplaceLineEndings("\n");
+        header = header[..header.IndexOf("\n## 1.", StringComparison.Ordinal)];
+        var final = new HashSet<int>();
+        foreach (Match m in Regex.Matches(header, @"R(\d+)–R(\d+)")) // every range the header states as carried or added
+            for (var i = int.Parse(m.Groups[1].Value); i <= int.Parse(m.Groups[2].Value); i++) final.Add(i);
+        foreach (Match m in Regex.Matches(header, @"R(\d+) \(v2\.0")) final.Add(int.Parse(m.Groups[1].Value)); // "+ R80 (v2.0, …)"
+        var retired = Regex.Match(header, @"with \*\*((?:R\d+, )*R\d+ and R\d+) retired\*\*").Groups[1].Value;
+        foreach (Match m in Regex.Matches(retired, @"R(\d+)")) final.Remove(int.Parse(m.Groups[1].Value));
+        Assert.True(final.Count > 100 && !final.Contains(77) && !final.Contains(94) && final.Contains(80) && final.Contains(158),
+            "the v3 header's range did not parse as expected — update the gate with the file");
+
+        var cited = new Dictionary<int, List<string>>();
+        var candidates = new List<string>();
+        foreach (var file in Directory.EnumerateFiles(Path.Combine(root, "tests"), "*.cs", SearchOption.AllDirectories)
+                     .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}") && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}")))
+        {
+            var rel = Path.GetRelativePath(root, file);
+            var lines = File.ReadAllLines(file);
+            for (var i = 0; i < lines.Length; i++)
+            {
+                foreach (Match m in Regex.Matches(lines[i], @"\bR(\d{1,3})(-cand|[a-z])?\b"))
+                {
+                    if (m.Groups[2].Success) { candidates.Add($"{rel}:{i + 1}: {m.Value}"); continue; }
+                    cited.TryAdd(int.Parse(m.Groups[1].Value), []);
+                    cited[int.Parse(m.Groups[1].Value)].Add($"{rel}:{i + 1}");
+                }
+            }
+        }
+        Assert.True(cited.Count >= 50, $"probe: only {cited.Count} distinct rule ids cited under tests/ — the scan broke");
+        Assert.True(candidates.Count == 0, "candidate rule ids (-cand / letter suffix) belong to the audit folder only:\n" + string.Join("\n", candidates));
+        var unknown = cited.Where(kv => !final.Contains(kv.Key)).Select(kv => $"R{kv.Key} at {string.Join(", ", kv.Value.Take(3))}").ToList();
+        Assert.True(unknown.Count == 0, "tests cite rule ids outside FOUNDATION_RULES v3.0's final range (renumbered or retired?):\n" + string.Join("\n", unknown));
+    }
+
 
     [Fact]
     public void AddASliceChecklist_NamesEveryArtifactAGateForces() // v4 audit ADV-P4-17 (T64), R158

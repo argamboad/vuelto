@@ -151,7 +151,7 @@ public class ArchitectureTests
     [Fact]
     public void EveryTenantOwnedEntity_IsWiredIntoTenantDissolution()
     {
-        // The tenant-axis mirror of EveryUserKeyedEntity_IsWiredIntoAccountErasure (R82/R86, v3 LB-TEN-1):
+        // The tenant-axis mirror of EveryUserKeyedEntity_IsWiredIntoAccountErasure (R43, v3 LB-TEN-1):
         // every entity carrying a tenant-owned key ("TenantId") must be torn down when a tenant is dissolved
         // — by an ITenantDataContributor's WipeAsync, or the platform's core teardown
         // (ITenantRepository.WipeDataAsync). ITenantScoped entities have no FK to Tenants (ADR-003 plain-Guid
@@ -207,7 +207,7 @@ public class ArchitectureTests
     [Fact]
     public void TenantDissolution_EntersTheTargetTenant()
     {
-        // RLS-2/R83: DissolveAsync runs set-based deletes that the Postgres RLS backstop (ADR-020) scopes to
+        // RLS-2/R44: DissolveAsync runs set-based deletes that the Postgres RLS backstop (ADR-020) scopes to
         // the AMBIENT tenant. To stay correct when a caller dissolves a tenant other than its ambient one
         // (account erasure of a solo tenant that isn't the JWT-current tenant, admin paths), the service must
         // enter the target so every delete is scoped to it — instead of relying on the CrossTenant-tag bypass
@@ -426,12 +426,12 @@ public class ArchitectureTests
         // MapTenantFeatureGroup("…") (feature slices) — the old gate matched only the raw form, so feature
         // prefixes were invisible and two slices could share a prefix green (v3 ADV-P4-1). It now scans
         // Endpoints/ as well as Features/, closing Step-0 gap S0-G1.
-        var controllersDir = Path.Combine(RepoRoot(), "src", "Api", "Controllers");
-        var featuresDir = Path.Combine(RepoRoot(), "src", "Api", "Features");
-        var endpointsDir = Path.Combine(RepoRoot(), "src", "Api", "Endpoints");
-
-        var controllerSources = SourceFiles(controllersDir).Select(File.ReadAllText);
-        var groupSources = SourceFiles(endpointsDir).Concat(SourceFiles(featuresDir)).Select(File.ReadAllText);
+        // v4 T67: ANY directory under src/Api — a [Route] attribute or a Map*Group literal in Services/ or
+        // Program.cs collides just the same; the directory convention is not what keeps prefixes unique.
+        var apiDir = Path.Combine(RepoRoot(), "src", "Api");
+        var apiSources = SourceFiles(apiDir).Select(File.ReadAllText).ToList();
+        var controllerSources = apiSources;
+        var groupSources = apiSources;
 
         var dupes = Architecture.RoutePrefixInspector.FindDuplicatePrefixes(controllerSources, groupSources);
         Assert.True(dupes.Count == 0,

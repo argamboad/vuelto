@@ -47,13 +47,17 @@ its seams; a generic gap goes upstream to `perezosoft-platform` first.
   the device legs (MAUI builds, native smokes) run from *Run workflow* → `devices`, and deploys from
   *Run workflow* → `deploy` (staging from develop, prod from main) behind every web gate. Every Actions minute
   is billed. Runbook: `docs/DEPLOYMENT.md` §6.
-- **Writing or modifying ANY code → `docs/audits/v3-2026-07/FOUNDATION_RULES_v2.md` (v2.0: R1–R35
-  carried from v1.0 + R36–R76) is binding.** It encodes the post-audit invariants (tenancy incl. the
-  RLS backstop parity, second-factor/event replay, SSRF, fail-closed normalization, atomic quotas +
-  single-use credentials, per-user AND per-tenant erasure completeness, injected clocks, slice
-  boundaries, host parity, doc/Postman sync) as machine-enforced arch tests + CI gates. Comply; if a
-  task seems to require violating a rule, stop and surface it. The frozen quality bar lives in
-  `CONTRIBUTING.md` (v1.0 remains at `docs/audits/v2-2026-07/FOUNDATION_RULES.md` as the historical layer).
+- **Writing or modifying ANY code → `docs/audits/v4-2026-09/FOUNDATION_RULES_v3.md` (v3.0: R1–R35
+  from v1.0, R36–R76 from v2.0, R81–R158 minus the retired R94, R138 and R156; R77–R80 retired) is
+  binding.** It encodes the post-audit invariants (tenancy incl. the RLS backstop parity, second-factor/
+  event replay, SSRF, fail-closed normalization, atomic quotas + single-use credentials, per-user AND
+  per-tenant erasure completeness, injected clocks, slice boundaries, host parity, doc/Postman sync — and
+  since v4: refresh-grace one-shot, durable outbox accounting, redirect-refusing webhooks, web-only PR CI with on-request device legs (ADR-031),
+  Release-build guards, the rule-id gate) as machine-enforced arch tests + CI gates;
+  `tests/Api.Tests/RulesEnforcement.cs` names the check behind every `[machine]` rule. Comply; if a task
+  seems to require violating a rule, stop and surface it. The frozen quality bar lives in `CONTRIBUTING.md`
+  (v2.0 at `docs/audits/v3-2026-07/FOUNDATION_RULES_v2.md` and v1.0 at
+  `docs/audits/v2-2026-07/FOUNDATION_RULES.md` remain as the historical layers).
 - **Hardening the template (or a clone) → follow `docs/audits/AUDIT_SUITE.md`.** The single repeatable
   super-audit (5 diagnostic/gate phases + QA-paranoia + docs/course currency) that produced the `audits/v*`
   runs. It's **triggered, not routine** — run it on a structural core change, a new wave of epics, a major
@@ -130,7 +134,7 @@ its seams; a generic gap goes upstream to `perezosoft-platform` first.
 10. **Brand gold `#F2CB6E` is never a data/state color.** Green/red mean under/over budget.
 
 ## Tech stack (see `docs/TECH_STACK.md`)
-- **Versions:** latest stable on the current .NET line — **.NET SDK 10.0.401 (pinned in `global.json`, the single source of truth, with `rollForward: disable` — the 2026-08 drift showed `latestPatch` let runners outrun both the lockfiles and the MCR image catalog), ASP.NET Core / EF Core packages 10.0.11, Npgsql.EF 10.0.3, PostgreSQL 17.** The SDK is **pinned, not floating** (v3 audit DEP-4): CI's `setup-dotnet` reads `global-json-file: global.json`, and both Dockerfile image tags (`sdk:10.0.401` build, `aspnet:10.0.12` runtime) match it — so a runner-image SDK patch can't outrun the committed `packages.lock.json` (the WASM SDK injects patch-sensitive implicit packages → NU1004 in locked-mode restore).
+- **Versions:** latest stable on the current .NET line — **.NET SDK 10.0.401 (pinned in `global.json`, the single source of truth, with `rollForward: disable` — the 2026-08 drift showed `latestPatch` let runners outrun both the lockfiles and the MCR image catalog), ASP.NET Core / EF Core packages 10.0.11, Npgsql.EF 10.0.3, PostgreSQL 17.** The SDK is **pinned, not floating** (v3 audit DEP-4): CI's `setup-dotnet` reads `global-json-file: global.json`, and both Dockerfile image tags (`sdk:10.0.401` build, `aspnet:10.0.11` runtime) match it — so a runner-image SDK patch can't outrun the committed `packages.lock.json` (the WASM SDK injects patch-sensitive implicit packages → NU1004 in locked-mode restore).
   - **Bump-together playbook** (do all of these in ONE PR when moving the SDK): ① edit `global.json` `version`; ② regenerate every lockfile with the new SDK (`dotnet restore --force-evaluate`); ③ bump the two `Dockerfile` tags — build `sdk:X` and runtime `aspnet:Y` where Y = the ASP.NET **package** line in `Directory.Packages.props` (the `SdkPin_HasOneSource` gate checks exactly that; the SDK's bundled runtime may be newer, and the packages move on their own schedule — 2026-09-09: SDK 10.0.401 bundles 10.0.12 while the packages and the runtime image stay 10.0.11); ④ reconcile the version strings in this file + `docs/TECH_STACK.md` + `docs/DEPLOYMENT.md`; ⑤ re-check the Apple legs' Xcode requirement (the iOS/macCatalyst workload moves with the SDK; `ci.yml` pins the WORKLOAD SET to the image's default Xcode — non-default Xcodes on the runner images can be incomplete, so bump that pin only together with the image's default Xcode);
 - **Backend:** ASP.NET Core Web API behind a clean API boundary.
 - **Web frontend:** Blazor WebAssembly; UI components in a shared **RCL** (hard rule).
