@@ -549,6 +549,50 @@ public class EnforcementGateTests
     }
 
     [Fact]
+    public void RuleIds_CitedInTests_AreFinalRules() // v4 audit TR-15/C8 (T11), R116
+    {
+        // A test comment is where a reader starts when a gate fires; two of them cited Phase-1 candidate ids
+        // (R82/R86, R83) for what became R43 and R44, and nothing stopped the next test from citing a number that
+        // was renumbered, retired or never existed. The final range is what FOUNDATION_RULES_v3.md's header
+        // states — parsed from the file, so a future consolidation moves the gate with it — and candidate ids
+        // (`-cand`, a letter suffix) never appear outside the audit folder (R116).
+        var root = RepoRoot();
+        var header = File.ReadAllText(Path.Combine(root, "docs", "audits", "v4-2026-09", "FOUNDATION_RULES_v3.md")).ReplaceLineEndings("\n");
+        header = header[..header.IndexOf("\n## 1.", StringComparison.Ordinal)];
+        var final = new HashSet<int>();
+        foreach (Match m in Regex.Matches(header, @"R(\d+)–R(\d+)")) // every range the header states as carried or added
+            for (var i = int.Parse(m.Groups[1].Value); i <= int.Parse(m.Groups[2].Value); i++) final.Add(i);
+        foreach (Match m in Regex.Matches(header, @"R(\d+) \(v2\.0")) final.Add(int.Parse(m.Groups[1].Value)); // "+ R80 (v2.0, …)"
+        var retired = Regex.Match(header, @"with \*\*((?:R\d+, )*R\d+ and R\d+) retired\*\*").Groups[1].Value;
+        foreach (Match m in Regex.Matches(retired, @"R(\d+)")) final.Remove(int.Parse(m.Groups[1].Value));
+        Assert.True(final.Count > 100 && !final.Contains(77) && !final.Contains(94) && final.Contains(80) && final.Contains(158),
+            "the v3 header's range did not parse as expected — update the gate with the file");
+
+        var cited = new Dictionary<int, List<string>>();
+        var candidates = new List<string>();
+        foreach (var file in Directory.EnumerateFiles(Path.Combine(root, "tests"), "*.cs", SearchOption.AllDirectories)
+                     .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}") && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}")))
+        {
+            var rel = Path.GetRelativePath(root, file);
+            var lines = File.ReadAllLines(file);
+            for (var i = 0; i < lines.Length; i++)
+            {
+                foreach (Match m in Regex.Matches(lines[i], @"\bR(\d{1,3})(-cand|[a-z])?\b"))
+                {
+                    if (m.Groups[2].Success) { candidates.Add($"{rel}:{i + 1}: {m.Value}"); continue; }
+                    cited.TryAdd(int.Parse(m.Groups[1].Value), []);
+                    cited[int.Parse(m.Groups[1].Value)].Add($"{rel}:{i + 1}");
+                }
+            }
+        }
+        Assert.True(cited.Count >= 50, $"probe: only {cited.Count} distinct rule ids cited under tests/ — the scan broke");
+        Assert.True(candidates.Count == 0, "candidate rule ids (-cand / letter suffix) belong to the audit folder only:\n" + string.Join("\n", candidates));
+        var unknown = cited.Where(kv => !final.Contains(kv.Key)).Select(kv => $"R{kv.Key} at {string.Join(", ", kv.Value.Take(3))}").ToList();
+        Assert.True(unknown.Count == 0, "tests cite rule ids outside FOUNDATION_RULES v3.0's final range (renumbered or retired?):\n" + string.Join("\n", unknown));
+    }
+
+
+    [Fact]
     public void AddASliceChecklist_NamesEveryArtifactAGateForces() // v4 audit ADV-P4-17 (T64), R158
     {
         // ADR-004 said "~6 touchpoints"; the v4 re-drill measured seven forced edits, two of them (the tenant-axis
