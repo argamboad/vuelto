@@ -9,6 +9,15 @@
 > Integrity: all four v3 phase reports audit commit `5fc1762dc5487de26af0e515c34c264efaaa11a7` (verified).
 > Nothing here overturns an R1–R35 invariant; every v3 rule is additive or completes a previously
 > review-only R1–R35 rule.
+>
+> **Erratum (2026-10-01, v4 audit TR-15/C8, T62).** This file's true content is **R36–R76 plus R80**: R80 (Forgejo CI
+> parity, LOCALCI-4) was appended on 2026-09-16 without updating the ranges above and below, and `CONTRIBUTING.md`'s
+> pointer omitted it. **R77–R79 are retired, not reserved**: the "reserved for LOCALCI-1/2" note under R80 is
+> withdrawn — LOCALCI-1 is superseded by LOCALCI-4, and the intent of the R79 reservation lives on as R114 — and the
+> numbers are never reused; the `R77-cand`/`R79-cand` labels in the rule text below are Phase-1 candidate ids, not
+> final rules, and `docs/stories/localci.md` uses R77/R78 for the (unbuilt) LOCALCI-1/2 tests, which would take fresh
+> numbers if built. The binding file is now **`docs/audits/v4-2026-09/FOUNDATION_RULES_v3.md`** (R1–R35, R36–R76,
+> R81–R158 minus the retired R94, R138 and R156 — R80 itself was retired on 2026-10-02 by ADR-031); this file remains as the v2.0 historical layer.
 
 Each rule: **[machine]** (arch test / analyzer / CI gate) or **[review]** · category · enforcement mechanism
 · the candidate ID(s) and finding(s) it subsumes.
@@ -174,7 +183,7 @@ Each rule: **[machine]** (arch test / analyzer / CI gate) or **[review]** · cat
   `vars.CI_MACOS_RUNNER`; native smokes run only from the `smokes` dispatch input or the schedule; deploys run
   only from the `deploy` dispatch input, behind every gate and every selected smoke, and fast-forward
   (never force) `develop`/`main` on GitHub. Enforced by `ForgejoCiParityTests` + the LOCALCI-3 gate tests over both files. *(LOCALCI-4,
-  ADR-028; R77–R79 are reserved for LOCALCI-1/2.)*
+  ADR-028; R77–R79 were reserved for LOCALCI-1/2 here — retired by v3.0, see the header erratum.)*
 
 ## Standing TDD mandate (review, carried from R7/CONTRIBUTING)
 
@@ -185,6 +194,6 @@ run log stays append-only. *(R99-cand mandate; R7.)*
 
 ---
 
-*R1–R35 (v1.0) + R36–R76 (v3 consolidated) = FOUNDATION_RULES v2.0. Binding once the remediation plan in
-`AUDIT_TASKS.md` is approved and its enforcement batch is green. `CONTRIBUTING.md`'s Definition of Solid is
-updated in that batch to reference this file.*
+*R1–R35 (v1.0) + R36–R76 + R80 (v3 consolidated; see the header erratum) = FOUNDATION_RULES v2.0, the Definition
+of Solid from 2026-07-27 until v3.0 (`docs/audits/v4-2026-09/FOUNDATION_RULES_v3.md`) took over at the v4
+enforcement close-out. `CONTRIBUTING.md`'s Definition of Solid points at the current file.*
