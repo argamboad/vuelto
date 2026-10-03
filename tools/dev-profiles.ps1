@@ -1,28 +1,38 @@
 #Requires -Version 7.0
 <#
 .SYNOPSIS
-  Writes this clone's start profiles for Visual Studio and VS Code - the same six names in both - into gitignored
-  files. Run it once per clone (and again after adding a device or an AVD).
+  Writes this clone's start profiles for Visual Studio and VS Code into gitignored files. Run it once per clone (and
+  again after adding a device or an AVD).
 
 .DESCRIPTION
-  The profiles:
+  Visual Studio (<Sln>.slnLaunch.user, the startup dropdown) gets two profiles:
+      API + Web      the API and the Blazor WebAssembly client
+      API + app      the API and the MAUI shell, on whatever the toolbar's Debug Target names (Windows Machine, a
+                     device, an emulator)
+  VS ignores a MAUI project's DebugTarget in a multi-project profile, so per-device profiles there all launched the
+  last Debug Target used; the toolbar is the only reliable device picker.
+  VS Code (the "launch" block of .vscode/settings.json, Run and Debug) gets six, because there the profile can carry
+  the device:
       API + Web                          API + Android phone (device)    API + Android phone (emulator)
       API + Windows desktop              API + Android tablet (device)   API + Android tablet (emulator)
-  Visual Studio reads them from <Sln>.slnLaunch.user (the startup dropdown); VS Code from the "launch" block of
-  .vscode/settings.json (Run and Debug). Both files are gitignored, because the Android ones name the developer's own
-  devices, which a clone has no use for. Everything else is read from the repo - the solution name from the .slnx, the
-  ports from the launchSettings.json files, the target frameworks from the csprojs - so this works unchanged after a
-  rebrand. The build and emulator tasks the VS Code profiles run are in .vscode/tasks.json.
+  Both files are gitignored, because the Android ones name the developer's own devices, which a clone has no use
+  for. Everything else is read from the repo - the solution name from the .slnx, the ports from the
+  launchSettings.json files, the target frameworks from the csprojs - so this works unchanged after a rebrand. The
+  build and emulator tasks the VS Code profiles run are in .vscode/tasks.json.
+
+  VS Code, once per clone: run "Select C# Startup Project" (pick the MAUI project) and "Select Launch Configuration"
+  (pick any Android entry) from the Command Palette. On Windows the MAUI extension otherwise assumes the Windows
+  platform, attaches the CoreCLR debugger to the Mono Android app, and the app is installed but never starts. The
+  choice lives in VS Code's workspace state, which no file here can set.
 
   Devices come from a file outside every repo (default ~/dev-tools/devices.json):
-      { "phone":  { "vs": "Samsung SM-S918B (Android 16.0 - API 36)", "adb": "adb-R5CW...._adb-tls-connect._tcp" },
-        "tablet": { "vs": "...", "adb": "..." } }
-  "vs" is the name Visual Studio lists the device under; "adb" is its serial in `adb devices`, which is what the VS
-  Code MAUI extension targets. -Discover writes the file from the devices adb has connected right now. Over Wi-Fi
-  debugging the serial is the mDNS name, which stays the same across reconnects as long as the device is on the same
-  network as the PC; an IP:port serial (USB-less connect through a VPN) changes every time and won't keep working.
-  Emulators are the AVDs named `phone` and `tablet`: VS boots them itself, VS Code's profiles boot them on fixed ports
-  first (tools/android-emulator.ps1), which gives them the fixed serials emulator-5554 / emulator-5556.
+      { "phone":  { "adb": "adb-R5CW...._adb-tls-connect._tcp" }, "tablet": { "adb": "..." } }
+  "adb" is the device's serial in `adb devices`, which is what the VS Code MAUI extension targets. -Discover writes
+  the file from the devices adb has connected right now. Over Wi-Fi debugging the serial is the mDNS name, which stays
+  the same across reconnects as long as the device is on the same network as the PC; an IP:port serial (USB-less
+  connect through a VPN) changes every time and won't keep working.
+  Emulators are the AVDs named `phone` and `tablet`: VS Code's profiles boot them on fixed ports first
+  (tools/android-emulator.ps1), which gives them the fixed serials emulator-5554 / emulator-5556.
   A missing device or AVD just leaves its profile out, with a note. Profiles of your own in either file, under other
   names, are kept. The same file lives in perezosoft-platform, y-el-vuelto and jigger-jot.
 
@@ -52,12 +62,6 @@ $sdk = @($env:ANDROID_HOME, $env:ANDROID_SDK_ROOT, (Join-Path $env:LOCALAPPDATA 
     Where-Object { $_ -and (Test-Path (Join-Path $_ 'platform-tools/adb.exe')) } | Select-Object -First 1
 $adb = $sdk ? (Join-Path $sdk 'platform-tools/adb.exe') : $null
 
-# VS lists an Android target as "<name> (Android <release> - API <level>)", the release always with a minor part.
-function VsName([string]$name, [string]$release, [string]$api) {
-    if ($release -notmatch '\.') { $release = "$release.0" }
-    "$name (Android $release - API $api)"
-}
-
 # --- -Discover: record the connected phone/tablet ---
 if ($Discover) {
     if (-not $adb) { throw 'No Android SDK found (ANDROID_HOME, %LOCALAPPDATA%\Android\Sdk, Program Files (x86)).' }
@@ -68,14 +72,12 @@ if ($Discover) {
     foreach ($serial in $serials | Where-Object { $_ -notlike 'emulator-*' }) {
         $prop = { param($p) (& $adb -s $serial shell getprop $p).Trim() }
         $role = (& $prop 'ro.build.characteristics') -match 'tablet' ? 'tablet' : 'phone'
-        $maker = & $prop 'ro.product.manufacturer'
-        $maker = $maker.Substring(0, 1).ToUpper() + $maker.Substring(1)
-        $vs = VsName "$maker $(& $prop 'ro.product.model')" (& $prop 'ro.build.version.release') (& $prop 'ro.build.version.sdk')
+        $model = "$(& $prop 'ro.product.manufacturer') $(& $prop 'ro.product.model')"
         if ($found[$role]) { Write-Warning "More than one $role connected; keeping $($devices[$role].adb), skipping $serial."; continue }
         $found[$role] = $true
-        if ($serial -match '^\d+\.\d+\.\d+\.\d+:\d+$') { Write-Warning "$vs is connected as $serial, which changes on every reconnect. Put it on the PC's Wi-Fi so adb finds it by its mDNS name." }
-        $devices[$role] = [ordered]@{ vs = $vs; adb = $serial }
-        Write-Host "Found $role`: $vs ($serial)"
+        if ($serial -match '^\d+\.\d+\.\d+\.\d+:\d+$') { Write-Warning "$model is connected as $serial, which changes on every reconnect. Put it on the PC's Wi-Fi so adb finds it by its mDNS name." }
+        $devices[$role] = [ordered]@{ adb = $serial }
+        Write-Host "Found $role`: $model ($serial)"
     }
     if ($found.Count -eq 0) { throw 'adb has no phone or tablet connected. Pair it (Wireless debugging -> Pair device with pairing code, then adb pair <ip>:<port>) and try again.' }
     New-Item -ItemType Directory -Force (Split-Path $DevicesFile) | Out-Null
@@ -104,36 +106,32 @@ $androidTfm = [regex]::Match($mauiText, 'net[\d.]+-android').Value
 $windowsTfm = [regex]::Match($mauiText, 'net[\d.]+-windows[\d.]+').Value
 $rid = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture -eq 'Arm64' ? 'win-arm64' : 'win-x64'
 
-# --- targets: (profile, VS DebugTarget, VS Code adb serial, emulator AVD or $null) ---
+# --- VS Code Android targets: (profile, adb serial, emulator AVD or $null) ---
 $targets = [System.Collections.Generic.List[object]]::new()
 $known = (Test-Path $DevicesFile) ? (Get-Content $DevicesFile -Raw | ConvertFrom-Json) : $null
 $avdHome = $env:ANDROID_AVD_HOME ? $env:ANDROID_AVD_HOME : (Join-Path $HOME '.android/avd')
 $emulatorPort = @{ phone = 5554; tablet = 5556 }
 foreach ($role in 'phone', 'tablet') {
     $device = $known.$role
-    if ($device.vs -and $device.adb) { $targets.Add(@("Android $role (device)", $device.vs, $device.adb, $null)) }
+    if ($device.adb) { $targets.Add(@("Android $role (device)", $device.adb, $null)) }
     else { Write-Host "No $role in $DevicesFile - skipping 'API + Android $role (device)' (connect it and run with -Discover)." }
 
-    $config = Join-Path $avdHome "$role.avd/config.ini"
-    if ($sdk -and (Test-Path $config)) {
-        $ini = @{}; Get-Content $config | Where-Object { $_ -match '^([^=]+)=(.*)$' } | ForEach-Object { $ini[$Matches[1].Trim()] = $Matches[2].Trim() }
-        $build = @{}; Get-Content (Join-Path $sdk ($ini['image.sysdir.1'] + 'build.prop')) |
-            Where-Object { $_ -match '^(ro\.build\.version\.(release|sdk))=(.*)$' } | ForEach-Object { $build[$Matches[1]] = $Matches[3] }
-        $name = $ini['avd.ini.displayname'] ? $ini['avd.ini.displayname'] : $role
-        $targets.Add(@("Android $role (emulator)", (VsName $name $build['ro.build.version.release'] $build['ro.build.version.sdk']),
-            "emulator-$($emulatorPort[$role])", $role))
+    if ($sdk -and (Test-Path (Join-Path $avdHome "$role.avd/config.ini"))) {
+        $targets.Add(@("Android $role (emulator)", "emulator-$($emulatorPort[$role])", $role))
     } else { Write-Host "No AVD named '$role' - skipping 'API + Android $role (emulator)' (create it in Android Studio's Device Manager)." }
 }
+# Every profile name this script has ever written, so a re-run replaces them all and keeps only yours.
+$ours = @('API + Web', 'API + app', 'API + Windows desktop') + @('phone', 'tablet' | ForEach-Object {
+    "API + Android $_ (device)", "API + Android $_ (emulator)" })
 
 # --- Visual Studio: <Sln>.slnLaunch.user ---
+# No DebugTarget on the MAUI project: VS ignores it there and uses the toolbar's.
 function Rel($file) { [System.IO.Path]::GetRelativePath($repo, $file.FullName) -replace '/', '\' }
 $apiStart = [ordered]@{ Path = (Rel $api); Action = 'Start'; DebugTarget = 'https' }
-$mauiStart = { param($target) [ordered]@{ Path = (Rel $maui); Action = 'Start'; DebugTarget = $target } }
 $vsProfiles = @(
     [ordered]@{ Name = 'API + Web'; Projects = @($apiStart, [ordered]@{ Path = (Rel $web); Action = 'Start'; DebugTarget = 'https' }) }
-    [ordered]@{ Name = 'API + Windows desktop'; Projects = @($apiStart, (& $mauiStart 'Windows Machine')) }
-) + @($targets | ForEach-Object { [ordered]@{ Name = "API + $($_[0])"; Projects = @($apiStart, (& $mauiStart $_[1])) } })
-$ours = @($vsProfiles | ForEach-Object Name) + @('Android phone (device)', 'Android phone (emulator)', 'Android tablet (device)', 'Android tablet (emulator)' | ForEach-Object { "API + $_" })
+    [ordered]@{ Name = 'API + app'; Projects = @($apiStart, [ordered]@{ Path = (Rel $maui); Action = 'Start' }) }
+)
 
 $slnLaunch = Join-Path $repo "$($sln.BaseName).slnLaunch.user"
 $kept = (Test-Path $slnLaunch) ? @(Get-Content $slnLaunch -Raw | ConvertFrom-Json | Where-Object { $_.Name -notin $ours }) : @()
@@ -141,9 +139,13 @@ ConvertTo-Json -InputObject @($vsProfiles + $kept) -Depth 5 | Set-Content $slnLa
 
 # --- VS Code: the "launch" block of .vscode/settings.json ---
 # Building blocks are [bracketed] and hidden; the compounds are what you pick. "maui: Build" must stay exactly that
-# (the MAUI extension runs it itself with the config's target), and `device` must be a literal adb serial because the
-# extension reads it before VS Code substitutes variables.
+# (the MAUI extension runs it itself with the config's target). The extension reads `project` and `device` before
+# VS Code substitutes variables, so both are literal: `device` an adb serial, `project` the csproj's absolute path
+# exactly as C# Dev Kit loaded it (drive letter upper-case on Windows). Without `project` it falls back to C# Dev
+# Kit's startup project and, with none set, builds the solution as "undefined|Any CPU" (MSB4126).
 $ws = '${workspaceFolder}'
+$mauiPath = $maui.FullName
+if ($IsWindows) { $mauiPath = $mauiPath.Substring(0, 1).ToUpper() + $mauiPath.Substring(1) }
 $hidden = [ordered]@{ hidden = $true }
 $winOut = "$ws/src/Maui/bin/Debug/$windowsTfm/$rid"
 $configs = @(
@@ -156,19 +158,27 @@ $configs = @(
         program = "$winOut/$($maui.BaseName).exe"; cwd = $winOut; presentation = $hidden }
 ) + @($targets | ForEach-Object {
     [ordered]@{ name = "[$($_[0])]"; type = 'maui'; request = 'launch'; preLaunchTask = 'maui: Build'
-        targetFramework = $androidTfm; platform = 'android'; device = $_[2]; presentation = $hidden } })
+        project = $mauiPath; configuration = 'Debug'; targetFramework = $androidTfm; platform = 'android'; device = $_[1]
+        presentation = $hidden } })
 $compounds = @(
     [ordered]@{ name = 'API + Web'; configurations = @('[API]', '[Web]') }
     [ordered]@{ name = 'API + Windows desktop'; configurations = @('[API]', '[Windows desktop]') }
 ) + @($targets | ForEach-Object {
     $c = [ordered]@{ name = "API + $($_[0])"; configurations = @('[API]', "[$($_[0])]") }
-    if ($_[3]) { $c.preLaunchTask = "android: $($_[3]) emulator" }
+    if ($_[2]) { $c.preLaunchTask = "android: $($_[2]) emulator" }
     $c })
 $order = 0
 foreach ($c in $compounds) { $order++; $c.stopAll = $true; $c.presentation = [ordered]@{ group = '1-profiles'; order = $order } }
 
 $settingsFile = Join-Path $repo '.vscode/settings.json'
 $settings = (Test-Path $settingsFile) ? (Get-Content $settingsFile -Raw | ConvertFrom-Json -AsHashtable) : [ordered]@{}
+# The MAUI extension takes the launch config's `configuration` only with this on.
+$settings['maui.configuration.useLaunchJsonConfigurations'] = $true
+# The Java extension, if installed, indexes the Android stubs the build generates under obj/ and floods Problems
+# with thousands of "cannot be resolved" errors. Its own defaults first, then the build output.
+$javaExclusions = @('**/node_modules/**', '**/.metadata/**', '**/archetype-resources/**', '**/META-INF/maven/**')
+$settings['java.import.exclusions'] = @(@($settings['java.import.exclusions']) + $javaExclusions + @('**/obj/**', '**/bin/**') |
+    Where-Object { $_ } | Select-Object -Unique)
 $oldLaunch = $settings['launch']
 $ourConfigs = @($configs | ForEach-Object name) + @('phone', 'tablet' | ForEach-Object { "[Android $_ (device)]", "[Android $_ (emulator)]" })
 $settings['launch'] = [ordered]@{
@@ -179,9 +189,17 @@ $settings['launch'] = [ordered]@{
 New-Item -ItemType Directory -Force (Split-Path $settingsFile) | Out-Null
 @(
     '// The "launch" block is written by tools/dev-profiles.ps1 (this file is gitignored). Re-run it rather than editing'
-    '// the six "API + ..." profiles or their [bracketed] building blocks; anything else here is kept.'
+    '// the "API + ..." profiles or their [bracketed] building blocks; anything else here is kept.'
+    '// Android profiles, once per clone: Command Palette -> "Select C# Startup Project" (the MAUI project), then'
+    '// "Select Launch Configuration" (any Android entry). Left on Windows, the app installs but never starts.'
     (ConvertTo-Json -InputObject $settings -Depth 10)
 ) | Set-Content $settingsFile
 
-Write-Host "Wrote $($vsProfiles.Count) profiles to $(Split-Path $slnLaunch -Leaf) and .vscode/settings.json:"
+Write-Host "Visual Studio ($(Split-Path $slnLaunch -Leaf)) - pick the device in the toolbar's Debug Target:"
 $vsProfiles | ForEach-Object { Write-Host "  $($_.Name)" }
+Write-Host 'VS Code (.vscode/settings.json):'
+$compounds | ForEach-Object { Write-Host "  $($_.name)" }
+if ($targets.Count) {
+    Write-Host 'Once per clone in VS Code, before the Android profiles: Command Palette -> "Select C# Startup Project" (the'
+    Write-Host 'MAUI project), then "Select Launch Configuration" (any Android entry).'
+}

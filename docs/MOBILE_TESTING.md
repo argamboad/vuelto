@@ -42,9 +42,21 @@ device hitting `localhost:5338` (the app *and* the in-app browser tab) reaches y
 
 ## 3. Run the app
 
-**Start profiles.** Run `pwsh tools/dev-profiles.ps1` once per clone. It writes the same six profiles for Visual
-Studio (the startup dropdown, from `<Sln>.slnLaunch.user`) and VS Code (Run and Debug, from the `"launch"` block of
-`.vscode/settings.json`). Both files are gitignored, because the device profiles name your own phone and tablet:
+**Start profiles.** Run `pwsh tools/dev-profiles.ps1` once per clone. It writes the profiles for Visual Studio (the
+startup dropdown, from `<Sln>.slnLaunch.user`) and VS Code (Run and Debug, from the `"launch"` block of
+`.vscode/settings.json`). Both files are gitignored, because the VS Code device profiles name your own phone and
+tablet.
+
+**Visual Studio: two profiles + the toolbar's Debug Target.** VS ignores a MAUI project's target inside a
+multi-project profile (per-device profiles all launched whatever the toolbar last named), so the device is picked
+where VS actually reads it:
+
+| Profile | Starts |
+|---|---|
+| **API + Web** | the API and the Blazor WebAssembly client in the browser |
+| **API + app** | the API and the MAUI shell on the toolbar's Debug Target — Windows Machine, a device or an emulator |
+
+**VS Code: one profile per target**, since there the profile can carry the device:
 
 | Profile | Starts |
 |---|---|
@@ -55,18 +67,27 @@ Studio (the startup dropdown, from `<Sln>.slnLaunch.user`) and VS Code (Run and 
 | **API + Android tablet (device)** | the API and the MAUI shell on your tablet |
 | **API + Android tablet (emulator)** | the API and the MAUI shell on the `tablet` AVD |
 
-- **Emulators.** Create two AVDs, named exactly `phone` and `tablet` (Android Studio → Device Manager). VS boots the
-  one the profile names; VS Code's profile first runs `tools/android-emulator.ps1`, which boots (or reuses) `phone`
-  on console port 5554 and `tablet` on 5556, so their adb serials are always `emulator-5554` / `emulator-5556`.
+- **VS Code, once per clone, before the Android profiles:** Command Palette → **Select C# Startup Project** (the MAUI
+  project), then **Select Launch Configuration** (any Android entry). On Windows the .NET MAUI extension otherwise
+  keeps assuming the Windows platform, attaches the CoreCLR debugger to the Mono Android app, and the app is installed
+  but never starts. The choice lives in VS Code's workspace state, which the script can't write; it holds until you
+  pick a Windows entry there again. The device itself always comes from the profile.
+- **Emulators.** Create two AVDs, named exactly `phone` and `tablet` (Android Studio → Device Manager). VS Code's
+  profile first runs `tools/android-emulator.ps1`, which boots (or reuses) `phone` on console port 5554 and `tablet`
+  on 5556, so their adb serials are always `emulator-5554` / `emulator-5556`. VS (and Android Studio) boot an emulator
+  on the next free port, so the two can end up swapped; the script then closes the one on the wrong port and reboots
+  it on the right one.
 - **Devices.** Pair each once: Developer options → Wireless debugging → *Pair device with pairing code*, then
   `adb pair <ip>:<port>` with the code. With both connected, `pwsh tools/dev-profiles.ps1 -Discover` records them in
-  `~/dev-tools/devices.json`, outside every repo, so each clone and each new app picks them up from there. VS targets a
-  device by its display name, VS Code (the MAUI extension) by its adb serial: over Wi-Fi that is the mDNS name
+  `~/dev-tools/devices.json`, outside every repo, so each clone and each new app picks them up from there. VS Code (the
+  MAUI extension) targets a device by its adb serial: over Wi-Fi that is the mDNS name
   `adb-<serial>-<id>._adb-tls-connect._tcp`, which stays the same across reconnects **while the device is on the PC's
   network**. Reached only through a VPN (Tailscale, another subnet), it gets an `IP:port` serial that changes every
   time Wireless debugging restarts. `adb reverse` works over Wi-Fi the same as over USB.
-- A missing AVD or device just leaves its profile out (the script says which). Re-run the script after adding one.
-- VS Code needs the **.NET MAUI** extension for the Android profiles.
+- A missing AVD or device just leaves its VS Code profile out (the script says which). Re-run the script after adding
+  one.
+- VS Code needs the **.NET MAUI** extension for the Android profiles. The script also tells the Java extension, if you
+  have it, to skip `obj/` and `bin/` — it otherwise floods Problems with errors from the generated Android stubs.
 
 Or CLI, with one device or emulator connected (with more, add `-p:AdbTarget=-s%20<serial>`):
 
