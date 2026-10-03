@@ -426,12 +426,12 @@ public class ArchitectureTests
         // MapTenantFeatureGroup("…") (feature slices) — the old gate matched only the raw form, so feature
         // prefixes were invisible and two slices could share a prefix green (v3 ADV-P4-1). It now scans
         // Endpoints/ as well as Features/, closing Step-0 gap S0-G1.
-        var controllersDir = Path.Combine(RepoRoot(), "src", "Api", "Controllers");
-        var featuresDir = Path.Combine(RepoRoot(), "src", "Api", "Features");
-        var endpointsDir = Path.Combine(RepoRoot(), "src", "Api", "Endpoints");
-
-        var controllerSources = SourceFiles(controllersDir).Select(File.ReadAllText);
-        var groupSources = SourceFiles(endpointsDir).Concat(SourceFiles(featuresDir)).Select(File.ReadAllText);
+        // v4 T67: ANY directory under src/Api — a [Route] attribute or a Map*Group literal in Services/ or
+        // Program.cs collides just the same; the directory convention is not what keeps prefixes unique.
+        var apiDir = Path.Combine(RepoRoot(), "src", "Api");
+        var apiSources = SourceFiles(apiDir).Select(File.ReadAllText).ToList();
+        var controllerSources = apiSources;
+        var groupSources = apiSources;
 
         var dupes = Architecture.RoutePrefixInspector.FindDuplicatePrefixes(controllerSources, groupSources);
         Assert.True(dupes.Count == 0,
