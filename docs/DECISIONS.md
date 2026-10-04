@@ -2031,6 +2031,15 @@ unverified) and a new tier in ADR-V006's chain. **Trade-off:** the staged rate i
 staging, not at confirm) and ADR-V010 (confirm still books only through `TransactionService.CreateAsync` — now with a
 rate). Migration `AddPendingVoucherStagedRate` adds three nullable columns and drops nothing.
 
+**ADR-025 — (number reserved; never adopted) CI runner selection is variable-driven with a hosted fallback (LOCALCI-1). (drafted 2026-09-08)**
+*Stub.* A platform draft (it lives in the perezosoft-platform repo, `docs/stories/localci.md`) that was never
+adopted: ADR-028 replaced the design before it was built, and ADR-030 retired self-hosted CI. The number
+stays reserved so the platform's numbering and this file's agree; do not reuse it.
+
+**ADR-026 — (draft, not yet adopted) The platform becomes the reference implementation of a stack-neutral spec (FLAVORS). (drafted 2026-09-08)**
+*Stub.* A platform draft (perezosoft-platform, `docs/stories/flavors.md`), pasted into the platform's log when
+its FLAVORS program starts. Nothing is decided, and nothing in it binds this app.
+
 **ADR-027 — Pre-launch gates: billing and account creation are deployment configuration, not runtime switches (GATES-1/2). (2026-09-11)**
 A deployment must be able to run **private and free** before it is published: nothing offers to sell
 a tester anything, and a stranger who finds the URL cannot create an account. Hiding the deployment

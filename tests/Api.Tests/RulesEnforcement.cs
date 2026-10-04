@@ -101,14 +101,14 @@ public static class RulesEnforcement
         new("R157", ["SliceReferenceInspectorTests", "RoutePrefixInspectorTests"]),
 
         // ── 9. Docs / course / rule hygiene / template ──
-        new("R83", ["PostmanParityTests"]),
+        new("R83", ["PostmanParityTests", "EveryErrorCodeAnActionReturns_IsNamedInItsRequestDescription"]),
         new("R114", [], NotHere: "the course (docs/tutorial) lives in perezosoft-platform; its gates run there"),
         new("R115", [], NotHere: "the course (docs/tutorial) lives in perezosoft-platform; its gates run there"),
         new("R116", ["RuleIds_CitedInTests_AreFinalRules", "EveryMachineRule_NamesAStandingCheck"]),
-        new("R118", ["ClaudeMdDocMap_ListsEveryTopLevelDoc"], Pending: "vuelto#128 (T63: widen the doc-map gate to docs/**)"),
-        new("R119", [], Pending: "vuelto#128 (T63: the Postman gate/refusal description floor)"),
-        new("R120", [], Pending: "vuelto#128 (T63: the compiled-in limits block gate)"),
-        new("R121", [], Pending: "vuelto#128 (T63: diagram currency)"),
+        new("R118", ["ClaudeMdDocMap_ListsEveryDoc"]), // the rule's course-reconcile half has nothing to hold here: the course lives in perezosoft-platform
+        new("R119", ["GatedAndRefusingRequests_NameTheGateKeyAndTheRefusal"]),
+        new("R120", ["CompiledInLimits_AreListedInTheEnvExample"]),
+        new("R121", ["ArchitectureAndFlows_NameTheClassesAndTheAuthErrorCodes"]),
         new("R152", ["NoResx_DeclaresAKeyTwice"]),
         new("R158", ["AddASliceChecklist_NamesEveryArtifactAGateForces"]),
     ];

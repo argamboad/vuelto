@@ -205,7 +205,7 @@
                 "send"
               ]
             },
-            "description": "Rate-limited 5/min per IP (429 after — QA-AUTH-11). Email delivery is async (outbox): wait a few seconds before fetching the code."
+            "description": "Rate-limited 5/min per IP (429 after — QA-AUTH-11). Email delivery is async (outbox): wait a few seconds before fetching the code. Errors: 400 `invalid_email`."
           },
           "event": [
             {
@@ -315,7 +315,7 @@
                 "verify"
               ]
             },
-            "description": "Stores accessToken/refreshToken on success. If the account has MFA enabled, stores mfaChallenge instead — run 'MFA — verify (step-up)' next. 401 invalid_code = wrong/expired; 401 too_many_attempts = cumulative lockout (QA-AUTH-04); 429 = throttle."
+            "description": "Stores accessToken/refreshToken on success. If the account has MFA enabled, stores mfaChallenge instead — run 'MFA — verify (step-up)' next. 401 invalid_code = wrong/expired; 401 too_many_attempts = cumulative lockout (QA-AUTH-04); 429 = throttle. 403 `signup_not_allowed` = the deployment has a signup green list (`Signup:AllowedEmails` / `Signup:AllowedDomains`) and this address is neither on it nor invited into a green-listed owner's household (GATES-2, ADR-027). Refused here, at account creation — never at send time, and never for an existing account."
           },
           "event": [
             {
@@ -372,7 +372,7 @@
                 "verify"
               ]
             },
-            "description": "Completes sign-in for an MFA-enabled account. Accepts a 6-digit TOTP or a single-use recovery code (case/hyphen/space-insensitive). Challenge is single-use and short-lived (~5 min)."
+            "description": "Completes sign-in for an MFA-enabled account. Accepts a 6-digit TOTP or a single-use recovery code (case/hyphen/space-insensitive). Challenge is single-use and short-lived (~5 min). Errors: 401 `mfa_failed`."
           },
           "event": [
             {
@@ -421,7 +421,7 @@
                 "refresh"
               ]
             },
-            "description": "Rotates the refresh token (old one is revoked; replaying it revokes every session — reuse detection — unless the replay lands within RefreshToken:ReuseGraceSeconds (60 s) of the rotation while the new token is still live: that race gets a fresh session and nothing is revoked — once per rotated token; a further replay of it is reuse). The stored refreshToken is updated automatically."
+            "description": "Rotates the refresh token (old one is revoked; replaying it revokes every session — reuse detection — unless the replay lands within RefreshToken:ReuseGraceSeconds (60 s) of the rotation while the new token is still live: that race gets a fresh session and nothing is revoked — once per rotated token; a further replay of it is reuse). The stored refreshToken is updated automatically. Errors: 401 `invalid_refresh_token`, 401 `no_refresh_token`, 401 `user_not_found`, 500 `refresh_failed`."
           },
           "event": [
             {
@@ -470,7 +470,7 @@
                 "auth",
                 "logout"
               ]
-            }
+            }, "description": "Errors: 500 `logout_failed`."
           },
           "event": [
             {
@@ -514,7 +514,7 @@
                 "send"
               ]
             },
-            "description": "The verify half is a browser redirect flow (GET /api/auth/magic-link/verify?token=&email= → 302 to the web app) — click the link from Mailpit in a browser; it isn't meaningful as a pure API call."
+            "description": "The verify half is a browser redirect flow (GET /api/auth/magic-link/verify?token=&email= → 302 to the web app) — click the link from Mailpit in a browser; it isn't meaningful as a pure API call. Errors: 400 `invalid_email`."
           },
           "event": [
             {
@@ -569,7 +569,7 @@
                 "google"
               ]
             },
-            "description": "**Documentation-only — a browser flow, not runnable from Postman.** Listed so the collection stays a complete mirror of the API surface (v3 audit TR-6; the parity gate `PostmanParityTests` enforces it). The PROVIDER redirects here after consent (carries its code/state). Issues the session (refresh cookie) and 302s to the client. Never called by an API client directly."
+            "description": "**Documentation-only — a browser flow, not runnable from Postman.** Listed so the collection stays a complete mirror of the API surface (v3 audit TR-6; the parity gate `PostmanParityTests` enforces it). The PROVIDER redirects here after consent (carries its code/state). Issues the session (refresh cookie) and 302s to the client. Never called by an API client directly. Error redirects: `/login?error=email_unverified` (same-email merge refused: the provider did not vouch for the address), `/login?error=signup_not_allowed` (a signup green list is configured and the address is neither on it nor invited by a green-listed owner — GATES-2, ADR-027); in link mode `/settings?link_error=expired` (link token expired) and `/settings?link_error=in_use` (that provider login belongs to another account)."
           }
         },
         {
@@ -597,7 +597,7 @@
                 }
               ]
             },
-            "description": "**Documentation-only — a browser flow, not runnable from Postman.** Listed so the collection stays a complete mirror of the API surface (v3 audit TR-6; the parity gate `PostmanParityTests` enforces it). The emailed magic-link URL. Single-use, hashed, time-limited token in the query; consumes it, sets the refresh cookie (or MFA step-up redirect), then 302s to the client."
+            "description": "**Documentation-only — a browser flow, not runnable from Postman.** Listed so the collection stays a complete mirror of the API surface (v3 audit TR-6; the parity gate `PostmanParityTests` enforces it). The emailed magic-link URL. Single-use, hashed, time-limited token in the query; consumes it, sets the refresh cookie (or MFA step-up redirect), then 302s to the client. Error redirects: `/login?error=invalid_link` (unknown, expired or already used) and `/login?error=signup_not_allowed` (a signup green list is configured and the address is neither on it nor invited by a green-listed owner — GATES-2, ADR-027; refused at account creation, never for an existing account)."
           }
         },
         {
@@ -620,7 +620,7 @@
                 "google"
               ]
             },
-            "description": "**Documentation-only — a browser flow, not runnable from Postman.** Listed so the collection stays a complete mirror of the API surface (v3 audit TR-6; the parity gate `PostmanParityTests` enforces it). Opened in the OS browser by MAUI clients (WebAuthenticator). Like /login/{provider} but the callback returns a deep link carrying a one-time code instead of a cookie."
+            "description": "**Documentation-only — a browser flow, not runnable from Postman.** Listed so the collection stays a complete mirror of the API surface (v3 audit TR-6; the parity gate `PostmanParityTests` enforces it). Opened in the OS browser by MAUI clients (WebAuthenticator). Like /login/{provider} but the callback returns a deep link carrying a one-time code instead of a cookie. Errors: 400 `invalid_request`."
           }
         },
         {
@@ -643,7 +643,7 @@
                 "google"
               ]
             },
-            "description": "**Documentation-only — a browser flow, not runnable from Postman.** Listed so the collection stays a complete mirror of the API surface (v3 audit TR-6; the parity gate `PostmanParityTests` enforces it). Provider redirect for the native flow: issues a short-lived ONE-TIME CODE and 302s to the app's custom-scheme deep link. The code is redeemed via POST /api/auth/native/exchange."
+            "description": "**Documentation-only — a browser flow, not runnable from Postman.** Listed so the collection stays a complete mirror of the API surface (v3 audit TR-6; the parity gate `PostmanParityTests` enforces it). Provider redirect for the native flow: issues a short-lived ONE-TIME CODE and 302s to the app's custom-scheme deep link. The code is redeemed via POST /api/auth/native/exchange. Errors: 400 `invalid_request`. Error deep links (the callback URL carries `?error=<code>` instead of a code): `auth_failed`, `email_unverified`, `expired`, `in_use`, `signup_not_allowed`. `signup_not_allowed` = a signup green list is configured and the address is neither on it nor invited by a green-listed owner (GATES-2, ADR-027)."
           }
         },
         {
@@ -679,7 +679,7 @@
                 "exchange"
               ]
             },
-            "description": "Redeems the one-time code from the native callback deep link for tokens on the BODY transport (access + refresh token JSON; no cookie). 400/401 invalid_code on unknown/expired/replayed codes (single-use, 5-min TTL); {mfa_required, challenge} when the user has MFA enabled — step up via POST /api/auth/mfa/verify. Requires the X-Native-Client: true header."
+            "description": "Redeems the one-time code from the native callback deep link for tokens on the BODY transport (access + refresh token JSON; no cookie). 400/401 invalid_code on unknown/expired/replayed codes (single-use, 5-min TTL); {mfa_required, challenge} when the user has MFA enabled — step up via POST /api/auth/mfa/verify. Requires the X-Native-Client: true header. A signup refusal never reaches this call: the callback deep link carries `error=signup_not_allowed` instead of a code (GATES-2). Errors: 401 `user_not_found`."
           }
         }
       ]
@@ -701,7 +701,7 @@
                 "auth",
                 "me"
               ]
-            }
+            }, "description": "Errors: 401 `invalid_token`, 401 `user_not_found`."
           },
           "event": [
             {
@@ -741,7 +741,7 @@
                 "locale"
               ]
             },
-            "description": "en / es shipped. Drives UI + email language. Follows the user across devices: applied (with one reload on mismatch) on every sign-in, and a device-local login-page choice is adopted here automatically on sign-in when unset (PREFS-1, ADR-022). With an impersonation token as bearer → 403 impersonation_not_allowed (server-side guard, v3 ADM-8)."
+            "description": "en / es shipped. Drives UI + email language. Follows the user across devices: applied (with one reload on mismatch) on every sign-in, and a device-local login-page choice is adopted here automatically on sign-in when unset (PREFS-1, ADR-022). With an impersonation token as bearer → 403 impersonation_not_allowed (server-side guard, v3 ADM-8). Errors: 400 `unsupported_locale`."
           },
           "event": [
             {
@@ -873,7 +873,7 @@
                 }
               ]
             },
-            "description": "GDPR erasure — IRREVERSIBLE. Owner-with-members → 400 (transfer first). Sole owner → 409 until confirm_dissolve=true (which also dissolves the household)."
+            "description": "GDPR erasure — IRREVERSIBLE. Owner-with-members → 400 (transfer first). Sole owner → 409 until confirm_dissolve=true (which also dissolves the household). Errors: 400 `must_transfer_first`, 401 `invalid_token`, 401 `user_not_found`, 409 `confirmation_required`."
           },
           "event": [
             {
@@ -906,7 +906,7 @@
                 "google"
               ]
             },
-            "description": "**Documentation-only — a browser flow, not runnable from Postman.** Listed so the collection stays a complete mirror of the API surface (v3 audit TR-6; the parity gate `PostmanParityTests` enforces it). Starts linking an additional OAuth provider to the signed-in account: responds with the provider redirect carrying a short-lived link token; completes at the callback with ?linked=… (or ?link_error=…) on the client's /settings. Requires the Bearer token."
+            "description": "**Documentation-only — a browser flow, not runnable from Postman.** Listed so the collection stays a complete mirror of the API surface (v3 audit TR-6; the parity gate `PostmanParityTests` enforces it). Starts linking an additional OAuth provider to the signed-in account: responds with the provider redirect carrying a short-lived link token; completes at the callback with ?linked=… (or ?link_error=…) on the client's /settings. Requires the Bearer token. Errors: 400 `unsupported_provider`."
           }
         },
         {
@@ -979,7 +979,7 @@
                 "enroll"
               ]
             },
-            "description": "Returns the otpauth:// provisioning URI + Base32 secret (shown once). Add the secret to an authenticator app, then Confirm."
+            "description": "Returns the otpauth:// provisioning URI + Base32 secret (shown once). Add the secret to an authenticator app, then Confirm. Errors: 401 `user_not_found`."
           },
           "event": [
             {
@@ -1022,7 +1022,7 @@
                 "confirm"
               ]
             },
-            "description": "Enables MFA and returns the 10 one-time recovery codes (xxxxx-xxxxx) — logged to console, shown ONCE."
+            "description": "Enables MFA and returns the 10 one-time recovery codes (xxxxx-xxxxx) — logged to console, shown ONCE. Errors: 400 `invalid_code`, 400 `not_enrolled`."
           },
           "event": [
             {
@@ -1064,7 +1064,7 @@
                 "mfa",
                 "disable"
               ]
-            }
+            }, "description": "Errors: 400 `invalid_code`, 400 `mfa_not_enabled`."
           },
           "event": [
             {
@@ -1096,7 +1096,7 @@
                 "api",
                 "household"
               ]
-            }
+            }, "description": "Errors: 404 `household_not_found`."
           },
           "event": [
             {
@@ -1138,7 +1138,7 @@
                 "api",
                 "household"
               ]
-            }
+            }, "description": "Errors: 400 `invalid_request`, 404 `household_not_found`."
           },
           "event": [
             {
@@ -1205,7 +1205,7 @@
                 "invitations"
               ]
             },
-            "description": "Returns the raw token ONCE (also emailed). 402 = seat quota reached (QA-HH-14). 409 = already a member."
+            "description": "Returns the raw token ONCE (also emailed). 402 = seat quota reached (QA-HH-14). 409 = already a member. Errors: 400 `invalid_request`, 402 `seat_limit_reached`, 409 `already_member`."
           },
           "event": [
             {
@@ -1239,7 +1239,7 @@
                 "{{invitationId}}",
                 "regenerate"
               ]
-            }
+            }, "description": "Errors: 400 `invitation_not_pending`, 404 `invitation_not_found`."
           },
           "event": [
             {
@@ -1282,7 +1282,7 @@
                 "accept"
               ]
             },
-            "description": "Sign in as the invitee first (re-run folder 1 with the invitee email) — accept joins the CALLER to the inviting household. Errors: 400 invitation_invalid/must_transfer_first/would_abandon_data, 409 already_member, 402 seat_limit_reached when the household downgraded below its reserved seats (BILLING-9 — the token stays pending and works again after an upgrade)."
+            "description": "Sign in as the invitee first (re-run folder 1 with the invitee email) — accept joins the CALLER to the inviting household. Errors: 400 invitation_invalid/must_transfer_first/would_abandon_data, 409 already_member, 402 seat_limit_reached when the household downgraded below its reserved seats (BILLING-9 — the token stays pending and works again after an upgrade). Errors: 400 `invalid_request`."
           },
           "event": [
             {
@@ -1311,7 +1311,7 @@
                 "invitations",
                 "{{invitationId}}"
               ]
-            }
+            }, "description": "Errors: 404 `invitation_not_found`."
           },
           "event": [
             {
@@ -1352,7 +1352,7 @@
                 "role"
               ]
             },
-            "description": "Roles: member | admin (owner is transferred, never assigned). Owner-only."
+            "description": "Roles: member | admin (owner is transferred, never assigned). Owner-only. Errors: 400 `cannot_change_owner`, 400 `invalid_request`, 400 `invalid_role`, 404 `member_not_found`, 500 `internal_error`."
           },
           "event": [
             {
@@ -1381,7 +1381,7 @@
                 "members",
                 "{{memberUserId}}"
               ]
-            }
+            }, "description": "Errors: 400 `cannot_remove_owner`, 400 `invalid_request`, 404 `member_not_found`."
           },
           "event": [
             {
@@ -1420,7 +1420,7 @@
                 "transfer-ownership"
               ]
             },
-            "description": "Owner-only; you become a member afterwards."
+            "description": "Owner-only; you become a member afterwards. Errors: 400 `invalid_request`, 404 `member_not_found`, 409 `concurrent_modification`, 500 `internal_error`."
           },
           "event": [
             {
@@ -1459,7 +1459,7 @@
                 "leave"
               ]
             },
-            "description": "Member: leaves + re-homes to a fresh solo household. Owner with members: refused (transfer first). Sole owner: needs confirm_dissolve=true (dissolves)."
+            "description": "Member: leaves + re-homes to a fresh solo household. Owner with members: refused (transfer first). Sole owner: needs confirm_dissolve=true (dissolves). Errors: 400 `must_transfer_first`, 409 `confirmation_required`, 500 `internal_error`."
           },
           "event": [
             {
@@ -1561,7 +1561,7 @@
                   "disabled": true
                 }
               ]
-            }
+            }, "description": "Errors: 401 `invalid_token`."
           },
           "event": [
             {
@@ -1591,7 +1591,7 @@
                 "notifications",
                 "unread-count"
               ]
-            }
+            }, "description": "Errors: 401 `invalid_token`."
           },
           "event": [
             {
@@ -1620,7 +1620,7 @@
                 "{{notificationId}}",
                 "read"
               ]
-            }
+            }, "description": "Errors: 401 `invalid_token`, 404 `notification_not_found`."
           },
           "event": [
             {
@@ -1648,7 +1648,7 @@
                 "notifications",
                 "read-all"
               ]
-            }
+            }, "description": "Errors: 401 `invalid_token`."
           },
           "event": [
             {
@@ -1676,7 +1676,7 @@
                 "notifications",
                 "{{notificationId}}"
               ]
-            }
+            }, "description": "Errors: 401 `invalid_token`, 404 `notification_not_found`."
           },
           "event": [
             {
@@ -1709,7 +1709,7 @@
                   "value": "true"
                 }
               ]
-            }
+            }, "description": "Errors: 400 `scope_required`, 401 `invalid_token`."
           },
           "event": [
             {
@@ -1744,7 +1744,7 @@
                 }
               ]
             },
-            "description": "Clears ALL of the caller's notifications. The scope is REQUIRED (v3 LB-UI-10): read=false = all, read=true = only read; omitting ?read is a 400 (scope_required), so delete-all can never be hit by a dropped param."
+            "description": "Clears ALL of the caller's notifications. The scope is REQUIRED (v3 LB-UI-10): read=false = all, read=true = only read; omitting ?read is a 400 (scope_required), so delete-all can never be hit by a dropped param. Errors: 401 `invalid_token`."
           },
           "event": [
             {
@@ -1773,7 +1773,7 @@
                 "notifications",
                 "preferences"
               ]
-            }
+            }, "description": "Errors: 401 `invalid_token`."
           },
           "event": [
             {
@@ -1811,7 +1811,7 @@
                 "notifications",
                 "preferences"
               ]
-            }
+            }, "description": "Errors: 401 `invalid_token`."
           },
           "event": [
             {
@@ -1844,7 +1844,7 @@
                 "billing"
               ]
             },
-            "description": "Plan, status, seats — owner-only (403 otherwise)."
+            "description": "Plan, status, seats — owner-only (403 otherwise). 404 when `Billing:Enabled` is off (the default — GATES-1, ADR-027): the billing controllers are not mapped at all."
           },
           "event": [
             {
@@ -1883,7 +1883,7 @@
                 "checkout"
               ]
             },
-            "description": "Returns the provider checkout URL (fake provider locally: billing.test/... — won't load, by design)."
+            "description": "Returns the provider checkout URL (fake provider locally: billing.test/... — won't load, by design). Errors: 400 `invalid_plan`. 404 when `Billing:Enabled` is off (the default — GATES-1, ADR-027): the billing controllers are not mapped at all."
           },
           "event": [
             {
@@ -1912,7 +1912,7 @@
                 "billing",
                 "portal"
               ]
-            }
+            }, "description": "Errors: 400 `no_subscription`. 404 when `Billing:Enabled` is off (the default — GATES-1, ADR-027): the billing controllers are not mapped at all."
           },
           "event": [
             {
@@ -1959,7 +1959,7 @@
                 "webhook"
               ]
             },
-            "description": "Upgrades {{tenantId}} to pro/active as if checkout completed (QA-BILL upgrade loop). Requires the FAKE provider (dev default) — on an environment wired to real Stripe (test mode), this returns 400 invalid signature by design; use `stripe trigger` there instead. Run 'Get household' first to populate {{tenantId}}. Re-sending the same EventId is deduped (inbox); an older OccurredAt than the last applied event is ignored."
+            "description": "Upgrades {{tenantId}} to pro/active as if checkout completed (QA-BILL upgrade loop). Requires the FAKE provider (dev default) — on an environment wired to real Stripe (test mode), this returns 400 invalid signature by design; use `stripe trigger` there instead. Run 'Get household' first to populate {{tenantId}}. Re-sending the same EventId is deduped (inbox); an older OccurredAt than the last applied event is ignored. Errors: 400 `invalid_signature`. 404 when `Billing:Enabled` is off (the default — GATES-1, ADR-027): the billing controllers are not mapped at all."
           },
           "event": [
             {
@@ -1993,7 +1993,7 @@
                 "admin",
                 "me"
               ]
-            }
+            }, "description": "Errors: 401 `invalid_token`."
           },
           "event": [
             {
@@ -2054,7 +2054,7 @@
                 "tenants",
                 "{{adminTenantId}}"
               ]
-            }
+            }, "description": "Errors: 404 `tenant_not_found`."
           },
           "event": [
             {
@@ -2099,7 +2099,7 @@
                 "announce"
               ]
             },
-            "description": "user_ids: null/omitted = every member; a NON-empty list = just those (intersected with the roster); an explicitly-empty [] = NO ONE (v3 LB-ADM-2). Audited in-tenant."
+            "description": "user_ids: null/omitted = every member; a NON-empty list = just those (intersected with the roster); an explicitly-empty [] = NO ONE (v3 LB-ADM-2). Audited in-tenant. Errors: 400 `invalid_request`, 404 `tenant_not_found`."
           },
           "event": [
             {
@@ -2139,7 +2139,7 @@
                 "announce-all"
               ]
             },
-            "description": "Queued (202) — the outbox dispatcher fans out a few seconds later. ADR-021."
+            "description": "Queued (202) — the outbox dispatcher fans out a few seconds later. ADR-021. Errors: 400 `invalid_request`."
           },
           "event": [
             {
@@ -2180,7 +2180,7 @@
                 "subscription"
               ]
             },
-            "description": "Simulates a completed checkout (active, never lapses, no provider ids). 409 = tenant has a LIVE Stripe subscription — keyed on liveness (status ≠ canceled), so a churned/canceled tenant is comp-able even though it kept its Stripe id (ADR-006/021, v3 ADM-5). 404 while Billing:Enabled is off — the comp is part of the billing surface (GATES-1, v4 T45)."
+            "description": "Simulates a completed checkout (active, never lapses, no provider ids). 409 = tenant has a LIVE Stripe subscription — keyed on liveness (status ≠ canceled), so a churned/canceled tenant is comp-able even though it kept its Stripe id (ADR-006/021, v3 ADM-5). 404 while Billing:Enabled is off — the comp is part of the billing surface (GATES-1, v4 T45). Errors: 400 `invalid_plan`, 404 `tenant_not_found`, 409 `provider_managed`."
           },
           "event": [
             {
@@ -2211,7 +2211,7 @@
                 "subscription"
               ]
             },
-            "description": "Deletes the projection (absence ⇒ Free). Idempotent. 409 = LIVE provider subscription (status ≠ canceled); a canceled-but-lingering projection is cleaned up, not blocked (v3 ADM-5). 404 while Billing:Enabled is off (GATES-1, v4 T45)."
+            "description": "Deletes the projection (absence ⇒ Free). Idempotent. 409 = LIVE provider subscription (status ≠ canceled); a canceled-but-lingering projection is cleaned up, not blocked (v3 ADM-5). 404 while Billing:Enabled is off (GATES-1, v4 T45). Errors: 404 `tenant_not_found`, 409 `provider_managed`."
           },
           "event": [
             {
@@ -2241,7 +2241,7 @@
                 "{{adminTargetUserId}}"
               ]
             },
-            "description": "Stores {{impersonationToken}} (does NOT overwrite your session). To act as the target, temporarily set a request's bearer to {{impersonationToken}}. ~15 min, non-refreshable, audited in the target's tenant."
+            "description": "Stores {{impersonationToken}} (does NOT overwrite your session). To act as the target, temporarily set a request's bearer to {{impersonationToken}}. ~15 min, non-refreshable, audited in the target's tenant. Errors: 404 `user_not_found`."
           },
           "event": [
             {
@@ -2273,7 +2273,7 @@
                 "mfa"
               ]
             },
-            "description": "Staff recovery path (ADR-021 addendum): wipes the user's TOTP secret + recovery codes WITHOUT a code — verify their identity out-of-band first. Also REVOKES the target's refresh tokens/sessions (v3 ADM-7 — compromise recovery). Audited in the target's tenant (admin.mfa.reset) and the user is notified (in-app + email). 204 also when the user had no MFA (idempotent no-op)."
+            "description": "Staff recovery path (ADR-021 addendum): wipes the user's TOTP secret + recovery codes WITHOUT a code — verify their identity out-of-band first. Also REVOKES the target's refresh tokens/sessions (v3 ADM-7 — compromise recovery). Audited in the target's tenant (admin.mfa.reset) and the user is notified (in-app + email). 204 also when the user had no MFA (idempotent no-op). Errors: 404 `user_not_found`."
           },
           "event": [
             {
