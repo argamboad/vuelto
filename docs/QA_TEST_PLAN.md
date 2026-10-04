@@ -3596,6 +3596,198 @@ Then the sign-in succeeds
 
 ---
 
+## 14d. v4 audit — adversarial, forge & regression (QA-ADV-25+, QA-DEP-*) 🟠
+
+The platform's v4 delta audit (2026-09-23; its reports live in the perezosoft-platform repo, the rule book
+it produced is `docs/audits/v4-2026-09/FOUNDATION_RULES_v3.md` here) found the classes below. When this section was
+written, eleven of its cases asserted behaviour the audit had proved broken and were pre-recorded **Blocked**.
+**All eleven are remediated** (v4 batches B3–B7, merged 2026-09-24 → 2026-10-01): each case below names the
+finding and the task that fixed it, and **every case in this section is expected to Pass**. A failure here
+is a regression — record it **Fail** with the finding id in Notes. (The discipline for a future audit is
+unchanged: a case that asserts known-broken behaviour is marked **⚠️ PENDING remediation** and recorded
+Blocked, never Pass, until its task lands.)
+
+### QA-ADV-25 — Joining another household wipes your old one completely 🟠 (curl + DB)
+**✅ Remediated** — v4 LB-AUTH-5 / LB-BILL-19, task T21 (R123) landed; expected **Pass**.
+**Gherkin**
+```gherkin
+Given I am the only member of household A, with an API key and a webhook subscription (PUBAPI/HOOKS on)
+When I accept an invitation to household B
+Then household A is gone AND its API key no longer authenticates AND no row of A survives
+```
+**Walkthrough**
+1. Environment with `PublicApi__Enabled=true`, `Webhooks__Enabled=true`. Sign in as a fresh user (a
+   tenant-of-one is founded). Create an API key (`POST /api/apikeys`, capture the raw key) and a webhook
+   subscription.
+2. From a second account, invite the first user to household B; accept it as the first user.
+3. `GET /api/public/…` with the captured key. **Expected:** **401**. **Today:** 200 — the key still
+   authenticates against a tenant that no longer exists.
+4. DB: `SELECT count(*) FROM "ApiKeys"/"WebhookSubscriptions"/"UsageCounters" WHERE "TenantId" = '<A>'`.
+   **Expected:** 0 each. **Today:** rows survive (the accept path deletes the tenant row directly instead of
+   running the dissolution contributors). With a Stripe-backed A, also expect a `billing.cancel` outbox row.
+
+### QA-ADV-26 — Dissolving a household leaves no queued email or attachment behind 🟠 (curl + DB)
+**✅ Remediated** — v4 JOBS-2 / ADV-P4-7, tasks T22–T23 (R90/R91) landed; expected **Pass**.
+**Gherkin**
+```gherkin
+Given household A has emails in the outbox (an invitation, a notification)
+When A is dissolved (or its owner erases their account)
+Then no outbox row for A keeps a recipient address, a body or attachment bytes
+```
+**Walkthrough**
+1. As A's owner, send an invitation to `x@example.com`. Stop the outbox dispatcher (or read quickly) and note
+   the `OutboxMessages` row for it.
+2. Dissolve A (`POST /api/household/leave` as sole owner, or delete the account).
+3. DB: `SELECT "Payload" FROM "OutboxMessages" WHERE "Payload" LIKE '%x@example.com%'`. **Expected:** no rows
+   (pending rows wiped, sent rows scrubbed). **Today:** the row survives with `TenantId` null and the full
+   payload — and sent rows are never purged.
+
+### QA-ADV-27 — Signing out while a background renewal is in flight really signs out 🟠 (curl)
+**✅ Remediated** — v4 LB-AUTH-4 / LB-UI-12, tasks T29/T31 (R124/R125) landed; expected **Pass**.
+**Gherkin**
+```gherkin
+Given I refreshed once, rotating token A into B
+When I sign out presenting the rotated-out token A (the cookie a racing tab still holds)
+Then B is revoked too, and no further refresh succeeds
+```
+**Walkthrough**
+1. Sign in; capture refresh token A. `POST /api/auth/refresh` with A → capture B.
+2. Within 60 s, `POST /api/auth/logout` presenting **A**. Response is 200 either way.
+3. `POST /api/auth/refresh` with **B**. **Expected:** **401** (the family was revoked). **Today:** 200 — a
+   logout carrying the just-rotated token revokes nothing. Repeat step 2 with an **expired** token and a second
+   live session: the second session should be revoked as well.
+
+### QA-ADV-28 — A rotated token is forgiven once, not forever 🟠 (curl)
+**✅ Remediated** — v4 AUTH-1, task T28 (R81) landed; expected **Pass**.
+**Gherkin**
+```gherkin
+Given token A was rotated into B less than 60 seconds ago
+When A is presented a second time inside the window
+Then it is treated as theft: 401 and every session revoked
+```
+**Walkthrough**
+1. Sign in → A. Refresh with A → B.
+2. Refresh with A again (inside 60 s) → **200** (the benign race, QA-ADV-17 step 2).
+3. Refresh with A a **third** time (still inside 60 s). **Expected:** **401** and B stops working.
+   **Today:** 200 again — each replay mints another live chain.
+
+### QA-ADV-29 — An expired impersonation never turns into the staff account mid-page 🟠 (Web)
+**✅ Remediated** — v4 LB-UI-13, task T31 (R125) landed; expected **Pass**.
+**Gherkin**
+```gherkin
+Given staff is impersonating a member on the member's Household page
+When the 15-minute impersonation token expires and staff clicks an action
+Then the action is refused or staff is returned home — it never runs as the staff user in the staff's household
+```
+**Walkthrough**
+1. As staff (`Admin__StaffEmails__0`), impersonate a member from `/admin`. Stay on the member's `/household`.
+2. Wait 15+ minutes (or shorten the impersonation lifetime in a test config).
+3. Rename the household. **Expected:** a visible refusal or a return to your own identity with a message; the
+   member's household is untouched and the staff household is untouched. **Today:** the bearer handler silently
+   renews into the staff identity and the rename lands on the **staff's own** household.
+
+### QA-ADV-30 — A webhook endpoint that redirects is a failed delivery 🟠 (curl)
+**✅ Remediated** — v4 LB-JOBS-1 / JOBS-9 / ADV-P4-9, task T37 (R130) landed; expected **Pass**.
+**Gherkin**
+```gherkin
+Given a webhook subscription whose URL answers 302 to another host
+When a delivery or a send-test runs
+Then the redirect is not followed, and the delivery log records a failure with status 302
+```
+**Walkthrough**
+1. Point a subscription at a public endpoint you control that returns `302 Location: https://<other>/ok`
+   (e.g. a request-bin with a redirect rule); make `<other>` answer 200.
+2. `POST /api/webhooks/{id}/test`. **Expected:** `delivered: false`, `status_code: 302`; `<other>` receives
+   nothing. **Today:** `<other>` receives a body-less **GET** carrying the signature headers and the log says
+   delivered (200). With a 307, today the signed body itself reaches `<other>`.
+
+### QA-ADV-31 — The delivery log never shows raw server exception text 🟢 (curl)
+**✅ Remediated** — v4 JOBS-1, task T39 (R89) landed; expected **Pass**.
+**Walkthrough**
+1. Subscribe a webhook to `https://does-not-exist.invalid/hook`; send a test.
+2. `GET /api/webhooks/{id}/deliveries`. **Expected:** `error` is a short code (`dns`, `timeout`, `connection`,
+   `http_<status>`, `url_refused`). **Today:** the raw exception message (resolver text, IPs, the SSRF verdict).
+
+### QA-ADV-32 — Billing off leaves no billing-shaped surface anywhere 🟠 (curl)
+**✅ Remediated** — v4 BILL-2/BILL-3, task T45 (R86) landed; expected **Pass**.
+**Walkthrough**
+1. Environment with `Billing__Enabled` unset. As staff: `PUT /api/admin/tenants/{id}/subscription`
+   `{"plan_key":"pro"}`. **Expected:** **404** (the comp write goes with the billing surface) and the console's
+   Comp/Revert buttons are hidden. **Today:** 200, the tenant becomes Pro while billing is "off".
+2. Complements QA-GATE-01 (which checks `/api/billing*` only).
+
+### QA-ADV-33 — Expired invitations stop holding seats 🟠 (Web)
+**✅ Remediated** — v4 LB-AUTH-7 / LB-BILL-20, task T34 (R127) landed; expected **Pass**.
+**Walkthrough**
+1. Free household at `cap − 1` members plus pending invitations that are **past their expiry** (seed
+   `ExpiresAt` in the past in the DB, or wait out `LifespanDays`).
+2. Invite a new address. **Expected:** allowed (an expired invitation reserves nothing). **Today:** 402
+   `seat_limit_reached` / "household full" — dead invitations keep their seats forever.
+
+### QA-ADV-34 — The native export download never sends your sign-in token to the file host 🟢 (Android/Desktop)
+**✅ Remediated** — v4 NAT-12, task T49 (R102) landed; expected **Pass**.
+**Walkthrough**
+1. Environment with `Files__Provider=S3` (MinIO in compose). On the native app, Household → Export data.
+2. Watch the MinIO/S3 access log (or a proxy). **Expected:** the presigned GET carries **no**
+   `Authorization: Bearer` header and the download succeeds. **Today:** the bearer JWT is attached (and AWS S3
+   rejects a presigned GET that also carries an Authorization header).
+
+### QA-ADV-35 — Exported logs carry no email addresses 🟢 (Ops)
+**✅ Remediated** — v4 OBS-1, task T41 (R93) landed; expected **Pass**.
+**Walkthrough**
+1. Set `OpenTelemetry__Otlp__Endpoint` to a collector you can read (Grafana Cloud or a local otel-collector
+   with a file exporter). Sign in with OTP twice.
+2. Search the exported log records for `@`. **Expected:** none — records carry user ids only. **Today:** every
+   token issue exports `{Email}` as an attribute.
+
+### QA-DEP-01 — Deploy staging from GitHub 🔴 (Operator)
+**Gherkin**
+```gherkin
+Given develop on GitHub
+When I run the CI workflow on develop with deploy = staging
+Then every web gate runs, and only when all pass the Render hook fires and the version-gated smoke passes
+```
+**Walkthrough**
+1. GitHub → Actions → `CI` → *Run workflow* on `develop`, `deploy` = staging, `devices` = none (ADR-031;
+   DEPLOYMENT §6).
+2. **Expected:** `build-test`, `secret-scan`, `qa-artifacts`, `license-scan`, `docker-build` and `e2e` run, then
+   `deploy-staging` fires `RENDER_DEPLOY_HOOK_STAGING`, waits until `/api/version` reports the commit and runs the
+   post-deploy smoke green. No device leg runs. A merge alone deploys nothing.
+
+### QA-DEP-02 — A deploy run on the wrong branch fails loudly 🟠 (Operator)
+**Walkthrough**
+1. *Run workflow* on `main` with `deploy` = staging. **Expected:** the web gates run, then `deploy-staging` fails
+   at its first step: "staging deploys from develop". Nothing is deployed.
+2. *Run workflow* on `develop` with `deploy` = prod. **Expected:** `deploy-prod` fails the same way ("prod deploys
+   from main").
+
+### QA-DEP-03 — A red gate blocks the deploy 🟢 (Operator)
+**Walkthrough**
+1. On a throwaway branch off `develop`, break a unit test; run the workflow on that branch with `deploy` = staging.
+   **Expected:** `build-test` is red, `deploy-staging` is skipped, and the Render hook never fires.
+2. Delete the throwaway branch.
+
+### QA-DEP-04 — The device legs run only when asked for 🟠 (Operator)
+**Walkthrough**
+1. Open a pull request that changes `src/Shared.Ui`. **Expected:** only the web gates run — no `native-*` job.
+2. *Run workflow* on `develop` with `deploy` = none, `devices` = android. **Expected:** `native-build` (Android
+   leg only), `native-release-android` and `native-smoke-android` run; no web gate, no Windows or Apple job.
+3. Repeat with `devices` = all before a release (macOS bills 10×). **Expected:** every native job green.
+
+### QA-SET-09 — A theme saved just before a reload survives the reload 🟠 (Web + Android)
+**Walkthrough**
+1. Signed in, switch theme Light → Dark in Settings; immediately reload (web) or background/foreground the
+   Android app so the WebView reloads. **Expected:** Dark stays (platform PR #233 — the switcher remembers the saved
+   value; `PreferenceSyncClaimTests`). Repeat with the language switcher.
+
+### QA-AND-16 — An API base configured with a trailing slash still signs in 🟢 (Android)
+**Walkthrough**
+1. Build the Android app with `-p:ApiBaseUrl=https://<staging>/` (trailing slash). Sign in with OTP and with
+   Google. **Expected:** both succeed; no request goes to `//api/…` (platform PR #230 — `TrimEnd('/')` in
+   `MauiProgram` and both OAuth initiators).
+
+---
+
 ## 15. Traceability matrix (feature → cases → API)
 
 | Feature area | Test cases | Key API endpoints |
@@ -3639,6 +3831,7 @@ Then the sign-in succeeds
 | Public API + API keys (PUBAPI, **config-gated off**) | **QA-API-01..04** (curl/Postman) + `Api.Tests` (`ApiKeyServiceTests`, `RateLimitingTests`); boot-verified on/off | `PublicApi:Enabled` toggles it. Owner-only `/api/apikeys` (create → raw `pk_…` once, list, revoke; `Permission.ManageApiKeys`); API-key auth scheme mints a `tenant_id`-scoped principal; demo `/api/public/whoami` (read scope) + `/api/public/echo` (write scope) via `.RequireApiScope`. **PUBAPI-2:** per-key rate limit (60/min, isolated per key → 429) + a leak-free public OpenAPI doc at `/api/public/openapi.json` (only the public routes). **Off (default) ⇒ routes 404.** Manual: `PublicApi__Enabled=true`, mint a key, `curl -H "X-Api-Key: pk_…" /api/public/whoami`; fetch `/api/public/openapi.json`. |
 | Outbound webhooks (HOOKS, **config-gated off**) | **QA-API-01, 05, 06** (curl/webhook.site) + `Api.Tests` (`WebhookSubscriptionServiceTests`, `WebhookDeliveryTests`, `WebhookDeliveryLogTests`) + `Core.Tests` (`WebhookSignatureTests`); boot-verified on/off | `Webhooks:Enabled` toggles it. Owner-only `/api/webhooks` (register → signing secret `whsec_…` once, list, delete, **send test**; `Permission.ManageWebhooks`). `IWebhookPublisher.PublishAsync` fans out to matching active subs → one `"webhook"` **outbox** message each → signed POST (`X-Webhook-Signature`), retry/dead-letter via the outbox. **HOOKS-2:** a delivery log (`GET /api/webhooks/{id}/deliveries` — one row per attempt, success/status/error) + **replay** (`POST /api/webhooks/deliveries/{id}/replay` — re-enqueue the exact payload). **Off (default) ⇒ routes 404.** Manual: `Webhooks__Enabled=true`, register a receiver (e.g. a webhook.site URL), hit **send test**, view deliveries, replay one. |
 | Pre-launch gates (GATES, **both deployment config**) | **QA-GATE-01..06** (§14c) + `Api.Tests` (`BillingGateTests`, `SignupGateTests`, `SignupRefusalSurfacingTests`, `ConfigPostureTests`) + `Ui.Tests` (`BillingGateUiTests`, `SeatLimitCopyTests`, `SignupRefusedCopyTests`) | `Billing:Enabled` off (default) removes the billing controllers from the application model, so `GET /api/billing`, `POST …/checkout`, `…/portal` and `…/webhook` all **404** and every tenant resolves Free; the client reads `GET /api/features` (anonymous) to hide the link and refuse `/billing`, and the seat-limit copy drops the upgrade pitch. `Signup:AllowedEmails` / `Signup:AllowedDomains` (empty = open) gate account **creation** at `UserService.CreateUserWithTenantAsync` — refusal is **403** `signup_not_allowed` on `POST /api/auth/otp/verify` and `?error=signup_not_allowed` on the OAuth / magic-link redirects. An invitation admits its addressee only when that invitation's tenant **owner** is green-listed. ADR-027. |
+| v4 audit — adversarial (§14d) | **ADV-25..35** (all remediated in v4 B3–B7 — each names the task that fixed it) | accept-path dissolve, outbox erasure, logout/grace, impersonation expiry, webhook redirects + error codes, billing-off admin comp, expired-invite seats, native bearer scope, exported-log PII |
 | Audit log (API-only) | covered by `Api.Tests` (`AuditLogTests`) | append-only `IAuditLog` + interceptor |
 | RBAC roles (admin tier) | HH-09/10/11/12 (web roster promote/demote + admin capability/limits); `Api.Tests` (`RolePermissionsTests`, `PermissionServiceTests`, `MemberRoleManagementTests`) | `PUT /api/household/members/{id}/role` (owner-only; admin↔member, owner via transfer only); permission seam gates tenant writes |
 | File storage (API-only) | covered by `Api.Tests` (`LocalDiskFileStorageTests`, `FileDownloadTokenizerTests`, `FilesControllerTests`, `S3FileStorageMinioTests` [real MinIO], `FileStorageRegistrationTests`) | `IFileStorage` (tenant-scoped keys; local disk / S3-compatible — AWS/MinIO/R2/B2, config-gated); local signed `GET /api/files/{token}` (expiring, single-key, tenant-checked → 404 on any failure); S3 native presigned URLs |
@@ -3936,6 +4129,23 @@ cases now expects **Pass** on re-run.
 | QA-ADV-22 | API | | | | | |
 | QA-ADV-23 | Desktop/Android | | | | | Was pre-seeded Blocked (NAT-3 (Release build cleartext localhost base URL)) — fixed in v3; re-run |
 | QA-ADV-24 | Desktop | | | | | |
+| QA-ADV-25 | API | | | | | |
+| QA-ADV-26 | API | | | | | |
+| QA-ADV-27 | API | | | | | |
+| QA-ADV-28 | API | | | | | |
+| QA-ADV-29 | Web | | | | | |
+| QA-ADV-30 | API | | | | | |
+| QA-ADV-31 | API | | | | | |
+| QA-ADV-32 | API | | | | | |
+| QA-ADV-33 | Web | | | | | |
+| QA-ADV-34 | Android/Desktop | | | | | |
+| QA-ADV-35 | Ops | | | | | |
+| QA-DEP-01 | Operator | | | | | |
+| QA-DEP-02 | Operator | | | | | |
+| QA-DEP-03 | Operator | | | | | |
+| QA-DEP-04 | Operator | | | | | |
+| QA-SET-09 | Web + Android | | | | | |
+| QA-AND-16 | Android | | | | | |
 
 **Release gate (suggested):** all 🔴 Smoke + all 🟠 Core cases Pass on Web; the §13c native
 checklist Pass on every platform being shipped (iOS/macCatalyst once those ship); no open
@@ -4642,3 +4852,10 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   request runs the web gates only; the MAUI builds and native smokes run from *Run workflow* → `devices`; deploys
   run from *Run workflow* → `deploy` behind every web gate. The deploy gate paragraph says GitHub; the
   Apple-cadence note became the device-legs note.
+- **Updated 2026-10-04 (v4 Later D, ported from the platform)** — new **§14d**: eleven adversarial cases
+  **QA-ADV-25..35** (each names the v4 finding and the task that fixed it; all expected to **Pass**), four
+  operator drills **QA-DEP-01..04** for the deploy-on-request pipeline (ADR-031), and two regressions,
+  **QA-SET-09** (a theme save across a reload) and **QA-AND-16** (an API base with a trailing slash). On the
+  platform these were first recorded Blocked while the findings were open; every remediation had landed here
+  before the cases did, so they arrive unseeded. QA-ADV-15 now counts seats relative to the cap (T47).
+  204 → 221 cases.
