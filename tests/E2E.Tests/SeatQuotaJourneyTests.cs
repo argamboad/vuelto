@@ -16,7 +16,6 @@ public class SeatQuotaJourneyTests : E2ETestBase
     // Free-plan SeatLimit from src/Core/Billing/PlanCatalog.cs ("EXAMPLE quotas — tune per app").
     // A fresh household starts with 1 seat used (the owner); if a downstream app retunes the
     // catalog, adjust this and the invite count follows.
-    private const int FreePlanSeatLimit = 5; // GATES-1 (ADR-027) raised the catalog's Free seats 3 → 5
 
     private static readonly LocatorAssertionsToBeVisibleOptions Slow = new() { Timeout = 30_000 };
 

@@ -141,6 +141,70 @@ public class DocAndConfigSyncTests
         Assert.True(offenders.Count == 0, $"Read gated switches through their settings class: {string.Join(", ", offenders)}");
     }
 
+    [Fact]
+    public void CompiledInLimits_AreListedInTheEnvExample() // R120 (v4 TR-25)
+    {
+        // .env.example documents every key an operator can set, and ends with the limits they cannot: a number
+        // compiled into the code is invisible to whoever sizes a deployment unless it is written down there. The
+        // 7 MiB attachment cap and the client's keep-alive timings shipped unlisted. A limit is a numeric or
+        // TimeSpan constant in Core or the client's auth code whose name says it bounds something.
+        var root = RepoRoot();
+        var envExample = File.ReadAllText(Path.Combine(root, ".env.example")).ReplaceLineEndings("\n");
+        // The platform's block sits in the shared skeleton; an app lists its own limits in a second block below it.
+        var blocks = Regex.Matches(envExample, @"# ── Not configurable \(.*?(?=\n\n|\z)", RegexOptions.Singleline);
+        Assert.True(blocks.Count >= 1, ".env.example no longer has a 'Not configurable (…)' block");
+        var block = string.Join("\n", blocks.Select(m => m.Value));
+
+        var limits = new[] { Path.Combine(root, "src", "Core"), Path.Combine(root, "src", "Shared.Ui", "Auth") }
+            .SelectMany(SourceFiles)
+            .SelectMany(f => CompiledInLimit.Matches(File.ReadAllText(f)).Select(m => m.Groups[1].Value))
+            .Distinct()
+            .ToList();
+        Assert.True(limits.Count >= 8, $"probe: only {limits.Count} compiled-in limits found ({string.Join(", ", limits)})");
+
+        var unlisted = limits.Where(name => !Regex.IsMatch(block, $@"\b{name}\b")).ToList();
+        Assert.True(unlisted.Count == 0,
+            "Compiled-in limits missing from .env.example's 'Not configurable' block — name each one there with its "
+            + $"value, so the limit is visible to whoever deploys: {string.Join(", ", unlisted)}");
+    }
+
+    private static readonly Regex CompiledInLimit = new(
+        @"(?:const|static\s+readonly)\s+(?:int|long|double|TimeSpan|IReadOnlyList<TimeSpan>)\s+"
+        + @"(Max[A-Za-z0-9]*|[A-Za-z0-9]*(?:Bytes|Lead|Delay|Delays|Wait|Limit|Cap|Timeout|Count|Length))\b");
+
+    [Fact]
+    public void ArchitectureAndFlows_NameTheClassesAndTheAuthErrorCodes() // R121 (v4 TR-20)
+    {
+        // The diagram layer drifted in the PRs that added the features: SignupGate and the whole Observability
+        // folder were in no diagram, and FLOWS showed no sign-in path that could answer signup_not_allowed.
+        // Floor: ARCHITECTURE.md names every public class in the three folders that hold the API's own logic
+        // (a diagram, a sentence or the class index, §12), and FLOWS.md names every error code AuthController returns.
+        var root = RepoRoot();
+        var architecture = File.ReadAllText(Path.Combine(root, "docs", "ARCHITECTURE.md"));
+        var classes = new[] { "Services", "Configuration", "Observability" }
+            .SelectMany(d => Directory.EnumerateFiles(Path.Combine(root, "src", "Api", d), "*.cs"))
+            .SelectMany(f => Regex.Matches(File.ReadAllText(f), @"public\s+(?:(?:sealed|static|abstract|partial)\s+)*class\s+(\w+)")
+                .Select(m => m.Groups[1].Value))
+            .Distinct()
+            .ToList();
+        Assert.True(classes.Count >= 60, $"probe: only {classes.Count} public classes found under src/Api");
+
+        var unnamed = classes.Where(c => !Regex.IsMatch(architecture, $@"\b{c}\b")).ToList();
+        Assert.True(unnamed.Count == 0,
+            "Public classes in src/Api/Services, Configuration or Observability that docs/ARCHITECTURE.md never names — "
+            + $"draw the class where it belongs, or add it to the class index (§12): {string.Join(", ", unnamed)}");
+
+        var flows = File.ReadAllText(Path.Combine(root, "docs", "FLOWS.md"));
+        var codes = Regex.Matches(File.ReadAllText(Path.Combine(root, "src", "Api", "Controllers", "AuthController.cs")),
+                @"ErrorResponse\(\s*""([a-z_]+)""")
+            .Select(m => m.Groups[1].Value).Distinct().ToList();
+        Assert.True(codes.Count >= 5, $"probe: only {codes.Count} error codes found in AuthController");
+
+        var undrawn = codes.Where(c => !flows.Contains(c, StringComparison.Ordinal)).ToList();
+        Assert.True(undrawn.Count == 0,
+            $"Error codes AuthController returns that docs/FLOWS.md never names — add the branch to its flow: {string.Join(", ", undrawn)}");
+    }
+
     /// <summary>Every config key a source text reads, in each read shape the gate knows.</summary>
     internal static HashSet<string> ReadKeysIn(string text)
     {

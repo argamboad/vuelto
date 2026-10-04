@@ -135,9 +135,11 @@ Two traps that shaped the design and should not be re-derived:
   account, which turns the login form into a "does this person use the app" probe. The cost is
   that a non-listed visitor learns they are not invited only after entering their code.
 
-The invitation lookup is a pre-auth cross-tenant read, so it goes through
-`IRepository<T>.QueryAllTenants()` (the sanctioned ADR-003 hatch, auto-tagged for the ADR-020 RLS
-backstop) — the same shape as the pre-auth API-key lookup in `ApiKeyService.AuthenticateAsync`.
+The invitation lookup is a pre-auth cross-tenant read, so it goes through the tagged escape hatch:
+`TenantInvitationRepository.GetValidByEmailAcrossTenantsAsync` calls
+`IgnoreQueryFilters().TagWith(RlsTags.CrossTenant)` inside Infrastructure (the sanctioned ADR-003 hatch,
+tagged for the ADR-020 RLS backstop) — the same posture as the pre-auth API-key lookup in
+`ApiKeyService.AuthenticateAsync`, which reaches it through `IRepository<T>.QueryAllTenants()`.
 
 **Acceptance criteria**
 

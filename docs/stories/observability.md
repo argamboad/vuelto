@@ -77,7 +77,11 @@ instrumentation). Request spans tagged with `tenant_id`/`user_id` via the AspNet
 **Exporter is config-gated:** OTLP when `OpenTelemetry:Otlp:Endpoint` is set; otherwise **nothing is
 exported** (clean dev console; spans still produced) unless `OpenTelemetry:ConsoleExporter=true`. Tests
 `tests/Api.Tests/Observability/TelemetryEnrichmentTests.cs` (span tags authed/anon). Packages:
-`OpenTelemetry.Extensions.Hosting` + AspNetCore/Http instrumentation + OTLP/Console exporters.
+`OpenTelemetry.Extensions.Hosting` + AspNetCore/Http/**Runtime** instrumentation + OTLP/Console exporters.
+Since v4 (T6/T42) the same wiring exports **logs** too and adds the runtime and Npgsql-pool meters; over
+`http/protobuf` the per-signal paths `/v1/traces`, `/v1/metrics` and `/v1/logs` are appended to the base
+endpoint, and `OtlpCollectorProbe` warns once when the collector cannot be reached. Drawn in
+`ARCHITECTURE.md` §11.
 
 **Fix (2026-09-05) — per-signal paths over `http/protobuf`.** The endpoint is the collector's **base**
 URL. The SDK appends `/v1/{signal}` only when the endpoint comes from its own

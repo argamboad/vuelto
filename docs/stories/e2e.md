@@ -8,7 +8,8 @@
 > Gherkin acceptance criteria. **Status: ✅ COMPLETE — E2E-1..5** (4 and 5 added after review
 > showed magic-link + destructive flows were automatable after all).
 >
-> **Current suite size: 37 tests** (v4 T12, 2026-09-25 — `E2eShardsTests` derives it from `tests/E2E.Tests` and fails
+> **Current suite size: 37 tests** — 37 browser journeys; the count excludes the one `[Explicit]` native
+> smoke (`NativeSmokeTests`), which runs only on the device legs, so the tree holds 38 `[Test]` methods (v4 T12, 2026-09-25 — `E2eShardsTests` derives it from `tests/E2E.Tests` and fails
 > when this line disagrees; it had drifted at 34 while the app's own journeys took it to 37).
 > The epic itself grew the suite 7→26; later slices kept adding: NATIVE-4b (→28), NATIVE-3 (→29),
 > THEME-1 (→31), PREFS-1 (→32), BILLING-8 (→33), and v3 T45c's locale-mismatch × invite-acceptance

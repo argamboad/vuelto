@@ -19,7 +19,6 @@ public class BillingJourneyTests : E2ETestBase
 
     // Seat limits mirror src/Core/Billing/PlanCatalog.cs ("EXAMPLE quotas — tune per app"); keep them
     // in one place here so a downstream re-tune is a one-line change, as SeatQuotaJourneyTests does.
-    private const int FreePlanSeatLimit = 5; // GATES-1 (ADR-027) raised Free 3 → 5
     private const int ProPlanSeatLimit = 10;
 
     [Test]

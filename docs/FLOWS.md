@@ -86,6 +86,7 @@ sequenceDiagram
     participant LR as LoginTokenRepository
     participant ML as MfaLoginService
     participant SS as SessionService
+    participant SG as SignupGate
     C->>RL: POST otp/send (policy passwordless, per-IP)
     RL->>AC: SendOtp
     AC->>PS: IssueOtpAsync
@@ -99,6 +100,11 @@ sequenceDiagram
     PS->>LR: GetLatestActive + constant-time hash verify
     PS->>LR: TryConsumeAsync - atomic single-use claim
     PS->>PS: GetOrCreateByEmailAsync - account created HERE
+    opt no account yet for this email
+        PS->>SG: IsAllowedAsync (via UserService.CreateUserWithTenantAsync)
+        SG-->>AC: refused - SignupNotAllowedException
+        AC-->>C: 403 signup_not_allowed (GATES-2 - no account, no session)
+    end
     AC->>ML: CompleteOrChallengeAsync
     alt MFA enabled
         ML-->>AC: challenge (no session)
@@ -113,7 +119,12 @@ Divergences: wrong code → server-side atomic `AttemptCount+1`, re-check agains
 window total; at the cap the code is consumed (burned) and `too_many_attempts` returned. `Invalid`
 and `Expired` collapse to one client error `invalid_code` (no OTP-existence oracle). Losing an
 atomic-consume race → treated as expired. Verify budget = `max(send limit, OtpMaxAttempts + 5)`
-so the 401 lockout wins the race against a 429.
+so the 401 lockout wins the race against a 429. A malformed address is refused at send with
+`400 invalid_email`. **Signup green list (GATES-2, ADR-027):** when `Signup:AllowedEmails` /
+`AllowedDomains` is set and the code belongs to an address with no account, `SignupGate` admits it only if
+it is on the list or holds a valid invitation into a household whose owner is; otherwise verify answers
+`403 signup_not_allowed`. The code is already consumed by then, and send still answered 200 — refusing at
+send would tell a stranger which addresses have accounts. An existing account is never asked.
 
 ## 4. Magic-link sign-in
 
@@ -134,6 +145,8 @@ sequenceDiagram
     AC->>PS: RedeemMagicLinkAsync - hash lookup, atomic TryConsume
     alt invalid or already consumed
         AC-->>C: redirect /login?error=invalid_link
+    else new address refused by SignupGate (GATES-2)
+        AC-->>C: redirect /login?error=signup_not_allowed
     else MFA enabled
         AC-->>C: redirect /login?mfa={challenge}
     else success
@@ -143,7 +156,8 @@ sequenceDiagram
 
 Divergences: email-client prefetch / double-click both reach redemption having seen an unconsumed
 row — the atomic claim lets exactly one win. The JWT is never in a URL; the SPA at
-`/auth-callback` calls refresh to obtain it. Note: this GET endpoint carries no
+`/auth-callback` calls refresh to obtain it. Send refuses a malformed address with `400 invalid_email`.
+The signup green list applies exactly as in flow 3, as a redirect instead of a 403. Note: this GET endpoint carries no
 `[EnableRateLimiting]` attribute (the token's 64-byte entropy is the defense) — see the
 findings list in the repo's task report if that surprises you.
 
@@ -169,9 +183,11 @@ sequenceDiagram
         AC->>US: LinkLoginAsync - attach provider to signed-in account
         AC-->>B: redirect /settings?linked=google (NO session issued)
     else sign-in
-        AC->>US: GetOrCreateUserAsync (verified-email merge policy)
+        AC->>US: GetOrCreateUserAsync (verified-email merge policy, SignupGate for a new account)
         AC->>Ext: SignOutAsync - discard carrier cookie
-        alt MFA enabled
+        alt new address refused by SignupGate (GATES-2)
+            AC-->>B: redirect /login?error=signup_not_allowed
+        else MFA enabled
             AC-->>B: redirect /login?mfa={challenge}
         else
             AC-->>B: set refresh cookie + redirect /auth-callback
@@ -182,7 +198,9 @@ sequenceDiagram
 Divergences: unsupported provider / missing claims / any exception → redirect `/auth-error`
 (never a 500). Same-email merge is fail-closed: it requires the provider's `email_verified`
 claim OR a provider on the `IProviderEmailTrust` allowlist; otherwise
-`/login?error=email_unverified`. Native shells use `NativeAuthController` instead: the callback
+`/login?error=email_unverified`. A new address the signup green list does not admit (flow 3) →
+`/login?error=signup_not_allowed`; on the native path the callback's deep link carries the same code in
+place of the single-use code. Native shells use `NativeAuthController` instead: the callback
 mints a **single-use code** (tokens never touch the URL), exchanged at `POST native/exchange`
 for the session with the refresh token in the body.
 
@@ -249,7 +267,7 @@ sequenceDiagram
                 AC-->>C: generic 401
             end
             AC->>SS: IssueAsync - new refresh token + new JWT
-            Note over AC: revokes NOTHING - both chains stay valid, the unused one expires; Warning with the user's grace count
+            Note over AC: revokes NOTHING - both chains stay valid, the unused one expires - logged as a Warning with the user's grace count
         else Valid
             AC->>SS: IssueAsync - new refresh token + new JWT
             Note over SS: tenant re-resolved on every rotation - tenant moves propagate here
@@ -282,6 +300,12 @@ and the successor rolls back, or waits for the commit and revokes the successor 
 (`RevokeAsync`) stays a tracked load-then-flip so the inspection read in the same scope stays consistent;
 the set-based writers mirror their result onto the tracked copy for the same reason. The hourly cleanup job deletes only **expired** rows —
 revoked-but-unexpired hashes are kept because they are what makes reuse detection work.
+
+Error codes: no cookie and no body token → `401 no_refresh_token`; unknown, expired, reused or
+lost-the-race → the one generic `401 invalid_refresh_token`; a token whose user no longer exists (erased
+since) → `401 user_not_found`; anything unexpected → `500 refresh_failed`, which the client treats as
+"keep the session and try again", unlike the 401s. Logout answers 200 for any token, known or not; only an
+unexpected failure surfaces, as `500 logout_failed`.
 
 Client side (ADR-002 addendum 2026-09-22): `AuthService` calls this endpoint on four occasions — once at
 startup (retried after 2/5/10/15 s while the server is unreachable), from a timer a minute before the
@@ -391,7 +415,7 @@ sequenceDiagram
     OB->>WOH: dispatcher claims message
     WOH->>WOH: load subscription cross-tenant - missing/disabled = silent done
     WOH->>WOH: Unprotect signing secret (Data Protection)
-    WOH->>WS: SendAsync - SSRF guard re-checked at send AND at connect (pinned); no redirects, no proxy
+    WOH->>WS: SendAsync - SSRF guard re-checked at send AND at connect (pinned), no redirects, no proxy
     WS->>R: POST, HMAC X-Webhook-Signature + X-Webhook-Id, 10s timeout
     alt 2xx
         WOH->>OB: stage WebhookDelivery(success) - commits with sent flip

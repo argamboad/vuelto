@@ -161,7 +161,19 @@ classDiagram
         IssueAccessToken (tenant_id claim)
         IssueImpersonationToken
     }
+    class UserService {
+        GetOrCreate at redemption
+        CreateUserWithTenantAsync = the one creation path
+    }
+    class SignupGate {
+        IsAllowedAsync(email)
+        green list, else an invitation from a green-listed owner
+    }
     AuthController --> PasswordlessService
+    AuthController --> UserService
+    NativeAuthController --> UserService
+    PasswordlessService --> UserService
+    UserService --> SignupGate
     AuthController --> MfaLoginService
     AuthController --> SessionService
     AuthController --> RefreshTokenService
@@ -178,7 +190,16 @@ Supporting cast: `TokenGenerator` (64 random bytes), `TokenHasher` (SHA-256, con
 verify), `RecoveryCodeHasher` (peppered HMAC — recovery codes are low-entropy),
 `CookieService` (HttpOnly refresh cookie, `Path=/api/auth`), `UserService`
 (get-or-create at *redemption*, never at issue), `LinkTokenService` / `NativeAuthCodeService`
-(single-use in-memory cache tokens). External OAuth rides a dedicated 10-minute `"External"`
+(single-use in-memory cache tokens, both over `SingleUseCacheToken`). **Who may create an account**
+is one decision in one place (GATES-2, ADR-027): `UserService.CreateUserWithTenantAsync` asks `SignupGate`,
+which admits an address on the `SignupSettings` green list or one holding a valid invitation into a
+household whose **owner** is green-listed; an empty list means open. A refusal is a
+`SignupNotAllowedException`, which every sign-in path surfaces in its own idiom — `403 signup_not_allowed`
+from OTP verify, `/login?error=signup_not_allowed` from the magic link and the web OAuth callback, the same
+code on the native callback's deep link. It gates creation only, never sign-in, and never fires when a code
+or link is *issued* (that would tell a stranger whether an address has an account). The other refusal at
+that point is `UnverifiedEmailConflictException`: a provider that does not vouch for the address
+(`ProviderEmailTrust`) may not merge into an existing account. External OAuth rides a dedicated 10-minute `"External"`
 cookie scheme that is signed out as soon as the callback mints the real session
 (`src/Infrastructure/ServiceCollectionExtensions.cs`).
 
@@ -335,3 +356,75 @@ Billing is gated one layer earlier and differently: being attribute-routed, it h
 skip, so `BillingGateConvention` (GATES-1, ADR-027) removes its controllers from the MVC **application
 model** while `AddControllers` is configured — the routes are never built, so a gated-off deployment
 404s instead of refusing per request.
+
+## 11. Observability ([ADR-008](DECISIONS.md))
+
+Three signals, one switch. Nothing leaves the process unless `OpenTelemetry:Otlp:Endpoint` is set.
+
+```mermaid
+flowchart LR
+    Req[HTTP request] --> Scope[RequestLoggingScopeMiddleware<br/>tenant_id + user_id on every log line]
+    Req --> Otel[TelemetryExtensions.AddAppTelemetry<br/>traces + metrics + logs]
+    Otel -->|OTLP, when the endpoint is set| Col[(Collector<br/>/v1/traces /v1/metrics /v1/logs)]
+    Otel -.->|ConsoleExporter=true| Con[Console]
+    Probe[OtlpCollectorProbe<br/>TCP reachability, startup + interval] -.->|one Warning when unreachable| Log[App log]
+    Orch[Orchestrator] --> Live[/health - liveness/]
+    Orch --> Ready[/health/ready - DatabaseHealthCheck/]
+```
+
+- **Logs** — `RequestLoggingScopeMiddleware` (registered by `RequestLoggingScopeExtensions`, after
+  authentication) opens a scope with `tenant_id` and `user_id`, so every line a request writes can be
+  filtered by tenant or user. Log records are exported with their scope and trace ids.
+- **Traces and metrics** — `TelemetryExtensions` instruments ASP.NET Core, outbound `HttpClient`, the .NET
+  runtime (GC, CPU, thread pool) and Npgsql (its own activity source and connection-pool meter — not the
+  beta EF Core instrumentation, ADR-C10). Request spans carry `tenant_id` / `user_id`.
+- **Export** — OTLP to the configured base URL; over `http/protobuf` the per-signal path (`/v1/traces`,
+  `/v1/metrics`, `/v1/logs`) is appended for the operator. Protocol and auth headers are the SDK's own
+  `OTEL_EXPORTER_OTLP_PROTOCOL` / `OTEL_EXPORTER_OTLP_HEADERS`.
+- **A silent collector is reported** — the SDK drops what it cannot export without a word, so
+  `OtlpCollectorProbe` checks the endpoint at startup and on an interval and logs one Warning when it is
+  unreachable, one Information line when it is back.
+- **Health** — `/health` answers while the process is up; `/health/ready` runs `DatabaseHealthCheck`, so
+  an instance that cannot reach Postgres takes no traffic. Status only, no connection details.
+
+Stories: [`stories/observability.md`](stories/observability.md).
+
+## 12. Class index — `src/Api/Services`, `Configuration`, `Observability`
+
+The diagrams above name the classes that carry a design decision. This index names the rest, so every
+public class in the three folders can be found from this file (a gate holds it: R121). Interfaces and
+result records sit beside their class and are not repeated.
+
+| Class | Folder | What it is |
+|---|---|---|
+| `AccountErasureService` | Services | GDPR erasure of one user; calls every `IUserDataContributor` (§8) |
+| `TenantExportService` | Services | The household's data export; calls every `ITenantDataContributor` (§8) |
+| `ApiKeyDataContributor`, `BillingDataContributor`, `UsageCounterDataContributor`, `WebhookDataContributor` | Services | Per-epic participation in tenant dissolve and export — tables with no FK to `Tenants` would otherwise orphan |
+| `MfaUserDataContributor`, `NotificationUserDataContributor` | Services | Per-epic participation in user erasure |
+| `TenantService` | Services | Household membership, roles, ownership transfer, leave and re-home |
+| `TenantInvitationService` | Services | Invitations: create, regenerate, revoke, accept (seat cap checked atomically) |
+| `ApiKeyService` | Services | PUBAPI keys: issue (shown once), authenticate by hash, revoke |
+| `WebhookSubscriptionService`, `WebhookPublisher` | Services | HOOKS: subscriptions and their encrypted secrets; publishing an event into the outbox (§7) |
+| `AdminBroadcastOutboxHandler` | Services | Fans a staff announce-all out to every user, off the request ([`FLOWS.md` §9](FLOWS.md)) |
+| `PlatformStaffService` | Services | Who is platform staff — the `PlatformAdminSettings` allowlist, never a tenant role |
+| `HttpCurrentImpersonation` | Services | Reads the `impersonated_by` claim; null outside a request |
+| `BillingNotifications`, `NotificationKinds` | Services | Notification kinds and server-side copy |
+| `BillingPostureCheck` | Services | One startup line when provider-managed subscriptions exist while `Billing:Enabled` is off |
+| `ClaimsExtractor` | Services | Provider-agnostic reading of the external principal's claims |
+| `AuthProviders` | Services | The supported OAuth providers and their scheme names |
+| `ProviderEmailTrust` | Services | Which providers' email claims count as verified for the same-email merge |
+| `NativeAuthUrls`, `NativeRedirectPolicy` | Services | The native OAuth round trip's two URLs; which redirect targets are safe (no open redirect) |
+| `SingleUseCacheToken` | Services | The single-use in-memory token under `LinkTokenService` and `NativeAuthCodeService` |
+| `OtpErrors` | Services | Internal OTP status → client code (`invalid_code` for both "none" and "wrong": no oracle) |
+| `JwtClaims`, `AuthHeaders` | Services | Claim and header names, mirrored by the client's `AppClaims` |
+| `SignupGate`, `SignupNotAllowedException`, `UnverifiedEmailConflictException` | Services | Account-creation refusals (§4) |
+| `SettingsRegistration` | Configuration | Registers every typed settings object as a validated singleton (ADR-001) |
+| `JwtSettings`, `RefreshTokenSettings`, `ApplicationSettings`, `PasswordlessSettings`, `MfaSettings`, `InvitationSettings` | Configuration | Typed settings, read and validated once at startup |
+| `BillingSettings`, `PublicApiSettings`, `WebhooksSettings` | Configuration | The three default-off surface gates (GATES-1, PUBAPI, HOOKS) |
+| `SignupSettings` | Configuration | The signup green list (GATES-2); empty = open |
+| `PlatformAdminSettings` | Configuration | The staff allowlist (`Admin:StaffEmails`) |
+| `JwtValidation` | Configuration | The one definition of how an access token is validated (bearer handler and `JwtTokenService` both build from it) |
+| `AuthPolicies` | Configuration | The named authorization policies shared by controllers and feature groups |
+| `RateLimiting` | Configuration | The rate-limit policies for the passwordless and other abuse-prone endpoints |
+| `ProxyForwardingExtensions` | Configuration | Forwarded-header handling behind a TLS-terminating proxy (ADR-017) |
+| `DatabaseHealthCheck`, `OtlpCollectorProbe`, `RequestLoggingScopeMiddleware`, `RequestLoggingScopeExtensions`, `TelemetryExtensions` | Observability | §11 |

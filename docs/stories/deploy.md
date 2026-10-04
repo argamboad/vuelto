@@ -118,7 +118,8 @@ ADR-017 referenced.
 
 ### DEPLOY-2 — Containerize + bring up the staging environment (Render + Neon + Brevo)
 
-**Status: 🚧 Local half done** (`feat/deploy-2-container`) — cloud bring-up pending operator accounts.
+**Status: ✅ Done** — the container half landed on `feat/deploy-2-container`; the cloud bring-up followed (live
+staging on Render + Neon + Brevo, all four sign-in paths verified there — see the epic header).
 Multi-stage `Dockerfile` (repo root) + `.dockerignore`: publishes Web + Api, folds the WASM bundle into
 the API's `wwwroot`, runs non-root, binds `$PORT` (default 8080), `HEALTHCHECK` → `/health`. A compose
 `app` service (behind the `app` **profile**, so `docker compose up -d` still starts only db+mail) gives
