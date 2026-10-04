@@ -255,7 +255,7 @@ Scenario: Cancellation propagates via webhook
 > → **402 `seat_limit_reached`** (Household invite UI shows an upgrade message). **Metered usage** =
 > `TryConsumeAsync(key)` against a monthly `UsageCounter` (per `{tenant, key, yyyy-MM}` — self-resetting,
 > no sweep job); returns false without incrementing at the cap. Limits are `PlanCatalog` example data
-> (Free seats=3/export=3, Pro seats=10/export=100); **null/absent = unlimited** so it's inert until set.
+> (Free seats=5 — raised from 3 by GATES-1, ADR-027 — /export=3, Pro seats=10/export=100); **null/absent = unlimited** so it's inert until set.
 > Tests: `tests/Api.Tests/Billing/QuotaServiceTests.cs` (seat boundaries incl. pending-invite counting +
 > upgrade; usage within/at-limit/unlimited/month-reset; invite-flow 402). `TryConsumeAsync` is the seam —
 > call it at any metered action (e.g. an export) to enforce a per-month cap.
@@ -442,7 +442,8 @@ accepting invitations issued while the tenant was on a bigger plan
 
 **Context / notes:** BILLING-5 enforces seats only at invitation **creation** (pending invites
 reserve seats, so the cap holds while the plan is stable). But nothing sweeps pending invites on a
-downgrade and `AcceptAsync` never re-checked — so Pro (10 seats) → invite 7 → drop to Free (3)
+downgrade and `AcceptAsync` never re-checked — so Pro (10 seats) → invite 7 → drop to Free (3 seats then;
+raised to 5 by GATES-1)
 left 7 valid invites that could each still join, actively growing the tenant past its cap
 (found 2026-07-14 while reasoning about the ADR-021 comp/revert writes; applies equally to real
 Stripe downgrades). The accept itself is **seat-neutral** — the joiner consumes the seat their

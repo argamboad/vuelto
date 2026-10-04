@@ -52,7 +52,7 @@ public static class RulesEnforcement
         // ── 4. Admin / config gates / billing ──
         new("R86", ["GateOff_NothingUnderTheGatedPrefixes_IsMapped", "GateOff_AdminComp_Returns404_BeforeTheStaffCheck"]),
         new("R87", ["AGatedSwitch_IsReadOnlyThroughItsSettingsClass"]),
-        new("R88", [], Pending: "vuelto#113 (T47: the stale-count doc-grep gate)"),
+        new("R88", ["DocsThatStateASeatCap_StateTheCatalogs", "QaDrills_ExpressSeatCountsRelativeToTheCap", "TheBrowserTests_HoldOneCopyOfTheFreeCap_AndItIsTheCatalogs"]),
         new("R122", ["ConfigPostureTests"]),
         new("R128", ["StripeBillingProviderTests"]),
         new("R133", ["LapseSweep_NotificationAndStamp_AreOneTransaction", "JobTests_UseTheRealOutboxEmailSender"]),

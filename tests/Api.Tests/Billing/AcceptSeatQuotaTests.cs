@@ -112,7 +112,7 @@ public class AcceptSeatQuotaTests(PostgresFixture fixture) : PostgresTestBase(fi
         Assert.Single(results, r => r == AcceptStatus.InvalidToken);
 
         await using var read = Fixture.CreateContext();
-        Assert.Equal(FreeSeats, await read.TenantMemberships.CountAsync(m => m.TenantId == tenant)); // 3/3, not 4
+        Assert.Equal(FreeSeats, await read.TenantMemberships.CountAsync(m => m.TenantId == tenant)); // exactly the cap, not one over
         var winnerIsA = results[0] == AcceptStatus.Joined;
         var (winner, loser, loserHome) = winnerIsA ? (aId, bId, bTenant) : (bId, aId, aTenant);
         Assert.Equal(tenant, (await read.TenantMemberships.SingleAsync(m => m.UserId == winner)).TenantId);

@@ -3222,11 +3222,14 @@ When both invitees accept near-simultaneously
 Then exactly one joins, the other gets 402 seat_limit_reached, and seats never exceed the cap
 ```
 **Walkthrough**
-1. Put a Free (cap 3) tenant at **2 seats used** with **two** distinct pending invites.
+1. Bring a Free tenant to **one seat below its cap** with **two** pending invitations outstanding (the cap
+   is the M in the Billing page's "N of M seats"). A pending invitation reserves a seat, so a Free tenant
+   cannot be put in that state directly: comp it to Pro from the staff console, add members until it has
+   **cap − 1**, send the two invitations, then revert it to Free — the downgrade setup QA-INV-10 uses.
 2. In **two browser contexts**, sign in as each invitee and open both `/join` links; click **accept**
    as close to simultaneously as you can (or double-submit).
-3. **Expected:** **one** join succeeds (seat 3), the other returns **402 `seat_limit_reached`** with the
-   "household is full" state; the member count settles at **exactly 3** — the atomic seat check has no
+3. **Expected:** **one** join succeeds (the last seat), the other returns **402 `seat_limit_reached`** with the
+   "household is full" state; the member count settles at **exactly the cap** — the atomic seat check has no
    race (audit **TB-BILL-19 / BILLING-9**). Should **Pass**.
 
 ### QA-ADV-16 — Magic-link / OTP double-redemption issues exactly one session 🟠 (Web — two contexts)
@@ -4073,7 +4076,7 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   pending invites vs `Plan.SeatLimit`, enforced on the invite path → **402 `seat_limit_reached`**, with an
   upgrade message in the Household invite UI) and **metered usage** (`TryConsumeAsync` against a monthly,
   self-resetting `UsageCounter`). Limits are `PlanCatalog` data — `null`/absent = unlimited, so it's inert
-  until set (platform ships example caps: Free 3/3, Pro 10/100). New entity + migration `AddUsageCounter`.
+  until set (platform shipped example caps Free 3/3, Pro 10/100; Free seats were raised to 5 by GATES-1). New entity + migration `AddUsageCounter`.
   Covered by `QuotaServiceTests` (10 cases); **QA-HH-14**; EN/ES. Only **BILLING-6** (trial/dunning) and a
   billing-dissolve contributor remain from the BILLING epic.
 - **Updated 2026-07-01** — **BILLING-6 (trial/dunning):** the owner-facing reaction to the subscription

@@ -33,6 +33,13 @@ public abstract class E2ETestBase : PageTest
         ?? Environment.GetEnvironmentVariable("E2E_API_BASE_URL")
         ?? "https://localhost:7260";
 
+    /// <summary>
+    /// The Free plan's seat cap, as the journeys see it in the UI. The ONE copy in this project (v4 audit T47,
+    /// R88) — the browser tests cannot reference the API's assemblies, so
+    /// <c>CatalogNumbersTests</c> in Api.Tests reads this line and fails when it differs from <c>PlanCatalog</c>.
+    /// </summary>
+    protected const int FreePlanSeatLimit = 5;
+
     /// <summary>HttpClient for API calls made by tests themselves (accepts the dev self-signed cert).</summary>
     protected static HttpClient NewApiClient() => new(new HttpClientHandler
     {
