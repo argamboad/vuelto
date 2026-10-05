@@ -2886,6 +2886,13 @@ Full per-feature native regression (every case in §12–13b) is for releases th
 (`src/Maui/**`, the RCL seams: `ICulturePersistence` / `IFileDownloadLauncher` / `AppResumeNotifier`)
 or bumped the .NET/MAUI toolchain.
 
+> **Two things to know before handing a tester an Android build (v4 T51).** (1) Android upgrades an app in
+> place only when the new build carries the **same signing key** as the installed one: a store-signed build
+> will not install over a debug-signed sideload, nor the reverse — the tester uninstalls the old one first
+> (DEPLOYMENT §9). (2) Nothing the app stores is backed up off the device (`allowBackup="false"` + data-
+> extraction rules), so after an uninstall or on a new phone the tester signs in again and re-picks language
+> and theme; the account and its data are on the server.
+>
 > **⚠️ The native legs run ON REQUEST, never per push (ADR-031).** A pull request runs the web gates only.
 > The MAUI builds and the Windows / Android / Apple smokes run from GitHub → Actions → `CI` → *Run workflow*
 > → `devices` (android / windows / apple / all) — macOS bills at 10× and Windows at 2× on a private repo.
