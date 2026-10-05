@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Vuelto.Api.Services;
 using Vuelto.Api.Tests.Infrastructure;
@@ -44,7 +45,7 @@ public class OutboxTenancyTests(PostgresFixture fixture) : PostgresTestBase(fixt
     }
 
     [Fact]
-    public async Task Dissolve_WipesTheTenantsOutboxRows_OtherTenantsIntact()
+    public async Task OutboxMessage_Lifecycle_Dissolve_WipesTheTenantsRows_OtherTenantsIntact()
     {
         var pair = await TwoTenants.SeedAsync(SeedOutboxAsync);
         Guid broadcast;
@@ -90,6 +91,63 @@ public class OutboxTenancyTests(PostgresFixture fixture) : PostgresTestBase(fixt
 
         var declared = AllHandlers().ToDictionary(h => h.Type, h => h.DissolvesWithItsTenant);
         Assert.Equal(expected.OrderBy(kv => kv.Key), declared.OrderBy(kv => kv.Key));
+    }
+
+    [Fact]
+    public async Task OutboxMessage_Lifecycle_ExportExclusion_TheHouseholdExportCarriesNoQueueRows()
+    {
+        // A queue is not the household's data; its effects are. The export must stay empty even when the queue
+        // holds the household's mail, or a "what is pending" export would hand out recipients and attachments.
+        var pair = await TwoTenants.SeedAsync(SeedOutboxAsync);
+        await using var db = Fixture.CreateContext();
+        var contributor = new OutboxDataContributor(new EfRepository<OutboxMessage>(db), AllHandlers());
+
+        Assert.True(await db.Set<OutboxMessage>().AnyAsync(m => m.TenantId == pair.Mine)); // there IS something to leak
+        Assert.Null(await contributor.ExportAsync(pair.Mine));
+    }
+
+    [Fact]
+    public void OutboxMessage_Lifecycle_TenantlessOrigins_AreOnlyTheNamedOnes()
+    {
+        // Which code may write a row with no tenant is a list, not a habit (R145). Every enqueue call site in src/
+        // is named here with the tenant it stamps; a new call site fails until it is added with its rule. Two
+        // origins may be tenant-less: mail sent before anyone has a tenant (a sign-in code — the sender stamps
+        // the ambient tenant, which is null there) and the platform-wide broadcast, which is no one household's.
+        var expected = new Dictionary<string, string>
+        {
+            ["src/Infrastructure/Email/OutboxEmailSender.cs"] = "currentTenant.TenantId", // ambient: null only pre-auth
+            ["src/Api/Controllers/AdminController.cs"] = "tenantId: null",                // the broadcast
+            ["src/Api/Services/BillingDataContributor.cs"] = "tenantId",                  // the tenant being dissolved
+            ["src/Api/Services/WebhookService.cs"] = "tenantId",                          // the subscribing tenant
+        };
+
+        var root = RepoRoot();
+        var found = new Dictionary<string, List<string>>();
+        foreach (var file in Directory.EnumerateFiles(Path.Combine(root, "src"), "*.cs", SearchOption.AllDirectories)
+                     .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}") && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}")))
+        {
+            var rel = Path.GetRelativePath(root, file).Replace('\\', '/');
+            if (rel is "src/Core/Abstractions/IOutbox.cs" or "src/Infrastructure/Outbox/EfOutbox.cs") continue; // the declaration and its implementation
+            // The call's argument list ends at the first ");" — the tenant is the argument before the cancellation token.
+            foreach (Match m in Regex.Matches(File.ReadAllText(file), @"\.EnqueueAsync\((?<args>[\s\S]*?)\);"))
+            {
+                var args = m.Groups["args"].Value;
+                var tenant = Regex.Match(args, @",\s*(?<t>tenantId: null|[A-Za-z_.]+),\s*cancellationToken\s*$").Groups["t"].Value;
+                found.TryAdd(rel, []);
+                found[rel].Add(tenant);
+            }
+        }
+
+        Assert.Equal(expected.Keys.Order(), found.Keys.Order());
+        foreach (var (file, tenants) in found)
+            Assert.All(tenants, t => Assert.True(t == expected[file], $"{file} enqueues with tenant '{t}', expected '{expected[file]}' — name the origin's rule here"));
+    }
+
+    private static string RepoRoot()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !dir.EnumerateFiles("*.slnx").Any()) dir = dir.Parent;
+        return dir?.FullName ?? throw new InvalidOperationException("repo root not found");
     }
 
     /// <summary>Every <see cref="IOutboxHandler"/> the platform ships, found by reflection so a new one can't be

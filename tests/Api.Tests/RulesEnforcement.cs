@@ -44,7 +44,7 @@ public static class RulesEnforcement
         new("R90", ["OutboxRetentionTests"]),
         new("R91", ["OutboxTenancyTests"]),
         new("R129", ["EnterTenant_WithARequestSuppliedTenantId_ChecksTheTenantExists", "Webhook_ForUnknownTenant_IsIgnored_ClaimedButNothingWritten"]),
-        new("R145", ["EveryTenantOwnedEntity_IsWiredIntoTenantDissolution", "OutboxTenancyTests"], Pending: "vuelto#95 (T27: the canary over nullable-TenantId tables)"),
+        new("R145", ["EveryTenantOwnedEntity_IsWiredIntoTenantDissolution", "EveryNullableTenantIdEntity_ShipsItsLifecycleSpec", "OutboxTenancyTests"]),
         new("R146", ["EveryCrossTenantTest_SeedsARealSecondTenant", "TheScan_CatchesARandomIdArrange"]),
         new("R150", [], Pending: "vuelto#94 (T26: the migration Down-on-data walk)"),
         new("R151", [], Pending: "vuelto#93 (T25: recording doubles for the pre-auth cross-tenant reads)"),
