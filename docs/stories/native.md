@@ -390,6 +390,14 @@ Scenario: Native smoke runs on every push
 > apksigner verified the APK and finds the SDK through `ANDROID_HOME`. The real signing key stays
 > downstream (ADR-024).
 
+> **2026-10-03 — what shipped since this audit and was not written here (v4 audit T53).** The Android
+> status bar follows the page's theme (`ISystemBarTheme` + `SystemBarThemeSync`, fed by `theme.js`'s watcher);
+> the bfcache guard (`bfcache-guard.js`) is loaded by both hosts and is a no-op in the WebView; a Release APK is
+> signed through `apksigner` (v2+v3) behind `ReleaseGuards.targets`, and app data is no longer backed up off
+> the device. `theme.js` now defines `window.appTheme` before it registers any listener and falls back to
+> `addListener`, so an old WebView without `MediaQueryList.addEventListener` still applies the saved theme;
+> `unwatch` clears only the watcher that asks. `tests/js-logic/` runs the three bootstraps with `node --test`.
+
 **Context / notes (decisions scoped 2026-07-07):** the keystore IS the app's identity — updates only
 install over the same signature, so losing it is unrecoverable and it never enters git (base64 →
 repo secrets + an offline backup; ADR-001 discipline). Generated once locally with `keytool`.

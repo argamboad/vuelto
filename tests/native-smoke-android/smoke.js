@@ -7,7 +7,6 @@
 // app installed and launched (EmbedAssembliesIntoApk=true — a fast-deployment APK won't start
 // from a plain `adb install`), `adb reverse tcp:5338 tcp:5338`, the API on
 // http://localhost:5338, Mailpit on MAILPIT_BASE_URL (default http://localhost:8025).
-const { _android } = require('playwright-core');
 
 const PKG = process.env.NATIVE_SMOKE_PKG || 'com.perezosoft.vuelto';
 const MAILPIT = process.env.MAILPIT_BASE_URL || 'http://localhost:8025';
@@ -55,29 +54,56 @@ async function bootToLogin(device, attempt) {
   return { page, emailBox };
 }
 
-(async () => {
+// ONE relaunch retry, boot phase only (exported so tests/js-logic/smoke.test.js can hold the policy): MAUI's BlazorWebView has a startup race where an early
+  // Android Activity recreate disposes the service scope while the attach IPC is in flight —
+  // "Cannot access a disposed object: 'IServiceProvider'" at WebViewManager.AttachToPageAsync —
+  // and the login page then never renders (run 32769356890; the same APK passed twice that
+  // morning). A single force-stop + relaunch distinguishes that transient race from a real
+// startup crash: the G7 class this canary exists for fails BOTH attempts.
+async function bootWithOneRelaunch(device, boot = bootToLogin, pauseMs = 2000) {
+  try {
+    return await boot(device, 1);
+  } catch (e) {
+    console.error(`boot attempt 1 failed (${e.message}); force-stopping and relaunching once (MAUI attach race)`);
+    await device.shell(`am force-stop ${PKG}`);
+    await new Promise(r => setTimeout(r, pauseMs));
+    await device.shell(`monkey -p ${PKG} -c android.intent.category.LAUNCHER 1`);
+    return await boot(device, 2); // a second failure is the real crash: it propagates
+  }
+}
+
+// One authorized page, reached IN-APP. Returns how it got there ('in-app' | 'fallback'). The fallback is a
+// full reload, once — and it is LOUD: a broken Household link or hamburger used to leave the run green with
+// one console.error nobody reads, so it now raises a workflow warning annotation (v4 audit T53).
+async function navigateToHousehold(page, timeout = 60_000) {
+  const household = page.getByTestId('household-rename-input');
+  try {
+    // Different from the platform: here Household sits inside the user menu, so the path is menu, then link.
+    // On a phone-width window the whole header (the user menu included) collapses behind the hamburger —
+    // Forgejo run 6 waited 60 s on an invisible `user-menu`, then the goto fallback hit the reload race.
+    // Open the hamburger first when the menu isn't showing; on a wide window it already is.
+    const userMenu = page.getByTestId('user-menu');
+    if (!(await userMenu.isVisible())) await page.locator('button.navbar-toggler').click({ timeout });
+    await userMenu.click({ timeout });
+    await page.getByTestId('nav-household').click({ timeout });
+    await household.waitFor({ state: 'visible', timeout });
+    return 'in-app';
+  } catch (e) {
+    console.log(`::warning title=native smoke (android)::in-app navigation to Household failed (${e.message}); the run continued through a full page load. The user menu, its Household link or the hamburger is broken, or the emulator was too slow.`);
+    await page.goto('https://0.0.0.1/household');
+    await household.waitFor({ state: 'visible', timeout });
+    return 'fallback';
+  }
+}
+
+async function main() {
+  const { _android } = require('playwright-core'); // here, not at the top: the unit tests load this file without it
   const devices = await _android.devices();
   if (devices.length === 0) throw new Error('no adb device/emulator attached');
   const device = devices[0];
   console.log(`device: ${device.serial()}`);
 
-  // ONE relaunch retry, boot phase only: MAUI's BlazorWebView has a startup race where an early
-  // Android Activity recreate disposes the service scope while the attach IPC is in flight —
-  // "Cannot access a disposed object: 'IServiceProvider'" at WebViewManager.AttachToPageAsync —
-  // and the login page then never renders (run 32769356890; the same APK passed twice that
-  // morning). A single force-stop + relaunch distinguishes that transient race from a real
-  // startup crash: the G7 class this canary exists for fails BOTH attempts.
-  let boot;
-  try {
-    boot = await bootToLogin(device, 1);
-  } catch (e) {
-    console.error(`boot attempt 1 failed (${e.message}); force-stopping and relaunching once (MAUI attach race)`);
-    await device.shell(`am force-stop ${PKG}`);
-    await new Promise(r => setTimeout(r, 2000));
-    await device.shell(`monkey -p ${PKG} -c android.intent.category.LAUNCHER 1`);
-    boot = await bootToLogin(device, 2);
-  }
-  const { page, emailBox } = boot;
+  const { page, emailBox } = await bootWithOneRelaunch(device);
 
   // OTP sign-in end-to-end through the real API + Mailpit (the native body-token transport).
   const email = `native-smoke-${Date.now()}@example.com`;
@@ -95,31 +121,22 @@ async function bootToLogin(device, attempt) {
   // a phone-sized window (same reasoning as the Windows leg).
   await page.getByTestId('sign-out').first().waitFor({ state: 'attached', timeout: 60_000 });
 
-  // One authorized page: Household loads its data — proves the native Bearer path. Navigate IN-APP (open the
-  // user menu, click the link) instead of page.goto: a goto reloads the whole WebView, and on a cold emulator
-  // that reload races the Blazor attach — runs 35250560206 attempt 1 ("Cannot access a disposed object:
-  // 'IServiceProvider'") and attempt 2 ("There is no browser renderer with ID 3") both died there, on an APK
-  // whose own develop run had passed. Client-side navigation exercises the same authorized API call without
-  // restarting the host. The goto stays as a fallback, once, if the menu link isn't reachable.
-  const household = page.getByTestId('household-rename-input');
-  try {
-    // On a phone-width window the whole header (the user menu included) collapses behind the hamburger —
-    // Forgejo run 6 waited 60 s on an invisible `user-menu`, then the goto fallback hit the reload race.
-    // Open the hamburger first when the menu isn't showing; on a wide window it already is.
-    const userMenu = page.getByTestId('user-menu');
-    if (!(await userMenu.isVisible())) await page.locator('button.navbar-toggler').click({ timeout: 60_000 });
-    await userMenu.click({ timeout: 60_000 });
-    await page.getByTestId('nav-household').click({ timeout: 60_000 });
-    await household.waitFor({ state: 'visible', timeout: 60_000 });
-  } catch (e) {
-    console.error(`in-app navigation to Household failed (${e.message}); falling back to a full load once`);
-    await page.goto('https://0.0.0.1/household');
-    await household.waitFor({ state: 'visible', timeout: 60_000 });
-  }
+  // One authorized page: Household loads its data — proves the native Bearer path. Navigate IN-APP (click the
+  // header link) instead of page.goto: a goto reloads the whole WebView, and on a cold emulator that reload
+  // races the Blazor attach — a downstream app (vuelto run 35250560206) failed twice at exactly that step ("Cannot access a disposed object:
+  // 'IServiceProvider'", then "There is no browser renderer with ID 3") on an APK whose own develop run had
+  // passed, while the Windows smoke stayed green. Client-side navigation exercises the same authorized API call
+  // without restarting the host. The goto stays as a fallback, once, if the link isn't reachable.
+  await navigateToHousehold(page);
   const members = await page.getByTestId('member-row').count();
   if (members !== 1) throw new Error(`expected 1 roster row for a fresh owner, saw ${members}`);
 
   console.log('native smoke (android): boot + OTP sign-in + household roster OK');
   await device.close();
   process.exit(0);
-})().catch(e => { console.error(`native smoke (android) FAILED: ${e.message}`); process.exit(1); });
+}
+
+module.exports = { bootWithOneRelaunch, navigateToHousehold, waitForOtp };
+
+if (require.main === module)
+  main().catch(e => { console.error(`native smoke (android) FAILED: ${e.message}`); process.exit(1); });

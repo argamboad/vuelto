@@ -88,7 +88,7 @@ public static class RulesEnforcement
         new("R105", ["AndroidManifest_KeepsAppDataOnTheDevice_AndIsNeitherDebuggableNorCleartext", "NetworkSecurityConfig_PermitsCleartextOnlyToTheDevLoopback"]),
         new("R106", ["NativeClassifier_CoversEveryNativeInput"]),
         new("R141", ["ReleaseGuards_RefuseBadInputs_AndPassGoodOnes", "ReleaseGuards_LiveInOneFile_UnderOneCondition"]),
-        new("R142", [], Pending: "vuelto#119 (T53: node --test stubs for the wwwroot/js bootstraps)"),
+        new("R142", ["EveryJsBootstrap_HasANodeTest", "JsLogic_NodeTestsPass"]),
 
         // ── 8. Client / test-completeness / harness ──
         new("R109", ["E2eNavigations_GoThroughBlazorBoot", "BootRetryBudget_IsOneNumber_InTheSuiteAndTheSlowestJourneysStep", "BlazorBootTests"]),

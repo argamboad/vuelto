@@ -54,7 +54,7 @@
     public async ValueTask DisposeAsync()
     {
         if (_self is null) return;
-        try { await JS.InvokeVoidAsync("appTheme.unwatch"); }
+        try { await JS.InvokeVoidAsync("appTheme.unwatch", _self); } // its own reference: never silences a newer watcher
         catch { /* the page is going away anyway */ }
         _self.Dispose();
     }
