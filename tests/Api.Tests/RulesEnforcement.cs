@@ -84,8 +84,8 @@ public static class RulesEnforcement
         // ── 7. Native ──
         new("R102", ["BearerScopedHandlerTests", "OnlyTheSharedRetry_BuildsABearerHeader"]),
         new("R103", ["ReleaseLeg_BuildsRelease_VerifiesV2OrV3_AndProvesTheGuardFires", "PublishScript_ThrowsUnlessTheSignatureIsVerified_AndFindsTheSdkThroughAndroidHome", "ci:apksigner verify — v2 or v3, the schemes Android 11+ installs"]),
-        new("R104", [], Pending: "vuelto#117 (T51: signing-material gitignore + doc-grep gates)"),
-        new("R105", [], Pending: "vuelto#117 (T51: NativeShellGateTests — allowBackup is still true)"),
+        new("R104", ["Gitignore_CoversSigningMaterial", "DocsScriptsAndWorkflows_NeverPassASigningPasswordAsALiteral", "PublishScript_SignsWithAStoreKey_WhosePasswordsComeFromTheEnvironment"]),
+        new("R105", ["AndroidManifest_KeepsAppDataOnTheDevice_AndIsNeitherDebuggableNorCleartext", "NetworkSecurityConfig_PermitsCleartextOnlyToTheDevLoopback"]),
         new("R106", ["NativeClassifier_CoversEveryNativeInput"]),
         new("R141", ["ReleaseGuards_RefuseBadInputs_AndPassGoodOnes", "ReleaseGuards_LiveInOneFile_UnderOneCondition"]),
         new("R142", [], Pending: "vuelto#119 (T53: node --test stubs for the wwwroot/js bootstraps)"),

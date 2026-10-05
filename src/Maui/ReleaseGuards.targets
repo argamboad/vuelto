@@ -52,7 +52,7 @@
       <_ReleaseKeystore>%(_ReleaseKeystoreFound.Identity)</_ReleaseKeystore>
     </PropertyGroup>
     <Error Condition="'$(_ReleaseKeystore)' == ''"
-           Text="No keystore for the Release APK: pass -p:AndroidKeyStore=true -p:AndroidSigningKeyStore=… -p:AndroidSigningKeyAlias=… -p:AndroidSigningStorePass=… -p:AndroidSigningKeyPass=… (the store key), or install a debug keystore at one of: $(ReleaseGuardsKeystoreCandidates). Without one the build would sign v1-only, which Android 11+ refuses to install (v4 T50)." />
+           Text="No keystore for the Release APK: pass -p:AndroidKeyStore=true -p:AndroidSigningKeyStore=… -p:AndroidSigningKeyAlias=… -p:AndroidSigningStorePass=env:NAME -p:AndroidSigningKeyPass=env:NAME (the store key; the passwords in environment variables), or install a debug keystore at one of: $(ReleaseGuardsKeystoreCandidates). Without one the build would sign v1-only, which Android 11+ refuses to install (v4 T50)." />
     <PropertyGroup Condition="'$(_ReleaseKeystore)' != ''">
       <AndroidKeyStore>true</AndroidKeyStore>
       <AndroidSigningKeyStore Condition="'$(AndroidSigningKeyStore)' == ''">$(_ReleaseKeystore)</AndroidSigningKeyStore>

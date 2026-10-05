@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12+ ignores android:allowBackup for device-to-device transfer, so the "nothing leaves this
+     device" posture has to be said twice: here for API 31+, and with allowBackup="false" for older ones.
+     What would otherwise travel: the OAuth resume marker, the culture preference and the WebView's
+     localStorage. (The refresh token is a Keystore-wrapped blob another device cannot read either way.)
+     v4 audit NAT-17 / R105. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" />
+        <exclude domain="file" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" />
+        <exclude domain="file" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+    </device-transfer>
+</data-extraction-rules>

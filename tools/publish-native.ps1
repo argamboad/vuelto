@@ -11,6 +11,13 @@
 .EXAMPLE
   .\tools\publish-native.ps1 -ApiBaseUrl https://myapp-staging.onrender.com          # both platforms
   .\tools\publish-native.ps1 -ApiBaseUrl https://myapp.example.com -Android -Out C:\builds
+
+.EXAMPLE
+  # A store-signed APK. The passwords are read from the environment by the Android SDK itself, so they
+  # never appear on a command line (shell history, process list, binlog):
+  $env:ANDROID_SIGNING_STORE_PASS = Read-Host -MaskInput 'store password'
+  $env:ANDROID_SIGNING_KEY_PASS   = Read-Host -MaskInput 'key password'
+  .\tools\publish-native.ps1 -ApiBaseUrl https://myapp.example.com -Android -KeyStore C:\keys\release.jks -KeyAlias upload
 #>
 [CmdletBinding()]
 param(
@@ -20,7 +27,12 @@ param(
     # <repo>\out — the same folder DEPLOYMENT §9 publishes to, and gitignored. Do not move it.
     [string] $Out = (Join-Path (Split-Path -Parent $PSScriptRoot) "out"),
     [switch] $Android,
-    [switch] $Windows
+    [switch] $Windows,
+    # The store key (Android). Omit both for a sideload signed with this machine's debug key. The keystore
+    # lives OUTSIDE the repo; its passwords come from ANDROID_SIGNING_STORE_PASS / ANDROID_SIGNING_KEY_PASS
+    # and there is deliberately no parameter to type one into.
+    [string] $KeyStore,
+    [string] $KeyAlias
 )
 $ErrorActionPreference = "Stop"
 if (-not $Android -and -not $Windows) { $Android = $true; $Windows = $true }
@@ -36,7 +48,19 @@ New-Item -ItemType Directory -Force $Out | Out-Null
 if ($Android) {
     Write-Host "== Android APK -> $ApiBaseUrl" -ForegroundColor Cyan
     $dir = Join-Path $Out "android"
-    dotnet publish $proj.FullName -f net10.0-android -c Release -p:ApiBaseUrl=$ApiBaseUrl -p:AndroidPackageFormat=apk -p:AcceptAndroidSDKLicenses=true -o $dir
+    $signing = @()
+    if ($KeyStore -or $KeyAlias) {
+        if (-not ($KeyStore -and $KeyAlias)) { throw "-KeyStore and -KeyAlias go together" }
+        if (-not (Test-Path $KeyStore)) { throw "Keystore not found: $KeyStore" }
+        if (-not ($env:ANDROID_SIGNING_STORE_PASS -and $env:ANDROID_SIGNING_KEY_PASS)) {
+            throw "Set ANDROID_SIGNING_STORE_PASS and ANDROID_SIGNING_KEY_PASS in the environment (never on the command line)."
+        }
+        # env:NAME is resolved by the Android SDK's signing task; the command line carries the NAME only.
+        $signing = @("-p:AndroidKeyStore=true", "-p:AndroidSigningKeyStore=$((Resolve-Path $KeyStore).Path)", "-p:AndroidSigningKeyAlias=$KeyAlias",
+                     "-p:AndroidSigningStorePass=env:ANDROID_SIGNING_STORE_PASS", "-p:AndroidSigningKeyPass=env:ANDROID_SIGNING_KEY_PASS")
+        Write-Host "   signing with the store key $KeyStore ($KeyAlias)" -ForegroundColor Cyan
+    }
+    dotnet publish $proj.FullName -f net10.0-android -c Release -p:ApiBaseUrl=$ApiBaseUrl -p:AndroidPackageFormat=apk -p:AcceptAndroidSDKLicenses=true @signing -o $dir
     if ($LASTEXITCODE -ne 0) { throw "Android publish failed" }
 
     # Two APKs land here: <id>.apk (unsigned, no MANIFEST — Android drops it without a word) and
