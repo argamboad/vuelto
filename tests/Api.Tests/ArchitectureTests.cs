@@ -315,6 +315,33 @@ public class ArchitectureTests
     }
 
     [Fact]
+    public void RclComponents_ScheduleOnTheInjectedClock() // R148 (v4 audit T57, TOOL-7/8)
+    {
+        // The notification bell polled on a real 60-second PeriodicTimer and stamped "read" and "time ago"
+        // from the wall clock, so its poll lifecycle could only be tested by waiting real minutes — and was not.
+        // In the RCL: no ambient UtcNow/Now, and every timer or delay names the clock it runs on.
+        var files = SourceFiles(Path.Combine(RepoRoot(), "src", "Shared.Ui"))
+            .Concat(SourceFiles(Path.Combine(RepoRoot(), "src", "Shared.Ui"), "*.razor")).ToList();
+        Assert.True(files.Count > 30, "probe: src/Shared.Ui moved");
+
+        var offenders = new List<string>();
+        foreach (var file in files)
+        {
+            var lines = File.ReadAllLines(file);
+            for (var i = 0; i < lines.Length; i++)
+            {
+                var line = lines[i];
+                if (line.TrimStart().StartsWith("//", StringComparison.Ordinal) || line.TrimStart().StartsWith("///", StringComparison.Ordinal)) continue;
+                var ambient = Regex.IsMatch(line, @"\bDateTime(?:Offset)?\.(?:UtcNow|Now)\b");
+                var unclockedTimer = Regex.IsMatch(line, @"new PeriodicTimer\((?![^;]*,\s*\w*[Tt]ime)") || Regex.IsMatch(line, @"Task\.Delay\((?![^;]*,\s*\w*[Tt]ime)");
+                if (ambient || unclockedTimer) offenders.Add($"{Path.GetFileName(file)}:{i + 1}");
+            }
+        }
+        Assert.True(offenders.Count == 0,
+            "RCL code reads the wall clock or schedules without the injected TimeProvider: " + string.Join(", ", offenders));
+    }
+
+    [Fact]
     public void ServerServices_UseInjectedClock_NotAmbientUtcNow()
     {
         // R15/GAP-4/LOGIC-B3: server code takes TimeProvider, so a cookie/URL/token lifetime can't drift

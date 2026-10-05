@@ -51,6 +51,7 @@ public abstract class ComponentTestBase : BunitContext
             timeProvider: Time);
 
         Services.AddSingleton(Auth);
+        Services.AddSingleton<TimeProvider>(Time); // the clock components schedule with (R148)
         Services.AddSingleton(new HttpClient(Http) { BaseAddress = new Uri("http://localhost") });
         Services.AddSingleton<ISessionStore>(sessionStore);
         Services.AddSingleton<IThemePersistence>(ThemeStore);

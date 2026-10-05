@@ -4,6 +4,7 @@
 @implements IDisposable
 @inject HttpClient Http
 @inject AuthService Auth
+@inject TimeProvider Time
 @inject IStringLocalizer<AppStrings> Localizer
 
 @* Per-user notification center (NOTIFY-1, ADR-013). Bell + unread badge + dropdown list. *@
@@ -108,13 +109,19 @@
         _ = PollLoop();
     }
 
-    // Lightweight unread-count refresh so the badge stays roughly live without a push channel.
+    /// <summary>How often the unread count is refetched.</summary>
+    public static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(60);
+
+    // Lightweight unread-count refresh so the badge stays roughly live without a push channel. The timer runs
+    // on the injected clock (v4 audit T57, R148), so its lifecycle is testable without waiting real minutes:
+    // signed out it asks nothing and shows nothing, signed in again it resumes on the next tick, and a failed
+    // fetch keeps the last count.
     private async Task PollLoop()
     {
         _poll = new CancellationTokenSource();
         try
         {
-            using var timer = new PeriodicTimer(TimeSpan.FromSeconds(60));
+            using var timer = new PeriodicTimer(PollInterval, Time);
             while (await timer.WaitForNextTickAsync(_poll.Token))
                 await RefreshCount();
         }
@@ -123,7 +130,7 @@
 
     private async Task RefreshCount()
     {
-        if (!Auth.IsAuthenticated) { _count = 0; return; }
+        if (!Auth.IsAuthenticated) { _count = 0; await InvokeAsync(StateHasChanged); return; }
         try
         {
             var res = await Http.GetFromJsonAsync<UnreadCountDto>("/api/notifications/unread-count");
@@ -159,7 +166,7 @@
         // Mark optimistically BEFORE the await (v3 LB-UI-9): a rapid second click would otherwise pass the
         // null-ReadAt guard again while the first request is still in flight, and decrement the count twice.
         var previous = n.ReadAt;
-        n.ReadAt = DateTimeOffset.UtcNow;
+        n.ReadAt = Time.GetUtcNow();
         if (_count > 0) _count--;
         try
         {
@@ -176,7 +183,7 @@
             var res = await Http.PostAsync("/api/notifications/read-all", null);
             if (res.IsSuccessStatusCode)
             {
-                var now = DateTimeOffset.UtcNow;
+                var now = Time.GetUtcNow();
                 foreach (var n in _items) n.ReadAt ??= now;
                 _count = 0;
             }
@@ -224,7 +231,7 @@
     // Compact relative time ("just now", "5m", "3h", "2d"), falling back to a date.
     private string Ago(DateTimeOffset when)
     {
-        var span = DateTimeOffset.UtcNow - when;
+        var span = Time.GetUtcNow() - when;
         if (span < TimeSpan.FromMinutes(1)) return Localizer["Notif_JustNow"];
         if (span < TimeSpan.FromHours(1)) return $"{(int)span.TotalMinutes}m";
         if (span < TimeSpan.FromDays(1)) return $"{(int)span.TotalHours}h";

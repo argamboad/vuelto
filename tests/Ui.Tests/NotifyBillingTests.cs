@@ -40,6 +40,44 @@ public class NotifyBillingTests : ComponentTestBase
         Assert.Equal("1", cut.Find("[data-testid='notif-count']").TextContent.Trim());
     }
 
+    [Fact]
+    public async Task Bell_Poll_RefetchesOnTheClock_KeepsTheLastCountOnAnError_StopsWhenSignedOut_AndResumes()
+    {
+        // v4 audit T57 (R148): the poll runs on the injected clock, so its whole lifecycle is one fast test.
+        await SignInAsync();
+        const string unread = "/api/notifications/unread-count";
+        int Polls() => Http.Requests.Count(r => r.RequestUri?.AbsolutePath == unread);
+        Http.On(HttpMethod.Get, unread, """{"count":3}""");
+
+        var cut = Render<NotificationBell>();
+        string Badge() => cut.Find("[data-testid='notif-count']").TextContent.Trim();
+        cut.WaitForAssertion(() => Assert.Equal("3", Badge()));
+        Assert.Equal(1, Polls()); // one fetch on render; nothing more until the clock moves
+
+        Http.On(HttpMethod.Get, unread, """{"count":5}""");
+        Time.Advance(NotificationBell.PollInterval);
+        cut.WaitForAssertion(() => Assert.Equal("5", Badge()));
+
+        // The server is unreachable for one tick: the badge keeps what it last knew.
+        Http.OnUnreachable(HttpMethod.Get, unread);
+        Time.Advance(NotificationBell.PollInterval);
+        cut.WaitForAssertion(() => Assert.Equal(3, Polls()));
+        Assert.Equal("5", Badge());
+
+        // Signed out: the next tick asks nothing and the badge is gone.
+        Http.On(HttpMethod.Post, "/api/auth/logout");
+        await Auth.LogoutAsync();
+        Time.Advance(NotificationBell.PollInterval);
+        cut.WaitForAssertion(() => Assert.Empty(cut.FindAll("[data-testid='notif-count']")));
+        Assert.Equal(3, Polls());
+
+        // Signed in again: the same timer resumes on its next tick.
+        Http.On(HttpMethod.Get, unread, """{"count":2}""");
+        await SignInAsync();
+        Time.Advance(NotificationBell.PollInterval);
+        cut.WaitForAssertion(() => Assert.Equal("2", Badge()));
+    }
+
     [Theory]
     [InlineData(30, "Notif_JustNow")] // < 1 minute → the localized "just now"
     [InlineData(5 * 60, "5m")]        // minutes bucket
@@ -50,7 +88,7 @@ public class NotifyBillingTests : ComponentTestBase
         // v3 TB-UI backfill (T45c): the Ago buckets — just-now / m / h / d — rendered through the
         // real component (the method is private; the list item's timestamp line is the contract).
         await SignInAsync();
-        var created = DateTimeOffset.UtcNow - TimeSpan.FromSeconds(ageSeconds);
+        var created = Time.GetUtcNow() - TimeSpan.FromSeconds(ageSeconds); // the clock the bell reads (R148)
         Http.On(HttpMethod.Get, "/api/notifications/unread-count", """{"count":1}""");
         Http.On(HttpMethod.Get, "/api/notifications",
             $$"""[{"id":"{{ItemA}}","kind":"x","title":"T","body":"","read_at":null,"created_at":"{{created:O}}"}]""");
@@ -107,11 +145,13 @@ public class NotifyBillingTests : ComponentTestBase
             """{"plan_key":"pro","status":"active"}""");
         Services.GetRequiredService<NavigationManager>().NavigateTo("/billing/success");
 
-        var cut = Render<Billing>(p => p.Add(x => x.RefreshDelayMs, 10));
+        var cut = Render<Billing>();
         cut.WaitForElement("[data-testid='billing-plan']");
         Assert.Contains("Billing_CheckoutSuccess", cut.Find("[data-testid='billing-checkout-success']").TextContent);
         Assert.Empty(cut.FindAll("[data-testid='billing-checkout-cancel']"));
+        Assert.Equal("Plan_free", cut.Find("[data-testid='billing-plan']").TextContent.Trim()); // nothing refetches until the clock moves
 
+        Time.Advance(TimeSpan.FromSeconds(3)); // the page's refetch delay, on the injected clock (v4 T57)
         cut.WaitForAssertion(() => Assert.Equal("Plan_pro", cut.Find("[data-testid='billing-plan']").TextContent.Trim()), TimeSpan.FromSeconds(5));
         Assert.True(Http.Requests.Count(r => r.RequestUri?.AbsolutePath == "/api/billing") >= 2, "the page refetched on its own");
     }
