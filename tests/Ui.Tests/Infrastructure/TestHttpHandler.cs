@@ -16,10 +16,12 @@ public sealed class TestHttpHandler : HttpMessageHandler
     public List<HttpRequestMessage> Requests { get; } = [];
 
     private readonly Dictionary<string, TaskCompletionSource<HttpResponseMessage>> _gated = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>>> _slow = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Stub "METHOD /path" (path only, query ignored) to return <paramref name="json"/> with <paramref name="status"/>.</summary>
     public TestHttpHandler On(HttpMethod method, string path, string json = "{}", HttpStatusCode status = HttpStatusCode.OK)
     {
+        _slow.Remove(Key(method, path));
         _gated.Remove(Key(method, path)); // a later On() replaces a gate — a stale (completed) gate would
                                           // otherwise shadow the new stub and replay its consumed response
         _routes[Key(method, path)] = _ => new HttpResponseMessage(status)
@@ -75,6 +77,53 @@ public sealed class TestHttpHandler : HttpMessageHandler
     }
 
     /// <summary>
+    /// Stub "METHOD /path" to answer with a redirect: <paramref name="status"/> (302 by default) and a
+    /// <c>Location</c> header (v4 audit T56). A handler under test never follows it — this is the server's
+    /// answer as the client's own code sees it, which is what a "did we follow / did we refuse" assertion needs.
+    /// </summary>
+    public TestHttpHandler OnRedirect(HttpMethod method, string path, string location, HttpStatusCode status = HttpStatusCode.Found)
+    {
+        _gated.Remove(Key(method, path));
+        _slow.Remove(Key(method, path));
+        _routes[Key(method, path)] = _ =>
+        {
+            var response = new HttpResponseMessage(status);
+            response.Headers.Location = new Uri(location, UriKind.RelativeOrAbsolute);
+            return response;
+        };
+        return this;
+    }
+
+    /// <summary>
+    /// Stub "METHOD /path" to answer with a non-JSON body — the HTML error page a proxy or a WAF puts in front
+    /// of the API. Code that maps a status by the API's own error body must not read this one as ours.
+    /// </summary>
+    public TestHttpHandler OnHtml(HttpMethod method, string path, string html, HttpStatusCode status)
+    {
+        _gated.Remove(Key(method, path));
+        _slow.Remove(Key(method, path));
+        _routes[Key(method, path)] = _ => new HttpResponseMessage(status) { Content = new StringContent(html, Encoding.UTF8, "text/html") };
+        return this;
+    }
+
+    /// <summary>
+    /// Stub "METHOD /path" to answer after <paramref name="delay"/> on <paramref name="time"/> — and to stop
+    /// waiting when the request's token is cancelled, the way a real handler does (v4 audit T56).
+    /// <see cref="OnGated"/> waits on the token too but never answers by itself; this one is for a server that
+    /// is merely slow, so a client timeout shorter than the delay fires and a longer one gets the answer.
+    /// </summary>
+    public TestHttpHandler OnDelayed(HttpMethod method, string path, TimeSpan delay, TimeProvider time, string json = "{}", HttpStatusCode status = HttpStatusCode.OK)
+    {
+        _gated.Remove(Key(method, path));
+        _slow[Key(method, path)] = async (_, cancellationToken) =>
+        {
+            await Task.Delay(delay, time, cancellationToken);
+            return new HttpResponseMessage(status) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
+        };
+        return this;
+    }
+
+    /// <summary>
     /// Stub "METHOD /path" to HANG until the returned action is invoked — for testing concurrent requests
     /// (e.g. a rapid double-click while the first call is still in flight). Every request to this route
     /// awaits the SAME gate.
@@ -95,6 +144,8 @@ public sealed class TestHttpHandler : HttpMessageHandler
         var key = Key(request.Method, request.RequestUri?.AbsolutePath ?? "/");
         if (_gated.TryGetValue(key, out var gate))
             return gate.Task.WaitAsync(cancellationToken); // a caller's own timeout cancels the wait, as a real handler would
+        if (_slow.TryGetValue(key, out var slow))
+            return slow(request, cancellationToken);
         var response = _routes.TryGetValue(key, out var factory)
             ? factory(request)
             : new HttpResponseMessage(HttpStatusCode.NotFound)

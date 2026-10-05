@@ -696,17 +696,26 @@ public class AuthService(
     /// since the header renders before identity is known. False on any error: fail closed to "no billing"
     /// rather than render a link into routes that may not exist.
     /// </summary>
-    public async Task<bool> IsBillingEnabledAsync()
+    public async Task<bool> IsBillingEnabledAsync() => await ProbeBillingAsync() ?? false;
+
+    /// <summary>
+    /// The same probe, with "could not tell" kept apart from "off" (v4 audit BILL-7/UX-13): <c>null</c> when
+    /// the probe failed — the server is waking up, the network dropped. A caller that would do something
+    /// visible on "off" (bounce away from <c>/billing</c>, tell an owner there is no plan to buy) asks this
+    /// one, so a transient failure on a billing-on deployment is never acted on as a decision. A failure is
+    /// not cached: the next call asks again.
+    /// </summary>
+    public async Task<bool?> ProbeBillingAsync()
     {
         if (_billingEnabled is { } cached) return cached;
         try
         {
             var res = await httpClient.GetFromJsonAsync<FeaturesResponse>("/api/features");
-            return (_billingEnabled = res?.Billing ?? false).Value;
+            return _billingEnabled = res?.Billing ?? false;
         }
         catch
         {
-            return false; // don't cache transient failures
+            return null; // don't cache transient failures
         }
     }
 

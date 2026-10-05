@@ -390,7 +390,9 @@
                 System.Net.HttpStatusCode.TooManyRequests => Localizer["Login_ErrTooManyRequests"],
                 // GATES-2 (ADR-027): the code was right; the deployment is not open to this address. A
                 // 401's "incorrect or expired" would send them hunting for a typo that isn't there.
-                System.Net.HttpStatusCode.Forbidden => Localizer["Login_ErrSignupNotAllowed"],
+                // Mapped by the API's own error body, not by the status alone (R112): a proxy's or a WAF's
+                // 403 is not a signup refusal and must not be explained as one.
+                System.Net.HttpStatusCode.Forbidden => await ForbiddenErrorAsync(res),
                 _ => Localizer["Login_ErrVerificationFailed"],
             };
         }
@@ -406,6 +408,14 @@
         try { code = (await res.Content.ReadFromJsonAsync<ApiError>())?.Error; }
         catch { /* no/again-unreadable body → fall through to the generic message */ }
         return Localizer[AuthErrorCopy.OtpErrorKey(code)];
+    }
+
+    private async Task<string> ForbiddenErrorAsync(HttpResponseMessage res)
+    {
+        string? code = null;
+        try { code = (await res.Content.ReadFromJsonAsync<ApiError>())?.Error; }
+        catch { /* an HTML or empty body: not ours */ }
+        return Localizer[code == "signup_not_allowed" ? "Login_ErrSignupNotAllowed" : "Login_ErrVerificationFailed"];
     }
 
     private async Task VerifyMfa()

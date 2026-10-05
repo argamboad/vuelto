@@ -121,16 +121,20 @@
         // parameterless component wouldn't otherwise re-render — re-source identity + staff flag then.
         Auth.IdentityChanged += OnIdentityChanged;
         ReviewQueue.Changed += OnReviewQueueChanged; // a confirm/discard on the Review page re-counts the badge at once
+        Auth.SignedIn += OnIdentityChanged; // a sign-in after a cold start that could not probe: ask again
     }
 
     private void OnReviewQueueChanged() => _ = RefreshReviewCountAndRenderAsync();
 
     // Show the Admin link only for platform staff (cheap, cached probe). Hidden while impersonating.
+    // The billing probe is anonymous and deployment-wide, and cached once it answers — but a probe that
+    // FAILED at cold start (the server waking up) is asked again on the next identity event, or the link
+    // would stay hidden for the whole session on a billing-on deployment (v4 audit BILL-7).
     protected override async Task OnInitializedAsync()
     {
         // In parallel (v4 audit T47): two sequential round trips delayed the header by one of them.
         var staff = Auth.IsStaffAsync();
-        var billing = Auth.IsBillingEnabledAsync(); // anonymous + deployment-wide: no identity re-check needed
+        var billing = Auth.IsBillingEnabledAsync(); // anonymous + deployment-wide; a probe that failed is asked again in OnIdentityChanged
         await Task.WhenAll(staff, billing);
         _isStaff = staff.Result;
         _billingEnabled = billing.Result;
@@ -179,9 +183,11 @@
         {
             var isStaff = await Auth.IsStaffAsync();
             await RefreshReviewCountAsync();
+            var billing = _billingEnabled || await Auth.IsBillingEnabledAsync();
             await InvokeAsync(() =>
             {
                 _isStaff = isStaff;
+                _billingEnabled = billing;
                 StateHasChanged();
             });
         }
@@ -211,5 +217,6 @@
         Nav.LocationChanged -= OnLocationChanged;
         Auth.IdentityChanged -= OnIdentityChanged;
         ReviewQueue.Changed -= OnReviewQueueChanged;
+        Auth.SignedIn -= OnIdentityChanged;
     }
 }

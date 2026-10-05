@@ -315,6 +315,22 @@ public class ArchitectureTests
     }
 
     [Fact]
+    public void EveryRclPage_HasAComponentTest() // v4 audit T56 (TOOL-7): the per-page floor, R70 as amended
+    {
+        // R70 asked for bUnit coverage and was met by testing a single component; the five heaviest pages were
+        // reached only when a browser journey happened to pass through them. The floor: every routable page
+        // under src/Shared.Ui/Pages is rendered by at least one test in tests/Ui.Tests. It does not measure
+        // depth — it stops a new page from shipping with none.
+        var pages = Directory.EnumerateFiles(Path.Combine(RepoRoot(), "src", "Shared.Ui", "Pages"), "*.razor")
+            .Select(Path.GetFileNameWithoutExtension).ToList();
+        Assert.True(pages.Count >= 8, "probe: src/Shared.Ui/Pages moved");
+
+        var tests = string.Join('\n', SourceFiles(Path.Combine(RepoRoot(), "tests", "Ui.Tests")).Select(File.ReadAllText));
+        var untested = pages.Where(p => !Regex.IsMatch(tests, $@"Render<(?:[\w.]+\.)?{p}>")).ToList();
+        Assert.True(untested.Count == 0, "pages no component test renders (add one under tests/Ui.Tests/Pages): " + string.Join(", ", untested));
+    }
+
+    [Fact]
     public void RclComponents_ScheduleOnTheInjectedClock() // R148 (v4 audit T57, TOOL-7/8)
     {
         // The notification bell polled on a real 60-second PeriodicTimer and stamped "read" and "time ago"

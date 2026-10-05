@@ -75,7 +75,6 @@
 
     protected override async Task OnInitializedAsync()
     {
-        _billingEnabled = await Auth.IsBillingEnabledAsync();
         if (!Auth.IsAuthenticated)
         {
             // Remember where to return after sign-in. localStorage is shared across
@@ -86,6 +85,10 @@
             _state = State.NeedsSignIn;
             return;
         }
+
+        // After the auth check, never before it (v4 audit TB-UI-47): a slow or hung gate probe must not
+        // stand between an anonymous invitee and the sign-in prompt.
+        _billingEnabled = await Auth.IsBillingEnabledAsync();
 
         if (string.IsNullOrWhiteSpace(Token))
         {

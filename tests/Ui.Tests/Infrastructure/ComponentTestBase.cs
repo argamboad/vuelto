@@ -21,7 +21,7 @@ public abstract class ComponentTestBase : BunitContext
     protected TestHttpHandler Http { get; } = new();
     protected FakeThemePersistence ThemeStore { get; } = new();
     protected FakeCulturePersistence CultureStore { get; } = new();
-    protected FakeFileDownloadLauncher Downloads { get; } = new();
+    protected FakeFileDownloadLauncher DownloadLauncher { get; } = new();
     protected AuthService Auth { get; }
 
     /// <summary>
@@ -56,7 +56,7 @@ public abstract class ComponentTestBase : BunitContext
         Services.AddSingleton<ISessionStore>(sessionStore);
         Services.AddSingleton<IThemePersistence>(ThemeStore);
         Services.AddSingleton<ICulturePersistence>(CultureStore);
-        Services.AddSingleton<IFileDownloadLauncher>(Downloads); // pages with a download (Household export, Reports CSV) inject it
+        Services.AddSingleton<IFileDownloadLauncher>(DownloadLauncher); // pages with a download (Household export, Reports CSV) inject it
         Services.AddSingleton<IStringLocalizer<AppStrings>>(new FakeStringLocalizer());
         Services.AddSingleton<AppResumeNotifier>(); // pages that refresh on app-resume (Billing) inject it
         Services.AddSingleton<ReviewQueueNotifier>(); // the header badge + the Review page (EMAIL-6)

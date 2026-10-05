@@ -456,7 +456,7 @@ public class ReportsPageTests : ComponentTestBase
         cut.WaitForElement("[data-testid='rep-notice']");
         var post = Assert.Single(Http.Requests, r => r.Method == HttpMethod.Post && r.RequestUri!.AbsolutePath == "/api/reports/transactions/export");
         Assert.Contains($"month_id={M2}", post.RequestUri!.Query);
-        var launched = Assert.Single(Downloads.Launched);
+        var launched = Assert.Single(DownloadLauncher.Launched);
         Assert.Equal(("http://localhost/api/files/tok-1", "transactions-2026-09-03.csv"), launched);
         Assert.Contains("Reports_ExportReady[4]", cut.Find("[data-testid='rep-notice']").TextContent);
     }
@@ -492,7 +492,7 @@ public class ReportsPageTests : ComponentTestBase
         Assert.False(body.TryGetProperty("appendix_columns", out _));
         Assert.False(body.TryGetProperty("language", out _)); // the API reads the language saved in the account
         Assert.Equal("2026-07-15", body.GetProperty("today").GetString());
-        Assert.Equal(("http://localhost/api/files/tok-pdf", "report-2026-06-25_2026-07-29.pdf"), Assert.Single(Downloads.Launched));
+        Assert.Equal(("http://localhost/api/files/tok-pdf", "report-2026-06-25_2026-07-29.pdf"), Assert.Single(DownloadLauncher.Launched));
         Assert.Empty(cut.FindAll("[data-testid='rep-pdf-dialog']"));
         Assert.Contains("Reports_PdfReady", cut.Find("[data-testid='rep-notice']").TextContent);
     }
@@ -566,7 +566,7 @@ public class ReportsPageTests : ComponentTestBase
 
         cut.WaitForElement("[data-testid='rep-pdf-error']");
         Assert.Contains("Reports_PdfError", cut.Find("[data-testid='rep-pdf-error']").TextContent);
-        Assert.Empty(Downloads.Launched);
+        Assert.Empty(DownloadLauncher.Launched);
         cut.Find("[data-testid='rep-pdf-cancel']").Click();
         Assert.Empty(cut.FindAll("[data-testid='rep-pdf-dialog']"));
         Assert.Empty(cut.FindAll("[data-testid='rep-notice']"));
@@ -593,7 +593,7 @@ public class ReportsPageTests : ComponentTestBase
         Assert.False(body.GetProperty("include_appendix").GetBoolean());
         Assert.Equal("2026-07-15", body.GetProperty("today").GetString());
         Assert.False(body.TryGetProperty("language", out _));
-        Assert.Empty(Downloads.Launched); // nothing downloads: it went to the inbox
+        Assert.Empty(DownloadLauncher.Launched); // nothing downloads: it went to the inbox
         Assert.Empty(cut.FindAll("[data-testid='rep-pdf-dialog']"));
         Assert.Contains("Reports_PdfSent[ana@example.com]", cut.Find("[data-testid='rep-notice']").TextContent);
     }
@@ -656,6 +656,6 @@ public class ReportsPageTests : ComponentTestBase
 
         cut.WaitForElement("[data-testid='month-notice']");
         Assert.Contains($"month_id={M1}", Assert.Single(Http.Requests, r => r.Method == HttpMethod.Post && r.RequestUri!.AbsolutePath == "/api/reports/transactions/export").RequestUri!.Query);
-        Assert.Equal("http://localhost/api/files/tok-1", Assert.Single(Downloads.Launched).Url);
+        Assert.Equal("http://localhost/api/files/tok-1", Assert.Single(DownloadLauncher.Launched).Url);
     }
 }
