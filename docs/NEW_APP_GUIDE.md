@@ -179,7 +179,7 @@ Don't sign an app you haven't seen working.
    your app's identity; losing it is unrecoverable. Base64 → repo secrets + an offline backup,
    never git (keep the file outside the repo; `.gitignore` covers `*.jks`/`*.keystore`/`*.p12`/`*.pfx` as
    the net under that). Build with `AndroidKeyStore=true` + the signing props, the two passwords as
-   `env:NAME` — never a `-p:` literal (`tools/publish-native.ps1 -KeyStore … -KeyAlias …` does this),
+   `env:NAME` — never a `-p:` literal (`pwsh tools/publish-native.ps1 … -KeyStore … -KeyAlias …` does this),
    `AndroidPackageFormat=aab`, in a **tag-triggered** release workflow (`ubuntu-latest`); assert
    the artifact with `apksigner verify --verbose` (v2/v3 — `jarsigner` passes a v1-only file that Android 11+
    refuses to install). A store-signed build will not install over a debug-signed sideload: testers

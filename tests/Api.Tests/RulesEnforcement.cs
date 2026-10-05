@@ -78,7 +78,7 @@ public static class RulesEnforcement
         new("R136", ["CiShellLogic_PassesItsFixtures", "CiShellLogic_EveryAnchoredBlockIsATarget_WithCases"]),
         new("R137", ["ChangedFileLists_AreByteSafe"]),
         new("R139", ["NativeSmokeProviderProbe_MatchesTheStatusField_InBothSites"]),
-        new("R140", ["PublishScript_ThrowsUnlessTheSignatureIsVerified_AndFindsTheSdkThroughAndroidHome"], Pending: "vuelto#118 (T52: the pwsh harness with fakes)"),
+        new("R140", ["ToolsScripts_RequirePwsh7_AndFailLoud", "PublishNative_ExitsNonZero_UnlessTheApkIsBuiltAndVerified", "PublishScript_ThrowsUnlessTheSignatureIsVerified_AndFindsTheSdkThroughAndroidHome"]),
         new("R143", ["Classifier_FailsOpen_OnEveryOutput"]),
 
         // ── 7. Native ──

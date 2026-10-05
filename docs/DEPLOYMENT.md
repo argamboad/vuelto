@@ -317,7 +317,7 @@ role the app connects as** — Postgres exempts superusers/`BYPASSRLS` roles ent
   owners to policies: **RLS is live on staging with no config change.** Migrations still work
   (owner does DDL).
 - **Prod (two roles — activate with production, `STATUS.md` §5; rehearse on staging first).**
-  One command does steps 1–2 and verifies them: `tools/staging-rls.ps1 -OwnerUrl <neon owner url>
+  One command does steps 1–2 and verifies them: `pwsh tools/staging-rls.ps1 -OwnerUrl <neon owner url>
   -RuntimePassword <new>` provisions the role through the local compose container's `psql`, proves
   it can read but not run DDL, and prints the three values for steps 2–4 (`tools/README.md`
   "two-role RLS posture" has the click-by-click version). By hand:
@@ -533,7 +533,7 @@ custom URL scheme, which the API only honours when `Auth__Native__CallbackScheme
 lowercase app name). Without it, email-code sign-in still works and OAuth is refused on the way back.
 Desktop uses a localhost loopback instead and needs nothing.
 
-**Shortcut:** `tools/publish-native.ps1 -ApiBaseUrl https://vuelto-staging.onrender.com` runs both
+**Shortcut:** `pwsh tools/publish-native.ps1 -ApiBaseUrl https://vuelto-staging.onrender.com` runs both
 publishes and verifies the APK signature (`tools/README.md`).
 
 **iOS / macCatalyst** need a Mac, an Apple developer identity and provisioning — out of scope for this guide.
