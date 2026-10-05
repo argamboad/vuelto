@@ -2922,7 +2922,7 @@ Then A can only ever see A's household, members, and invitations — never B's
 **Walkthrough:** signed out, directly visit `/household`, `/settings`. **Expected:** each redirects to
 `/login`.
 
-### QA-SEC-03 — Session is gone after sign-out 🟠
+### QA-SEC-03 — Session is gone after sign-out 🟠 ⚙️ Automated in CI
 **Gherkin**
 ```gherkin
 Given I sign out
@@ -2931,6 +2931,12 @@ Then I am not able to access it — I am sent to /login
 ```
 **Walkthrough:** sign out, press **Back** to a protected page / reload it. **Expected:** bounced to
 `/login`; no stale authenticated view.
+
+*Automated by `SessionJourneyTests.SignOut_ThenBack_LandsOnLogin_NotTheCachedHousehold`, which runs with the
+browser's back/forward cache on and fails if the page was not actually restored from it. The trade-off,
+by decision: a page restored from that cache is reloaded (`bfcache-guard.js`), so Back after sign-out
+costs a signed-in user one extra page load on any Back that hits the cache, in exchange for never
+showing the previous user's screen on a shared computer.*
 
 ### QA-SEC-04 — Native open-redirect guard 🟢 (Desktop/Android)
 **Context/Expected:** the native OAuth flow only honors loopback `http` callbacks or the configured
