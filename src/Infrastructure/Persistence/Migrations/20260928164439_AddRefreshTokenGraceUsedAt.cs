@@ -21,6 +21,8 @@ namespace Vuelto.Infrastructure.Persistence.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            // Data loss on Down: GraceUsedAt is discarded (one-way). Accepted: the code this rollback returns to has no
+            // one-shot grace, so the stamp has no reader. The token rows themselves survive.
             migrationBuilder.DropColumn(
                 name: "GraceUsedAt",
                 table: "RefreshTokens");

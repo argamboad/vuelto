@@ -27,6 +27,9 @@ namespace Vuelto.Infrastructure.Persistence.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            // Data loss on Down: RotatedAt and ReplacedByTokenId are discarded for every token (one-way). Accepted:
+            // they only drive the reuse grace window, and the code this rollback returns to treats any revoked token
+            // that is presented again as reuse — stricter, never looser. The token rows themselves survive.
             migrationBuilder.DropColumn(
                 name: "ReplacedByTokenId",
                 table: "RefreshTokens");
