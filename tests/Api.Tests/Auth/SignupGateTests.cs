@@ -3,6 +3,8 @@ using Vuelto.Api.Configuration;
 using Vuelto.Api.Services;
 using Vuelto.Api.Tests.Infrastructure;
 using Vuelto.Core.Entities;
+using Vuelto.Core.Repositories;
+using Vuelto.Infrastructure.Repositories;
 
 namespace Vuelto.Api.Tests.Auth;
 
@@ -229,6 +231,146 @@ public class SignupGateTests(PostgresFixture fixture) : PostgresTestBase(fixture
 
         await Assert.ThrowsAsync<SignupNotAllowedException>(() =>
             sut.GetOrCreateByEmailAsync("someone-else@example.com"));
+    }
+
+    // ── Isolation: what the gate must NOT do (v4 audit T25, R151) ────────────
+    // The tests above check outcomes. These pin the properties a refactor could break without changing one:
+    // the gate admits, it never joins; it reads only the households that invited the address; it is not an
+    // account-existence oracle; and its answer is a property of the invitations, not of their order.
+
+    [Fact]
+    public async Task InviteeAdmittedByTheGate_FoundsTheirOwnHousehold_NotTheInviters()
+    {
+        // The invitation lets the account be CREATED. Joining the inviting household is the accept, with its
+        // token — an owner cannot pull an address into their household by inviting it and waiting for a sign-in.
+        var (inviting, _) = await SeedHouseholdAsync(ownerEmail: "friend@example.com");
+        await SeedPendingInviteAsync(inviting, "guest@example.com");
+
+        await using var db = Fixture.CreateContext();
+        var user = await new ServiceHarness(db, signup: ListOf("friend@example.com")).UserService()
+            .GetOrCreateByEmailAsync("guest@example.com");
+
+        await using var read = Fixture.CreateContext();
+        var membership = await read.TenantMemberships.SingleAsync(m => m.UserId == user.Id);
+        Assert.NotEqual(inviting, membership.TenantId);
+        Assert.Equal(TenantRoles.Owner, membership.Role);
+        await using var inTheInvitingHousehold = Fixture.CreateContext(inviting);
+        Assert.Equal(InvitationStatuses.Pending,
+            (await inTheInvitingHousehold.TenantInvitations.SingleAsync(i => i.InvitedEmail == "guest@example.com")).Status); // untouched
+    }
+
+    [Fact]
+    public async Task Gate_ReadsOnlyTheHouseholdsThatInvitedTheAddress()
+    {
+        // A pre-auth, cross-tenant read: prove it narrow with the record, not with the answer. A hostile owner
+        // inviting an address must not make the gate read any household but the ones holding that invitation.
+        var (inviting, _) = await SeedHouseholdAsync(ownerEmail: "friend@example.com");
+        var (unlisted, _) = await SeedHouseholdAsync(ownerEmail: "unlisted@example.com");
+        var (bystander, _) = await SeedHouseholdAsync(ownerEmail: "bystander@example.com");
+        await SeedPendingInviteAsync(unlisted, "guest@example.com");
+        await SeedPendingInviteAsync(inviting, "guest@example.com");
+        await SeedPendingInviteAsync(bystander, "someone-else@example.com");
+
+        await using var db = Fixture.CreateContext();
+        var harness = new ServiceHarness(db, signup: ListOf("friend@example.com"));
+        Assert.True(await harness.SignupGate().IsAllowedAsync("guest@example.com"));
+
+        Assert.NotEmpty(harness.TenantCalls);
+        Assert.All(harness.TenantCalls, c => Assert.Equal(nameof(ITenantRepository.GetMemberDetailsAsync), c.Method));
+        var read = harness.TenantCalls.Select(c => (Guid)c.Args[0]!).ToHashSet();
+        Assert.Subset(new HashSet<Guid> { inviting, unlisted }, read);
+        Assert.DoesNotContain(bystander, read);
+    }
+
+    [Fact]
+    public async Task Gate_IsNeverConsulted_ForAnExistingAccount_AndOnceForANewOne()
+    {
+        // Were the gate asked about existing accounts, its refusal would tell a stranger which addresses have
+        // one. The choke point checks for the account FIRST; the record shows the gate was not called.
+        await using (var seed = Fixture.CreateContext())
+            await new ServiceHarness(seed).UserService().GetOrCreateByEmailAsync("early@example.com");
+
+        await using var db = Fixture.CreateContext();
+        var harness = new ServiceHarness(db, signup: ListOf("friend@example.com"));
+        var users = harness.UserService();
+
+        await users.GetOrCreateByEmailAsync("early@example.com");
+        Assert.Empty(harness.SignupGateCalls);
+
+        await users.GetOrCreateByEmailAsync("friend@example.com");
+        Assert.Single(harness.SignupGateCalls);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Gate_AnswerDoesNotDependOnInvitationOrder(bool listedOwnerInvitesFirst)
+    {
+        var (listed, _) = await SeedHouseholdAsync(ownerEmail: "friend@example.com");
+        var (unlisted, _) = await SeedHouseholdAsync(ownerEmail: "unlisted@example.com");
+        foreach (var tenant in listedOwnerInvitesFirst ? new[] { listed, unlisted } : [unlisted, listed])
+            await SeedPendingInviteAsync(tenant, "guest@example.com");
+
+        await using var db = Fixture.CreateContext();
+        Assert.True(await new ServiceHarness(db, signup: ListOf("friend@example.com")).SignupGate().IsAllowedAsync("guest@example.com"));
+    }
+
+    [Fact]
+    public async Task Refusal_NamesNoHousehold()
+    {
+        // The refusal reaches the person refused. It may say their address is not admitted; it must not say
+        // who invited them or which household's owner fell short of the list.
+        var (unlisted, _) = await SeedHouseholdAsync(ownerEmail: "unlisted@example.com");
+        await SeedPendingInviteAsync(unlisted, "guest@example.com");
+
+        await using var db = Fixture.CreateContext();
+        var refusal = await Assert.ThrowsAsync<SignupNotAllowedException>(() =>
+            new ServiceHarness(db, signup: ListOf("friend@example.com")).UserService().GetOrCreateByEmailAsync("guest@example.com"));
+
+        Assert.DoesNotContain("unlisted@example.com", refusal.Message);
+        Assert.DoesNotContain(unlisted.ToString(), refusal.Message);
+        Assert.DoesNotContain("Household", refusal.Message); // the seeded tenant's name
+    }
+
+    [Fact]
+    public async Task GetValidByEmailAcrossTenantsAsync_SeesOtherTenantsInvitations_OnlyBecauseOfItsTag()
+    {
+        // The gate's read crosses tenants on purpose and is sanctioned per query by its RLS tag (ADR-020). Under
+        // some other ambient tenant the tagged read still finds the invitation; the same read without the tag
+        // finds nothing — so dropping the tag would silently refuse every invitee rather than leak.
+        var owners = new Queue<string>(["elsewhere@example.com", "friend@example.com"]);
+        var pair = await TwoTenants.SeedAsync(() => SeedHouseholdAsync(owners.Dequeue()), household => household.TenantId);
+        var (ambient, inviting) = (pair.Mine, pair.Other);
+        await SeedPendingInviteAsync(inviting, "guest@example.com");
+
+        // Connected as the runtime role, which is subject to RLS (the fixture's own role is exempt).
+        await using (var provision = Fixture.CreateTestContext())
+            await Rls.RlsTestSetup.ProvisionAsync(provision);
+        var options = new DbContextOptionsBuilder<TestAppDbContext>()
+            .UseNpgsql(Rls.RlsTestSetup.RuntimeConnectionString(Fixture.ConnectionString)).Options;
+        await using var db = new TestAppDbContext(options, new TestCurrentTenant { TenantId = ambient });
+        var tagged = await new TenantInvitationRepository(db).GetValidByEmailAcrossTenantsAsync("guest@example.com", DateTimeOffset.UtcNow);
+        Assert.Equal(inviting, Assert.Single(tagged).TenantId);
+
+        var untagged = await db.TenantInvitations.IgnoreQueryFilters().Where(i => i.InvitedEmail == "guest@example.com").ToListAsync();
+        Assert.Empty(untagged);
+    }
+
+    [Fact]
+    public async Task InvitationWriter_AndGate_NormaliseTheAddressTheSameWay()
+    {
+        // The writer stores the invited address normalised and the gate looks it up normalised. If either side
+        // changed its rule alone, an invitation typed in one casing would stop admitting the same person.
+        var (inviting, owner) = await SeedHouseholdAsync(ownerEmail: "friend@example.com");
+        await using (var write = Fixture.CreateContext(inviting))
+        {
+            var created = await new ServiceHarness(write, currentTenant: new TestCurrentTenant { TenantId = inviting })
+                .InvitationService().CreateAsync(inviting, owner, "Guest.Person@Example.COM");
+            Assert.NotNull(created.Invitation);
+        }
+
+        await using var db = Fixture.CreateContext();
+        Assert.True(await new ServiceHarness(db, signup: ListOf("friend@example.com")).SignupGate().IsAllowedAsync("  guest.PERSON@example.com "));
     }
 
     // ── Seeding ──────────────────────────────────────────────────────────────

@@ -47,7 +47,7 @@ public static class RulesEnforcement
         new("R145", ["EveryTenantOwnedEntity_IsWiredIntoTenantDissolution", "EveryNullableTenantIdEntity_ShipsItsLifecycleSpec", "OutboxTenancyTests"]),
         new("R146", ["EveryCrossTenantTest_SeedsARealSecondTenant", "TheScan_CatchesARandomIdArrange"]),
         new("R150", ["Migrations_Down_OnSeededRows_EveryDownRunsAgainstData_AndSurvivingTablesKeepTheirRows", "ColumnDroppingDowns_StateTheirDataLoss"]),
-        new("R151", [], Pending: "vuelto#93 (T25: recording doubles for the pre-auth cross-tenant reads)"),
+        new("R151", ["Gate_ReadsOnlyTheHouseholdsThatInvitedTheAddress", "Gate_IsNeverConsulted_ForAnExistingAccount_AndOnceForANewOne", "EveryCrossTenantTagSite_IsPairedWithATestNamingIt"]),
 
         // ── 4. Admin / config gates / billing ──
         new("R86", ["GateOff_NothingUnderTheGatedPrefixes_IsMapped", "GateOff_AdminComp_Returns404_BeforeTheStaffCheck"]),

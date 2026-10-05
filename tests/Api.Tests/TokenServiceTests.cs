@@ -427,6 +427,24 @@ public class RefreshTokenServiceTests(PostgresFixture fixture) : PostgresTestBas
     }
 
     [Fact]
+    public async Task Inspect_RotatedTokenWithinGrace_ButSuccessorRowGone_IsReuse()
+    {
+        // v4 audit T25: the cleanup job deletes dead tokens. A rotated token whose successor row no longer
+        // exists cannot prove a live session behind it — it is reuse, never a crash and never a renewal.
+        await using var db = Fixture.CreateContext();
+        var clock = new FakeTimeProvider(GraceEpoch);
+        var sut = new ServiceHarness(db, clock).RefreshTokenService(reuseGraceSeconds: 60);
+
+        var (old, successor) = await RotateAsync(sut, Guid.CreateVersion7());
+        await using (var cleanup = Fixture.CreateContext())
+            Assert.Equal(1, await cleanup.Set<Vuelto.Core.Entities.RefreshToken>().Where(t => t.Id == successor.Token.Id).ExecuteDeleteAsync());
+        clock.Advance(TimeSpan.FromSeconds(5));
+
+        var inspection = await sut.InspectRefreshTokenAsync(old.RawToken);
+        Assert.Equal(RefreshTokenStatus.Reuse, inspection.Status);
+    }
+
+    [Fact]
     public async Task Inspect_RotatedTokenWithinGrace_ButSuccessorExpired_IsReuse()
     {
         await using var db = Fixture.CreateContext();

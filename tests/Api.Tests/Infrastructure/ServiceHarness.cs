@@ -28,7 +28,12 @@ public sealed class ServiceHarness(AppDbContext db, TimeProvider? clock = null, 
     public IUserRepository Users { get; } = new UserRepository(db);
     public ILoginTokenRepository LoginTokens { get; } = new LoginTokenRepository(db, clock ?? TimeProvider.System);
     public IRefreshTokenRepository RefreshTokens { get; } = new RefreshTokenRepository(db, clock ?? TimeProvider.System);
-    public ITenantRepository Tenants { get; } = new TenantRepository(db);
+    /// <summary>Every call made to <see cref="Tenants"/> through this harness (R151): which tenants a code path read.</summary>
+    public List<RecordedCall> TenantCalls { get; } = [];
+    /// <summary>Every call made to a gate from <see cref="SignupGate"/> (R151): whether the gate was consulted at all.</summary>
+    public List<RecordedCall> SignupGateCalls { get; } = [];
+    private ITenantRepository? _tenants;
+    public ITenantRepository Tenants => _tenants ??= Recording<ITenantRepository>.Wrap(new TenantRepository(Db), TenantCalls);
     public ITenantInvitationRepository Invitations { get; } = new TenantInvitationRepository(db);
     public IRepository<Subscription> Subscriptions { get; } = new EfRepository<Subscription>(db);
     public IRepository<UsageCounter> UsageCounters { get; } = new EfRepository<UsageCounter>(db);
@@ -42,7 +47,7 @@ public sealed class ServiceHarness(AppDbContext db, TimeProvider? clock = null, 
     public SignupSettings Signup { get; } = signup ?? new SignupSettings();
 
     public ISignupGate SignupGate() =>
-        new SignupGate(Signup, Invitations, Tenants, Clock, NullLogger<SignupGate>.Instance);
+        Recording<ISignupGate>.Wrap(new SignupGate(Signup, Invitations, Tenants, Clock, NullLogger<SignupGate>.Instance), SignupGateCalls);
 
     public UserService UserService() =>
         new(Users, Tenants, UnitOfWork, SignupGate(), Clock, NullLogger<UserService>.Instance);
