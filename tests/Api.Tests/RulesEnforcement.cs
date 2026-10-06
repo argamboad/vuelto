@@ -96,7 +96,7 @@ public static class RulesEnforcement
         new("R144", ["ClientRefreshTimeoutPlusRetry_FitsInsideTheServersReuseGrace", "PrTemplate_CarriesTheRuleCheckboxes"]),
         new("R147", ["GateLane_RunsEveryDeploymentGate_AgainstTheShippedDefault"]),
         new("R148", ["RclComponents_ScheduleOnTheInjectedClock", "Bell_Poll_RefetchesOnTheClock_KeepsTheLastCountOnAnError_StopsWhenSignedOut_AndResumes"]),
-        new("R149", [], Pending: "vuelto#125 (T59: the test-id contract — this repo's components take their id as a parameter; needs a decision and a sweep)"),
+        new("R149", [], Pending: "perezosoft-platform#371 (Arch A12: R149 amended so a reusable component may take its test id as a parameter and callers pass a literal; the sweep follows the amendment — vuelto#125 closed into it)"),
         new("R155", ["RouteTableGuardTests"]),
         new("R157", ["SliceReferenceInspectorTests", "RoutePrefixInspectorTests"]),
 
