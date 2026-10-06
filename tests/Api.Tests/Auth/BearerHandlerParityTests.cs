@@ -33,7 +33,7 @@ public class BearerHandlerParityTests
         var allow = new Dictionary<string, string>
         {
             ["BearerRetry.cs"] = "the shared core: attach, renew once, resend",
-            ["AuthService.cs"] = "the staff probe on the handler-less ApiAuth client: a relative API path, the in-memory token, no third party",
+            ["AuthProbes.cs"] = "the staff probe on the handler-less ApiAuth client: a relative API path, the in-memory token, no third party (moved out of AuthService by v4 T57)",
         };
         var roots = new[] { "Shared.Ui", "Web", "Maui" }.Select(d => Path.Combine(RepoRoot(), "src", d));
         var offenders = roots.SelectMany(r => Directory.EnumerateFiles(r, "*.cs", SearchOption.AllDirectories)
