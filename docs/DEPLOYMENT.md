@@ -244,6 +244,11 @@ run an automated post-deploy smoke, wire the pipeline in `.github/workflows/ci.y
 
    Prod then runs the **same** version-gated smoke as staging (they share
    `.github/scripts/deploy-smoke.sh`, so the two cannot drift).
+
+   **Rolling back.** A *Run workflow* can only deploy the **tip** of the branch you pick — there is no "deploy
+   this older commit". Two ways back (v4 audit DEP-16): `git revert` the offending merge on `develop` (or
+   `main`) and run the deploy again, which keeps the smoke in the loop; or, faster and smoke-less, Render →
+   the service → *Events* → **Redeploy** on the previous build, then check `/api/version` yourself.
 5. **Postman workspace mirror** (optional, same graceful-skip pattern): secret **`POSTMAN_API_KEY`**
    (Postman → Settings → API keys) + variable **`POSTMAN_WORKSPACE_ID`** let the `postman-sync`
    workflow push `docs/postman/**` to the Postman workspace whenever GitHub's `develop` moves, i.e. on
