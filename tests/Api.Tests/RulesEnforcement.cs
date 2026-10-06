@@ -44,10 +44,10 @@ public static class RulesEnforcement
         new("R90", ["OutboxRetentionTests"]),
         new("R91", ["OutboxTenancyTests"]),
         new("R129", ["EnterTenant_WithARequestSuppliedTenantId_ChecksTheTenantExists", "Webhook_ForUnknownTenant_IsIgnored_ClaimedButNothingWritten"]),
-        new("R145", ["EveryTenantOwnedEntity_IsWiredIntoTenantDissolution", "OutboxTenancyTests"], Pending: "vuelto#95 (T27: the canary over nullable-TenantId tables)"),
+        new("R145", ["EveryTenantOwnedEntity_IsWiredIntoTenantDissolution", "EveryNullableTenantIdEntity_ShipsItsLifecycleSpec", "OutboxTenancyTests"]),
         new("R146", ["EveryCrossTenantTest_SeedsARealSecondTenant", "TheScan_CatchesARandomIdArrange"]),
-        new("R150", [], Pending: "vuelto#94 (T26: the migration Down-on-data walk)"),
-        new("R151", [], Pending: "vuelto#93 (T25: recording doubles for the pre-auth cross-tenant reads)"),
+        new("R150", ["Migrations_Down_OnSeededRows_EveryDownRunsAgainstData_AndSurvivingTablesKeepTheirRows", "ColumnDroppingDowns_StateTheirDataLoss"]),
+        new("R151", ["Gate_ReadsOnlyTheHouseholdsThatInvitedTheAddress", "Gate_IsNeverConsulted_ForAnExistingAccount_AndOnceForANewOne", "EveryCrossTenantTagSite_IsPairedWithATestNamingIt"]),
 
         // ── 4. Admin / config gates / billing ──
         new("R86", ["GateOff_NothingUnderTheGatedPrefixes_IsMapped", "GateOff_AdminComp_Returns404_BeforeTheStaffCheck"]),
@@ -58,7 +58,7 @@ public static class RulesEnforcement
         new("R133", ["LapseSweep_NotificationAndStamp_AreOneTransaction", "JobTests_UseTheRealOutboxEmailSender"]),
         new("R134", ["PeriodKey_IsTheInvariantCalendar_WhateverTheRequestCultureIs", "ServerCode_FormatsYearsWithTheInvariantCulture"]),
         new("R153", ["EverySectionBoundSettingsClass_DeclaresItsSectionName", "ReadKeysIn_SeesEveryReadShape"]),
-        new("R154", [], Pending: "vuelto#125 (T59: the per-gate harness seam and all-gates-on Postman parity)"),
+        new("R154", ["EveryMappedApiEndpoint_WithEveryGateOn_IsDocumentedInThePostmanCollection", "Tests_DoNotSwitchTheEnvironment_FromAModuleInitializer"]),
 
         // ── 5. Jobs / email / webhooks / observability ──
         new("R89", ["Handler_RecordsAnEnumeratedReason_NeverTheExceptionText", "NoErrorColumn_IsAssignedFromAnExceptionMessage"]),
@@ -74,29 +74,29 @@ public static class RulesEnforcement
         // ── 6. Deploy / CI / supply-chain ──
         new("R97", ["EveryRepoFileTheTestsRead_ClassifiesAsCode", "Classifier_CountsEveryFileAGateReads_AsCode"]),
         new("R98", ["EveryCheckout_LeavesNoTokenBehind"]),
-        new("R99", ["EveryContainerImage_IsPinned_NotFloating"], Pending: "vuelto#88 (T16: widen to workflow services:/docker run and Dockerfile FROM)"),
+        new("R99", ["EveryContainerImage_IsPinned_NotFloating", "ImagePinGate_SeesAllFourSurfaces_AndRefusesABareMajor"]),
         new("R136", ["CiShellLogic_PassesItsFixtures", "CiShellLogic_EveryAnchoredBlockIsATarget_WithCases"]),
         new("R137", ["ChangedFileLists_AreByteSafe"]),
         new("R139", ["NativeSmokeProviderProbe_MatchesTheStatusField_InBothSites"]),
-        new("R140", ["PublishScript_ThrowsUnlessTheSignatureIsVerified_AndFindsTheSdkThroughAndroidHome"], Pending: "vuelto#118 (T52: the pwsh harness with fakes)"),
+        new("R140", ["ToolsScripts_RequirePwsh7_AndFailLoud", "PublishNative_ExitsNonZero_UnlessTheApkIsBuiltAndVerified", "PublishScript_ThrowsUnlessTheSignatureIsVerified_AndFindsTheSdkThroughAndroidHome"]),
         new("R143", ["Classifier_FailsOpen_OnEveryOutput"]),
 
         // ── 7. Native ──
         new("R102", ["BearerScopedHandlerTests", "OnlyTheSharedRetry_BuildsABearerHeader"]),
         new("R103", ["ReleaseLeg_BuildsRelease_VerifiesV2OrV3_AndProvesTheGuardFires", "PublishScript_ThrowsUnlessTheSignatureIsVerified_AndFindsTheSdkThroughAndroidHome", "ci:apksigner verify — v2 or v3, the schemes Android 11+ installs"]),
-        new("R104", [], Pending: "vuelto#117 (T51: signing-material gitignore + doc-grep gates)"),
-        new("R105", [], Pending: "vuelto#117 (T51: NativeShellGateTests — allowBackup is still true)"),
+        new("R104", ["Gitignore_CoversSigningMaterial", "DocsScriptsAndWorkflows_NeverPassASigningPasswordAsALiteral", "PublishScript_SignsWithAStoreKey_WhosePasswordsComeFromTheEnvironment"]),
+        new("R105", ["AndroidManifest_KeepsAppDataOnTheDevice_AndIsNeitherDebuggableNorCleartext", "NetworkSecurityConfig_PermitsCleartextOnlyToTheDevLoopback"]),
         new("R106", ["NativeClassifier_CoversEveryNativeInput"]),
         new("R141", ["ReleaseGuards_RefuseBadInputs_AndPassGoodOnes", "ReleaseGuards_LiveInOneFile_UnderOneCondition"]),
-        new("R142", [], Pending: "vuelto#119 (T53: node --test stubs for the wwwroot/js bootstraps)"),
+        new("R142", ["EveryJsBootstrap_HasANodeTest", "JsLogic_NodeTestsPass"]),
 
         // ── 8. Client / test-completeness / harness ──
         new("R109", ["E2eNavigations_GoThroughBlazorBoot", "BootRetryBudget_IsOneNumber_InTheSuiteAndTheSlowestJourneysStep", "BlazorBootTests"]),
         new("R113", ["E2eShardsTests"]),
         new("R144", ["ClientRefreshTimeoutPlusRetry_FitsInsideTheServersReuseGrace", "PrTemplate_CarriesTheRuleCheckboxes"]),
-        new("R147", [], Pending: "vuelto#114 (T48: the gate-off E2E lane in both copies)"),
-        new("R148", [], Pending: "vuelto#123 (T57: the RCL clock gate)"),
-        new("R149", [], Pending: "vuelto#125 (T59: the test-id contract)"),
+        new("R147", ["GateLane_RunsEveryDeploymentGate_AgainstTheShippedDefault"]),
+        new("R148", ["RclComponents_ScheduleOnTheInjectedClock", "Bell_Poll_RefetchesOnTheClock_KeepsTheLastCountOnAnError_StopsWhenSignedOut_AndResumes"]),
+        new("R149", [], Pending: "vuelto#125 (T59: the test-id contract — this repo's components take their id as a parameter; needs a decision and a sweep)"),
         new("R155", ["RouteTableGuardTests"]),
         new("R157", ["SliceReferenceInspectorTests", "RoutePrefixInspectorTests"]),
 

@@ -244,6 +244,11 @@ run an automated post-deploy smoke, wire the pipeline in `.github/workflows/ci.y
 
    Prod then runs the **same** version-gated smoke as staging (they share
    `.github/scripts/deploy-smoke.sh`, so the two cannot drift).
+
+   **Rolling back.** A *Run workflow* can only deploy the **tip** of the branch you pick — there is no "deploy
+   this older commit". Two ways back (v4 audit DEP-16): `git revert` the offending merge on `develop` (or
+   `main`) and run the deploy again, which keeps the smoke in the loop; or, faster and smoke-less, Render →
+   the service → *Events* → **Redeploy** on the previous build, then check `/api/version` yourself.
 5. **Postman workspace mirror** (optional, same graceful-skip pattern): secret **`POSTMAN_API_KEY`**
    (Postman → Settings → API keys) + variable **`POSTMAN_WORKSPACE_ID`** let the `postman-sync`
    workflow push `docs/postman/**` to the Postman workspace whenever GitHub's `develop` moves, i.e. on
@@ -317,7 +322,7 @@ role the app connects as** — Postgres exempts superusers/`BYPASSRLS` roles ent
   owners to policies: **RLS is live on staging with no config change.** Migrations still work
   (owner does DDL).
 - **Prod (two roles — activate with production, `STATUS.md` §5; rehearse on staging first).**
-  One command does steps 1–2 and verifies them: `tools/staging-rls.ps1 -OwnerUrl <neon owner url>
+  One command does steps 1–2 and verifies them: `pwsh tools/staging-rls.ps1 -OwnerUrl <neon owner url>
   -RuntimePassword <new>` provisions the role through the local compose container's `psql`, proves
   it can read but not run DDL, and prints the three values for steps 2–4 (`tools/README.md`
   "two-role RLS posture" has the click-by-click version). By hand:
@@ -472,7 +477,7 @@ workloads, and the `native-release-android` CI leg (a device leg: Run workflow �
 publishes a Release APK with a throwaway store key, verifies v2/v3 the way a phone will, and proves a
 Release build without `ApiBaseUrl` fails.
 
-**The three ways a sideload fails without telling you:**
+**The four ways a sideload fails without telling you:**
 
 1. **The wrong file.** A publish leaves *two* APKs in `out/android`: `<ApplicationId>.apk` is **unsigned**
    (no `META-INF/MANIFEST.MF`) and Android drops it on the floor. Only `<ApplicationId>-Signed.apk`
@@ -482,6 +487,12 @@ Release build without `ApiBaseUrl` fails.
    the same key the IDE's debug installs use, so a sideload upgrades over one.
 3. **The app is running.** Android will not replace a package that is in the foreground. Close it on the
    phone first.
+4. **A different signing key** (the reverse-upgrade trap). Android only upgrades an app in place when the
+   new build carries the **same** key as the installed one. A store-signed build will not install over a
+   debug-signed sideload, nor a sideload over a store install: uninstall the old one first. What is lost
+   with it is only what lives on the device (the sign-in, the language and theme choice) — the account
+   and its data are on the server, and since v4 T51 nothing is backed up off the device to restore
+   (`allowBackup="false"` + data-extraction rules; `NativeShellGateTests`).
 
 **Raw commands** (the fallback, when you cannot run the script):
 
@@ -499,8 +510,15 @@ Then verify by hand before sending `out/android/<ApplicationId>-Signed.apk`:
 
 `apksigner.bat` reads `JAVA_HOME` and dies when it points at a JDK you have since uninstalled — a common
 state after a JDK update, and the reason the check gets skipped. The script drops a stale value and finds a
-JDK itself. For a store build pass the real keystore instead: `-p:AndroidSigningKeyStore=… `
-`-p:AndroidSigningKeyAlias=… -p:AndroidSigningKeyPass=… -p:AndroidSigningStorePass=…`. Do **not** pass
+JDK itself. For a store build use the real keystore instead — `pwsh tools/publish-native.ps1 … -KeyStore
+<path outside the repo> -KeyAlias <alias>` with the two passwords in `ANDROID_SIGNING_STORE_PASS` and
+`ANDROID_SIGNING_KEY_PASS`; by hand that is `-p:AndroidKeyStore=true -p:AndroidSigningKeyStore=…
+-p:AndroidSigningKeyAlias=… -p:AndroidSigningStorePass=env:ANDROID_SIGNING_STORE_PASS
+-p:AndroidSigningKeyPass=env:ANDROID_SIGNING_KEY_PASS`. The `env:` prefix is read by the Android SDK's
+signing task, so the command line names the variable and never holds the password (a literal would sit in
+the shell history, the process list and any binlog — `NativeShellGateTests` refuses one in docs, scripts
+and workflows). Keep the keystore outside the repo; `.gitignore` covers `*.jks`, `*.keystore`, `*.p12`
+and `*.pfx` as the net under that. Do **not** pass
 `-p:RuntimeIdentifier` for the Android or Windows publish (it drags the android inner build into a Mono
 runtime-pack lookup — NU1102).
 
@@ -520,7 +538,7 @@ custom URL scheme, which the API only honours when `Auth__Native__CallbackScheme
 lowercase app name). Without it, email-code sign-in still works and OAuth is refused on the way back.
 Desktop uses a localhost loopback instead and needs nothing.
 
-**Shortcut:** `tools/publish-native.ps1 -ApiBaseUrl https://vuelto-staging.onrender.com` runs both
+**Shortcut:** `pwsh tools/publish-native.ps1 -ApiBaseUrl https://vuelto-staging.onrender.com` runs both
 publishes and verifies the APK signature (`tools/README.md`).
 
 **iOS / macCatalyst** need a Mac, an Apple developer identity and provisioning — out of scope for this guide.

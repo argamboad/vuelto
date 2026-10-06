@@ -219,6 +219,15 @@ two `RefreshTokenServiceTests.Rotation_*` races driven through the fault seam's 
 second of which is red with the conditional update alone and green only with the lock.
 Evidence: `RefreshReplayTests.Logout_With*`.
 
+**2026-10-03 addendum to ADR-002 (v4 audit T58, UX-10) — a page restored from the back/forward cache is reloaded.**
+After sign-out the browser's Back button can restore the last signed-in render from its back/forward
+cache: inert (the refresh 401s) but readable. `bfcache-guard.js` reloads on `pageshow` with `persisted`,
+which re-runs auth and sends a signed-out visitor to `/login`. **Kept, knowingly:** the cost is one extra
+page load whenever a signed-in user's Back hits that cache; opting the pages out with `Cache-Control:
+no-store` would cost the same and more. Held by a browser journey that runs with the cache on
+(`SessionJourneyTests.SignOut_ThenBack_LandsOnLogin_NotTheCachedHousehold`) and a unit test of the script
+(`tests/js-logic/bfcache-guard.test.js`).
+
 *Addendum (2026-09-22) — the client keeps an open session alive, and only the server ends it.* **Evidence:**
 downstream (`y-el-vuelto`) the owner still had to sign in every day, on web and on Android, after the reuse
 grace window above. The 30-day refresh token was never the problem: the client only spent it once, at

@@ -2,7 +2,7 @@ name: vuelto
 
 services:
   db:
-    image: postgres:17
+    image: postgres:17.11
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${DB_NAME:-dev_db}

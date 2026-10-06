@@ -8,6 +8,7 @@
 @inject HttpClient Http
 @inject NavigationManager Nav
 @inject AppResumeNotifier Resume
+@inject TimeProvider Time
 @inject IStringLocalizer<AppStrings> Localizer
 
 <PageTitle>@Localizer["Billing_Title"]</PageTitle>
@@ -133,7 +134,9 @@
         // GATES-1 (ADR-027): with billing off the API has no /api/billing routes, so this page could only
         // ever render errors. Leave before it renders anything — the link is hidden too, so arriving here
         // means a bookmark or a typed URL.
-        if (!await Auth.IsBillingEnabledAsync())
+        // Only a definite "off" leaves: a probe that FAILED (null) is not a decision, and bouncing a paying
+        // owner home because the server was waking up reads as the page being gone (v4 audit UX-13).
+        if (await Auth.ProbeBillingAsync() == false)
         {
             Nav.NavigateTo("/");
             return;
@@ -158,7 +161,7 @@
     {
         for (var attempt = 0; attempt < 2 && !_disposed && _summary?.PlanKey == FreePlanKey; attempt++)
         {
-            await Task.Delay(RefreshDelayMs);
+            await Task.Delay(TimeSpan.FromMilliseconds(RefreshDelayMs), Time); // the injected clock (R148)
             if (_disposed) return;
             try { await InvokeAsync(async () => { await LoadAsync(quiet: true); StateHasChanged(); }); }
             catch (ObjectDisposedException) { return; }

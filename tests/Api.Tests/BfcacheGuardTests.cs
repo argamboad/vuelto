@@ -13,8 +13,12 @@ public class BfcacheGuardTests
     private const string ScriptRef = "_content/Vuelto.Shared.Ui/js/bfcache-guard.js";
 
     [Fact]
-    public void BfcacheGuard_ReloadsPersistedPageshowRestores()
+    public void BfcacheGuard_ScriptNamesItsThreeParts_PresenceOnly()
     {
+        // A presence check, named as one (R110): these three strings survive an inverted condition. The
+        // behaviour is tested twice over — tests/js-logic/bfcache-guard.test.js runs the script against a
+        // stub page, and SessionJourneyTests.SignOut_ThenBack_… presses Back in a real browser with the
+        // back/forward cache on.
         var js = File.ReadAllText(Path.Combine(RepoRoot(), "src", "Shared.Ui", "wwwroot", "js", "bfcache-guard.js"));
         Assert.Contains("pageshow", js);
         Assert.Contains(".persisted", js);

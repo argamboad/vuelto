@@ -9,6 +9,7 @@ smoke path that doesn't need an external OAuth provider.
 ```sh
 pwsh tools/e2e.ps1                                   # the whole suite
 pwsh tools/e2e.ps1 -Filter "FullyQualifiedName~Billing"   # a slice
+pwsh tools/e2e.ps1 -Gates                            # the gates-off lane: billing off + a one-domain green list, GateJourneyTests only
 ```
 
 `tools/e2e.ps1` starts this repo's `db` + `mail` containers, builds, installs Chromium, then runs the API and the web

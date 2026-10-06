@@ -27,15 +27,22 @@
 .PARAMETER KeepRunning
   Leave the API and web app running after the tests (stop them with Ctrl+C or by closing the window).
 
+.PARAMETER Gates
+  The gates-off lane (v4 audit T48, R147): the API starts with the SHIPPED default instead - billing off and a
+  signup green list holding one domain (listed.example.com) - and only the journeys tagged Gate run. Without the
+  switch those journeys are left out, as in CI's default lane. -Filter still narrows within the lane.
+
 .EXAMPLE
   pwsh tools/e2e.ps1
   pwsh tools/e2e.ps1 -Filter "FullyQualifiedName~SignIn"
+  pwsh tools/e2e.ps1 -Gates
 #>
 [CmdletBinding()]
 param(
     [string]$Filter,
     [switch]$NoBuild,
-    [switch]$KeepRunning
+    [switch]$KeepRunning,
+    [switch]$Gates
 )
 
 $ErrorActionPreference = 'Stop'
@@ -114,8 +121,17 @@ $overrides = @(
     '--Auth:RateLimit:PasswordlessPermitLimit=1000',   # the journeys sign in many users from one IP
     '--Auth:RateLimit:RefreshPermitLimit=1000',        # and refresh from it too
     '--Admin:StaffEmails:0=e2e-staff@example.com',     # AnnouncementJourneyTests.StaffEmail
-    '--Billing:Enabled=true', '--Billing:Stripe:SecretKey='   # the fake provider's deterministic checkout
+    '--Billing:Stripe:SecretKey='                              # the fake provider's deterministic checkout
 )
+if ($Gates) {
+    # The shipped default (QA-GATE-01..05): no billing surface, and only a listed address may found a household.
+    # Billing is switched off outright, not left alone: CI's lane leaves it unset, but a developer's .env may say
+    # true, and this run must not inherit that. GateJourneyTests.ListedDomain is the same literal as the domain
+    # here; EnforcementGateTests holds the two together.
+    $overrides += @('--Billing:Enabled=false', '--Signup:AllowedDomains:0=listed.example.com')
+} else {
+    $overrides += '--Billing:Enabled=true'
+}
 $started = @()
 function Start-App([string]$project, [string[]]$extra) {
     $name = Split-Path $project -Leaf
@@ -153,7 +169,9 @@ try {
     $env:MAILPIT_BASE_URL = $mailUi
     $env:E2E_API_BASE_URL = $api
     $testArgs = @('test', 'tests/E2E.Tests', '--no-build', '--nologo')
-    if ($Filter) { $testArgs += @('--filter', $Filter) }
+    # The gate journeys need the gates-off API: in by -Gates, out otherwise (CI's two lanes do the same).
+    $lane = if ($Gates) { 'TestCategory=Gate' } else { 'TestCategory!=Gate' }
+    $testArgs += @('--filter', $(if ($Filter) { "($Filter)&$lane" } else { $lane }))
     dotnet @testArgs
     $exit = $LASTEXITCODE
 

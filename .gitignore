@@ -39,3 +39,10 @@ out/
 
 # VS Code: launch.json + tasks.json are shared (F5 API + Web, Android tasks); per-user preferences stay local
 .vscode/settings.json
+
+# Signing material (v4 audit NAT-15, R104): a keystore or certificate IS the app's identity. Keep it
+# outside the repo; these patterns are the net under that habit.
+*.jks
+*.keystore
+*.p12
+*.pfx

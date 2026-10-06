@@ -37,6 +37,9 @@ namespace Vuelto.Infrastructure.Persistence.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            // Data loss on Down: the buy/sell pair and its date staged with each pending voucher are discarded (one-way).
+            // Accepted: the code this rollback returns to books a confirmed voucher at the rate of the day it is
+            // confirmed, which is what a null staged rate means today. The drafts themselves survive.
             migrationBuilder.DropColumn(
                 name: "StagedRateAsOf",
                 table: "PendingVouchers");

@@ -1,3 +1,4 @@
+﻿#Requires -Version 7.0
 <#
 .SYNOPSIS
   One-command setup of the two-role RLS posture on a Neon (or any Postgres) database — runbook §7.

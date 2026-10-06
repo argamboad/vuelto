@@ -11,6 +11,14 @@
 > pass. Platforms: **Android**, **Windows**; iOS/macCatalyst compile in CI (NATIVE-1) but have never
 > been run — every cell is implicitly 🔍 there until NATIVE-6 gets Apple hardware.
 
+> **2026-10-03 — what shipped since this audit and was not written here (v4 audit T53).** The Android
+> status bar follows the page's theme (`ISystemBarTheme` + `SystemBarThemeSync`, fed by `theme.js`'s watcher);
+> the bfcache guard (`bfcache-guard.js`) is loaded by both hosts and is a no-op in the WebView; a Release APK is
+> signed through `apksigner` (v2+v3) behind `ReleaseGuards.targets`, and app data is no longer backed up off
+> the device. `theme.js` now defines `window.appTheme` before it registers any listener and falls back to
+> `addListener`, so an old WebView without `MediaQueryList.addEventListener` still applies the saved theme;
+> `unwatch` clears only the watcher that asks. `tests/js-logic/` runs the three bootstraps with `node --test`.
+
 ## 1. Cross-cutting concerns
 
 | Concern | Verdict | Evidence / note |

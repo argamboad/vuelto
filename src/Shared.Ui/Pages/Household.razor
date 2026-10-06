@@ -255,7 +255,8 @@
     private string? _exportUrl;
     // GATES-1 (ADR-027): chooses between the seat-limit copy that offers an upgrade and the one that
     // just says the household is full. A deployment with billing off has no plan to sell.
-    private bool _billingEnabled;
+    // Null = the probe could not tell (it failed); asked again at the moment the copy is needed.
+    private bool? _billingEnabled;
 
     // Client-side mirror of the RolePermissions matrix (ADR-009). The API is the real gate; this just
     // shows/hides controls so the UI matches what the caller can actually do.
@@ -275,7 +276,7 @@
             return;
         }
         _myUserId = Auth.UserId ?? Guid.Empty;
-        _billingEnabled = await Auth.IsBillingEnabledAsync();
+        _billingEnabled = await Auth.ProbeBillingAsync();
         await Reload();
     }
 
@@ -347,7 +348,11 @@
                 // Seat quota reached (BILLING-5) — prompt to upgrade rather than a generic error, EXCEPT
                 // when billing is off (GATES-1, ADR-027): there is no plan to buy, so pointing at one
                 // sends the owner to a page that does not exist.
-                SetStatus(Localizer[_billingEnabled ? "Household_ErrSeatLimit" : "Household_ErrSeatLimitNoBilling"], false);
+                // A probe that failed at load is asked again now (v4 audit BILL-7): a stale "off" would tell the
+                // owner of a billing-on deployment that there is no plan to buy. Still unknown: say it is full,
+                // which is true either way, and offer nothing.
+                _billingEnabled ??= await Auth.ProbeBillingAsync();
+                SetStatus(Localizer[_billingEnabled == true ? "Household_ErrSeatLimit" : "Household_ErrSeatLimitNoBilling"], false);
             }
             else { SetStatus(Localizer["Household_ErrSendInvite"], false); }
         }

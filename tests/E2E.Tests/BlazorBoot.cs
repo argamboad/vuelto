@@ -80,6 +80,19 @@ public static class BlazorBoot
     {
         public Task NavigateAsync() => navigate();
         public Task ReloadAsync() => page.ReloadAsync();
-        public Task<string> OutcomeAsync() => page.EvaluateAsync<string>(BootOutcome);
+        public async Task<string> OutcomeAsync()
+        {
+            try
+            {
+                return await page.EvaluateAsync<string>(BootOutcome);
+            }
+            catch (PlaywrightException ex) when (ex.Message.Contains("Execution context was destroyed", StringComparison.Ordinal))
+            {
+                // The page navigated while the question was in flight (a locale reconcile reloads it, a sign-in
+                // redirects): there is no answer from the document that was replaced, and the next one is still
+                // loading. Ask again on the next poll instead of failing the journey (CI run 37355…, 2026-10-05).
+                return "loading";
+            }
+        }
     }
 }

@@ -138,6 +138,8 @@ public static class MauiProgram
 #else
 		builder.Services.AddSingleton<ISessionStore, SecureStorageSessionStore>();
 #endif
+		// The clock RCL components schedule with (R148): the bell's poll, the billing refetch. Same line in src/Web.
+		builder.Services.AddSingleton(TimeProvider.System);
 #if ANDROID || IOS || MACCATALYST
 		builder.Services.AddSingleton<IOAuthInitiator>(sp =>
 			new WebAuthenticatorOAuthInitiator(ApiBaseUrl, CallbackScheme, sp.GetRequiredService<ILogger<WebAuthenticatorOAuthInitiator>>()));

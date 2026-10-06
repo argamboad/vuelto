@@ -205,6 +205,32 @@ public class ArchitectureTests
     }
 
     [Fact]
+    public void EveryNullableTenantIdEntity_ShipsItsLifecycleSpec()
+    {
+        // R145 (v4 audit T27, TB-TEN-20..23): a table whose TenantId is nullable holds rows that belong to a
+        // household beside rows that belong to nobody, and no filter, policy or cascade decides which is which.
+        // So each such entity ships its lifecycle spec as four tests named <Entity>_Lifecycle_<Facet>_*: what a
+        // dissolve removes, what an account erasure removes, that the household export leaves it out, and which
+        // origins may write a row with no tenant. A new nullable-TenantId entity fails here until it has all four.
+        string[] facets = ["Dissolve", "Erasure", "ExportExclusion", "TenantlessOrigins"];
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseNpgsql("Host=localhost;Database=arch-check") // model-only; never connects
+            .Options;
+        using var ctx = new AppDbContext(options, new TestCurrentTenant());
+        var entities = ctx.Model.GetEntityTypes()
+            .Where(e => e.ClrType.GetProperty("TenantId")?.PropertyType == typeof(Guid?))
+            .Select(e => e.ClrType.Name).ToList();
+        Assert.Contains(nameof(OutboxMessage), entities); // probe alive
+
+        var tests = string.Join('\n', SourceFiles(Path.Combine(RepoRoot(), "tests")).Select(File.ReadAllText));
+        var missing = entities.SelectMany(e => facets.Select(f => $"{e}_Lifecycle_{f}_"))
+            .Where(prefix => !Regex.IsMatch(tests, $@"\b(?:Task|void)\s+{prefix}\w+\("))
+            .ToList();
+        Assert.True(missing.Count == 0,
+            "nullable-TenantId entities missing a lifecycle test (name it <Entity>_Lifecycle_<Facet>_…): " + string.Join(", ", missing));
+    }
+
+    [Fact]
     public void TenantDissolution_EntersTheTargetTenant()
     {
         // RLS-2/R44: DissolveAsync runs set-based deletes that the Postgres RLS backstop (ADR-020) scopes to
@@ -286,6 +312,49 @@ public class ArchitectureTests
 
         Assert.True(offenders.Count == 0,
             $"Controllers must derive from TenantApiControllerBase/AdminApiControllerBase or be allowlisted: {string.Join(", ", offenders)}");
+    }
+
+    [Fact]
+    public void EveryRclPage_HasAComponentTest() // v4 audit T56 (TOOL-7): the per-page floor, R70 as amended
+    {
+        // R70 asked for bUnit coverage and was met by testing a single component; the five heaviest pages were
+        // reached only when a browser journey happened to pass through them. The floor: every routable page
+        // under src/Shared.Ui/Pages is rendered by at least one test in tests/Ui.Tests. It does not measure
+        // depth — it stops a new page from shipping with none.
+        var pages = Directory.EnumerateFiles(Path.Combine(RepoRoot(), "src", "Shared.Ui", "Pages"), "*.razor")
+            .Select(Path.GetFileNameWithoutExtension).ToList();
+        Assert.True(pages.Count >= 8, "probe: src/Shared.Ui/Pages moved");
+
+        var tests = string.Join('\n', SourceFiles(Path.Combine(RepoRoot(), "tests", "Ui.Tests")).Select(File.ReadAllText));
+        var untested = pages.Where(p => !Regex.IsMatch(tests, $@"Render<(?:[\w.]+\.)?{p}>")).ToList();
+        Assert.True(untested.Count == 0, "pages no component test renders (add one under tests/Ui.Tests/Pages): " + string.Join(", ", untested));
+    }
+
+    [Fact]
+    public void RclComponents_ScheduleOnTheInjectedClock() // R148 (v4 audit T57, TOOL-7/8)
+    {
+        // The notification bell polled on a real 60-second PeriodicTimer and stamped "read" and "time ago"
+        // from the wall clock, so its poll lifecycle could only be tested by waiting real minutes — and was not.
+        // In the RCL: no ambient UtcNow/Now, and every timer or delay names the clock it runs on.
+        var files = SourceFiles(Path.Combine(RepoRoot(), "src", "Shared.Ui"))
+            .Concat(SourceFiles(Path.Combine(RepoRoot(), "src", "Shared.Ui"), "*.razor")).ToList();
+        Assert.True(files.Count > 30, "probe: src/Shared.Ui moved");
+
+        var offenders = new List<string>();
+        foreach (var file in files)
+        {
+            var lines = File.ReadAllLines(file);
+            for (var i = 0; i < lines.Length; i++)
+            {
+                var line = lines[i];
+                if (line.TrimStart().StartsWith("//", StringComparison.Ordinal) || line.TrimStart().StartsWith("///", StringComparison.Ordinal)) continue;
+                var ambient = Regex.IsMatch(line, @"\bDateTime(?:Offset)?\.(?:UtcNow|Now)\b");
+                var unclockedTimer = Regex.IsMatch(line, @"new PeriodicTimer\((?![^;]*,\s*\w*[Tt]ime)") || Regex.IsMatch(line, @"Task\.Delay\((?![^;]*,\s*\w*[Tt]ime)");
+                if (ambient || unclockedTimer) offenders.Add($"{Path.GetFileName(file)}:{i + 1}");
+            }
+        }
+        Assert.True(offenders.Count == 0,
+            "RCL code reads the wall clock or schedules without the injected TimeProvider: " + string.Join(", ", offenders));
     }
 
     [Fact]

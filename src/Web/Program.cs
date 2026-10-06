@@ -52,6 +52,8 @@ builder.Services.AddScoped<DisplayCurrencyStore>();   // DISPLAY-1: ₡ · $ · 
 
 // Web session store: the browser owns the HttpOnly refresh cookie, so this is a no-op.
 builder.Services.AddSingleton<ISessionStore, CookieSessionStore>();
+// The clock RCL components schedule with (R148): the bell's poll, the billing refetch. Tests swap it.
+builder.Services.AddSingleton(TimeProvider.System);
 
 // Auth. AuthService is a SINGLETON: IHttpClientFactory resolves message handlers
 // (BearerScopedHandler) in a separate DI scope, so a scoped AuthService would give the

@@ -22,16 +22,26 @@ public class PostmanParityTests(IntegrationTestFactory factory)
     private readonly IntegrationTestFactory _factory = factory;
 
     [Fact]
-    public void EveryMappedApiEndpoint_IsDocumentedInThePostmanCollection()
-    {
-        // Excluded by design — each with the reason it does not belong in the collection.
-        var excluded = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["POST api/billing/webhook"] = "provider-signed callback; documented via its dedicated folder request", // (it IS in the collection; kept here as the pattern for true exclusions)
-        };
-        excluded.Clear(); // nothing excluded today — the six redirect/native endpoints are documented as doc-only requests
+    public void EveryMappedApiEndpoint_IsDocumentedInThePostmanCollection() =>
+        AssertEveryMappedEndpointIsDocumented(_factory.Services);
 
-        var mapped = _factory.Services.GetServices<EndpointDataSource>()
+    [Fact]
+    public void EveryMappedApiEndpoint_WithEveryGateOn_IsDocumentedInThePostmanCollection()
+    {
+        // R154 (v4 audit ADV-P4-14): with the gates at their defaults (off) the route table has no billing, no
+        // public API and no webhook endpoints, so the parity check above never saw them — a gated endpoint could
+        // ship undocumented. This one maps the app with EVERY reflected gate on.
+        var gates = IntegrationTestFactory.AllGates();
+        Assert.True(gates.Count >= 3, "probe: the settings catalog found too few gates: " + string.Join(", ", gates));
+        using var allOn = _factory.WithGates([.. gates]);
+
+        var gatedOnly = Mapped(allOn.Services).Except(Mapped(_factory.Services)).ToList();
+        Assert.True(gatedOnly.Count >= 5, $"probe: turning every gate on added only {gatedOnly.Count} routes — is the seam switching anything?");
+        AssertEveryMappedEndpointIsDocumented(allOn.Services);
+    }
+
+    private static List<(string Method, string Path)> Mapped(IServiceProvider services) =>
+        [.. services.GetServices<EndpointDataSource>()
             .SelectMany(s => s.Endpoints)
             .OfType<RouteEndpoint>()
             .Where(e => e.RoutePattern.RawText is { } raw && raw.TrimStart('/').StartsWith("api/", StringComparison.OrdinalIgnoreCase))
@@ -42,8 +52,18 @@ public class PostmanParityTests(IntegrationTestFactory factory)
                 var path = "/" + e.RoutePattern.RawText!.Trim('/');
                 return methods.Where(m => m != "HEAD").Select(m => (Method: m, Path: path));
             })
-            .Distinct()
-            .ToList();
+            .Distinct()];
+
+    private static void AssertEveryMappedEndpointIsDocumented(IServiceProvider services)
+    {
+        // Excluded by design — each with the reason it does not belong in the collection.
+        var excluded = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["POST api/billing/webhook"] = "provider-signed callback; documented via its dedicated folder request", // (it IS in the collection; kept here as the pattern for true exclusions)
+        };
+        excluded.Clear(); // nothing excluded today — the six redirect/native endpoints are documented as doc-only requests
+
+        var mapped = Mapped(services);
         Assert.NotEmpty(mapped); // the probe must be alive
 
         var documented = DocumentedRequests();

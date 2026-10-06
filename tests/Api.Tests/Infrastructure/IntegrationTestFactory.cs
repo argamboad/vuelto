@@ -40,7 +40,7 @@ public sealed class IntegrationTestFactory : WebApplicationFactory<Program>, IAs
     // Long enough for HMAC-SHA256 (JwtSettings requires ≥32 chars); value is irrelevant, only length + validity.
     private const string TestJwtSecret = "integration-test-jwt-secret-key-0123456789";
 
-    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:17").Build();
+    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:17.11").Build();
 
     /// <summary>Superuser connection string of the throwaway container (for catalog-level asserts).</summary>
     public string DatabaseConnectionString => _container.GetConnectionString();
@@ -145,6 +145,23 @@ public sealed class IntegrationTestFactory : WebApplicationFactory<Program>, IAs
 
     /// <summary>Computes the current TOTP for a Base32 secret (same library the app uses).</summary>
     public static string Totp(string base32Secret) => new Totp(Base32Encoding.ToBytes(base32Secret)).ComputeTotp();
+
+    /// <summary>
+    /// The per-gate seam (v4 audit T59, R154): a host identical to this one with the named config gates switched
+    /// on — <c>WithGates("Billing")</c>, <c>WithGates("PublicApi", "Webhooks")</c>. A gate is a section-bound
+    /// settings class with a <c>bool Enabled</c>; each derived host has its own configuration, so nothing leaks
+    /// into another test the way a process-wide environment variable does.
+    /// </summary>
+    public WebApplicationFactory<Program> WithGates(params string[] sections) =>
+        WithWebHostBuilder(b =>
+        {
+            foreach (var section in sections) b.UseSetting($"{section}:Enabled", "true");
+        });
+
+    /// <summary>Every config gate the app declares, by reflection — a new gate is on this list the day it is added.</summary>
+    public static IReadOnlyList<string> AllGates() =>
+        [.. Configuration.SettingsCatalog.SectionBound().Where(Configuration.SettingsCatalog.HasEnabledSwitch)
+            .Select(t => Configuration.SettingsCatalog.SectionNameOf(t)!).Order()];
 
     /// <summary>A client that does NOT auto-follow redirects, so a 302 Location can be inspected.</summary>
     public HttpClient CreateNoRedirectClient() =>

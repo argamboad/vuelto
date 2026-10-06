@@ -2886,6 +2886,13 @@ Full per-feature native regression (every case in §12–13b) is for releases th
 (`src/Maui/**`, the RCL seams: `ICulturePersistence` / `IFileDownloadLauncher` / `AppResumeNotifier`)
 or bumped the .NET/MAUI toolchain.
 
+> **Two things to know before handing a tester an Android build (v4 T51).** (1) Android upgrades an app in
+> place only when the new build carries the **same signing key** as the installed one: a store-signed build
+> will not install over a debug-signed sideload, nor the reverse — the tester uninstalls the old one first
+> (DEPLOYMENT §9). (2) Nothing the app stores is backed up off the device (`allowBackup="false"` + data-
+> extraction rules), so after an uninstall or on a new phone the tester signs in again and re-picks language
+> and theme; the account and its data are on the server.
+>
 > **⚠️ The native legs run ON REQUEST, never per push (ADR-031).** A pull request runs the web gates only.
 > The MAUI builds and the Windows / Android / Apple smokes run from GitHub → Actions → `CI` → *Run workflow*
 > → `devices` (android / windows / apple / all) — macOS bills at 10× and Windows at 2× on a private repo.
@@ -2915,7 +2922,7 @@ Then A can only ever see A's household, members, and invitations — never B's
 **Walkthrough:** signed out, directly visit `/household`, `/settings`. **Expected:** each redirects to
 `/login`.
 
-### QA-SEC-03 — Session is gone after sign-out 🟠
+### QA-SEC-03 — Session is gone after sign-out 🟠 ⚙️ Automated in CI
 **Gherkin**
 ```gherkin
 Given I sign out
@@ -2924,6 +2931,12 @@ Then I am not able to access it — I am sent to /login
 ```
 **Walkthrough:** sign out, press **Back** to a protected page / reload it. **Expected:** bounced to
 `/login`; no stale authenticated view.
+
+*Automated by `SessionJourneyTests.SignOut_ThenBack_LandsOnLogin_NotTheCachedHousehold`, which runs with the
+browser's back/forward cache on and fails if the page was not actually restored from it. The trade-off,
+by decision: a page restored from that cache is reloaded (`bfcache-guard.js`), so Back after sign-out
+costs a signed-in user one extra page load on any Back that hits the cache, in exchange for never
+showing the previous user's screen on a shared computer.*
 
 ### QA-SEC-04 — Native open-redirect guard 🟢 (Desktop/Android)
 **Context/Expected:** the native OAuth flow only honors loopback `http` callbacks or the configured
@@ -3487,7 +3500,9 @@ app fires no published events. (Published events via `IWebhookPublisher` also lo
 > **private and free** before it is published: nothing offers to sell a tester anything, and a stranger
 > who finds the URL cannot create an account. Hiding the deployment itself is explicitly out of scope.
 
-### QA-GATE-01 — Billing off: the surface does not exist 🔴 (Web + curl)
+### QA-GATE-01 — Billing off: the surface does not exist 🔴 (Web + curl) ⚙️ Automated in CI
+*Automated by `GateJourneyTests.BillingOff_TheSurfaceDoesNotExist_NoLink_NoPage_ApiAnswers404` in the gates-off E2E lane (`Billing__Enabled` unset, `Signup__AllowedDomains__0` = one listed domain; `pwsh tools/e2e.ps1 -Gates` locally). The manual walkthrough stays for a real deployment.*
+
 **Precondition:** `Billing__Enabled` unset in the repo-root `.env` (the shipped default); restart.
 **Gherkin**
 ```gherkin
@@ -3505,7 +3520,9 @@ Then there is no billing link, /billing does not render, and the API answers 404
 
 ---
 
-### QA-GATE-02 — Billing off: nothing offers an upgrade 🟠 (Web)
+### QA-GATE-02 — Billing off: nothing offers an upgrade 🟠 (Web) ⚙️ Automated in CI
+*Automated by `GateJourneyTests.BillingOff_AFullHousehold_SaysFull_AndNeverOffersAnUpgrade` in the gates-off E2E lane (`Billing__Enabled` unset, `Signup__AllowedDomains__0` = one listed domain; `pwsh tools/e2e.ps1 -Gates` locally). The manual walkthrough stays for a real deployment.*
+
 **Precondition:** QA-GATE-01's state, plus a household at its seat cap (see QA-HH-14).
 **Gherkin**
 ```gherkin
@@ -3537,7 +3554,9 @@ Then the billing link is back, /billing renders the plan summary, and the seat-l
 
 ---
 
-### QA-GATE-04 — Green list: a stranger cannot create an account 🔴 (Web)
+### QA-GATE-04 — Green list: a stranger cannot create an account 🔴 (Web) ⚙️ Automated in CI
+*Automated by `GateJourneyTests.GreenList_AStrangerIsRefusedAtRedemption_WithTheRightWords` in the gates-off E2E lane (`Billing__Enabled` unset, `Signup__AllowedDomains__0` = one listed domain; `pwsh tools/e2e.ps1 -Gates` locally). The manual walkthrough stays for a real deployment.*
+
 **Precondition:** in `.env` set `Signup__AllowedEmails__0=` **your own address**; restart. Use a *second*
 address you control that is NOT listed and has **no account yet**.
 **Gherkin**
@@ -3558,7 +3577,9 @@ Then I am told the app is in private testing and no account is created
 
 ---
 
-### QA-GATE-05 — Green list: a listed person founds a household and can bring their family 🟠 (Web)
+### QA-GATE-05 — Green list: a listed person founds a household and can bring their family 🟠 (Web) ⚙️ Automated in CI
+*Automated by `GateJourneyTests.GreenList_AListedOwnerFoundsAHousehold_AndAnUnlistedInviteeMayJoinIt` in the gates-off E2E lane (`Billing__Enabled` unset, `Signup__AllowedDomains__0` = one listed domain; `pwsh tools/e2e.ps1 -Gates` locally). The manual walkthrough stays for a real deployment.*
+
 **Precondition:** QA-GATE-04's state (your address listed, one unlisted address available).
 **Gherkin**
 ```gherkin

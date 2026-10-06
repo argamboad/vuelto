@@ -193,7 +193,7 @@
                                                 <td class="fold-md"><StatusChip>@m.Role</StatusChip></td>
                                                 <td class="text-end text-nowrap">
                                                     <button class="btn btn-outline-warning btn-sm" disabled="@_busy"
-                                                            @onclick="() => Impersonate(m)">
+                                                            data-testid="admin-impersonate" @onclick="() => Impersonate(m)">
                                                         @Localizer["Admin_Impersonate"]
                                                     </button>
                                                     @* Staff recovery for a locked-out user (ADR-021 addendum): wipes their

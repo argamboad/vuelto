@@ -105,7 +105,7 @@ public class OutboxRetentionTests(PostgresFixture fixture) : PostgresTestBase(fi
     }
 
     [Fact]
-    public async Task Erasure_RemovesTheUsersPendingMail_OtherMailIntact()
+    public async Task OutboxMessage_Lifecycle_Erasure_RemovesTheUsersPendingMail_OtherMailIntact()
     {
         var userId = Guid.CreateVersion7();
         await using (var db = Fixture.CreateContext())

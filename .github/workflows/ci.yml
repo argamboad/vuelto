@@ -352,11 +352,13 @@ jobs:
             -storepass ci-store-pass -keypass ci-store-pass -dname "CN=ci, O=perezosoft"
 
       - name: Publish the Release APK (store key, real host)
+        env:
+          CI_STORE_PASS: ci-store-pass # a throwaway key made one step up; passed as env:NAME, the way a real one must be (R104)
         run: |
           dotnet publish src/Maui/Vuelto.Maui.csproj -f net10.0-android -c Release \
             -p:ApiBaseUrl=https://release-probe.invalid -p:AndroidPackageFormat=apk -p:AcceptAndroidSDKLicenses=true \
             -p:AndroidKeyStore=true -p:AndroidSigningKeyStore="$PWD/ci-release.keystore" -p:AndroidSigningKeyAlias=ci \
-            -p:AndroidSigningStorePass=ci-store-pass -p:AndroidSigningKeyPass=ci-store-pass \
+            -p:AndroidSigningStorePass=env:CI_STORE_PASS -p:AndroidSigningKeyPass=env:CI_STORE_PASS \
             -o out/android
 
       - name: apksigner verify — v2 or v3, the schemes Android 11+ installs
@@ -436,7 +438,7 @@ jobs:
           # that reads it, so it must run the tests (v4 T2, R97) — but never the native legs, which get the
           # plain stripped list. A test that reads a new markdown file fails
           # EnforcementGateTests.EveryRepoFileTheTestsRead_ClassifiesAsCode until it is listed here.
-          testdocs='^(README\.md|CLAUDE\.md|\.github/pull_request_template\.md|docs/(DEPLOYMENT|DATA_MODEL|QA_TEST_PLAN|REBRANDING|DECISIONS|WAYS_OF_WORKING|TECH_STACK|ARCHITECTURE|FLOWS)\.md|docs/audits/v4-2026-09/FOUNDATION_RULES_v3\.md|docs/postman/README\.md|docs/stories/e2e\.md|tests/E2E\.Tests/README\.md)$'
+          testdocs='^(README\.md|CLAUDE\.md|CONTRIBUTING\.md|\.github/pull_request_template\.md|docs/(DEPLOYMENT|DATA_MODEL|QA_TEST_PLAN|REBRANDING|DECISIONS|WAYS_OF_WORKING|TECH_STACK|ARCHITECTURE|FLOWS|NEW_APP_GUIDE)\.md|docs/audits/v4-2026-09/FOUNDATION_RULES_v3\.md|docs/postman/README\.md|docs/stories/e2e\.md|tests/E2E\.Tests/README\.md)$'
           # Editor tooling CI never runs and no test reads (Env L22): the start-profile generator and its emulator
           # helper, the local telemetry dashboard. Out of both lists, so a change to only these runs no gate. The
           # rest of tools/ stays code; a test that starts reading one of these fails
@@ -450,7 +452,7 @@ jobs:
           # reads: lockfiles, the workflows and scripts, the license list, .dockerignore, the config catalog,
           # tools/ (less devtools), the Postman collection and the markdown in testdocs. A path counts as code if
           # in doubt; skipping a gate is the expensive mistake.
-          code=$(match "$codefiles" '^(src/|tests/|tools/|[^/]+\.slnx?$|Directory\.Packages\.props|Directory\.Build\.props|global\.json|Dockerfile|\.dockerignore|docker-compose\.yml|\.env\.example|\.config/dotnet-tools\.json|\.github/(workflows/|scripts/|forbidden-licenses\.json)|.*packages\.lock\.json|docs/postman/|README\.md$|CLAUDE\.md$|\.github/pull_request_template\.md$|docs/(DEPLOYMENT|DATA_MODEL|QA_TEST_PLAN|REBRANDING|DECISIONS|WAYS_OF_WORKING|TECH_STACK|ARCHITECTURE|FLOWS)\.md$|docs/audits/v4-2026-09/FOUNDATION_RULES_v3\.md$|docs/stories/e2e\.md$)')
+          code=$(match "$codefiles" '^(src/|tests/|tools/|[^/]+\.slnx?$|Directory\.Packages\.props|Directory\.Build\.props|global\.json|Dockerfile|\.dockerignore|\.gitignore|docker-compose\.yml|\.env\.example|\.config/dotnet-tools\.json|\.github/(workflows/|scripts/|forbidden-licenses\.json)|.*packages\.lock\.json|docs/postman/|README\.md$|CLAUDE\.md$|CONTRIBUTING\.md$|\.github/pull_request_template\.md$|docs/(DEPLOYMENT|DATA_MODEL|QA_TEST_PLAN|REBRANDING|DECISIONS|WAYS_OF_WORKING|TECH_STACK|ARCHITECTURE|FLOWS|NEW_APP_GUIDE)\.md$|docs/audits/v4-2026-09/FOUNDATION_RULES_v3\.md$|docs/stories/e2e\.md$)')
 
           # Narrower: what the native legs can actually be broken by, incl. the solution-wide build props and the
           # native publish script (v4 NAT-16). Reported for the record; the device legs run on request (ADR-031).
@@ -832,7 +834,7 @@ jobs:
     timeout-minutes: 45
     services:
       db:
-        image: postgres:17
+        image: postgres:17.11
         env:
           POSTGRES_DB: smoke
           POSTGRES_USER: smoke
@@ -1006,7 +1008,7 @@ jobs:
     timeout-minutes: 40
     services:
       db:
-        image: postgres:17
+        image: postgres:17.11
         env:
           POSTGRES_DB: e2e
           POSTGRES_USER: e2e
@@ -1121,6 +1123,11 @@ jobs:
             native=$(grep -l 'Category("NativeSmoke")' tests/E2E.Tests/*.cs \
                      | xargs sed -n 's/^ *public [a-zA-Z<> ]* \([A-Za-z0-9_]\{4,\}\)(.*$/\1/p')
             names=$(echo "$names" | grep -vxF "$native" || true)
+            # The gate journeys (category Gate) run in the gates-off step below, against an API started with the
+            # shipped default; dealing them here would run them against billing-on and fail (v4 T48).
+            gate=$(grep -l 'Category("Gate")' tests/E2E.Tests/*.cs \
+                   | xargs sed -n 's/^ *public [a-zA-Z<> ]* \([A-Za-z0-9_]\{4,\}\)(.*$/\1/p')
+            names=$(echo "$names" | grep -vxF "$gate" || true)
             # `|| true`: grep -c exits 1 on a zero count, and under `bash -e` that killed the step before the
             # error below could say why (v4 DEP-22).
             total=$(echo "$names" | grep -c . || true)
@@ -1160,7 +1167,7 @@ jobs:
             echo "$mine" | sed 's/^/  /'
             # Exact Name=, never a bare substring: `FullyQualifiedName~Foo` also matched FooBar, which then ran in
             # two shards (v4 DEP-22). Checked against the real NUnit adapter, which rejects `\(` in a filter value.
-            filter="($(echo "$mine" | sed 's/.*/Name=&/' | paste -sd'|'))&TestCategory!=NativeSmoke"
+            filter="($(echo "$mine" | sed 's/.*/Name=&/' | paste -sd'|'))&TestCategory!=NativeSmoke&TestCategory!=Gate"
 
             dotnet test tests/E2E.Tests/Vuelto.E2E.Tests.csproj -c Debug --no-build \
               --filter "$filter" \
@@ -1174,6 +1181,45 @@ jobs:
       # for one reason only: more dead Blazor boots than the run's allowance (v4 T55, R109) — the same
       # number BlazorBootCore.DeadBootsPerRun stops the suite at, read here from the .trx so a shard that
       # retried its way to green is red anyway.
+      # The shipped default, end to end (v4 audit T48, R147): Billing:Enabled unset and a one-domain signup green
+      # list. Same job, same Web, same containers — only the API restarts, so the lane costs one API boot and four
+      # journeys, not a second runner setup. GateJourneyTests.ListedDomain is the same literal as the env below;
+      # EnforcementGateTests.GateLane_RunsEveryDeploymentGate_AgainstTheShippedDefault holds this step to its shape.
+      - name: Gates off — restart the API with the shipped default and run the gate journeys
+        env:
+          ASPNETCORE_ENVIRONMENT: Development
+          ConnectionStrings__DefaultConnection: "Host=localhost;Port=5432;Database=e2e;Username=e2e;Password=e2e"
+          Jwt__Secret: "ci-e2e-jwt-signing-secret-0123456789ab"
+          Auth__RateLimit__PasswordlessPermitLimit: "1000"
+          Auth__RateLimit__RefreshPermitLimit: "1000"
+          Admin__StaffEmails__0: "e2e-staff@example.com"
+          Auth__AppBaseUrl: "http://localhost:5269"
+          Signup__AllowedDomains__0: "listed.example.com"
+        run: |
+          set -e
+          # Stop the billing-on API of the step above and wait for its port; the Web app and the containers stay.
+          pkill -f 'Vuelto.Api' || true
+          for i in $(seq 1 30); do
+            curl -s -o /dev/null http://localhost:5338/health/ready && { sleep 2; continue; }
+            break
+          done
+          dotnet run --project src/Api/Vuelto.Api.csproj -c Debug --no-build --urls http://localhost:5338 > api-gates.log 2>&1 &
+          echo "Waiting for the gates-off API…"
+          for i in $(seq 1 60); do
+            api=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5338/health/ready || echo 000)
+            [ "$api" = "200" ] && { echo "ready"; break; }
+            sleep 3
+          done
+          [ "$api" = "200" ] || { echo "::error::the gates-off API did not become ready"; tail -40 api-gates.log; exit 1; }
+          features=$(curl -s http://localhost:5338/api/features)
+          echo "$features" | grep -q '"billing":false' || { echo "::error::/api/features says $features — is the billing switch really unset in this step?"; exit 1; }
+
+          export PLAYWRIGHT_BASE_URL=http://localhost:5269 MAILPIT_BASE_URL=http://localhost:8026 \
+            E2E_API_BASE_URL=http://localhost:5338
+          dotnet test tests/E2E.Tests/Vuelto.E2E.Tests.csproj -c Debug --no-build \
+            --filter "TestCategory=Gate" \
+            --logger "trx;LogFileName=e2e-gates.trx" --results-directory "$PWD/e2e-results"
+
       - name: Slowest journeys
         if: always()
         run: |
@@ -1185,13 +1231,13 @@ jobs:
               print("no .trx written — nothing to report"); raise SystemExit
           ns = {"t": "http://microsoft.com/schemas/VisualStudio/TeamTest/2010"}
           rows = []
-          results = ET.parse(files[0]).getroot().findall(".//t:UnitTestResult", ns)
+          results = [r for f in sorted(files) for r in ET.parse(f).getroot().findall(".//t:UnitTestResult", ns)]  # both lanes' .trx
           for r in results:
               d = r.get("duration") or "0:00:00"
               h, m, s = d.split(":")
               rows.append((float(h) * 3600 + float(m) * 60 + float(s), r.get("testName", "?"), r.get("outcome", "?")))
           if not rows:  # a run that died before any journey finished (v4 DEP-22: this divided by zero)
-              print(f"{files[0]} holds no test results — nothing to report"); raise SystemExit
+              print(f"{', '.join(sorted(files))} holds no test results — nothing to report"); raise SystemExit
           rows.sort(reverse=True)
           total = sum(x[0] for x in rows)
           print(f"{len(rows)} journeys, {total/60:.1f} min of test time (wall clock is lower only if they run in parallel)")
@@ -1219,7 +1265,7 @@ jobs:
         if: failure()
         # -n 80 (not -80): the numeric shorthand is invalid with multiple files in GNU tail, which made
         # this diagnostic silently print nothing on every failure.
-        run: tail -n 80 api.log web.log || true
+        run: tail -n 80 api.log api-gates.log web.log || true
 
   # Deploy staging (DEPLOY-3, ADR-017; manual since ADR-031). Runs ONLY from "Run workflow" on develop with
   # deploy = staging, and only after every web gate above is green in that same run. Triggers the Render
