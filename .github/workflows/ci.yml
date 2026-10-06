@@ -834,7 +834,7 @@ jobs:
     timeout-minutes: 45
     services:
       db:
-        image: postgres:17
+        image: postgres:17.11
         env:
           POSTGRES_DB: smoke
           POSTGRES_USER: smoke
@@ -1008,7 +1008,7 @@ jobs:
     timeout-minutes: 40
     services:
       db:
-        image: postgres:17
+        image: postgres:17.11
         env:
           POSTGRES_DB: e2e
           POSTGRES_USER: e2e

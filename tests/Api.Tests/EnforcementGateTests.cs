@@ -510,9 +510,38 @@ public class EnforcementGateTests
         // file kept floating tags. On 2026-09-11 MinIO's Docker Hub repository stopped serving pulls
         // entirely and `minio/minio:latest` took build-test down on every branch at once — with no
         // pinned known-good to fall back to, which is the whole cost of a floating tag. This gate covers
-        // the surfaces the hand-applied convention missed: test fixtures and compose.
+        // the surfaces the hand-applied convention missed: test fixtures and compose — and, since v4 T16
+        // (DEP-18), the workflow's `services:` images and `docker run` lines and the Dockerfile's FROM lines,
+        // the four places an image is named. A bare major tag (`postgres:17`) counts as floating too: it moves
+        // with every minor release, so a new Postgres reaches CI and the harness with no change in the repo.
         var root = RepoRoot();
         var offenders = new List<string>();
+
+        // Workflow services: `image: repo/name:tag`, and `docker run … <image>` steps (the image is the first
+        // bare word after the options; `--entrypoint sh` takes a value, so skip an option's argument too).
+        var workflow = Path.Combine(root, ".github", "workflows", "ci.yml");
+        var workflowText = File.ReadAllText(workflow);
+        foreach (Match m in new Regex(@"(?m)^\s*image:\s*([^\s#]+)").Matches(workflowText))
+            Check(m.Groups[1].Value, "ci.yml services");
+        foreach (Match m in new Regex(@"docker run\s+(.*)").Matches(workflowText))
+        {
+            var words = m.Groups[1].Value.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            for (var i = 0; i < words.Length; i++)
+            {
+                if (words[i].StartsWith("--", StringComparison.Ordinal))
+                {
+                    if (!words[i].Contains('=') && words[i] is "--entrypoint" or "--name" or "--network" or "-e" or "--env" or "-p" or "--publish" or "-v" or "--volume" or "-w" or "--workdir") i++;
+                    continue;
+                }
+                if (words[i].StartsWith('-')) { i++; continue; }
+                Check(words[i], "ci.yml docker run");
+                break;
+            }
+        }
+
+        // Dockerfile stages: `FROM image:tag [AS name]`
+        foreach (Match m in new Regex(@"(?m)^FROM\s+(?:--platform=\S+\s+)?(\S+)").Matches(File.ReadAllText(Path.Combine(root, "Dockerfile"))))
+            Check(m.Groups[1].Value, "Dockerfile");
 
         // Testcontainers builders: new XxxBuilder("image:tag")
         var builderImage = new Regex(@"new\s+\w*Builder\s*\(\s*""([^""]+)""");
@@ -547,7 +576,32 @@ public class EnforcementGateTests
                 offenders.Add($"{where}: '{image}' has no tag (implicitly :latest)");
             else if (tag.Equals("latest", StringComparison.OrdinalIgnoreCase))
                 offenders.Add($"{where}: '{image}' is pinned to :latest");
+            else if (Regex.IsMatch(tag, @"^v?\d+$"))
+                offenders.Add($"{where}: '{image}' is a bare major tag, which floats with every minor release — pin at least major.minor");
         }
+    }
+
+    [Fact]
+    public void ImagePinGate_SeesAllFourSurfaces_AndRefusesABareMajor() // v4 T16: the gate's own reach, held
+    {
+        // The gate above reads the live files, so a passing run cannot show that it looks at every surface.
+        // This holds the reach: the four places an image is named each have at least one image today, and the
+        // tag rule refuses exactly the floating shapes.
+        var root = RepoRoot();
+        var workflow = File.ReadAllText(Path.Combine(root, ".github", "workflows", "ci.yml"));
+        Assert.Matches(@"(?m)^\s*image:\s*\S+", workflow);          // services: at least one
+        Assert.Matches(@"docker run\s", workflow);                   // docker run: at least one
+        Assert.Matches(@"(?m)^FROM\s+\S+", File.ReadAllText(Path.Combine(root, "Dockerfile")));
+        Assert.Contains("new PostgreSqlBuilder(\"", File.ReadAllText(Path.Combine(root, "tests", "Api.Tests", "Infrastructure", "PostgresFixture.cs")));
+
+        static bool Floats(string tag) => tag.Equals("latest", StringComparison.OrdinalIgnoreCase) || Regex.IsMatch(tag, @"^v?\d+$");
+        Assert.True(Floats("latest"));
+        Assert.True(Floats("17"));
+        Assert.True(Floats("v1"));
+        Assert.False(Floats("17.11"));
+        Assert.False(Floats("v1.30.4"));
+        Assert.False(Floats("10.0.401"));
+        Assert.False(Floats("ci"));
     }
 
     [Fact]

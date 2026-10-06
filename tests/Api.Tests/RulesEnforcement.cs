@@ -74,7 +74,7 @@ public static class RulesEnforcement
         // ── 6. Deploy / CI / supply-chain ──
         new("R97", ["EveryRepoFileTheTestsRead_ClassifiesAsCode", "Classifier_CountsEveryFileAGateReads_AsCode"]),
         new("R98", ["EveryCheckout_LeavesNoTokenBehind"]),
-        new("R99", ["EveryContainerImage_IsPinned_NotFloating"], Pending: "vuelto#88 (T16: widen to workflow services:/docker run and Dockerfile FROM)"),
+        new("R99", ["EveryContainerImage_IsPinned_NotFloating", "ImagePinGate_SeesAllFourSurfaces_AndRefusesABareMajor"]),
         new("R136", ["CiShellLogic_PassesItsFixtures", "CiShellLogic_EveryAnchoredBlockIsATarget_WithCases"]),
         new("R137", ["ChangedFileLists_AreByteSafe"]),
         new("R139", ["NativeSmokeProviderProbe_MatchesTheStatusField_InBothSites"]),

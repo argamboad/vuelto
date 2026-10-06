@@ -101,7 +101,7 @@ Spun up via `docker compose up -d`. Copy `.env.example` → `.env` and adjust be
 
 | Service | Image | Default port(s) | Purpose |
 |---------|-------|-----------------|---------|
-| `db` | `postgres:17` | `${DB_PORT:-5432}` (committed `.env.example` sets **5433**) | PostgreSQL — matches production DB engine |
+| `db` | `postgres:17.11` | `${DB_PORT:-5432}` (committed `.env.example` sets **5433**) | PostgreSQL — matches production DB engine |
 | `mail` | `axllent/mailpit:latest` | SMTP `${MAIL_SMTP_PORT:-1025}`, UI `${MAIL_UI_PORT:-8025}` | Local SMTP trap for passwordless + invitation emails |
 
 Both services have healthchecks. When the API container is added to compose (per-project), it should declare `depends_on: db: condition: service_healthy`.
