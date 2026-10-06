@@ -42,6 +42,7 @@ public class SessionJourneyTests : E2ETestBase
         var household = await SignInToHouseholdAsync(page, UniqueEmail("back"));
         await Assertions.Expect(household.RenameInput).ToBeVisibleAsync(Slow);
 
+        await page.GetByTestId("user-menu").ClickAsync();   // SKIN-4: sign out lives in the user menu
         await page.GetByTestId("sign-out").ClickAsync();
         await Assertions.Expect(page.GetByTestId("login-email")).ToBeVisibleAsync(Slow);
 
@@ -86,9 +87,10 @@ public class SessionJourneyTests : E2ETestBase
 
         // Still signed in, and an authorized call still works: reach a page that loads its data from the API.
         await Page.Locator("a.navbar-brand").ClickAsync(); // leave, then come back: a fresh authorized load
+        await Page.GetByTestId("user-menu").ClickAsync();   // SKIN-4: Household lives in the user menu
         await Page.GetByTestId("nav-household").ClickAsync();
         await Assertions.Expect(Page.GetByTestId("member-row")).ToHaveCountAsync(1, new() { Timeout = 30_000 });
-        await Assertions.Expect(Page.GetByTestId("sign-out")).ToBeVisibleAsync();
+        await Assertions.Expect(Page.GetByTestId("user-menu")).ToBeVisibleAsync(); // the signed-in sentinel (SKIN-4)
     }
 
     [Test]
@@ -106,6 +108,7 @@ public class SessionJourneyTests : E2ETestBase
             await route.ContinueAsync();
         });
 
+        await Page.GetByTestId("user-menu").ClickAsync();   // SKIN-4: the theme switcher lives in the user menu
         await Page.RunAndWaitForResponseAsync(
             () => Page.GetByTestId("theme-switcher").SelectOptionAsync("dark"),
             r => r.Url.EndsWith("/api/auth/theme") && r.Request.Method == "PUT");
@@ -113,8 +116,9 @@ public class SessionJourneyTests : E2ETestBase
 
         await BlazorBoot.ReloadAsync(Page);
 
-        await Expect(Page.GetByTestId("sign-out")).ToBeVisibleAsync(Slow); // still signed in after the reload
+        await Expect(Page.GetByTestId("user-menu")).ToBeVisibleAsync(Slow); // still signed in after the reload (SKIN-4 sentinel)
         await Expect(Page.Locator("html")).ToHaveAttributeAsync("data-bs-theme", "dark");
+        await Page.GetByTestId("user-menu").ClickAsync();
         await Expect(Page.GetByTestId("theme-switcher")).ToHaveValueAsync("dark");
     }
 }
