@@ -8,10 +8,12 @@
 > Gherkin acceptance criteria. **Status: ✅ COMPLETE — E2E-1..5** (4 and 5 added after review
 > showed magic-link + destructive flows were automatable after all).
 >
-> **Current suite size: 40 tests** — 40 browser journeys (v4 T58, ported 2026-10-05: +3 session journeys in
+> **Current suite size: 44 tests** — 44 browser journeys (v4 T48, ported 2026-10-06: +4 gate journeys in
+> `GateJourneyTests`, run in their own gates-off lane — billing unset, a one-domain green list — `pwsh tools/e2e.ps1
+> -Gates` locally, the "gates off" step in CI; v4 T58, ported 2026-10-05: +3 session journeys in
 > `SessionJourneyTests` — Back after sign-out with the back/forward cache really on, keep-alive past the access
 > token's expiry on Playwright's clock, and a theme save while a renewal is in flight); the count excludes the one `[Explicit]` native
-> smoke (`NativeSmokeTests`), which runs only on the device legs, so the tree holds 41 `[Test]` methods (v4 T12, 2026-09-25 — `E2eShardsTests` derives it from `tests/E2E.Tests` and fails
+> smoke (`NativeSmokeTests`), which runs only on the device legs, so the tree holds 45 `[Test]` methods (v4 T12, 2026-09-25 — `E2eShardsTests` derives it from `tests/E2E.Tests` and fails
 > when this line disagrees; it had drifted at 34 while the app's own journeys took it to 37).
 > The epic itself grew the suite 7→26; later slices kept adding: NATIVE-4b (→28), NATIVE-3 (→29),
 > THEME-1 (→31), PREFS-1 (→32), BILLING-8 (→33), and v3 T45c's locale-mismatch × invite-acceptance

@@ -3500,7 +3500,9 @@ app fires no published events. (Published events via `IWebhookPublisher` also lo
 > **private and free** before it is published: nothing offers to sell a tester anything, and a stranger
 > who finds the URL cannot create an account. Hiding the deployment itself is explicitly out of scope.
 
-### QA-GATE-01 — Billing off: the surface does not exist 🔴 (Web + curl)
+### QA-GATE-01 — Billing off: the surface does not exist 🔴 (Web + curl) ⚙️ Automated in CI
+*Automated by `GateJourneyTests.BillingOff_TheSurfaceDoesNotExist_NoLink_NoPage_ApiAnswers404` in the gates-off E2E lane (`Billing__Enabled` unset, `Signup__AllowedDomains__0` = one listed domain; `pwsh tools/e2e.ps1 -Gates` locally). The manual walkthrough stays for a real deployment.*
+
 **Precondition:** `Billing__Enabled` unset in the repo-root `.env` (the shipped default); restart.
 **Gherkin**
 ```gherkin
@@ -3518,7 +3520,9 @@ Then there is no billing link, /billing does not render, and the API answers 404
 
 ---
 
-### QA-GATE-02 — Billing off: nothing offers an upgrade 🟠 (Web)
+### QA-GATE-02 — Billing off: nothing offers an upgrade 🟠 (Web) ⚙️ Automated in CI
+*Automated by `GateJourneyTests.BillingOff_AFullHousehold_SaysFull_AndNeverOffersAnUpgrade` in the gates-off E2E lane (`Billing__Enabled` unset, `Signup__AllowedDomains__0` = one listed domain; `pwsh tools/e2e.ps1 -Gates` locally). The manual walkthrough stays for a real deployment.*
+
 **Precondition:** QA-GATE-01's state, plus a household at its seat cap (see QA-HH-14).
 **Gherkin**
 ```gherkin
@@ -3550,7 +3554,9 @@ Then the billing link is back, /billing renders the plan summary, and the seat-l
 
 ---
 
-### QA-GATE-04 — Green list: a stranger cannot create an account 🔴 (Web)
+### QA-GATE-04 — Green list: a stranger cannot create an account 🔴 (Web) ⚙️ Automated in CI
+*Automated by `GateJourneyTests.GreenList_AStrangerIsRefusedAtRedemption_WithTheRightWords` in the gates-off E2E lane (`Billing__Enabled` unset, `Signup__AllowedDomains__0` = one listed domain; `pwsh tools/e2e.ps1 -Gates` locally). The manual walkthrough stays for a real deployment.*
+
 **Precondition:** in `.env` set `Signup__AllowedEmails__0=` **your own address**; restart. Use a *second*
 address you control that is NOT listed and has **no account yet**.
 **Gherkin**
@@ -3571,7 +3577,9 @@ Then I am told the app is in private testing and no account is created
 
 ---
 
-### QA-GATE-05 — Green list: a listed person founds a household and can bring their family 🟠 (Web)
+### QA-GATE-05 — Green list: a listed person founds a household and can bring their family 🟠 (Web) ⚙️ Automated in CI
+*Automated by `GateJourneyTests.GreenList_AListedOwnerFoundsAHousehold_AndAnUnlistedInviteeMayJoinIt` in the gates-off E2E lane (`Billing__Enabled` unset, `Signup__AllowedDomains__0` = one listed domain; `pwsh tools/e2e.ps1 -Gates` locally). The manual walkthrough stays for a real deployment.*
+
 **Precondition:** QA-GATE-04's state (your address listed, one unlisted address available).
 **Gherkin**
 ```gherkin

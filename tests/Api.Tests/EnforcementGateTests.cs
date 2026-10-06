@@ -953,6 +953,40 @@ public class EnforcementGateTests
         }
     }
 
+    [Fact]
+    public void GateLane_RunsEveryDeploymentGate_AgainstTheShippedDefault() // R147 (v4 audit T48, BILL-10)
+    {
+        // Every other browser journey runs with Billing__Enabled=true and no green list, so until T48 nothing in a
+        // browser ever saw the posture a new app launches with. The gates-off lane is one step in the e2e job that
+        // restarts the API with the shipped default and runs the journeys tagged Gate; this holds the pieces to
+        // each other: the step's env has no billing switch and names the one listed domain, that domain is the
+        // literal GateJourneyTests uses, every deployment gate has a tagged journey, and the default lane leaves
+        // the gate journeys out (they would fail against billing-on).
+        var root = RepoRoot();
+        var workflow = File.ReadAllText(Path.Combine(root, ".github", "workflows", "ci.yml"));
+        var gates = File.ReadAllText(Path.Combine(root, "tests", "E2E.Tests", "GateJourneyTests.cs"));
+        var script = File.ReadAllText(Path.Combine(root, "tools", "e2e.ps1"));
+
+        var listed = Regex.Match(gates, @"ListedDomain\s*=\s*""([^""]+)""").Groups[1].Value;
+        Assert.False(string.IsNullOrEmpty(listed), "GateJourneyTests.ListedDomain moved");
+
+        var step = Regex.Match(workflow, @"- name: Gates off.*?(?=\n      - name:)", RegexOptions.Singleline).Value;
+        Assert.False(step.Length == 0, "the e2e job has no 'Gates off' step");
+        Assert.DoesNotContain("Billing__Enabled", step);                               // the shipped default: unset
+        Assert.Contains($"Signup__AllowedDomains__0: \"{listed}\"", step);            // the one listed domain
+        Assert.Contains("--filter \"TestCategory=Gate\"", step);                       // only the gate journeys
+        Assert.Contains("TestCategory!=Gate", workflow);                                // and the default lane excludes them
+        Assert.Contains($"--Signup:AllowedDomains:0={listed}", script);                // the local lane agrees,
+        Assert.Contains("'--Billing:Enabled=false'", script);                           // and overrides a developer's .env
+        Assert.Matches(@"'TestCategory=Gate'.*'TestCategory!=Gate'", script);
+
+        // Every deployment gate (ADR-027) has at least one journey tagged for it in the lane.
+        string[] deploymentGates = ["GateBilling", "GateSignup"];
+        foreach (var gate in deploymentGates)
+            Assert.True(Regex.IsMatch(gates, $@"\[Category\(""{gate}""\)\]\s*\n\s*public async Task \w+"), $"no journey is tagged {gate}");
+        Assert.Contains("[Category(\"Gate\")]", gates); // the fixture-level tag the lanes select on
+    }
+
     private static string RepoRoot()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
