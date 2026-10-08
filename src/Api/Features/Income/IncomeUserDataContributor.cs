@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Vuelto.Core.Abstractions;
+using Vuelto.Core.Budget;
 using Vuelto.Core.Entities;
 using Vuelto.Core.Repositories;
 
@@ -12,7 +13,7 @@ namespace Vuelto.Api.Features.Income;
 /// carries no query tag, so it must enter the tenant — ADR-020).
 /// </summary>
 public sealed class IncomeUserDataContributor(
-    IRepository<IncomeLine> lines, IRepository<MonthIncome> rows, ITenantContext tenantContext) : IUserDataContributor
+    IRepository<IncomeLine> lines, IRepository<MonthIncome> rows, IMonthIncomeRows monthRows, ITenantContext tenantContext) : IUserDataContributor
 {
     public async Task WipeAsync(Guid userId, CancellationToken cancellationToken = default)
     {
@@ -27,8 +28,7 @@ public sealed class IncomeUserDataContributor(
             {
                 await lines.Query().Where(l => l.MemberUserId == userId)
                     .ExecuteUpdateAsync(s => s.SetProperty(l => l.MemberUserId, (Guid?)null), cancellationToken);
-                await rows.Query().Where(r => r.MemberUserId == userId)
-                    .ExecuteUpdateAsync(s => s.SetProperty(r => r.MemberUserId, (Guid?)null), cancellationToken);
+                await monthRows.ClearMemberAsync(userId, cancellationToken); // the month rows are the Ledger's to write (Arch A8)
             }
         }
     }

@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Time.Testing;
 using Vuelto.Api.Features.Income;
+using Vuelto.Api.Features.Ledger;
 using Vuelto.Api.Tests.Infrastructure;
 using Vuelto.Core.Budget;
 using Vuelto.Core.Entities;
@@ -35,7 +36,7 @@ public class IncomeSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
         db.Add(new TenantMembership { TenantId = tenant, UserId = user.Id, Role = TenantRoles.Owner, JoinedAt = T0 });
         await db.SaveChangesAsync();
         db.ChangeTracker.Clear();
-        var handler = new IncomeHandler(new EfRepository<IncomeLine>(db), new EfRepository<MonthIncome>(db), new TenantRepository(db), new TestCurrentTenant { TenantId = tenant }, new FakeTimeProvider(T0));
+        var handler = new IncomeHandler(new EfRepository<IncomeLine>(db), new MonthIncomeRows(new EfRepository<MonthIncome>(db)), new TenantRepository(db), new TestCurrentTenant { TenantId = tenant }, new FakeTimeProvider(T0));
         return new Ctx(db, tenant, user.Id, handler);
     }
 
@@ -282,7 +283,7 @@ public class IncomeSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
         c.Db.Add(new MonthIncome { TenantId = c.Tenant, MonthId = month.Id, IncomeLineId = line!.Id, Label = "Allan salary", Amount = 2_500m, PlannedAmount = 2_500m, Currency = "USD", CreatedAt = T0, UpdatedAt = T0 });
         await c.Db.SaveChangesAsync();
         c.Db.ChangeTracker.Clear();
-        var hook = new IncomeDataContributor(new EfRepository<IncomeLine>(c.Db), new EfRepository<MonthIncome>(c.Db));
+        var hook = new IncomeDataContributor(new EfRepository<IncomeLine>(c.Db), new EfRepository<MonthIncome>(c.Db), new MonthIncomeRows(new EfRepository<MonthIncome>(c.Db)));
 
         Assert.True(await hook.HasDataAsync(c.Tenant));
         var export = JsonSerializer.SerializeToElement(await hook.ExportAsync(c.Tenant));
@@ -316,7 +317,7 @@ public class IncomeSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
         // The erasure runs in the person's own household context.
         var current = new TestCurrentTenant { TenantId = a.Tenant };
         await using var db = Fixture.CreateTestContext(current); // the filter follows this instance, so EnterTenant drives it
-        var hook = new IncomeUserDataContributor(new EfRepository<IncomeLine>(db), new EfRepository<MonthIncome>(db), current);
+        var hook = new IncomeUserDataContributor(new EfRepository<IncomeLine>(db), new EfRepository<MonthIncome>(db), new MonthIncomeRows(new EfRepository<MonthIncome>(db)), current);
         await hook.WipeAsync(person);
 
         Assert.Equal(a.Tenant, current.TenantId); // restored afterwards
