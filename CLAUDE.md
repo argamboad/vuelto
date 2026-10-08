@@ -81,7 +81,8 @@ its seams; a generic gap goes upstream to `perezosoft-platform` first.
 
 ## Golden rules — constant (do not violate)
 1. **Tenant-scoped, not user-scoped.** App data belongs to the tenant; never leak across tenants.
-   Tenant entities implement `ITenantScoped` and are filtered automatically by a global EF query
+   Tenant entities implement `ITenantScoped` (or `ISharedOrTenantScoped` for shared-or-owned catalog rows, Arch A4)
+   and are filtered automatically by a global EF query
    filter (see ADR-003); genuinely cross-tenant/pre-auth reads use the sanctioned escape hatch
    `IRepository<T>.QueryAllTenants()`, and signature-/system-authenticated tenant-scoped writes
    (the billing webhook, admin impersonation) enter their tenant via `ITenantContext.EnterTenant`.

@@ -5,6 +5,10 @@
 > v2.0 historical layer.
 > **Range.** R1–R35 (v1.0, `docs/audits/v2-2026-07/FOUNDATION_RULES.md`) and R36–R76 + R80 (v2.0,
 > `docs/audits/v3-2026-07/FOUNDATION_RULES_v2.md`) carry forward **unchanged except for the amendments in §1**.
+> **Amended 2026-10-07 by Arch A6 (#366):** R9 extended — no platform migration names the sample (§1).
+> **Amended 2026-10-07 by Arch A4 (#364):** R2 and R145 extended to the shared-or-tenant shape (`ISharedOrTenantScoped`, §1).
+> **Amended 2026-10-06 by Arch A1 (#362):** the Architecture milestone adds **R159–R162** as finals (R159 the composition seam, R160 the ownership map and stamp, R161 the schema parity gate, R162 the entity writer, all §10); R8 amended (§1).
+> **Amended 2026-10-06 by Arch A12 (#371):** R149 admits a component that takes its test id as a parameter, with literal callers.
 > **Amended 2026-10-02 by ADR-031:** R80 and R138 retired with `.forgejo/` (GitHub is the only forge again,
 > ADR-030); R98, R137 and R139 now speak of the one workflow; R98 no longer asks for branch protection (a private
 > repo on GitHub Free has none, and none is wanted).
@@ -39,6 +43,10 @@ check does not exist; the mechanism text below is the intent, the manifest is th
 | R75 [machine] | "…covers C# reads (`IConfiguration`, `GetEnvironmentVariable`, flat indexers — R95, `SectionName` consts — R153); deploy-time YAML keys are a DEPLOYMENT §10 review item (R100)"; the QA run-log clause is **unverified on Forgejo** until the `guard=ran/skipped` marker lands (C18). |
 | R80 [retired] | Retired 2026-10-02 (ADR-031): `.forgejo/` was removed, so there is no second workflow copy to hold together. |
 | R15 | Clock-injection scan widened to `src/Shared.Ui` (**R148**). |
+| R2 [machine] | "…an entity carrying a `TenantId` implements `ITenantScoped`, **or `ISharedOrTenantScoped` when its rows are either shared (null) or one tenant's (Arch A4, 2026-10-07)**, or is allowlisted by name; a nullable `TenantId` is one of the two or allowlisted infrastructure." Gate: `EveryEntityWithATenantId_IsScopedOrAllowlisted`, `EveryTenantScopedEntity_HasAGlobalQueryFilter` (both markers). |
+| R9 [machine] | "…and no platform migration names the sample's table: the sample is its own removable unit (`AddNotesSample` + `NotesSampleRlsPolicy`), removed by an app migration (Arch A6, 2026-10-07)." Gate: `PlatformMigrations_DoNotNameTheSample`. |
+| R145 [machine] | A shared-or-tenant entity ships its own four facets instead — `<Entity>_SharedOrTenant_{Dissolve,Export,SharedWrites,Erasure}_*` (`EverySharedOrTenantEntity_ShipsItsLifecycleSpec`) — and its four command-scoped RLS policies by migration (`EverySharedOrTenantTable_HasForcedRlsAndAllFourPolicies_AfterMigrations`); Arch A4, 2026-10-07. |
+| R8 [machine] | "Only **`src/Api/AppComposition.cs`** references `Vuelto.Api.Features.*` from outside `src/Api/Features/`" — the composition seam (**R159**, Arch A1, 2026-10-06); `Program.cs` names no slice. |
 
 ## 2. Auth / session (Critical/High)
 - **R81 [machine]** — A rotated-out refresh token is honoured at most **once** inside the reuse grace; a second presentation, or any presentation after the grace, is `Reuse` and revokes the family; the grace outcome is logged at Warning with a per-user count. — `RefreshReplayTests` (3rd presentation ⇒ 401 + revoke-all) + `TokenServiceTests`. — AUTH-1, AUTH-13.
@@ -115,7 +123,7 @@ check does not exist; the mechanism text below is the intent, the manifest is th
 - **R144 [machine]** — Coupled client+server changes ship one joint-invariant test reading both constants. — `ConfigPostureTests` cross-project fact + PR line. — UX-6/7, AUTH-1.
 - **R147 [machine]** — A gate-off E2E lane exists for every deployment-config gate, in both workflow copies. — TB-DOC-2. — TB-UI-66/67/68, BILL-10.
 - **R148 [machine]** — RCL components take the clock they schedule with (`TimeProvider`); the clock gate covers `src/Shared.Ui`. — TB-UI-65. — TOOL-7/8, C24.
-- **R149 [machine]** — Test-id contract: every `data-testid` in `src/Shared.Ui` is referenced by a test or QA case and vice versa. — TB-DOC-5.
+- **R149 [machine]** — Test-id contract: every `data-testid` in `src/Shared.Ui` is referenced by a test or QA case and vice versa. *(Amended 2026-10-06, Arch A12 #371:* a reusable component may take its id as a `[Parameter] string TestId` and derive suffixed ids from it (`@($"{TestId}-input")`); every caller passes a literal, and the ids that exist — the callers' literals with the component's suffixes — are the ones a test or QA case must use. Any other computed id is refused.*)* — TB-DOC-5; `TestIdContractTests` with its fixtures.
 - **R155 [machine]** — Route uniqueness is enforced at startup (duplicate method+pattern throws), not only in CI. — ADV-P4-13.
 - **R157 [machine]** — Source-scan gates matching a namespace/prefix use a boundary, with an `X`/`X2` self-test. — ADV-P4-12.
 
@@ -132,6 +140,12 @@ check does not exist; the mechanism text below is the intent, the manifest is th
 - **R152 [machine]** — Resource keys are unique per resx and slice-prefixed; MSB3568 promoted to an error (scoped). — ADV-P4-11.
 - **R158 [machine]** — The add-a-slice checklist is gate-verified against every artifact a gate forces; ADR-004 states the touchpoints as a list. — ADV-P4-17.
 
+## 10. Architecture · horizontal platform, vertical apps (2026-10)
+- **R159 [machine]** — A slice is composed from app-owned files (`src/Api/AppComposition.cs`, `AppDbContext.App.cs`, `tests/Api.Tests/App/**`, `RulesEnforcement.App.cs`, `tests/Ui.Tests/App/**`); no platform composition file names a slice or an app type, so `Program.cs`, `AppDbContext.cs`, the architecture gates and the test chassis are identical in the platform and its apps. — Arch A1 (#362): `OnlyAppComposition_ReferencesFeatureNamespaces_FromOutsideFeatures`, `CompositionFiles_AreFreeOfTheSampleSlice`; downstream, A2's manifest gate.
+- **R161 [machine]** — The platform publishes the shape its migrations build for its tables (`platform-schema.json`: columns, constraints, indexes, RLS policies, as Postgres reports them, extracted from the migrated database); every repo's migrated database matches it for those tables. — Arch A5 (#365): `MigratedDatabase_MatchesThePlatformSchema` (on the platform also the file's currency check; regenerate with `PLATFORM_SCHEMA_WRITE=1`).
+- **R162 [machine]** — One owning slice writes an entity, declared in `AppAllowlists.EntityWriters`; every other slice reads it or goes through a Core contract the owner implements; platform entities are written by platform services, never by a slice. — Arch A8 (#367): `EveryEntity_HasOneWritingSlice` (`SliceWriteInspector` with its self-test).
+- **R160 [machine]** — Every tracked file has an ownership class in `platform-ownership.json` (platform / adapts / app / sample); downstream, a `platform` file matches the manifest of the stamped platform commit (`tests/Api.Tests/App/platform-manifest.json`, written by `tools/port-platform.ps1`) or is listed in `PlatformDivergences.json` with a reason; a port updates the stamp and the manifest together; `/api/version` reports the platform commit. — Arch A2 (#363): `OwnershipMap_ClassifiesEveryTrackedFile`, `PlatformFiles_MatchTheStampedManifest_OrAreAllowlisted`, `PlatformStamp_MatchesTheManifest`, `PortTool_MergesPlatformAndAdaptsFiles_AndWritesTheManifestTheGateAccepts`.
+
 ## Standing TDD mandate (review, carried from R7/CONTRIBUTING, restated with v4 evidence)
 No production code without the failing test at the right layer; a slice ships happy-path + permission-denied +
 **two-tenant** isolation (R146) before "done"; every public method tested per branch **and per error path**; a test
@@ -141,5 +155,6 @@ concurrency runner are built once, in B8); QA plan + PDFs and the course lesson 
 reconciled in the same PR (R114/R115); run log append-only.
 
 ---
-*R1–R35 (v1.0) + R36–R76, R80 (v2.0, amended §1) + R81–R158 minus {R94, R156} (v4) = FOUNDATION_RULES v3.0.
+*R1–R35 (v1.0) + R36–R76, R80 (v2.0, amended §1) + R81–R158 minus {R94, R156} (v4) = FOUNDATION_RULES v3.0;
++ R159–R162 (Architecture A1, A2, A5 and A8, 2026-10-06/07).
 Retired numbers: R77, R78, R79, R80, R94, R138, R156.*

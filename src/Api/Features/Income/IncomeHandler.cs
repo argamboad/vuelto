@@ -18,7 +18,7 @@ namespace Vuelto.Api.Features.Income;
 /// </summary>
 public sealed class IncomeHandler(
     IRepository<IncomeLine> lines,
-    IRepository<MonthIncome> monthIncomes,
+    IMonthIncomeRows monthIncomeRows, // the month rows are the Ledger's (Arch A8)
     ITenantRepository tenants,
     ICurrentTenant tenant,
     TimeProvider clock)
@@ -75,17 +75,7 @@ public sealed class IncomeHandler(
         // carry its previous member take the new one (the migrated rows had none, so naming a member re-labels them).
         // A row set to someone else by hand keeps its member; amounts, labels and currencies are never touched.
         if (line.MemberUserId != previousMember)
-        {
-            var rows = await monthIncomes.Query()
-                .Where(m => m.IncomeLineId == line.Id && m.MemberUserId == previousMember)
-                .ToListAsync(cancellationToken);
-            foreach (var row in rows)
-            {
-                row.MemberUserId = line.MemberUserId;
-                row.UpdatedAt = now;
-                monthIncomes.Update(row);
-            }
-        }
+            await monthIncomeRows.ReassignMemberAsync(line.Id, previousMember, line.MemberUserId, now, cancellationToken); // staged; saved below
         await lines.SaveChangesAsync(cancellationToken); // the line and its months land together (one context)
         return (IncomeLineResponse.From(line), null);
     }

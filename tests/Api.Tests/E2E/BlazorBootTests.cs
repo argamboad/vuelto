@@ -27,7 +27,7 @@ public class BlazorBootTests
         // RELOAD of wherever the browser landed — the navigation count stays at one.
         var console = new BootConsole();
         var page = new ScriptedPage("loading", "loading", "ok");
-        page.OnOutcome(1, () => console.Add("requestfailed: GET http://localhost:5169/_framework/dotnet.js — net::ERR_NETWORK_CHANGED"));
+        page.OnOutcome(1, () => console.Add("requestfailed: GET http://web.test/_framework/dotnet.js — net::ERR_NETWORK_CHANGED"));
         var notes = new List<string>();
 
         await Boot(page, console, notes.Add);
@@ -36,7 +36,7 @@ public class BlazorBootTests
         Assert.Equal(1, page.Reloads);
         var note = Assert.Single(notes);
         Assert.Contains("attempt 1/3", note);
-        Assert.Contains("fetch failed: GET http://localhost:5169/_framework/dotnet.js", note);
+        Assert.Contains("fetch failed: GET http://web.test/_framework/dotnet.js", note);
     }
 
     [Fact]
@@ -45,7 +45,7 @@ public class BlazorBootTests
         // UX-9: Blazor's error banner with nothing failed on the network is the app's own startup exception. It
         // used to be retried like a flaky network — an app crashing one boot in three passed every run.
         var console = new BootConsole();
-        console.Add("requestfailed: GET http://localhost:5169/_framework/old.dll — net::ERR_ABORTED"); // before the navigation: not this boot's
+        console.Add("requestfailed: GET http://web.test/_framework/old.dll — net::ERR_ABORTED"); // before the navigation: not this boot's
         var page = new ScriptedPage("loading", "banner at 47%", "ok");
         var notes = new List<string>();
 
@@ -79,7 +79,7 @@ public class BlazorBootTests
         var console = new BootConsole();
         var page = new ScriptedPage("loading", "loading", "loading", "ok");
         for (var i = 0; i < 3; i++)
-            page.OnOutcome(i, () => console.Add("requestfailed: GET http://localhost:5169/_framework/blazor.boot.json — net::ERR_CONNECTION_RESET"));
+            page.OnOutcome(i, () => console.Add("requestfailed: GET http://web.test/_framework/blazor.boot.json — net::ERR_CONNECTION_RESET"));
         var notes = new List<string>();
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => Boot(page, console, notes.Add));
@@ -102,7 +102,7 @@ public class BlazorBootTests
         var console = new BootConsole();
         var budget = new BootBudget(BlazorBootCore.DeadBootsPerRun);
         Assert.Equal(3, BlazorBootCore.DeadBootsPerRun);
-        string Dead() => "requestfailed: GET http://localhost:5169/_framework/dotnet.js — net::ERR_NETWORK_CHANGED";
+        string Dead() => "requestfailed: GET http://web.test/_framework/dotnet.js — net::ERR_NETWORK_CHANGED";
 
         var first = new ScriptedPage("loading", "loading", "ok");
         first.OnOutcome(0, () => console.Add(Dead()));

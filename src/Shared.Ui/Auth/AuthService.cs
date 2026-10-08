@@ -450,10 +450,26 @@ public class AuthService
 
     // ── The session's two doors: tokens in, session out ─────────────────────────────────────────────
 
+    /// <summary>
+    /// True while a sign-out the user asked for (<see cref="LogoutAsync"/>) is ending the session. Every caller of
+    /// <see cref="LogoutAsync"/> then leaves for /login with a full reload, so a <see cref="SignedOut"/> listener must not
+    /// navigate as well: its client-side redirect raced the reload and could rewrite the history entry being left, and
+    /// Back no longer reached the page the bfcache guard protects. Read it synchronously in the handler.
+    /// </summary>
+    public bool SigningOut { get; private set; }
+
     public async Task LogoutAsync()
     {
-        await _transport.LogoutAsync();
-        await ClearSessionAsync();
+        SigningOut = true;
+        try
+        {
+            await _transport.LogoutAsync();
+            await ClearSessionAsync();
+        }
+        finally
+        {
+            SigningOut = false;
+        }
     }
 
     /// <summary>Sets the in-memory access token and persists the rotated refresh token (native).</summary>

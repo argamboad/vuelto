@@ -406,6 +406,38 @@ checklist in `WAYS_OF_WORKING.md` now carries that list with each step's gate, a
 forces a new artifact must appear there. Read "without touching central code" as *this list and nothing
 else* — the durable half of the claim (filter, stamping, RLS, group auth all inherited) still holds.
 
+*Amendment (Architecture milestone A1, 2026-10-06, #362, R159) — the touchpoints become app-owned files; the
+platform's composition files are identical in every repo.* The measured list above was right about *what* a slice
+edits and wrong about *where*: every member was a platform-owned file (`Program.cs`, `AppDbContext`, the `handled`
+set in `ArchitectureTests`, the harness), so each platform change to them was a hand merge downstream (measured on
+2026-10-05: vuelto `Program.cs` +80 lines, `AppDbContext` +20, `ArchitectureTests` +53; jigger-jot `Program.cs` +31
+and a seeder registered in the platform's `ServiceCollectionExtensions`). The seam: `src/Api/AppComposition.cs`
+(`AddAppServices` / `MapAppEndpoints` — the one file outside `Features/` that may name a slice, R8 as amended);
+`IStartupTask` (`Core/Abstractions`) for work that needs the schema, run by `Program.cs` after `Migrate()`; the
+app's half of the context in `AppDbContext.App.cs` (partial class, `OnAppModelCreating` hook);
+`tests/Api.Tests/App/AppAllowlists.cs` for every allowlist the gates read (`EveryTenantOwnedEntity_IsWiredIntoTenantDissolution`,
+`EveryUserKeyedEntity_IsWiredIntoAccountErasure`, the outbound-HTTP, controller, type-name, tenant-id and
+data-protection sets); `AppTestComposition.cs` for the harness's contributors and the integration host's pins;
+`RulesEnforcement.App.cs` for the manifest's per-app `Pending`/`NotHere`; `tests/Ui.Tests/App/TestHttpHandler.App.cs`
+for the UI stub. `Program.cs` calls the two composition methods once and runs the startup tasks; nothing in it
+changes per app. The checklist in `WAYS_OF_WORKING.md` names these files and
+`AddASliceChecklist_NamesEveryArtifactAGateForces` still holds it to the gates (`EveryEntity_IsDocumentedInDataModel`,
+`EveryTenantOwnedEntity_IsWiredIntoTenantDissolution`, `PostmanParityTests`); `CompositionFiles_AreFreeOfTheSampleSlice`
+proves the seam on the Notes sample: no platform composition file names it. Downstream, A2's manifest gate holds the
+same files identical to the platform's.
+
+*Amendment (Architecture milestone A8, 2026-10-07, #367, R162) — one owning slice writes an entity.* Slices were
+vertical at the HTTP layer only: every entity sits in `Core/Entities`, any slice can inject `IRepository<T>` for any
+of them, and the R7 gate checks namespaces, not data. Measured: vuelto's Dashboard handler injects eleven other slices'
+repositories and Reports nine — reading is their point — and nothing stopped either from writing. Decided (owner): each
+entity has ONE writing slice, declared in `AppAllowlists.EntityWriters` (entity → slice folder); every other slice
+reads it, or calls a Core contract the owner implements (vuelto's `ITransactionService` is the model: the Ledger slice
+owns `Transaction`, the review queue creates one through the contract). Platform entities are written by platform
+services, never by a slice. `EveryEntity_HasOneWritingSlice` holds it: `SliceWriteInspector` reads each slice's
+sources for writing members (`AddAsync`, `Add`, `Update`, `Remove`, their range forms, and `ExecuteDelete/UpdateAsync`
+chained from a query) on an injected repository; a write without a declared writer, a write by a slice other than the
+declared one, and a declaration nobody writes through all fail. Reads are free. The checklist gains a step (7, Writer).
+
 **ADR-005 — Apple Sign In fits the agnostic provider model; implementation DEFERRED, web-first. (2026-06-24)**
 A third OAuth provider (Apple) was assessed against the provider-agnostic auth stack (ADR-002). The
 verdict: the **backend absorbs it with small, mechanical additions** — `.AddApple(...)` in
@@ -1258,6 +1290,46 @@ only change alongside a re-encryption migration. The Render service keeps the na
 (Render treats the name as service identity; renaming would mint a new service + URL and churn the
 OAuth consoles for zero functional gain — fold into a future console-touching change if desired).
 
+*Amendment (Architecture milestone A2, 2026-10-07, #363, R160) — clone-and-rebrand ships with an ownership map, a
+stamp and a port tool; "extend, never modify" has a gate.* The boundary audit of 2026-10-05 measured vuelto at 142
+changed platform files (19 backend) and jigger-jot at 144 (30 backend) with nothing saying which of them *may* differ.
+Now `platform-ownership.json` (ordered globs, first match wins) classes every tracked file — **platform** (identical
+modulo the brand tokens; downstream, a change needs a reason in `tests/Api.Tests/App/PlatformDivergences.json`),
+**adapts** (platform origin, the app is expected to edit: its UI per #368, its journeys, its config, its docs; drift
+is reported, never failed), **app** (the slices and the Arch A1 seams; never ported) and **sample** (the DELETE-ME
+Notes slice) — and `OwnershipMap_ClassifiesEveryTrackedFile` fails the platform's own build on a file with no class.
+Downstream, `pwsh tools/port-platform.ps1 -Platform <checkout> -To <commit> -Apply` three-way-merges every platform and
+adapts file from the stamped commit to the target (brand renamed in content and path; `git merge-file --diff3`,
+markers left for a human; app files never touched), then writes `tests/Api.Tests/App/platform-manifest.json` (the
+brand-normalised SHA-256 of every platform and adapts file at the target) and `platform-stamp.json` (the commit, the
+date, the brand map). `PlatformFiles_MatchTheStampedManifest_OrAreAllowlisted` holds the repo to them, and an allowlist
+entry whose file is identical again fails too, so the list cannot rot. The manifest is derived data, generated
+downstream, never committed in the platform (which carries a null stamp). `/api/version` reports the platform commit
+beside the app's own. The hash is computed in PowerShell by the tool and in C# by the gate;
+`PortTool_MergesPlatformAndAdaptsFiles_AndWritesTheManifestTheGateAccepts` runs the tool against two scratch repos
+and pins the two equal. The NuGet-packages door (`PLATFORM_BACKLOG.md` §10) stays open: the map is also the list of
+what such packages would contain.
+
+*Amendment (Architecture milestone A5, 2026-10-07, #365, R161) — a schema parity gate for the platform's tables.*
+Platform migrations are regenerated per app, so the same change carries a different migration id in each repo and
+nothing proved an app's platform tables equalled the platform's. Decided: a gate only (a separate migration history for
+platform tables belongs with packaging, `PLATFORM_BACKLOG.md` §10). The platform publishes `platform-schema.json` — the
+columns, constraints, indexes and RLS policies of its tables as Postgres reports them, extracted from the database the
+real migrations build, never from the model — and `MigratedDatabase_MatchesThePlatformSchema` compares every repo's
+migrated database with it for those tables (an app's own tables are not listed and not checked). On the platform the
+same test is the file's currency check: a new or dropped platform table fails it until the file is regenerated
+(`PLATFORM_SCHEMA_WRITE=1 dotnet test --filter PlatformSchemaTests`). The sample's table is not a platform table.
+
+*Amendment (Architecture milestone A6, 2026-10-07, #366) — the Notes sample is its own removable unit.* Its table was
+created by one platform migration (`AddNotesSample`) and named by another (`RlsTenancyBackstop`'s frozen list), so
+removing the sample meant editing platform history: vuelto deleted the first and edited the second, and its platform
+migrations diverged from upstream for good; jigger-jot never removed it. Now `RlsTenancyBackstop` no longer names
+`Notes` (a database that ran it before is unchanged; a fresh one gets the policy from the sample's own
+`NotesSampleRlsPolicy` migration, idempotently), both sample migrations are class `sample` in the ownership map, and
+`PlatformMigrations_DoNotNameTheSample` keeps every other migration free of it (R9 amended). Removing the sample is an
+app change: delete its code, drop its table with an app migration, leave the two sample migrations as history
+(`NEW_APP_GUIDE.md`, "Removing the Notes sample").
+
 **ADR-020 — Tenancy defense-in-depth: Postgres row-level security as a second, DB-level wall under the EF query filter. (2026-07-06; IMPLEMENTED — see the addenda. Header fixed 2026-07-27, v3 T57: it still read "DEFERRED" long after the backstop merged)**
 Tenant isolation is currently enforced entirely in the application layer: the ADR-003 global query
 filter, the write-side interceptor (V2-B2), and the arch-test bans. One missed seam in a future
@@ -1325,6 +1397,22 @@ model-derived policies into the database the gate inspected) and was fixed to mi
 provisioning with a bites-test; dissolve/erasure under a foreign entered tenant (RLS-2) was made
 all-or-nothing; and the slice recipe is now documented + enforced end-to-end (the hand-written
 policy step in `WAYS_OF_WORKING.md` + the PR-template checkbox + the honest gate — v3 T52/T57).
+
+*Amendment (Architecture milestone A4, 2026-10-07, #364) — the shared-or-tenant shape is a platform seam.* jigger-jot
+needed rows that are either shared (a curated catalog, `TenantId` null) or one household's, and built it by editing
+two platform files (JJ-031: a second query filter in `AppDbContext`, a second policy family in `RlsDdl`). The
+capability is generic, so it moves upstream as `ISharedOrTenantScoped` (`Core/Entities`), the deliberate sibling of
+`ITenantScoped`: a second global filter (`TenantId == null || TenantId == CurrentTenantId`; shared rows only when
+no tenant is current), a write rule in `TenantStampingInterceptor` (no stamping — the writer sets `TenantId`; under a
+tenant, a shared row or another tenant's row is refused), and FOUR command-scoped RLS policies
+(`RlsDdl.SharedOrTenantStatementsFor`): SELECT admits shared and own, INSERT/UPDATE/DELETE admit own only, so a tenant
+cannot delete the catalog even past the EF filter, and writing a shared row needs the bypass GUC of a tenant-less
+context. Gates: both markers under the filter gate; a nullable `TenantId` is this shape or allowlisted infrastructure
+(R2 amended); the migration-parity gate asks every such table for ENABLE + FORCE and all four policies by name; and
+each such entity ships four lifecycle facets — `Dissolve`, `Export`, `SharedWrites`, `Erasure` — in place of the R145
+infrastructure facets (R145 amended). The platform owns no such table: the shape is proven on the `TestSharedWidget`
+fixture (`SharedOrTenantTests`, `SharedOrTenantRlsTests`), and jigger-jot's catalog returns its two files to the
+platform's text when it syncs.
 
 **ADR-021 — Admin back-office writes: narrow, enumerated, audited mutations (amends ADR-014's "read-only" posture). (2026-07-09)**
 ADR-014 point 2 declared admin **read-only over tenant data** ("inspect, don't mutate"), with the
@@ -2284,3 +2372,20 @@ says so:
 
 **Consequences.** A pull request costs roughly 25–35 minutes, a docs-only one a few. The `changes` job's
 classifier still reports `native`/`maui` for the record. The platform and its downstream apps share this ADR.
+
+**ADR-032 — The platform's tenant is a "household", by design; an app whose tenant is something else renames at rebrand time. (2026-10-06)**
+The platform names its tenant with a product noun, not a neutral one: `HouseholdController` at `api/household`,
+`HouseholdInvitationsController`, the `Household.razor` page at `/household`, the `Household_*` resource keys
+(about 120 strings in EN and ES), the `nav-household` test id, and the word in emails and QA cases. The boundary
+audit of 2026-10-05 (Arch A11, #370) asked whether to rename it to a neutral word, make the display noun a per-app
+resource, or record it as intended. **Decided: record it as intended.** Both current apps (vuelto, jigger-jot) are
+household products, and the one word in code, routes, strings and tests is what lets a journey, a QA case and a
+support conversation say the same thing. A neutral word (`tenant`, `workspace`) would be right for nobody and
+would still be renamed by every app with a different noun.
+*Consequences:* the word is a **rebrand-time** concern, beside the brand itself. An app whose tenant is a team,
+a company or a classroom renames `Household` → its noun in the same pass as `Vuelto` → its brand, following
+the entry in `docs/REBRANDING.md` §1 (routes, pages, controllers, resource keys, test ids and QA cases move
+together; `TestIdContractTests` and `ResourceParityTests` catch a half-done rename). The platform's own tests and
+docs keep saying household. Ports of platform changes into an app that renamed are three-way merges with a second
+token pair, the same mechanism the brand rename already uses. ADR-C1/C2 (tenant ≠ user; tenant-scoped data) are
+untouched: this is vocabulary, not shape.

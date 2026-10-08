@@ -152,6 +152,9 @@ else
     // 401'd until they reloaded. An anonymous page (/join, /login) is left alone.
     private async void OnSignedOut()
     {
+        // The user's own sign-out leaves for /login with a full reload; only a session ended elsewhere is redirected
+        // here. Read before the first await, while LogoutAsync is still running.
+        var callerLeaves = Auth.SigningOut;
         try
         {
             await ThemePersistence.ClearAsync();
@@ -160,7 +163,7 @@ else
         catch { /* best-effort — a store that can't clear is no worse than before */ }
         try
         {
-            if (!IsAnonymousPath())
+            if (!callerLeaves && !IsAnonymousPath())
                 await InvokeAsync(() => Nav.NavigateTo("/login", replace: true));
         }
         catch { /* best-effort — the next protected call finds no session and the page shows its own error */ }

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Time.Testing;
 using Vuelto.Api.Features.Cards;
+using Vuelto.Api.Features.Ledger;
 using Vuelto.Api.Tests.Infrastructure;
 using Vuelto.Core.Entities;
 using Vuelto.Infrastructure.Persistence;
@@ -29,7 +30,7 @@ public class CardSliceTests(PostgresFixture fixture) : PostgresTestBase(fixture)
         db.Add(bank);
         await db.SaveChangesAsync();
         db.ChangeTracker.Clear();
-        return new Ctx(db, new CardHandler(new EfRepository<Card>(db), new EfRepository<CardIdentity>(db), new EfRepository<Transaction>(db), new EfRepository<Bank>(db), new TestCurrentTenant { TenantId = tenant }, new FakeTimeProvider(T0)), tenant, bank.Id);
+        return new Ctx(db, new CardHandler(new EfRepository<Card>(db), new EfRepository<CardIdentity>(db), new TransactionCards(new EfRepository<Transaction>(db)), new EfRepository<Bank>(db), new TestCurrentTenant { TenantId = tenant }, new FakeTimeProvider(T0)), tenant, bank.Id);
     }
 
     [Fact]

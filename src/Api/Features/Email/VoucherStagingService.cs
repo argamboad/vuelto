@@ -29,6 +29,7 @@ public sealed class VoucherStagingService(
     ITenantContext tenantContext,
     IRepository<User> users,
     IRepository<Bank> banks,
+    IBankDefaults bankDefaults, // the Catalog seeds banks (Arch A8)
     IRepository<PendingVoucher> pendingVouchers,
     IRepository<IngestedVoucher> ingestedVouchers,
     IRepository<EmailConnection> connections,
@@ -186,21 +187,7 @@ public sealed class VoucherStagingService(
     /// <summary>Map parsed banks to the household catalog by name (both locales), Cash as the fallback; seed the defaults first if the household has none.</summary>
     private async Task<BankIds> ResolveBankIdsAsync(Guid householdId, string? locale, CancellationToken cancellationToken)
     {
-        if (!await banks.Query().AnyAsync(cancellationToken))
-        {
-            var now = clock.GetUtcNow();
-            foreach (var name in SeedCatalog.BankNames(locale))
-                await banks.AddAsync(new Bank { TenantId = householdId, Name = name, CreatedAt = now, UpdatedAt = now }, cancellationToken);
-            try
-            {
-                await banks.SaveChangesAsync(cancellationToken);
-            }
-            catch (DbUpdateException ex)
-            {
-                // A concurrent poll/sync seeded first: absorb the unique-name race and read what exists.
-                logger.LogInformation(ex, "Bank seed for household {Id} lost a concurrent race; using the existing catalog", householdId);
-            }
-        }
+        await bankDefaults.EnsureSeededAsync(householdId, locale, cancellationToken); // a concurrent seed is absorbed there
 
         var all = await banks.Query().Select(b => new { b.Id, b.Name }).ToListAsync(cancellationToken);
         Guid? Find(params string[] names) => all.FirstOrDefault(b => names.Contains(b.Name, StringComparer.OrdinalIgnoreCase))?.Id;

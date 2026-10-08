@@ -8,7 +8,9 @@
 - `id` primary key on every entity unless noted. UUIDv7 (`Guid.CreateVersion7()`) used — time-ordered,
   supported in .NET 9+ and already active in base entities.
 - Timestamps (`created_at`, `updated_at`) assumed on all entities; omitted below for brevity.
-- **Tenant scoping:** every app entity that holds tenant data implements `ITenantScoped`
+- **Tenant scoping:** every app entity that holds tenant data implements `ITenantScoped` — or
+  `ISharedOrTenantScoped` when its rows are either shared (`TenantId` null, a curated catalog) or one tenant's
+  (Arch A4; a second filter, a write rule and four command-scoped RLS policies) —
   (a `TenantId`) and is filtered automatically by a global EF query filter (see ADR-003) — you
   can't forget to scope a read. Genuinely cross-tenant/pre-auth reads use the sanctioned escape
   hatch **`IRepository<T>.QueryAllTenants()`** (audited; used by dissolve contributors), and a
@@ -574,7 +576,8 @@ stateDiagram-v2
 ## Platform entities (built — ADRs 006–016)
 
 > These are the tenant-/platform-scoped tables the platform epics added. All have EF Core migrations.
-> New app/domain tables you add should implement `ITenantScoped` (so the global tenant filter covers
+> New app/domain tables you add should implement `ITenantScoped` (or `ISharedOrTenantScoped` for a shared-or-owned
+> catalog, Arch A4; its migration then carries `RlsDdl.SharedOrTenantStatementsFor`) (so the global tenant filter covers
 > them) and register an **`ITenantDataContributor`** (with `ExportKey` + `ExportAsync` **and**
 > `HasDataAsync`/`WipeAsync`) so they participate in tenant export + dissolve — there is **no** central
 > `HasDataAsync`/`WipeDataAsync` method to edit (adding a feature never means touching central code).

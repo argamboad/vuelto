@@ -269,6 +269,27 @@ public class SessionKeepAliveTests : ComponentTestBase
         Assert.Equal(bounces, nav.Uri.EndsWith("/login", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public async Task UserSignOut_TheLayoutLeavesTheNavigationToTheCaller()
+    {
+        // The sign-out button logs out and then leaves for /login with a full reload. The layout's redirect is for a
+        // session the user did not end; on their own sign-out it raced the reload and could replace the history entry
+        // being left, so Back no longer reached the page the bfcache guard protects
+        // (SignOut_ThenBack_LandsOnLogin_NotTheCachedHousehold failed whenever the redirect won).
+        await SignInAsync(name: "First", theme: "dark");
+        var nav = (Bunit.TestDoubles.BunitNavigationManager)Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
+        nav.NavigateTo("/household");
+        Render<MainLayout>(ps => ps.Add(m => m.Body, b => b.AddMarkupContent(0, "<div>page</div>")));
+        Http.On(HttpMethod.Post, "/api/auth/logout");
+
+        await Auth.LogoutAsync();
+        await Task.Delay(50);
+
+        Assert.True(ThemeStore.Cleared);          // the device-preference wipe still runs
+        Assert.EndsWith("/household", nav.Uri);   // the layout did not navigate; the caller's reload does
+        Assert.False(Auth.SigningOut);
+    }
+
     // ── the token's lifetime is the server's, not the device clock's (v4 T32, R126) ──
 
     [Fact]
@@ -715,9 +736,11 @@ public class SessionKeepAliveTests : ComponentTestBase
         await WaitUntil(condition);
     }
 
+    /// <summary>Waits in REAL time (up to 10 s) for the async work the fake clock woke. Two seconds was too tight for a
+    /// loaded CI runner, where xUnit's parallel classes starve the continuations (jigger-jot CI, 2026-10-08).</summary>
     private static async Task WaitUntil(Func<bool> condition)
     {
-        for (var i = 0; i < 200 && !condition(); i++)
+        for (var i = 0; i < 1000 && !condition(); i++)
             await Task.Delay(10);
         Assert.True(condition());
     }

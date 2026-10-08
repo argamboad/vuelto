@@ -26,4 +26,58 @@
     <MSBuildWarningsAsErrors>$(MSBuildWarningsAsErrors);MSB3568</MSBuildWarningsAsErrors>
   </PropertyGroup>
 
+  <!--
+    The repo's local ports, stated once (Arch A10, #369): local-ports.props. A project that opts in with
+    <GenerateLocalPorts>true</GenerateLocalPorts> gets an internal `LocalPorts` class generated from them before it
+    compiles, so a dev fallback in code names LocalPorts.WebHttpsUrl, never a number. The file lands in obj/ and is
+    rewritten only when the properties change; LocalPortsTests holds every other site to the same props.
+  -->
+  <Import Project="$(MSBuildThisFileDirectory)local-ports.props" />
+
+  <!--
+    The platform stamp travels with the API (Arch A2, R160): platform-stamp.json is copied beside the binaries of the
+    *.Api project (and so into the published container), where /api/version reads the platform commit this build is
+    synced to. The test host reads the same copy.
+  -->
+  <ItemGroup Condition="$(MSBuildProjectName.EndsWith('.Api'))">
+    <Content Include="$(MSBuildThisFileDirectory)platform-stamp.json" Link="platform-stamp.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <Target Name="GenerateLocalPorts" BeforeTargets="BeforeCompile;CoreCompile" Condition="'$(GenerateLocalPorts)' == 'true'">
+    <PropertyGroup>
+      <_LocalPortsFile>$(IntermediateOutputPath)LocalPorts.g.cs</_LocalPortsFile>
+      <!-- In the project's own namespace: an internal class of the same name in a referenced assembly (InternalsVisibleTo)
+           would otherwise collide (CS0436), and the innermost namespace wins the lookup. -->
+      <_LocalPortsNamespace>$(RootNamespace)</_LocalPortsNamespace>
+      <_LocalPortsNamespace Condition="'$(_LocalPortsNamespace)' == ''">$(AssemblyName)</_LocalPortsNamespace>
+      <_LocalPortsNamespace Condition="'$(_LocalPortsNamespace)' == ''">$(MSBuildProjectName)</_LocalPortsNamespace>
+    </PropertyGroup>
+    <ItemGroup>
+      <_LocalPortsLine Include="// &lt;auto-generated/&gt; from local-ports.props by Directory.Build.props (Arch A10). Edit the props, not this file." />
+      <_LocalPortsLine Include="namespace $(_LocalPortsNamespace)%3B" />
+      <_LocalPortsLine Include="/// &lt;summary&gt;This repo's block of local ports and the origins built from them. One source: local-ports.props.&lt;/summary&gt;" />
+      <_LocalPortsLine Include="internal static class LocalPorts" />
+      <_LocalPortsLine Include="{" />
+      <_LocalPortsLine Include="    public const int Db = $(LocalDbPort)%3B" />
+      <_LocalPortsLine Include="    public const int Smtp = $(LocalSmtpPort)%3B" />
+      <_LocalPortsLine Include="    public const int MailUi = $(LocalMailUiPort)%3B" />
+      <_LocalPortsLine Include="    public const int App = $(LocalAppPort)%3B" />
+      <_LocalPortsLine Include="    public const int ApiHttps = $(LocalApiHttpsPort)%3B" />
+      <_LocalPortsLine Include="    public const int ApiHttp = $(LocalApiHttpPort)%3B" />
+      <_LocalPortsLine Include="    public const int WebHttps = $(LocalWebHttpsPort)%3B" />
+      <_LocalPortsLine Include="    public const int WebHttp = $(LocalWebHttpPort)%3B" />
+      <_LocalPortsLine Include="    public const string ApiHttpsUrl = &quot;https://localhost:$(LocalApiHttpsPort)&quot;%3B" />
+      <_LocalPortsLine Include="    public const string ApiHttpUrl = &quot;http://localhost:$(LocalApiHttpPort)&quot;%3B" />
+      <_LocalPortsLine Include="    public const string WebHttpsUrl = &quot;https://localhost:$(LocalWebHttpsPort)&quot;%3B" />
+      <_LocalPortsLine Include="    public const string WebHttpUrl = &quot;http://localhost:$(LocalWebHttpPort)&quot;%3B" />
+      <_LocalPortsLine Include="    public const string MailUiUrl = &quot;http://localhost:$(LocalMailUiPort)&quot;%3B" />
+      <_LocalPortsLine Include="}" />
+    </ItemGroup>
+    <WriteLinesToFile File="$(_LocalPortsFile)" Lines="@(_LocalPortsLine)" Overwrite="true" WriteOnlyWhenDifferent="true" />
+    <ItemGroup>
+      <Compile Include="$(_LocalPortsFile)" />
+      <FileWrites Include="$(_LocalPortsFile)" />
+    </ItemGroup>
+  </Target>
+
 </Project>

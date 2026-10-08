@@ -8,7 +8,7 @@ namespace Vuelto.Ui.Tests.Infrastructure;
 /// "METHOD /path" to a canned response, and record every request for assertions. Unmatched requests 404
 /// (a component that calls an unstubbed endpoint fails loudly rather than hanging).
 /// </summary>
-public sealed class TestHttpHandler : HttpMessageHandler
+public sealed partial class TestHttpHandler : HttpMessageHandler // the app's half: App/TestHttpHandler.App.cs (Arch A1)
 {
     private readonly Dictionary<string, Func<HttpRequestMessage, HttpResponseMessage>> _routes = new(StringComparer.OrdinalIgnoreCase);
 

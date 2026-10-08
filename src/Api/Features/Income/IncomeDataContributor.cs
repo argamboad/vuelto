@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Vuelto.Core.Abstractions;
+using Vuelto.Core.Budget;
 using Vuelto.Core.Entities;
 using Vuelto.Core.Repositories;
 
@@ -9,7 +10,7 @@ namespace Vuelto.Api.Features.Income;
 /// INCOME-1 tenant-data hook: the household's income lines and every month's income rows count as data, are wiped on
 /// dissolve (rows first; the month cascade would remove them anyway), and export together.
 /// </summary>
-public sealed class IncomeDataContributor(IRepository<IncomeLine> lines, IRepository<MonthIncome> rows) : ITenantDataContributor
+public sealed class IncomeDataContributor(IRepository<IncomeLine> lines, IRepository<MonthIncome> rows, IMonthIncomeRows monthRows) : ITenantDataContributor
 {
     public string ExportKey => "income";
 
@@ -20,7 +21,7 @@ public sealed class IncomeDataContributor(IRepository<IncomeLine> lines, IReposi
     public async Task WipeAsync(Guid tenantId, CancellationToken cancellationToken = default)
     {
         // Query(): the dissolve has entered the target tenant, so the filter scopes these deletes to it.
-        await rows.Query().Where(r => r.TenantId == tenantId).ExecuteDeleteAsync(cancellationToken);
+        await monthRows.WipeAsync(tenantId, cancellationToken); // the month rows are the Ledger's to write (Arch A8)
         await lines.Query().Where(l => l.TenantId == tenantId).ExecuteDeleteAsync(cancellationToken);
     }
 

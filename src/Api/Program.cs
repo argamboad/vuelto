@@ -7,29 +7,11 @@ using Vuelto.Api;
 using Vuelto.Api.Authentication;
 using Vuelto.Api.Configuration;
 using Vuelto.Api.Endpoints;
-using Vuelto.Api.Features.Budget;
-using Vuelto.Api.Features.Catalog;
-using Vuelto.Api.Features.Dashboard;
-using Vuelto.Api.Features.Cards;
-using Vuelto.Api.Features.DisplaySettings;
-using Vuelto.Api.Features.Email;
-using Vuelto.Api.Features.Envelopes;
-using Vuelto.Api.Features.Reports;
-using Vuelto.Api.Features.Reports.Pdf;
-using Vuelto.Api.Features.ExchangeRate;
-using Vuelto.Api.Features.Expenses;
-using Vuelto.Api.Features.Income;
-using Vuelto.Api.Features.Ledger;
 using Vuelto.Api.Observability;
 using Vuelto.Api.Services;
 using Vuelto.Core.Abstractions;
-using Vuelto.Core.Budget;
-using Vuelto.Core.Mail;
 using Vuelto.Infrastructure;
-using Vuelto.Infrastructure.ExchangeRate;
-using Vuelto.Infrastructure.Mail;
 using Vuelto.Infrastructure.Persistence;
-using Vuelto.Infrastructure.Vouchers;
 
 // Local dev: load secrets/config from the repo-root .env (the single local source of truth —
 // see docs/DECISIONS.md), walking up from the working dir; a no-op without one (production uses real env vars)
@@ -132,52 +114,10 @@ builder.Services.AddPlatformAdminServices(builder.Configuration);
 builder.Services.AddRbacServices();
 builder.Services.AddBillingServices();
 
-// App feature slices (src/Api/Features/<Feature>) register their handler + ITenantDataContributor
-// here and map their group below — only Program.cs may reference Features.* (R8).
-builder.Services.AddScoped<BudgetSettingsHandler>();                                   // BUDGET-1
-builder.Services.AddScoped<ITenantDataContributor, BudgetSettingsDataContributor>();
-builder.Services.AddScoped<CategoryCatalogHandler>();                                  // CATALOG-1/2
-builder.Services.AddScoped<BankCatalogHandler>();
-builder.Services.AddScoped<ITenantDataContributor, CategoryDataContributor>();
-builder.Services.AddScoped<ITenantDataContributor, BankDataContributor>();
-builder.Services.AddExchangeRates(builder.Configuration);                             // FX-1 (no entity)
-builder.Services.AddVoucherParsing();                                                 // EMAIL-1 (pure parser library; no entity)
-builder.Services.AddMailIngestion(builder.Configuration);                             // EMAIL-2/3 (token protector, consent, Graph + Gmail readers)
-builder.Services.AddScoped<IExchangeRateResolver, ExchangeRateResolver>();
-builder.Services.AddScoped<IRecentRateSource, TransactionRecentRateSource>();          // LEDGER-2 fills the chain's last tier
-builder.Services.AddScoped<EnvelopeHandler>();                                         // ENV-1
-builder.Services.AddScoped<ITenantDataContributor, EnvelopeDataContributor>();
-builder.Services.AddSingleton<IWeekBoundaryService, WeekBoundaryService>();            // pure Core service (BUDGET-1)
-builder.Services.AddScoped<MonthHandler>();                                            // LEDGER-1/2
-builder.Services.AddScoped<TransactionHandler>();
-builder.Services.AddScoped<RefundHandler>();                                           // LEDGER-3
-builder.Services.AddScoped<ITenantDataContributor, LedgerDataContributor>();
-builder.Services.AddScoped<FixedExpenseHandler>();                                     // EXPENSES-1
-builder.Services.AddScoped<VariableExpenseHandler>();
-builder.Services.AddScoped<ITenantDataContributor, FixedExpenseDataContributor>();
-builder.Services.AddScoped<ITenantDataContributor, VariableExpenseDataContributor>();
-builder.Services.AddScoped<IncomeHandler>();                                            // INCOME-1
-builder.Services.AddScoped<ITenantDataContributor, IncomeDataContributor>();
-builder.Services.AddScoped<IUserDataContributor, IncomeUserDataContributor>();
-builder.Services.AddSingleton<IDashboardSummaryService, DashboardSummaryService>();    // DASH-1 (pure Core calc)
-builder.Services.AddScoped<DashboardHandler>();
-builder.Services.AddScoped<ReportHandler>();                                            // REPORTS-1/2
-builder.Services.AddScoped<ReportPdfHandler>();                                         // REPORTS-7/8
-builder.Services.AddReportEmailRateLimit();                                              // REPORTS-8: 10 report emails a day per person
-builder.Services.AddScoped<EmailConnectionHandler>();                                   // EMAIL-2 (user-keyed, ADR-V002)
-builder.Services.AddScoped<IUserDataContributor, EmailConnectionUserDataContributor>();
-builder.Services.AddScoped<IVoucherStagingService, VoucherStagingService>();          // EMAIL-4 (staging with the tenant hop)
-builder.Services.AddScoped<IScheduledJob, EmailPollJob>();                              // EMAIL-4 (poller on the platform scheduler)
-builder.Services.AddScoped<ITenantDataContributor, VoucherStagingDataContributor>();
-builder.Services.AddScoped<CardHandler>();                                              // CARDS-1 (ADR-V021)
-builder.Services.AddScoped<ICardResolver>(sp => sp.GetRequiredService<CardHandler>());   // the review queue's face of it (R7)
-builder.Services.AddScoped<ITenantDataContributor, CardDataContributor>();
-builder.Services.AddScoped<DisplaySettingsHandler>();                                   // DISPLAY-1 (user-keyed, ADR-V020)
-builder.Services.AddScoped<IUserDataContributor, DisplaySettingsUserDataContributor>();
-builder.Services.AddScoped<ITransactionService>(sp => sp.GetRequiredService<TransactionHandler>()); // ADR-V010: the Ledger create behind the Core contract (R7 — slices never reference each other)
-builder.Services.AddScoped<MerchantMappingHandler>();                                   // EMAIL-5 (household suggestion rules)
-builder.Services.AddScoped<ITenantDataContributor, MerchantMappingDataContributor>();
-builder.Services.AddScoped<PendingVoucherHandler>();                                    // EMAIL-6 (review queue: the only draft → transaction path)
+// The app's half of composition (Arch A1, R159): every slice's services, registered in AppComposition.cs — the
+// one file outside Features/ that may name a slice (R8 as amended). This file is identical in the platform and
+// every app; a slice never edits it.
+builder.Services.AddAppServices(builder.Configuration);
 
 // Caches + session (LinkTokenService uses IMemoryCache; session backed by distributed cache).
 builder.Services.AddMemoryCache();
@@ -287,6 +227,15 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
+// App startup tasks (Arch A1, IStartupTask): work that needs the schema and must precede the first request — a
+// curated catalog seed, an app-owned backfill — registered in AppComposition, run here in registration order in
+// one fresh scope (no ambient tenant). The platform registers none; the loop is the seam.
+using (var scope = app.Services.CreateScope())
+{
+    foreach (var task in scope.ServiceProvider.GetServices<IStartupTask>())
+        await task.RunAsync(app.Lifetime.ApplicationStopping);
+}
+
 // RLS posture guard (ADR-020, config-gated; prod activation enables it): refuse to start if the
 // runtime connection would silently bypass row-level security. Fresh scope — the migrate scope's
 // context may have been repointed at the migrator connection above.
@@ -352,7 +301,7 @@ if (app.Environment.IsDevelopment())
 }
 
 // HTTPS redirect is a production concern. In Development we deliberately skip it so the
-// Android emulator can talk cleartext HTTP to the host (http://10.0.2.2:5338) without the
+// Android emulator can talk cleartext HTTP to the host (10.0.2.2, the API's http port) without the
 // request being 307'd to a port/cert it can't reach. Native auth uses body tokens (no
 // cookies), so none of the web client's HTTPS/SameSite requirements apply to that leg.
 if (!app.Environment.IsDevelopment())
@@ -383,29 +332,20 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = check 
 // Deployed build identity (DEPLOY-3). Anonymous; returns the commit this instance is running, from the
 // platform's env (Render sets RENDER_GIT_COMMIT) or an explicit APP_BUILD_COMMIT, else "unknown". The
 // post-deploy smoke polls this to wait for the NEW build to actually be live before asserting — the old
-// instance keeps serving during a build, so health alone can't tell old from new.
+// instance keeps serving during a build, so health alone can't tell old from new. `platform` is the
+// perezosoft-platform commit this build is synced to (Arch A2: platform-stamp.json, copied beside the
+// binaries; "platform" on the platform itself).
+var platformCommit = PlatformStamp.ReadCommit(Path.Combine(AppContext.BaseDirectory, "platform-stamp.json"));
 app.MapGet("/api/version", () => Results.Ok(new
 {
     commit = Environment.GetEnvironmentVariable("APP_BUILD_COMMIT")
              ?? Environment.GetEnvironmentVariable("RENDER_GIT_COMMIT")
              ?? "unknown",
+    platform = platformCommit,
 })).AllowAnonymous().WithTags("Platform");
 
-// App feature slice endpoints are mapped here (app.Map<Feature>()), one call per slice.
-app.MapBudgetSettings(); // BUDGET-1
-app.MapCatalog();        // CATALOG-1/2 (/api/categories, /api/banks)
-app.MapExchangeRate();   // FX-1
-app.MapEnvelopes();      // ENV-1
-app.MapLedger();         // LEDGER-1/2/3 (/api/months, /api/transactions, /api/refunds)
-app.MapExpenses();       // EXPENSES-1 (/api/expenses/fixed, /api/expenses/variable)
-app.MapIncomes();        // INCOME-1 (/api/incomes)
-app.MapDashboard();      // DASH-1 (/api/months/{id}/summary)
-app.MapReports();        // REPORTS-1/2/7/8 (/api/reports/category-analysis, /api/reports/transactions/export, /api/reports/pdf, /api/reports/pdf/email)
-app.MapEmail();          // EMAIL-2/3 (/api/email/connections — user-scoped; the consent callback is the one anonymous route)
-app.MapMerchantMappings(); // EMAIL-5 (/api/merchant-mappings)
-app.MapPendingVouchers();  // EMAIL-6 (/api/pending-vouchers — list, count, confirm, discard)
-app.MapCards();            // CARDS-1 (/api/cards)
-app.MapDisplaySettings();  // DISPLAY-1 (/api/display-settings — the caller's own ₡ · $ · both preference)
+// The app's endpoint groups (Arch A1): AppComposition.MapAppEndpoints, each through MapTenantFeatureGroup (R6).
+app.MapAppEndpoints();
 // Billing is a platform controller (BillingController) — auto-mapped by MapControllers above.
 
 // PUBAPI (ADR-015): map key management + the public routes only when enabled — off ⇒ they don't exist.

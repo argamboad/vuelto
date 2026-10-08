@@ -57,10 +57,10 @@ public class EnforcementGateTests
     [Fact]
     public void Dockerfile_GivesTheAppUserAWritableStorageDir()
     {
-        // Synced from perezosoft-platform #236. Local-disk file storage (ADR-010) defaults to ./storage under the app
-        // base dir = /app/storage. The runtime runs as the non-root `app` user and WORKDIR /app is created by root, so
-        // without this every stored file (CSV export, report PDF, household export) failed on staging with "Access to
-        // the path '/app/storage' is denied" (2026-09-17). The directory must exist, owned by `app`, BEFORE `USER app`.
+        // Local-disk file storage (ADR-010) defaults to ./storage under the app base dir = /app/storage. The runtime
+        // runs as the non-root `app` user, and WORKDIR /app is created by root, so without this the first file write
+        // (CSV export, report PDF, household export) fails with "Access to the path '/app/storage' is denied" —
+        // found on a downstream app's staging, 2026-09-17. The directory must exist, owned by `app`, BEFORE `USER app`.
         var dockerfile = File.ReadAllText(Path.Combine(RepoRoot(), "Dockerfile"));
         var runtime = dockerfile[dockerfile.IndexOf("AS runtime", StringComparison.Ordinal)..];
         var userAt = runtime.IndexOf("USER app", StringComparison.Ordinal);
@@ -608,12 +608,12 @@ public class EnforcementGateTests
     public void ClaudeMdDocMap_ListsEveryDoc() // R75 (doc-map half), widened to docs/** by R118
     {
         // The map is what makes a doc visible to every session (v3 TR-1). It used to check docs/*.md only, and
-        // what sat one folder down went unmapped: a live story file and the QA run logs (v4 TR-24).
+        // what sat one folder down went unmapped: a live story file, the QA run logs, the entire course (v4 TR-24).
         var root = RepoRoot();
         var claudeMd = File.ReadAllText(Path.Combine(root, "CLAUDE.md"));
 
         // Folders mapped as ONE row: their files come and go (a new run log, a new lesson) without a map edit.
-        string[] folderRows = ["docs/qa-runs/", "docs/postman/"];
+        string[] folderRows = [.. new[] { "docs/tutorial/", "docs/qa-runs/", "docs/postman/" }.Where(row => Directory.Exists(Path.Combine(root, row)))]; // Vuelto: no course here (see above)
         var missingRows = folderRows.Where(row => !claudeMd.Contains($"| `{row}` |", StringComparison.Ordinal)).ToList();
         Assert.True(missingRows.Count == 0, $"CLAUDE.md doc map has no row for: {string.Join(", ", missingRows)}");
 
@@ -635,6 +635,22 @@ public class EnforcementGateTests
         Assert.True(missing.Count == 0,
             "Docs missing from the CLAUDE.md doc map — add a row (or, for a folder whose files come and go, a "
             + $"folder row in this gate): {string.Join(", ", missing)}");
+    }
+
+    [Fact]
+    public void ClaudeMd_CarriesTheCourseReconcileRule() // R118
+    {
+        // Vuelto: the course lives in perezosoft-platform (R114/R115/R118 NotHere) — platform gap, kept as a listed divergence.
+        if (!Directory.Exists(Path.Combine(RepoRoot(), "docs", "tutorial"))) return;
+        // The habit that keeps the course true — a lesson is reconciled in the PR that changes the code it
+        // quotes — lived only in the maintainer's memory, so a clone lost it.
+        var claudeMd = File.ReadAllText(Path.Combine(RepoRoot(), "CLAUDE.md")).ReplaceLineEndings("\n");
+        var start = claudeMd.IndexOf("## Read before you act", StringComparison.Ordinal);
+        Assert.True(start >= 0, "CLAUDE.md no longer has a 'Read before you act' section");
+        var section = claudeMd[start..claudeMd.IndexOf("\n## ", start + 1, StringComparison.Ordinal)];
+        Assert.True(section.Contains("docs/tutorial/", StringComparison.Ordinal) && section.Contains("--check-quotes", StringComparison.Ordinal),
+            "CLAUDE.md 'Read before you act' must carry the course-reconcile rule: name docs/tutorial/ and the "
+            + "quote check (gen_coverage.py --check-quotes).");
     }
 
     [Fact]
@@ -688,9 +704,13 @@ public class EnforcementGateTests
         var unresolved = new List<string>();
         foreach (var entry in RulesEnforcement.Manifest)
         {
-            Assert.True(entry.Checks.Length > 0 || entry.Pending is not null || !string.IsNullOrWhiteSpace(entry.NotHere),
+            // The app's half (RulesEnforcement.App.cs, Arch A1) may name its own pending issue, or say the rule's subject is not here.
+            RulesEnforcement.AppOverrides.TryGetValue(entry.Rule, out var over);
+            var pending = over?.Pending ?? entry.Pending;
+            var notHere = over?.NotHere ?? entry.NotHere;
+            Assert.True(entry.Checks.Length > 0 || pending is not null || !string.IsNullOrWhiteSpace(notHere),
                 $"{entry.Rule}: no check, no pending issue, and no reason it does not apply here");
-            if (entry.Pending is { } p) Assert.Matches(@"vuelto#\d+", p); // the issue that owes it, so it is visible
+            if (pending is { } p) Assert.Matches(@"[\w.-]+#\d+", p); // the issue that owes it (repo#n), so it is visible
             foreach (var check in entry.Checks)
             {
                 var ok = check.StartsWith("ci:", StringComparison.Ordinal) ? steps.Contains(check[3..]) : symbols.Contains(check);
@@ -698,8 +718,9 @@ public class EnforcementGateTests
             }
         }
         Assert.True(unresolved.Count == 0, "manifest names checks that do not exist (renamed? not in ci.yml?):\n" + string.Join("\n", unresolved));
+        var orphans = RulesEnforcement.AppOverrides.Keys.Except(listed).Order().ToList();
+        Assert.True(orphans.Count == 0, "RulesEnforcement.App.cs overrides rules the manifest does not list: " + string.Join(", ", orphans));
     }
-
 
     [Fact]
     public void PrTemplate_CarriesTheRuleCheckboxes() // v4 audit T67: R144's PR line, R85's exception line
@@ -712,7 +733,6 @@ public class EnforcementGateTests
         Assert.Contains("joint-invariant test", template);
         Assert.Contains("FOUNDATION_RULES", template);
     }
-
 
     [Fact]
     public void RuleIds_CitedInTests_AreFinalRules() // v4 audit TR-15/C8 (T11), R116
@@ -757,7 +777,6 @@ public class EnforcementGateTests
         Assert.True(unknown.Count == 0, "tests cite rule ids outside FOUNDATION_RULES v3.0's final range (renumbered or retired?):\n" + string.Join("\n", unknown));
     }
 
-
     [Fact]
     public void AddASliceChecklist_NamesEveryArtifactAGateForces() // v4 audit ADV-P4-17 (T64), R158
     {
@@ -777,8 +796,9 @@ public class EnforcementGateTests
         {
             ("RlsDdl.StatementsFor", "RlsMigrationGateTests"),
             ("docs/DATA_MODEL.md", "EveryEntity_IsDocumentedInDataModel"),
-            ("`handled` set", "EveryTenantOwnedEntity_IsWiredIntoTenantDissolution"),
-            ("Program.cs", "SliceReferenceInspector"),
+            ("AppAllowlists", "EveryTenantOwnedEntity_IsWiredIntoTenantDissolution"),
+            ("AppComposition.cs", "OnlyAppComposition_ReferencesFeatureNamespaces_FromOutsideFeatures"),
+            ("EntityWriters", "EveryEntity_HasOneWritingSlice"),
             ("docs/postman/Vuelto.postman_collection.json", "PostmanParityTests"),
             (".env.example", "ConfigKeys_ReadInCode_AreDocumented"),
             (".resx", "ResourceParityTests"),
@@ -793,6 +813,7 @@ public class EnforcementGateTests
             Assert.True(tests.Any(t => t.Contains(gate, StringComparison.Ordinal)), $"the checklist names a gate that does not exist: {gate}");
         }
         Assert.DoesNotContain("Fixture reset", checklist); // dead since v2 TR-3: the fixture derives its tables from the model
+        Assert.DoesNotContain("in `Program.cs`", checklist); // Arch A1: Program.cs is the platform's; a slice never edits it
         Assert.Contains("cannot declare\n   its own `Permission`", checklist); // ADV-P4-18: inherent, so the author is told
 
         // ADR-004's amendment states the list, and the same gates, not a count.
@@ -801,6 +822,86 @@ public class EnforcementGateTests
         amendment = amendment[..amendment.IndexOf("\n**ADR-005", StringComparison.Ordinal)];
         foreach (var gate in new[] { "EveryEntity_IsDocumentedInDataModel", "EveryTenantOwnedEntity_IsWiredIntoTenantDissolution", "PostmanParityTests", "AddASliceChecklist_NamesEveryArtifactAGateForces" })
             Assert.Contains(gate, amendment);
+    }
+
+    [Fact]
+    public void PlatformMigrations_DoNotNameTheSample() // Arch A6 (#366), R9 as amended
+    {
+        // The sample's table used to be created by one platform migration and named by another (RlsTenancyBackstop's
+        // frozen list), so removing the sample meant editing platform history — vuelto did, and its platform migrations
+        // diverged from upstream. Now the sample's unit is its own two migrations (class `sample` in the ownership map),
+        // and every other migration is held free of it. The snapshot is the app's (class `adapts`) and is not scanned.
+        var root = RepoRoot();
+        var rules = Architecture.PlatformOwnership.ParseRules(File.ReadAllText(Path.Combine(root, "platform-ownership.json")));
+        // Designer files are the model snapshot at that point in the chain (generated, and the snapshot is the app's), so only
+        // the migrations' own operations are read, with comment lines dropped: the question is what the SQL names.
+        // Downstream, the platform's migrations are the ones its manifest lists; the app's own may name a Notes column.
+        var manifestPath = Path.Combine(root, "tests", "Api.Tests", "App", "platform-manifest.json");
+        var platformPaths = File.Exists(manifestPath)
+            ? Architecture.PlatformOwnership.ParseManifest(File.ReadAllText(manifestPath)).Entries.Select(e => e.Path).ToHashSet(StringComparer.Ordinal)
+            : null;
+        var migrations = Directory.EnumerateFiles(Path.Combine(root, "src", "Infrastructure", "Persistence", "Migrations"), "*.cs")
+            .Where(f => !f.EndsWith("ModelSnapshot.cs", StringComparison.Ordinal) && !f.EndsWith(".Designer.cs", StringComparison.Ordinal))
+            .Select(f => (Rel: Path.GetRelativePath(root, f).Replace('\\', '/'),
+                          Text: string.Join('\n', File.ReadLines(f).Where(l => !l.TrimStart().StartsWith("//", StringComparison.Ordinal)))))
+            .Where(m => platformPaths is null || platformPaths.Contains(m.Rel))
+            .ToList();
+        var sample = migrations.Where(m => Architecture.PlatformOwnership.Classify(m.Rel, rules) == Architecture.PlatformOwnership.Class.Sample).Select(m => m.Rel).ToList();
+        if (Directory.Exists(Path.Combine(root, "src", "Api", "Features", "Notes"))) // an app that removed the sample keeps none of its migrations
+            Assert.True(sample.Count >= 2, "probe: the sample's own migrations (AddNotesSample, NotesSampleRlsPolicy) are classed `sample`");
+        var offenders = migrations
+            .Where(m => Architecture.PlatformOwnership.Classify(m.Rel, rules) != Architecture.PlatformOwnership.Class.Sample)
+            .Where(m => Regex.IsMatch(m.Text, @"""\bNotes\b"""))
+            .Select(m => m.Rel).ToList();
+        Assert.True(offenders.Count == 0, "a platform migration names the sample's table — the sample must stay removable without editing platform history (Arch A6): " + string.Join(", ", offenders));
+    }
+
+    [Fact]
+    public void CompositionFiles_AreFreeOfTheSampleSlice() // Arch A1 (#362), R159
+    {
+        // The seam, proven on the one app the platform carries: the Notes sample. Before A1 the sample was registered in
+        // Program.cs, had its DbSet in AppDbContext and its entity in the canary's handled set — exactly the edits every
+        // app made for its own slices, in the same platform-owned files. Now the sample lives in the app-owned halves
+        // (AppComposition.cs, AppDbContext.App.cs, tests/Api.Tests/App/AppAllowlists.cs), and none of the platform's
+        // composition files names it. Downstream, A2's manifest gate holds the same files identical to the platform's.
+        var root = RepoRoot();
+        string[] composition =
+        [
+            "src/Api/Program.cs", "src/Infrastructure/Persistence/AppDbContext.cs", "src/Infrastructure/ServiceCollectionExtensions.cs",
+            "tests/Api.Tests/ArchitectureTests.cs", "tests/Api.Tests/DataProtectionIdentityTests.cs", "tests/Api.Tests/RulesEnforcement.cs",
+            "tests/Api.Tests/Infrastructure/ServiceHarness.cs", "tests/Api.Tests/Infrastructure/IntegrationTestFactory.cs",
+            "tests/Ui.Tests/Infrastructure/TestHttpHandler.cs",
+        ];
+        // How the sample would be named from a composition file; the ban-list literals in ArchitectureTests' Notes-independence
+        // gate are strings, not references, and are not among these.
+        string[] sample = ["NotesHandler", "NotesDataContributor", "MapNotes", "nameof(Note)", "Set<Note>()", "Features.Notes;"];
+        var offenders = composition
+            .Select(f => (f, text: File.ReadAllText(Path.Combine(root, f))))
+            .SelectMany(x => sample.Where(s => x.text.Contains(s, StringComparison.Ordinal)).Select(s => $"{x.f}: {s}"))
+            .ToList();
+        Assert.True(offenders.Count == 0, "a platform composition file names the sample slice — the seam leaks (Arch A1): " + string.Join(", ", offenders));
+        foreach (var f in composition) Assert.True(File.Exists(Path.Combine(root, f)), $"composition file moved: {f}");
+        Assert.DoesNotContain("Features.", File.ReadAllText(Path.Combine(root, "src", "Api", "Program.cs")).Replace("MapTenantFeatureGroup", ""));
+    }
+
+    [Theory]
+    [InlineData(".github/workflows/ci.yml")]
+    public void CourseCoverageAndQuotes_AreCheckedBesideTheQaArtifacts(string workflow) // v4 audit TR-19/TR-12 (T61), R114/R115
+    {
+        // Vuelto: the course lives in perezosoft-platform (R114/R115/R118 NotHere) — platform gap, kept as a listed divergence.
+        if (!Directory.Exists(Path.Combine(RepoRoot(), "docs", "tutorial"))) return;
+        // gen_coverage.py only ran when someone remembered to; the map claimed 901 files and 0 unmapped while the
+        // generator found 903 and 1, and lessons quoted code the repo no longer had. The qa-artifacts job — which
+        // never gates on the changes classifier, so a docs-only push runs it — checks both on every push.
+        var ci = File.ReadAllText(Path.Combine(RepoRoot(), workflow)).ReplaceLineEndings("\n");
+        var job = ci[ci.IndexOf("\n  qa-artifacts:", StringComparison.Ordinal)..];
+        job = job[..job.IndexOf("\n  license-scan:", StringComparison.Ordinal)];
+        Assert.Contains("python docs/tutorial/gen_coverage.py --check\n", job);
+        Assert.Contains("python docs/tutorial/gen_coverage.py --check-quotes\n", job);
+        // ...and the generator honours those flags (a renamed flag would silently check nothing).
+        var generator = File.ReadAllText(Path.Combine(RepoRoot(), "docs", "tutorial", "gen_coverage.py"));
+        Assert.Contains("\"--check\" in sys.argv", generator);
+        Assert.Contains("\"--check-quotes\" in sys.argv", generator);
     }
 
     [Fact]
@@ -838,12 +939,12 @@ public class EnforcementGateTests
     }
 
     [Fact]
-    public void DeployTriggerWording_PostmanSyncNamesTheForge() // v4 audit TR-14 (H9), R117
+    public void DeployTriggerWording_PostmanSyncNamesTheForge() // v4 audit TR-14 (H9), R117; ADR-030
     {
-        // The per-merge postman-sync runs on the forge where develop moves on every merge. Under ADR-028 that was
-        // Forgejo; since ADR-030 it is GitHub again, so the one-time setup leads with GitHub. (Under ADR-028 the
-        // README told operators to set them on GitHub only, which left
-        // the per-merge sync skipping with a notice forever while the docs say it is set up.
+        // The per-merge postman-sync runs on the forge where develop moves on every merge. Under ADR-028 that
+        // was Forgejo, and the README sent operators to GitHub only, which left the sync skipping forever.
+        // Since ADR-030 GitHub is the forge again: the one-time setup leads with GitHub (the secret and the
+        // variable live there), and the operating manual names GitHub's develop as what drives the sync.
         var root = RepoRoot();
         var readme = File.ReadAllText(Path.Combine(root, "docs", "postman", "README.md")).ReplaceLineEndings("\n");
         var start = readme.IndexOf("**One-time setup**", StringComparison.Ordinal);

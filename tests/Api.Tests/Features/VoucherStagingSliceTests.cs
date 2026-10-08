@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
+using Vuelto.Api.Features.Catalog;
 using Vuelto.Api.Features.Email;
 using Vuelto.Api.Tests.Infrastructure;
 using Vuelto.Core.Budget;
@@ -104,6 +105,7 @@ public class VoucherStagingSliceTests(PostgresFixture fixture) : PostgresTestBas
 
     private static VoucherStagingService Service(Ctx c, IEmailReader reader, IVoucherParser parser, ILogger<VoucherStagingService>? logger = null, IExchangeRateService? quotes = null) => new(
         [reader], parser, new TenantRepository(c.Db), c.Current, new EfRepository<User>(c.Db), new EfRepository<Bank>(c.Db),
+        new BankDefaults(new EfRepository<Bank>(c.Db), new FakeTimeProvider(Now), NullLogger<BankDefaults>.Instance),
         new EfRepository<PendingVoucher>(c.Db), new EfRepository<IngestedVoucher>(c.Db), new EfRepository<EmailConnection>(c.Db),
         new EfRepository<MerchantCategoryMapping>(c.Db), quotes ?? new FakeQuotes(LiveQuote), new FakeTimeProvider(Now), logger ?? NullLogger<VoucherStagingService>.Instance);
 

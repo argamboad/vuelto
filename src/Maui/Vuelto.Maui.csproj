@@ -7,6 +7,7 @@
              Xcode — a Windows box without a paired Mac can't build them). CI builds each TFM on its
              matching runner (the native-build jobs in ci.yml). -->
         <TargetFrameworks>net10.0-android</TargetFrameworks>
+        <GenerateLocalPorts>true</GenerateLocalPorts> <!-- LocalPorts.* from local-ports.props (Arch A10) -->
         <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
         <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('osx'))">$(TargetFrameworks);net10.0-ios;net10.0-maccatalyst</TargetFrameworks>
 
@@ -109,8 +110,8 @@
 
     <!-- Dev convenience (Android): re-establish the loopback bridge to the local API on every
          Debug build/deploy/run — CLI installs (Install/_Run) AND VS F5 (Build; VS deploy skips
-         Install when the APK is up-to-date) — so http://localhost:5338 on the device reaches the
-         host. `adb reverse` is wiped on emulator reboot/reconnect; this removes the need to re-run
+         Install when the APK is up-to-date) — so the API's local http port (local-ports.props) on the
+         device reaches the host. `adb reverse` is wiped on emulator reboot/reconnect; this removes the need to re-run
          it by hand. Uses VS's selected device ($(AdbTarget)) when set so multi-device setups don't
          error. It never fails the build (ContinueOnError) and stays out of Release/CI builds. -->
     <Target Name="AndroidReverseDevApiPort" AfterTargets="Build;Install;_Run"
@@ -119,8 +120,8 @@
             <_AdbExe Condition="'$(AndroidSdkDirectory)' != ''">$([System.IO.Path]::Combine('$(AndroidSdkDirectory)', 'platform-tools', 'adb.exe'))</_AdbExe>
             <_AdbExe Condition="'$(_AdbExe)' == '' or !Exists('$(_AdbExe)')">adb</_AdbExe>
         </PropertyGroup>
-        <Message Importance="high" Text="[dev] adb $(AdbTarget) reverse tcp:5338 tcp:5338 — bridging the device to the local API" />
-        <Exec Command="&quot;$(_AdbExe)&quot; $(AdbTarget) reverse tcp:5338 tcp:5338" ContinueOnError="true" />
+        <Message Importance="high" Text="[dev] adb $(AdbTarget) reverse tcp:$(LocalApiHttpPort) tcp:$(LocalApiHttpPort) — bridging the device to the local API" />
+        <Exec Command="&quot;$(_AdbExe)&quot; $(AdbTarget) reverse tcp:$(LocalApiHttpPort) tcp:$(LocalApiHttpPort)" ContinueOnError="true" />
     </Target>
 
 

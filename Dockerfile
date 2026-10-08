@@ -12,7 +12,8 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0.401 AS build
 WORKDIR /src
 
 # Solution-wide build config (warnings-as-error) + Central Package Management + the committed lockfiles.
-COPY Directory.Build.props Directory.Packages.props ./
+# Directory.Build.props imports local-ports.props (Arch A10) and ships platform-stamp.json beside the API (Arch A2).
+COPY Directory.Build.props Directory.Packages.props local-ports.props platform-stamp.json ./
 
 # Project manifests + their lockfiles first, so `dotnet restore` caches as its own layer and only re-runs
 # when a dependency actually changes (not on every source edit).

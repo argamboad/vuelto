@@ -1,0 +1,27 @@
+<Project>
+
+  <!--
+    This repo's block of local ports: the ONE place it is stated (Arch A10, #369). The three apps run side by side on
+    one machine, each on its own block (README "Local ports"), and before this file the block was written into a dozen
+    files by hand and drifted. Everything derives from here:
+      - the C# constants `LocalPorts` are generated from these properties at build time (Directory.Build.props) for
+        the projects that opt in with <GenerateLocalPorts>true</GenerateLocalPorts>: the API's dev fallbacks, the MAUI
+        app's Debug API base, the test chassis and the E2E defaults;
+      - the MAUI project's `adb reverse` reads $(LocalApiHttpPort) directly;
+      - `pwsh tools/ports.ps1 -Apply` rewrites the files that cannot read MSBuild (compose defaults, launch profiles,
+        appsettings, .env.example, the Postman environment, the README row), and `-Check` says which disagree;
+      - `LocalPortsTests` fails when any derived site, or any literal port in code, tools or tests, disagrees.
+    A downstream app changes the numbers here, runs the tool once, and is on its own block.
+  -->
+  <PropertyGroup>
+    <LocalDbPort>5434</LocalDbPort>
+    <LocalSmtpPort>1026</LocalSmtpPort>
+    <LocalMailUiPort>8026</LocalMailUiPort>
+    <LocalAppPort>8180</LocalAppPort>
+    <LocalApiHttpsPort>7260</LocalApiHttpsPort>
+    <LocalApiHttpPort>5338</LocalApiHttpPort>
+    <LocalWebHttpsPort>7108</LocalWebHttpsPort>
+    <LocalWebHttpPort>5269</LocalWebHttpPort>
+  </PropertyGroup>
+
+</Project>

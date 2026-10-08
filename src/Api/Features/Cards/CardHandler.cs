@@ -15,7 +15,7 @@ namespace Vuelto.Api.Features.Cards;
 /// more entry point: <see cref="ResolveOrCreateAsync"/>, what a voucher confirm calls with the text the bank
 /// printed, creating the card as <c>VISA-1234</c> on first sight. Never seeded. <c>Query()</c> is tenant-filtered.
 /// </summary>
-public sealed class CardHandler(IRepository<Card> cards, IRepository<CardIdentity> identities, IRepository<Transaction> transactions, IRepository<Bank> banks, ICurrentTenant tenant, TimeProvider clock) : ICardResolver
+public sealed class CardHandler(IRepository<Card> cards, IRepository<CardIdentity> identities, ITransactionCards transactions, IRepository<Bank> banks, ICurrentTenant tenant, TimeProvider clock) : ICardResolver
 {
     public async Task<IReadOnlyList<CardResponse>?> ListAsync(bool includeInactive, CancellationToken cancellationToken)
     {
@@ -78,9 +78,7 @@ public sealed class CardHandler(IRepository<Card> cards, IRepository<CardIdentit
         if (r.BackfillPaymentMethod)
         {
             var method = CardKinds.PaymentMethod(kind);
-            backfilled = await transactions.Query()
-                .Where(t => t.CardId == card.Id && t.PaymentMethod != method)
-                .ExecuteUpdateAsync(u => u.SetProperty(t => t.PaymentMethod, method).SetProperty(t => t.UpdatedAt, card.UpdatedAt), cancellationToken);
+            backfilled = await transactions.SetPaymentMethodAsync(card.Id, method, card.UpdatedAt, cancellationToken); // the Ledger's rows (Arch A8)
         }
 
         await cards.SaveChangesAsync(cancellationToken);
@@ -103,7 +101,7 @@ public sealed class CardHandler(IRepository<Card> cards, IRepository<CardIdentit
 
         var now = clock.GetUtcNow();
         await identities.Query().Where(i => i.CardId == id).ExecuteUpdateAsync(u => u.SetProperty(i => i.CardId, into), cancellationToken);
-        await transactions.Query().Where(t => t.CardId == id).ExecuteUpdateAsync(u => u.SetProperty(t => t.CardId, into).SetProperty(t => t.UpdatedAt, now), cancellationToken);
+        await transactions.MoveAsync(id, into, now, cancellationToken); // the Ledger's rows (Arch A8)
         if (source.CreatedAt >= target.CreatedAt) { target.Brand = source.Brand; target.Last4 = source.Last4; } // the newest number is the one on the plastic; on a tie the card being folded in is the newcomer
         target.BankId ??= source.BankId;
         target.UpdatedAt = now;

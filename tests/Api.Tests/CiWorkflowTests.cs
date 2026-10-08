@@ -136,13 +136,13 @@ public class CiWorkflowTests
         var patterns = Regex.Matches(Read(Ci), @"(?:grep -cE|-Pattern) '(Request finished[^']*auth/providers[^']*)'").Select(m => m.Groups[1].Value).ToList();
         Assert.Equal(2, patterns.Count);
 
-        const string real = "info: Microsoft.AspNetCore.Hosting.Diagnostics[2] Request finished HTTP/1.1 GET http://localhost:5238/api/auth/providers - 200 - application/json;+charset=utf-8 14.2031ms";
+        const string real = "info: Microsoft.AspNetCore.Hosting.Diagnostics[2] Request finished HTTP/1.1 GET http://api.test/api/auth/providers - 200 - application/json;+charset=utf-8 14.2031ms";
         string[] impostors =
         [
-            "info: Microsoft.AspNetCore.Hosting.Diagnostics[2] Request finished HTTP/1.1 GET http://localhost:5238/api/auth/providers - 404 - application/problem+json 200.1234ms",
-            "info: Microsoft.AspNetCore.Hosting.Diagnostics[2] Request finished HTTP/1.1 GET http://localhost:5238/api/auth/providers - 500 0 - 205.0010ms",
-            "info: Microsoft.AspNetCore.Hosting.Diagnostics[2] Request finished HTTP/1.1 GET http://localhost:5238/api/auth/providers-beta - 200 - application/json 3.1ms",
-            "info: Microsoft.AspNetCore.Hosting.Diagnostics[2] Request finished HTTP/1.1 POST http://localhost:5238/api/auth/providers - 200 - application/json 3.1ms",
+            "info: Microsoft.AspNetCore.Hosting.Diagnostics[2] Request finished HTTP/1.1 GET http://api.test/api/auth/providers - 404 - application/problem+json 200.1234ms",
+            "info: Microsoft.AspNetCore.Hosting.Diagnostics[2] Request finished HTTP/1.1 GET http://api.test/api/auth/providers - 500 0 - 205.0010ms",
+            "info: Microsoft.AspNetCore.Hosting.Diagnostics[2] Request finished HTTP/1.1 GET http://api.test/api/auth/providers-beta - 200 - application/json 3.1ms",
+            "info: Microsoft.AspNetCore.Hosting.Diagnostics[2] Request finished HTTP/1.1 POST http://api.test/api/auth/providers - 200 - application/json 3.1ms",
         ];
         foreach (var pattern in patterns)
         {

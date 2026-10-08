@@ -12,12 +12,13 @@ namespace Vuelto.Api.Tests;
 /// set in <c>SessionKeepAliveTests</c>). Rename a test and this file follows in the same commit, or the gate fails.
 /// </para>
 /// </summary>
-public static class RulesEnforcement
+public static partial class RulesEnforcement
 {
     /// <param name="Rule">The final rule id.</param>
     /// <param name="Checks">Test method names, test class names, or <c>ci:&lt;step name&gt;</c> (present in both workflow copies).</param>
-    /// <param name="NotHere">When the thing the rule guards does not exist in this repo: where it lives instead.</param>
     /// <param name="Pending">When part of the mechanism is still unbuilt: the owning tracker issue and what is missing.</param>
+    /// <param name="NotHere">When the thing the rule guards does not exist in this repo: where it lives instead. An app sets
+    /// it through <c>AppOverrides</c> (RulesEnforcement.App.cs, Arch A1), never on this list.</param>
     public sealed record Entry(string Rule, string[] Checks, string? Pending = null, string? NotHere = null);
 
     public static readonly Entry[] Manifest =
@@ -44,7 +45,8 @@ public static class RulesEnforcement
         new("R90", ["OutboxRetentionTests"]),
         new("R91", ["OutboxTenancyTests"]),
         new("R129", ["EnterTenant_WithARequestSuppliedTenantId_ChecksTheTenantExists", "Webhook_ForUnknownTenant_IsIgnored_ClaimedButNothingWritten"]),
-        new("R145", ["EveryTenantOwnedEntity_IsWiredIntoTenantDissolution", "EveryNullableTenantIdEntity_ShipsItsLifecycleSpec", "OutboxTenancyTests"]),
+        new("R145", ["EveryTenantOwnedEntity_IsWiredIntoTenantDissolution", "EveryNullableTenantIdEntity_ShipsItsLifecycleSpec", "OutboxTenancyTests",
+                    "EverySharedOrTenantEntity_ShipsItsLifecycleSpec", "SharedOrTenantTests", "SharedOrTenantRlsTests", "EverySharedOrTenantTable_HasForcedRlsAndAllFourPolicies_AfterMigrations"]),
         new("R146", ["EveryCrossTenantTest_SeedsARealSecondTenant", "TheScan_CatchesARandomIdArrange"]),
         new("R150", ["Migrations_Down_OnSeededRows_EveryDownRunsAgainstData_AndSurvivingTablesKeepTheirRows", "ColumnDroppingDowns_StateTheirDataLoss"]),
         new("R151", ["Gate_ReadsOnlyTheHouseholdsThatInvitedTheAddress", "Gate_IsNeverConsulted_ForAnExistingAccount_AndOnceForANewOne", "EveryCrossTenantTagSite_IsPairedWithATestNamingIt"]),
@@ -96,7 +98,7 @@ public static class RulesEnforcement
         new("R144", ["ClientRefreshTimeoutPlusRetry_FitsInsideTheServersReuseGrace", "PrTemplate_CarriesTheRuleCheckboxes"]),
         new("R147", ["GateLane_RunsEveryDeploymentGate_AgainstTheShippedDefault"]),
         new("R148", ["RclComponents_ScheduleOnTheInjectedClock", "Bell_Poll_RefetchesOnTheClock_KeepsTheLastCountOnAnError_StopsWhenSignedOut_AndResumes"]),
-        new("R149", [], Pending: "perezosoft-platform#371 (Arch A12: R149 amended so a reusable component may take its test id as a parameter and callers pass a literal; the sweep follows the amendment — vuelto#125 closed into it)"),
+        new("R149", ["EveryTestId_IsUsedByATestOrAQaCase_AndEveryUsedIdExists", "AParameterisedComponent_DeclaresItsCallersLiterals_WithItsSuffixes", "AComputedId_IsRefused_EvenInsideAParameterisedComponent", "ACallerPassingAComputedTestId_IsRefused_AndAnUncalledComponentIsReported", "ATestIdUsedWithoutTheParameter_IsComputed_NotParameterised"]),
         new("R155", ["RouteTableGuardTests"]),
         new("R157", ["SliceReferenceInspectorTests", "RoutePrefixInspectorTests"]),
 
@@ -111,5 +113,11 @@ public static class RulesEnforcement
         new("R121", ["ArchitectureAndFlows_NameTheClassesAndTheAuthErrorCodes"]),
         new("R152", ["NoResx_DeclaresAKeyTwice"]),
         new("R158", ["AddASliceChecklist_NamesEveryArtifactAGateForces"]),
+        // ── 10. Architecture · horizontal platform, vertical apps ──
+        new("R159", ["OnlyAppComposition_ReferencesFeatureNamespaces_FromOutsideFeatures", "CompositionFiles_AreFreeOfTheSampleSlice"]),
+        new("R160", ["OwnershipMap_ClassifiesEveryTrackedFile", "PlatformFiles_MatchTheStampedManifest_OrAreAllowlisted", "PlatformStamp_MatchesTheManifest",
+                    "PortTool_MergesPlatformAndAdaptsFiles_AndWritesTheManifestTheGateAccepts"]),
+        new("R161", ["MigratedDatabase_MatchesThePlatformSchema"]),
+        new("R162", ["EveryEntity_HasOneWritingSlice", "SliceWriteInspectorTests"]),
     ];
 }

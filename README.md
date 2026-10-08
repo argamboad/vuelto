@@ -53,8 +53,10 @@ dotnet test tests/Ui.Tests
 ## Local ports
 
 The three apps run side by side on one machine, each on its own block, so a stack never answers for another. This
-table is the same in all three repos; `LocalPortsTests` holds this repo's compose defaults, launch profiles,
-`appsettings.Development.json`, `.env.example` and E2E defaults to its row, and fails if two apps share a port.
+table is the same in all three repos. A repo states its block ONCE, in `local-ports.props`: code reads it through the
+generated `LocalPorts` class, `pwsh tools/ports.ps1 -Apply` writes it into the files that cannot read MSBuild (compose
+defaults, launch profiles, appsettings, `.env.example`, the Postman environment, this row), and `LocalPortsTests` fails
+on any file that disagrees, on a port number in code, and if two apps share a port.
 API http is the port the Android emulator uses; the app container is `docker compose --profile app up`.
 
 | App | Postgres | Mailpit SMTP | Mailpit UI | API https | API http | Web https | Web http | app container |
