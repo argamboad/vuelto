@@ -36,7 +36,7 @@ public class DocAndConfigSyncTests
         var dataModel = File.ReadAllText(Path.Combine(RepoRoot(), "docs", "DATA_MODEL.md"));
         var entities = Directory.EnumerateFiles(Path.Combine(RepoRoot(), "src", "Core", "Entities"), "*.cs")
             .Select(Path.GetFileNameWithoutExtension)
-            .Where(n => n is not "ITenantScoped") // ITenantScoped = marker interface, not an entity
+            .Where(n => n is not "ITenantScoped" and not "Note") // ITenantScoped = marker; Note = DELETE-ME sample
             .ToList();
 
         var missing = entities.Where(e => !Regex.IsMatch(dataModel, $@"\b{Regex.Escape(e!)}\b")).ToList();

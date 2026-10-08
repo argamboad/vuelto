@@ -77,17 +77,15 @@ internal static partial class AppAllowlists
     public static readonly IReadOnlyDictionary<string, string> EntityWriters = new Dictionary<string, string>
     {
         [nameof(BudgetSettings)] = "Budget",
-        // Category and Bank are written through the generic CatalogHandler<TEntry>, which SliceWriteInspector reads as
-        // "TEntry" (it does not resolve a generic slice base); Bank is also written by the Catalog's BankDefaults.
-        // Until the inspector resolves the type argument (perezosoft-platform), the parameter is what is declared.
-        ["TEntry"] = "Catalog",
+        [nameof(Category)] = "Catalog",
         [nameof(Bank)] = "Catalog",
         [nameof(Envelope)] = "Envelopes",
         [nameof(Month)] = "Ledger",
         [nameof(Week)] = "Ledger",
         [nameof(Transaction)] = "Ledger",          // ADR-V010: other slices create through ITransactionService
         [nameof(Refund)] = "Ledger",
-        [nameof(VariableExpense)] = "Expenses",    // FixedExpense goes through the generic ExpenseLineHandler<TLine>, unseen like TEntry
+        [nameof(FixedExpense)] = "Expenses",
+        [nameof(VariableExpense)] = "Expenses",
         [nameof(IncomeLine)] = "Income",
         [nameof(MonthIncome)] = "Ledger",          // written with the month; Income goes through IMonthIncomeRows
         [nameof(EmailConnection)] = "Email",
@@ -97,6 +95,27 @@ internal static partial class AppAllowlists
         [nameof(Card)] = "Cards",                 // its transactions are rewritten through ITransactionCards
         [nameof(CardIdentity)] = "Cards",
         [nameof(UserDisplaySettings)] = "DisplaySettings",
+    };
+
+    /// <summary>Files that enter a tenant whose id comes from a row already read from the table, with where it comes from
+    /// (<c>EnterTenant_WithARequestSuppliedTenantId_ChecksTheTenantExists</c>).</summary>
+    public static readonly IReadOnlyDictionary<string, string> EnterTenantRowSupplied = new Dictionary<string, string>
+    {
+        ["VoucherStagingService.cs"] = "the mail connection row's household, read from the table before the poll",
+        ["IncomeUserDataContributor.cs"] = "the households of the user's own income rows, read cross-tenant from the table",
+    };
+
+    /// <summary>The app's resx files and their shipped translation (<c>ResourceParityTests</c>): neutral → translated.</summary>
+    public static readonly IReadOnlyDictionary<string, string> ResxPairs = new Dictionary<string, string>
+    {
+        ["src/Api/Features/Reports/Pdf/ReportPdfStrings.resx"] = "src/Api/Features/Reports/Pdf/ReportPdfStrings.es.resx",
+    };
+
+    /// <summary>The app's own preference writes, each refused from an impersonation session
+    /// (<c>PrefWrites_UnderImpersonation_Return403</c>): PUT route → a valid body.</summary>
+    public static readonly IReadOnlyDictionary<string, string> ImpersonationGuardedWrites = new Dictionary<string, string>
+    {
+        ["/api/display-settings"] = """{"display_currency":"USD"}""", // the caller's own preference (ADR-V020)
     };
 
     /// <summary>Source files that aggregate several small types and so do not declare one named for the file (<c>SourceFile_DeclaresATypeMatchingItsName</c>).</summary>

@@ -53,6 +53,19 @@ public class SliceWriteInspectorTests
     }
 
     [Fact]
+    public void TwoSubclassesInOneFile_EachKeepTheirEntity_UnderTheSameName()
+    {
+        // vuelto's expense handlers: one file, two subclasses, each injecting its own `lines`. The last declaration used to
+        // win, so the fixed-expense writes were credited to VariableExpense alone.
+        var handlers = """
+            public abstract class LineHandler<TLine>(IRepository<TLine> lines) { public void Save(TLine l) => lines.Update(l); }
+            public sealed class FixedHandler(IRepository<FixedExpense> lines) : LineHandler<FixedExpense>(lines) { }
+            public sealed class VariableHandler(IRepository<VariableExpense> lines) : LineHandler<VariableExpense>(lines) { }
+            """;
+        Assert.Equal(["FixedExpense", "TLine", "VariableExpense"], SliceWriteInspector.Writes(handlers).Select(w => w.Entity).Order());
+    }
+
+    [Fact]
     public void ANameThatContainsARepositoryName_IsNotThatRepository()
     {
         const string source = """

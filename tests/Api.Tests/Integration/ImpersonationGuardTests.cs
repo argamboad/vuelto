@@ -25,10 +25,19 @@ public class ImpersonationGuardTests(IntegrationTestFactory factory)
 {
     private readonly IntegrationTestFactory _factory = factory;
 
+    public static TheoryData<string, string> PrefWrites()
+    {
+        var data = new TheoryData<string, string>
+        {
+            { "/api/auth/theme", """{"theme":"dark"}""" },
+            { "/api/auth/locale", """{"locale":"en"}""" },
+        };
+        foreach (var (url, body) in App.AppAllowlists.ImpersonationGuardedWrites) data.Add(url, body); // the app's (Arch A1)
+        return data;
+    }
+
     [Theory]
-    [InlineData("/api/auth/theme", """{"theme":"dark"}""")]
-    [InlineData("/api/auth/locale", """{"locale":"en"}""")]
-    [InlineData("/api/display-settings", """{"display_currency":"USD"}""")] // the app's own preference follows the platform rule (ADR-V020)
+    [MemberData(nameof(PrefWrites))]
     public async Task PrefWrites_UnderImpersonation_Return403(string url, string body)
     {
         var staff = await _factory.SeedUserAsync();

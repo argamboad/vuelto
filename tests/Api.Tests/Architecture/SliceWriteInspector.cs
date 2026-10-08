@@ -21,12 +21,13 @@ public static class SliceWriteInspector
     {
         var text = StripComments(source);
         // Each injected repository (or set) under every name the file gives it: `IRepository<Thing> things`, `_things = things`.
-        var names = new Dictionary<string, string>(StringComparer.Ordinal); // variable → entity
+        // A name keeps every entity it is declared with: two subclasses in one file may each call theirs `lines`.
+        var names = new List<(string Name, string Entity)>();
         foreach (Match m in Injected.Matches(text))
-            names[m.Groups["name"].Value] = m.Groups["entity"].Value;
+            if (!names.Contains((m.Groups["name"].Value, m.Groups["entity"].Value))) names.Add((m.Groups["name"].Value, m.Groups["entity"].Value));
         foreach (var (name, entity) in names.ToList())
             foreach (Match alias in Regex.Matches(text, @"\b(?<alias>_?[A-Za-z_][A-Za-z0-9_]*)\s*=\s*" + Regex.Escape(name) + @"\s*;"))
-                names.TryAdd(alias.Groups["alias"].Value, entity);
+                if (!names.Contains((alias.Groups["alias"].Value, entity))) names.Add((alias.Groups["alias"].Value, entity));
 
         var writes = new List<(string, string)>();
         void Note(string entity, string through) { if (!writes.Contains((entity, through))) writes.Add((entity, through)); }

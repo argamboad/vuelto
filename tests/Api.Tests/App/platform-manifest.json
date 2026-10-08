@@ -4,7 +4,7 @@
     "platform commit this repo is synced to. PlatformOwnershipTests compares this repo against it. Do not edit by hand."
   ],
   "platform": "argamboad/perezosoft-platform",
-  "commit": "4350be8686bd99745f6796dfac5a4fe5d0932d24",
+  "commit": "b462c7bf0c75dbc7c577433fdf76416629050220",
   "files": [
     {
       "path": ".config/dotnet-tools.json",
@@ -49,7 +49,7 @@
     {
       "path": ".github/workflows/ci.yml",
       "class": "adapts",
-      "hash": "9d92120340cfa2ab9839f2df04f9fcd48236c65705b487e428e2fc9d8ca11753"
+      "hash": "98d81dff3b415d78ed153a4b86327d57312eca6d9e09a94d26ef40edb9b75047"
     },
     {
       "path": ".github/workflows/postman-sync.yml",
@@ -209,7 +209,7 @@
     {
       "path": "docs/audits/v3-2026-07/FOUNDATION_RULES_v2.md",
       "class": "platform",
-      "hash": "d90241e6656d072e7d1089f4ffc53826b5e88cba0480337eb69168a7f65f9e4c"
+      "hash": "741935c5016075a9a6af5c0c986a422d27f459110c230d7ac1ceb36d113d2401"
     },
     {
       "path": "docs/audits/v3-2026-07/FOUNDATION_RULES.md",
@@ -569,7 +569,7 @@
     {
       "path": "docs/NEW_APP_GUIDE.md",
       "class": "adapts",
-      "hash": "95ea7b9f780559783e7a24cb728002c95f9a56fd19e528f275114ed51df3d153"
+      "hash": "35a56529d9424f0c85ca836526fec456511860ae956e3999756f89171d7084a6"
     },
     {
       "path": "docs/OVERVIEW.md",
@@ -1309,7 +1309,7 @@
     {
       "path": "platform-ownership.json",
       "class": "platform",
-      "hash": "40c6b5c01deaf7f6d9df4f294007dc04d15bde84b0269de3ec1993574b77bd00"
+      "hash": "c8dcced3881fcfa5f59c739ab93f1222b0f6c924e6daa4be41d436c1f6e5cc5b"
     },
     {
       "path": "platform-schema.json",
@@ -2203,7 +2203,7 @@
     },
     {
       "path": "src/Infrastructure/Email/Assets/logo.png",
-      "class": "platform",
+      "class": "adapts",
       "hash": "e5ae7478cbc56bb171e59f7bf404852dbf9838059771281d8f3aa9f297308006"
     },
     {
@@ -2433,242 +2433,242 @@
     },
     {
       "path": "src/Infrastructure/Persistence/Migrations/20260617235537_InitialCreate.cs",
-      "class": "platform",
+      "class": "adapts",
       "hash": "20fae45d53626b4bcf0162b96232c58334f64a61abcc62e4f7bbc8875d83d596"
     },
     {
       "path": "src/Infrastructure/Persistence/Migrations/20260617235537_InitialCreate.Designer.cs",
-      "class": "platform",
+      "class": "adapts",
       "hash": "ad1f0346b6119a33736669e1d1c9bb0026d03baa164d70d47f94c651d6606752"
     },
     {
       "path": "src/Infrastructure/Persistence/Migrations/20260619174431_AddUserLocale.cs",
-      "class": "platform",
+      "class": "adapts",
       "hash": "e6e193066b06f6564fdd6178ddaf0781b1b0c66a5bfe0fa0eb4876d7aeef843f"
     },
     {
       "path": "src/Infrastructure/Persistence/Migrations/20260619174431_AddUserLocale.Designer.cs",
-      "class": "platform",
+      "class": "adapts",
       "hash": "c2b5d8dfc2e959bfa11f50b4669cf7811a0e91edd48f3e69a6af11f25330f60f"
     },
     {
       "path": "src/Infrastructure/Persistence/Migrations/20260622154447_AddUniqueTokenHashIndexes.cs",
-      "class": "platform",
+      "class": "adapts",
       "hash": "fd31b95467a34813b8e85fe7de9423c052a122481c608b32aae490f01a4188d5"
     },
     {
       "path": "src/Infrastructure/Persistence/Migrations/20260622154447_AddUniqueTokenHashIndexes.Designer.cs",
-      "class": "platform",
+      "class": "adapts",
       "hash": "9ffe60fd596493bd162efbccc675026c70822941239a7133e66209b81980f2db"
     },
     {
       "path": "src/Infrastructure/Persistence/Migrations/20260625195324_AddOutbox.cs",
-      "class": "platform",
+      "class": "adapts",
       "hash": "51b370924bfc30f4c1629eb99362d192a62fcdcba22458a3ea8d449a210ac5e1"
     },
     {
       "path": "src/Infrastructure/Persistence/Migrations/20260625195324_AddOutbox.Designer.cs",
-      "class": "platform",
+      "class": "adapts",
       "hash": "fa71472d73bd490eaedf3bfb7bcefd857018e49070a82cd4086954ca780a9bde"
     },
     {
       "path": "src/Infrastructure/Persistence/Migrations/20260625203525_AddInbox.cs",
-      "class": "platform",
+      "class": "adapts",
       "hash": "1dc3b486ff364c095bcd0a031dd9ae5127182e4e5e95368761dc62519d7ce0d6"
     },
     {
       "path": "src/Infrastructure/Persistence/Migrations/20260625203525_AddInbox.Designer.cs",
-      "class": "platform",
+      "class": "adapts",
       "hash": "1d9df6f8ff39d3a277b59b7587e1960669e7050b877230ee13f3a206064e826b"
     },
     {
       "path": "src/Infrastructure/Persistence/Migrations/20260625210819_AddSubscription.cs",
-      "class": "platform",
+      "class": "adapts",
       "hash": "72c90f795483c07eb11c633cd52be5a2ad4a60ffbe1c74e5877df7d3342db0be"
     },
     {
       "path": "src/Infrastructure/Persistence/Migrations/20260625210819_AddSubscription.Designer.cs",
-      "class": "platform",
+      "class": "adapts",
       "hash": "29683dc659f84028a5ab5a3cad404e5ee5b91390823291ead5fcca4f90861e9e"
     },
     {
       "path": "src/Infrastructure/Persistence/Migrations/20260626000352_AddAuditEvent.cs",
-      "class": "platform",
+      "class": "adapts",
       "hash": "78b2eebd1d1b70b7635832e4ec269fd9b7f8630d7a9a903071c5fd18ead8dd34"
     },
     {
       "path": "src/Infrastructure/Persistence/Migrations/20260626000352_AddAuditEvent.Designer.cs",
-      "class": "platform",
+      "class": "adapts",
       "hash": "5c8940fe69da64ebd29d2d58a4542f487cab0db293efd52d7fef124a3d0f89aa"
     },
     {
       "path": "src/Infrastructure/Persistence/Migrations/20260701125024_AddMfa.cs",
-      "class": "platform",
+      "class": "adapts",
       "hash": "30d0c1c42e00b97522bd92a55e4160e3d74e22702069911569230b05e0263255"
     },
     {
       "path": "src/Infrastructure/Persistence/Migrations/20260701125024_AddMfa.Designer.cs",
-      "class": "platform",
+      "class": "adapts",
       "hash": "34c1dc7143f8f9594d35ac62db72e06e509bc6b8bd7fcec4d6884a415ecaef93"
     },
     {
       "path": "src/Infrastructure/Persistence/Migrations/20260701143154_AddNotifications.cs",
-      "class": "platform",
+      "class": "adapts",
       "hash": "23f86b1e57c76ed5a74071d517ba0460c5b40262c058ac27bf42c96f05939b71"
     },
     {
       "path": "src/Infrastructure/Persistence/Migrations/20260701143154_AddNotifications.Designer.cs",
-      "class": "platform",
+      "class": "adapts",
       "hash": "9799fd0d383dbb8c3b547d4359b5c305416ab1af64b526a503397d42a929eeb4"
     },
     {
       "path": "src/Infrastructure/Persistence/Migrations/20260701144106_AddNotificationPreferences.cs",
-      "class": "platform",
+      "class": "adapts",
       "hash": "06e53909fda112399a343ce6cea191669498cfbb524a556ec176c60d44feecec"
     },
     {
       "path": "src/Infrastructure/Persistence/Migrations/20260701144106_AddNotificationPreferences.Designer.cs",
-      "class": "platform",
+      "class": "adapts",
       "hash": "c0bed3da46e84b99cca6d598cbdbe42e98adc4fad1f18d1dfde5cbab9ae9bf22"
     },
     {
       "path": "src/Infrastructure/Persistence/Migrations/20260701191549_AddUsageCounter.cs",
-      "class": "platform",
+      "class": "adapts",
       "hash": "2b39e6b710061de9c68f2fe043b0954523122f4bd16bce40139c115fce738a82"
     },
     {
       "path": "src/Infrastructure/Persistence/Migrations/20260701191549_AddUsageCounter.Designer.cs",
-      "class": "platform",
+      "class": "adapts",
       "hash": "d95779a3ccbebe3278240d060c5a80c3aab5450c89b9e21a3c1067ed137ae20f"
     },
     {
       "path": "src/Infrastructure/Persistence/Migrations/20260701193314_AddSubscriptionLapseNotifiedAt.cs",
-      "class": "platform",
+      "class": "adapts",
       "hash": "2dba45e7b63f21aa81e1bdb7d3b846462f534125ce53a6635961a538cf7fbe64"
     },
     {
       "path": "src/Infrastructure/Persistence/Migrations/20260701193314_AddSubscriptionLapseNotifiedAt.Designer.cs",
-      "class": "platform",
+      "class": "adapts",
       "hash": "e56a5126647931de976cde7f496aa2d14b1e8e54be7cea94e03e5d026b16c22f"
     },
     {
       "path": "src/Infrastructure/Persistence/Migrations/20260701200224_AddApiKey.cs",
-      "class": "platform",
+      "class": "adapts",
       "hash": "d9ed2cd1ecea96274ece81748dfad1ba04179c8b8f01149a7c20226cb7284c45"
     },
     {
       "path": "src/Infrastructure/Persistence/Migrations/20260701200224_AddApiKey.Designer.cs",
-      "class": "platform",
+      "class": "adapts",
       "hash": "346536cec43c89bcabb2f720ccd2cb29f616a57c9da21c485ec02050465cf292"
     },
     {
       "path": "src/Infrastructure/Persistence/Migrations/20260701201826_AddWebhookSubscription.cs",
-      "class": "platform",
+      "class": "adapts",
       "hash": "fa9bf5a1b2eaff71953743142102630b00157857eb7fe6269688c65eabfea5d7"
     },
     {
       "path": "src/Infrastructure/Persistence/Migrations/20260701201826_AddWebhookSubscription.Designer.cs",
-      "class": "platform",
+      "class": "adapts",
       "hash": "9125ec1673ff30e0a3a30f7c736ac8124e047307d649c2e1a250fdc66b8be6ea"
     },
     {
       "path": "src/Infrastructure/Persistence/Migrations/20260701204754_AddWebhookDelivery.cs",
-      "class": "platform",
+      "class": "adapts",
       "hash": "8332f144926e75401ff2afedbb625224da15a7a8fbf5b57427a1850c48d67bee"
     },
     {
       "path": "src/Infrastructure/Persistence/Migrations/20260701204754_AddWebhookDelivery.Designer.cs",
-      "class": "platform",
+      "class": "adapts",
       "hash": "b90a6b55a29446516bef52d74c94b0b8c47d264ba88eb9f1f2f8f8c5cefaed8f"
     },
     {
       "path": "src/Infrastructure/Persistence/Migrations/20260701225704_AddMfaLastVerifiedTimeStep.cs",
-      "class": "platform",
+      "class": "adapts",
       "hash": "a81bdefd5a598315c96227d26f83011b0e5560e6cc28c2495e3ecfe14dbaea54"
     },
     {
       "path": "src/Infrastructure/Persistence/Migrations/20260701225704_AddMfaLastVerifiedTimeStep.Designer.cs",
-      "class": "platform",
+      "class": "adapts",
       "hash": "3136839402a24e0bf22520b920856655fe4e0098f6938d87e9d6624274621e5d"
     },
     {
       "path": "src/Infrastructure/Persistence/Migrations/20260701230337_AddSubscriptionLastEventAt.cs",
-      "class": "platform",
+      "class": "adapts",
       "hash": "f8c6faff0e7ef4e6594bf92a56065d984f2b976e4cbbd19a0eee787a579032ff"
     },
     {
       "path": "src/Infrastructure/Persistence/Migrations/20260701230337_AddSubscriptionLastEventAt.Designer.cs",
-      "class": "platform",
+      "class": "adapts",
       "hash": "befd2637aca1facc83c018b161e872e9907f1811432727e7122da074eb70bae6"
     },
     {
       "path": "src/Infrastructure/Persistence/Migrations/20260706222645_RlsTenancyBackstop.cs",
-      "class": "platform",
+      "class": "adapts",
       "hash": "3fd09eb9b48d85df113979d178a2cbf0c66cd47834ea6e85c8d921c6fba53abd"
     },
     {
       "path": "src/Infrastructure/Persistence/Migrations/20260706222645_RlsTenancyBackstop.Designer.cs",
-      "class": "platform",
+      "class": "adapts",
       "hash": "a7949f1344136630ee36c5826cc5d565a3f589ec7dfdf0dac01b1315cf3f614b"
     },
     {
       "path": "src/Infrastructure/Persistence/Migrations/20260710163540_AddUserTheme.cs",
-      "class": "platform",
+      "class": "adapts",
       "hash": "d8d8bcec18cc6d57b768bc7f5aea8ae6822dd2c80ba86f475296c01e4038cd43"
     },
     {
       "path": "src/Infrastructure/Persistence/Migrations/20260710163540_AddUserTheme.Designer.cs",
-      "class": "platform",
+      "class": "adapts",
       "hash": "eb63a426f3cff7c91736a009779d278116979f47f4555e6482865aab51738ade"
     },
     {
       "path": "src/Infrastructure/Persistence/Migrations/20260715224058_AuditEventImpersonatedBy.cs",
-      "class": "platform",
+      "class": "adapts",
       "hash": "17c49e19f1e0a83e5274d261aaa13624340b2819ce43cffde044746bef33b43c"
     },
     {
       "path": "src/Infrastructure/Persistence/Migrations/20260715224058_AuditEventImpersonatedBy.Designer.cs",
-      "class": "platform",
+      "class": "adapts",
       "hash": "4c2560dd7c9a881c8819f8efd5360214fe5bd99108ea1b3d20a7ad56da1835ab"
     },
     {
       "path": "src/Infrastructure/Persistence/Migrations/20260715230641_MfaLockout.cs",
-      "class": "platform",
+      "class": "adapts",
       "hash": "64a88bf0b975c5307b1f1e1547699677d180517eec327b620f73b140532a7197"
     },
     {
       "path": "src/Infrastructure/Persistence/Migrations/20260715230641_MfaLockout.Designer.cs",
-      "class": "platform",
+      "class": "adapts",
       "hash": "eebf699e32a5eb7de1f129f6dbc4487cd77bc527f565ad79396c8189e6b206e4"
     },
     {
       "path": "src/Infrastructure/Persistence/Migrations/20260919010912_AddRefreshTokenRotationLink.cs",
-      "class": "platform",
+      "class": "adapts",
       "hash": "b0cc9e284a02296a8ce8897eec9e7847df9c3b58ad2b6ba3135b7091362ee629"
     },
     {
       "path": "src/Infrastructure/Persistence/Migrations/20260919010912_AddRefreshTokenRotationLink.Designer.cs",
-      "class": "platform",
+      "class": "adapts",
       "hash": "f1689387846f66407e9f99e19d8adf3b98ee11033a745c057828a7bb5c7b7b9f"
     },
     {
       "path": "src/Infrastructure/Persistence/Migrations/20260928153915_AddRefreshTokenGraceUsedAt.cs",
-      "class": "platform",
+      "class": "adapts",
       "hash": "e9fba92efe807e9c39c482fc59d6abcffbcd251e1b42d81a8a15b376d2a9faaa"
     },
     {
       "path": "src/Infrastructure/Persistence/Migrations/20260928153915_AddRefreshTokenGraceUsedAt.Designer.cs",
-      "class": "platform",
+      "class": "adapts",
       "hash": "ad6d62e973b6554d53646bb7964836adacd7c3288a28eab8064288678ce53e92"
     },
     {
       "path": "src/Infrastructure/Persistence/Migrations/20260928163552_AddRefreshTokenSessionExpiresAt.cs",
-      "class": "platform",
+      "class": "adapts",
       "hash": "45265701a9910cd39acc357e0d9dca4ab193bb5ee7120caf523e08e43bdb5d5f"
     },
     {
       "path": "src/Infrastructure/Persistence/Migrations/20260928163552_AddRefreshTokenSessionExpiresAt.Designer.cs",
-      "class": "platform",
+      "class": "adapts",
       "hash": "c43b4d31742c13a3d9bf4c6ae1d50ac5ba9ab15cf130ddd5d2814bcfab455c4b"
     },
     {
@@ -3264,7 +3264,7 @@
     {
       "path": "src/Shared.Ui/Auth/AuthService.cs",
       "class": "adapts",
-      "hash": "d31dcde83c7232b932eed9db4bc573071f27696c4a82f46eeccde2c205d488ec"
+      "hash": "dc93fae374cfbfed347c3a941c20b934cfbe9ac31e97dea441a3bb4b0fa81251"
     },
     {
       "path": "src/Shared.Ui/Auth/AuthWireModels.cs",
@@ -3399,7 +3399,7 @@
     {
       "path": "src/Shared.Ui/Layout/MainLayout.razor",
       "class": "adapts",
-      "hash": "2133b297b5e42e1b30fa01a065fea476cb3e6164b6a9fbd526264c12fc20ae03"
+      "hash": "a91d79b4b3dc69e2520462df3de8bdce2306949a508195fe69df19f7c0ffbf5b"
     },
     {
       "path": "src/Shared.Ui/Layout/MainLayout.razor.css",
@@ -3924,12 +3924,12 @@
     {
       "path": "tests/Api.Tests/Architecture/SliceWriteInspector.cs",
       "class": "platform",
-      "hash": "cc5c8d3bbf64ca2d23db7d8c3f34b4cda2cac423f87ce00fcd9d37eba64498a1"
+      "hash": "46dbd5fba560ff3ae2bf1ffbc3b022f129d35a0ce8a6d3552b5714e9ec3645f4"
     },
     {
       "path": "tests/Api.Tests/Architecture/SliceWriteInspectorTests.cs",
       "class": "platform",
-      "hash": "6e42ef2aee4e40f59ba10c3a1fcf0531814d8bc3c5f458bb85f19c3e9cdc6895"
+      "hash": "48ed2d29f4eaa21c2ea65e05f729f4521aeb7b45a5d6af874634a0c21c34bc9b"
     },
     {
       "path": "tests/Api.Tests/Architecture/TenantHatchGuard.cs",
@@ -3949,7 +3949,7 @@
     {
       "path": "tests/Api.Tests/ArchitectureTests.cs",
       "class": "platform",
-      "hash": "81057a5f59ca2ebd29e5987496ce0e9b19b7cabc6aec35d90430ae5ef5e68a30"
+      "hash": "31fb00ebde830a835a8837cb9b3537de2d881a386616b357b4c683d5efbac1ba"
     },
     {
       "path": "tests/Api.Tests/AuditLogTests.cs",
@@ -4104,7 +4104,7 @@
     {
       "path": "tests/Api.Tests/DocAndConfigSyncTests.cs",
       "class": "platform",
-      "hash": "4c7c0cc99ea4de0541b463a3a36190aae30f3a3a52bdca293a3b228773fc8808"
+      "hash": "7b846161bf126032bcb490b2e0a11ddc5cb52eb4075b4bc237cbd8c7a8724933"
     },
     {
       "path": "tests/Api.Tests/E2E/BlazorBootTests.cs",
@@ -4124,7 +4124,7 @@
     {
       "path": "tests/Api.Tests/EnforcementGateTests.cs",
       "class": "platform",
-      "hash": "57f6318c40a617045199744c3e6c60cbdc1dd628ae9b3efeaea7a94012cec3f7"
+      "hash": "1aefcc407e04220343a25c5ac6f1e264f73ce84b17bf380d3d726ffdabfe1312"
     },
     {
       "path": "tests/Api.Tests/EnterTenantScopingTests.cs",
@@ -4299,7 +4299,7 @@
     {
       "path": "tests/Api.Tests/Integration/ImpersonationGuardTests.cs",
       "class": "platform",
-      "hash": "4fd7831bef8feeea9526a12e93a48af24367dc4d2a98b7866fbe95a869d56e88"
+      "hash": "a768a1d5412f4385dff5fcd3ff971faea660fdc0a94ead8dbe728bf1d0b6a409"
     },
     {
       "path": "tests/Api.Tests/Integration/MfaStepUpIntegrationTests.cs",
@@ -4334,7 +4334,7 @@
     {
       "path": "tests/Api.Tests/Integration/VersionEndpointTests.cs",
       "class": "platform",
-      "hash": "c83a5c017b890fd9034c6136ff0371ef1e58dbcf33360c562b1c97be25216815"
+      "hash": "3127df4ed5cb7ece154ebbd6039106df76ffd988d0d4fd56d840d1256b8820c0"
     },
     {
       "path": "tests/Api.Tests/JsLogicTests.cs",
@@ -4374,7 +4374,7 @@
     {
       "path": "tests/Api.Tests/MigrationsTests.cs",
       "class": "platform",
-      "hash": "bfa0e285162e6f30a2fd1c82956e5e23e2332bea374d8b8da2018ab91e8eb628"
+      "hash": "1ad57e800dab7ec295871b86474912c1e85cd8703bff3e2f2b4812f0e90f6803"
     },
     {
       "path": "tests/Api.Tests/NativeAuthCodeServiceTests.cs",
@@ -4494,7 +4494,7 @@
     {
       "path": "tests/Api.Tests/PlatformOwnershipTests.cs",
       "class": "platform",
-      "hash": "ca154d49bbb7d013412d488c07b2f51695c0e2ee1d415cae41c8ff5611fa4033"
+      "hash": "d210862170a519197c61f4e17427665db8b94f8222f490cb0fb6e390c4d28c73"
     },
     {
       "path": "tests/Api.Tests/PlatformSchemaTests.cs",
@@ -4544,7 +4544,7 @@
     {
       "path": "tests/Api.Tests/ResourceParityTests.cs",
       "class": "platform",
-      "hash": "84de7a8519fa69651d0531ea8e055cdcdaa8ddee3a68e7a6f053c82c521e086c"
+      "hash": "0bfaa0bb48f5c00b25583477b773f1e3033729714002d6c924f44e5600d1cfd1"
     },
     {
       "path": "tests/Api.Tests/Rls/CrossTenantTagSiteTests.cs",
@@ -4659,7 +4659,7 @@
     {
       "path": "tests/Api.Tests/TestIdContractTests.cs",
       "class": "platform",
-      "hash": "b5c52171c4af1776a5b70472157bc1d8188a3e0856c88be09abd01d98c3a26c9"
+      "hash": "c0812602444cb7b723e202cfe1e89e916fd3be7861e8d94632bf5cf418490d8b"
     },
     {
       "path": "tests/Api.Tests/TokenHasherTests.cs",
@@ -5749,7 +5749,7 @@
     {
       "path": "tests/Ui.Tests/SessionKeepAliveTests.cs",
       "class": "adapts",
-      "hash": "029925399893beaaa0ef0b96e8d2ffca9758a59924d7d926a3afeb620f882f9d"
+      "hash": "955a75c30639be6ed83985d8a96fa0c9b65b3c365d7dd78016d3cd9cbd68de1c"
     },
     {
       "path": "tests/Ui.Tests/SignupRefusedCopyTests.cs",
@@ -5784,7 +5784,7 @@
     {
       "path": "tools/port-platform.ps1",
       "class": "platform",
-      "hash": "275e254269024c6327a19690fa8e2b4072359ac30506e8ffc7a44a877bdcce93"
+      "hash": "33fbb2ba7e5d2ed9d783877732f9c7d9263120bdb5e9b63b29a5e09515e13a38"
     },
     {
       "path": "tools/ports.ps1",
