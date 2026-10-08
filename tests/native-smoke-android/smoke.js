@@ -5,11 +5,17 @@
 //
 // Prereqs (the CI job or a local rehearsal provides them): an emulator/device with the DEBUG
 // app installed and launched (EmbedAssembliesIntoApk=true — a fast-deployment APK won't start
-// from a plain `adb install`), `adb reverse tcp:5338 tcp:5338`, the API on
-// http://localhost:5338, Mailpit on MAILPIT_BASE_URL (default http://localhost:8025).
+// from a plain `adb install`), `adb reverse` on the API's local http port (the MAUI csproj does it),
+// the API on that port, Mailpit on MAILPIT_BASE_URL (default: this repo's Mailpit UI port, local-ports.props).
 
 const PKG = process.env.NATIVE_SMOKE_PKG || 'com.perezosoft.vuelto';
-const MAILPIT = process.env.MAILPIT_BASE_URL || 'http://localhost:8025';
+const MAILPIT = process.env.MAILPIT_BASE_URL || `http://localhost:${localPort('LocalMailUiPort')}`;
+
+// The repo's one source of local ports (Arch A10): read, not restated.
+function localPort(name) {
+  const props = require('fs').readFileSync(require('path').join(__dirname, '..', '..', 'local-ports.props'), 'utf8');
+  return props.match(new RegExp(`<${name}>(\\d+)</${name}>`))[1];
+}
 
 async function mailpit(path, init) {
   const res = await fetch(`${MAILPIT}${path}`, init);

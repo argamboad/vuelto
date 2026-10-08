@@ -50,7 +50,7 @@ public class ApplicationSettings : IApplicationSettings
 
     public ApplicationSettings(IConfiguration config)
     {
-        ClientUrl = config["Auth:AppBaseUrl"]?.TrimEnd('/') ?? "https://localhost:7108";
+        ClientUrl = config["Auth:AppBaseUrl"]?.TrimEnd('/') ?? LocalPorts.WebHttpsUrl; // the Web app's https launch profile (local-ports.props)
         NativeCallbackScheme = config["Auth:Native:CallbackScheme"] ?? string.Empty;
     }
 }
