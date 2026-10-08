@@ -55,8 +55,8 @@ public class TransactionFormShapeTests : ComponentTestBase
 
         var group = cut.Find("[data-testid='tx-amount-field'] .input-group");
         Assert.NotNull(group.QuerySelector("[data-testid='tx-amount-field-input']"));
-        Assert.NotNull(group.QuerySelector("[data-testid='tx-amount-field-currency-CRC']"));
-        Assert.NotNull(group.QuerySelector("[data-testid='tx-amount-field-currency-USD']"));
+        Assert.NotNull(group.QuerySelector("[data-testid='tx-amount-field-currency-option'][data-currency='CRC']"));
+        Assert.NotNull(group.QuerySelector("[data-testid='tx-amount-field-currency-option'][data-currency='USD']"));
 
         cut.Find("[data-testid='tx-amount-field-input']").Change("48320");
         cut.WaitForAssertion(() =>
@@ -79,12 +79,12 @@ public class TransactionFormShapeTests : ComponentTestBase
 
         foreach (var c in new[] { "budgeted", "extraordinary", "unplanned_essential", "inflow", "envelope_contribution" })
         {
-            Assert.NotNull(cut.Find($"[data-testid='tx-type-{c}']"));
+            Assert.NotNull(cut.Find($"[data-testid='tx-type-option'][data-value='{c}']"));
         }
         Assert.NotNull(cut.Find("[data-testid='tx-type'] fieldset, fieldset[data-testid='tx-type']"));
 
         Assert.Contains("Tx_ClassHint_Budgeted", cut.Find("[data-testid='tx-class-hint']").TextContent);
-        cut.Find("[data-testid='tx-type-inflow']").Change(true);
+        cut.Find("[data-testid='tx-type-option'][data-value='inflow']").Change(true);
         Assert.Contains("Tx_ClassHint_Inflow", cut.Find("[data-testid='tx-class-hint']").TextContent);
     }
 
@@ -95,11 +95,11 @@ public class TransactionFormShapeTests : ComponentTestBase
 
         // Unplanned → the expected-refund fields.
         Assert.Empty(cut.FindAll("[data-testid='tx-refund-expected']"));
-        cut.Find("[data-testid='tx-type-unplanned_essential']").Change(true);
+        cut.Find("[data-testid='tx-type-option'][data-value='unplanned_essential']").Change(true);
         Assert.NotNull(cut.Find("[data-testid='tx-refund-expected']"));
 
         // Envelope → the bucket picker. Dropping either chip would remove the path entirely.
-        cut.Find("[data-testid='tx-type-envelope_contribution']").Change(true);
+        cut.Find("[data-testid='tx-type-option'][data-value='envelope_contribution']").Change(true);
         Assert.Empty(cut.FindAll("[data-testid='tx-refund-expected']"));
         Assert.NotNull(cut.Find("[data-testid='tx-envelope']"));
     }
@@ -141,12 +141,12 @@ public class TransactionFormShapeTests : ComponentTestBase
         cut.WaitForAssertion(() => Assert.Contains("Tx_LineImpact[Groceries, ₡8,000.00, ₡60,000.00, ₡58,000.00]", cut.Find("[data-testid='tx-line-impact']").TextContent));
 
         // A dollar purchase against a colón line is converted at today's rate before it is added.
-        cut.Find("[data-testid='tx-amount-field-currency-USD']").Change(true);
+        cut.Find("[data-testid='tx-amount-field-currency-option'][data-currency='USD']").Change(true);
         cut.Find("[data-testid='tx-amount-field-input']").Change("10");
         cut.WaitForAssertion(() => Assert.Contains("₡13,000.00]", cut.Find("[data-testid='tx-line-impact']").TextContent));
 
         // A class that is not budgeted spending has no line to land in.
-        cut.Find("[data-testid='tx-type-extraordinary']").Change(true);
+        cut.Find("[data-testid='tx-type-option'][data-value='extraordinary']").Change(true);
         Assert.Empty(cut.FindAll("[data-testid='tx-line-impact']"));
     }
 
@@ -262,7 +262,7 @@ public class TransactionFormShapeTests : ComponentTestBase
         // Why you expect it back (case number and all) used to be reachable only from the month page, after the fact.
         // Owner, 2026-09-14: ONE notes field, no separate Case No. — a textarea like the transaction's own notes.
         var cut = await FormAsync();
-        cut.Find("[data-testid='tx-type-unplanned_essential']").Change(true);
+        cut.Find("[data-testid='tx-type-option'][data-value='unplanned_essential']").Change(true);
         Assert.Empty(cut.FindAll("[data-testid='tx-refund-notes']"));
         cut.Find("[data-testid='tx-refund-expected']").Change(true);
 
@@ -271,7 +271,7 @@ public class TransactionFormShapeTests : ComponentTestBase
         Assert.Equal("250", notes.GetAttribute("maxlength"));
         Assert.Equal("1", notes.GetAttribute("rows")); // one row, the percentage's height; the user can drag it taller
         Assert.Contains("Tx_RefundNotes", cut.Find("label[for='tx-refund-notes']").TextContent);
-        Assert.Empty(cut.FindAll("[data-testid='tx-refund-case']"));
+        Assert.DoesNotContain("tx-refund-case", cut.FindAll("[data-testid]").Select(e => e.GetAttribute("data-testid")));
         notes.Input("CASE-7, lent to Diego"); // ASCII on purpose: the JSON body escapes anything else as a unicode sequence
         Assert.Contains("21/250", cut.Find("[data-testid='tx-refund-notes-count']").TextContent);
 

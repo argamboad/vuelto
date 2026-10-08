@@ -15,18 +15,18 @@
    columns at lg, two at md, one below. Months exist only through transactions, so the list needs nothing but the
    months themselves; each card's money comes from that month's summary, fetched in parallel after the grid is
    already on screen, and a card that never gets its figures is still a card. *@
-<div class="settings-wrapper" data-testid="months-page">
+<div class="settings-wrapper">
     <div class="months-head">
         <div>
             <h1>@Localizer["Months_Title"]</h1>
             <p class="months-subtitle">@Localizer["Months_Subtitle"]</p>
         </div>
-        <a class="btn btn-primary" href="/transactions/new" data-testid="months-new-tx">@Localizer["Months_NewTransaction"]</a>
+        <a class="btn btn-primary" href="/transactions/new">@Localizer["Months_NewTransaction"]</a>
     </div>
 
     @if (_error is not null)
     {
-        <div class="alert alert-danger py-2" data-testid="months-error">@_error</div>
+        <div class="alert alert-danger py-2">@_error</div>
     }
 
     @if (_loading)

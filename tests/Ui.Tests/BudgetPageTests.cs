@@ -213,12 +213,12 @@ public class BudgetPageTests : ComponentTestBase
         var cut = RenderPage();
 
         Assert.Empty(cut.FindAll("[data-testid='budget-dialog']"));
-        Assert.Empty(cut.FindAll("[data-testid='exp-new']")); // one button for both lists, in the page head
+        Assert.DoesNotContain("exp-new", cut.FindAll("[data-testid]").Select(e => e.GetAttribute("data-testid"))); // one button for both lists, in the page head
         cut.Find("[data-testid='budget-add']").Click();
         var dialog = cut.Find("[data-testid='budget-dialog']");
         Assert.Equal("dialog", dialog.GetAttribute("role"));
-        Assert.True(cut.Find("[data-testid='budget-dialog-kind-fixed']").HasAttribute("checked"));
-        cut.Find("[data-testid='budget-dialog-kind-variable']").Change(true);
+        Assert.True(cut.Find("[data-testid='budget-dialog-kind-option'][data-value='fixed']").HasAttribute("checked"));
+        cut.Find("[data-testid='budget-dialog-kind-option'][data-value='variable']").Change(true);
 
         cut.Find("[data-testid='exp-name']").Input("Water");
         cut.Find("[data-testid='exp-amount']").Change("25");
@@ -235,7 +235,7 @@ public class BudgetPageTests : ComponentTestBase
         Assert.Contains("\"payment_method\":\"bank_account\"", body);
         Assert.Contains($"\"category_id\":\"{Cat2}\"", body);
         Assert.DoesNotContain("bank_id", body); // a plan names no bank
-        Assert.Empty(cut.FindAll("[data-testid='exp-bank']"));
+        Assert.DoesNotContain("exp-bank", cut.FindAll("[data-testid]").Select(e => e.GetAttribute("data-testid")));
         Assert.Empty(cut.FindAll("[data-testid='budget-dialog']")); // closed on save
         Assert.Equal(2, Http.Requests.Count(r => r.Method == HttpMethod.Get && r.RequestUri!.AbsolutePath == "/api/expenses/variable")); // that list reloaded
     }
@@ -270,7 +270,7 @@ public class BudgetPageTests : ComponentTestBase
         Assert.Equal("Netflix", cut.Find("[data-testid='exp-name']").GetAttribute("value"));
         Assert.Equal("13", cut.Find("[data-testid='exp-amount']").GetAttribute("value"));
         Assert.Equal("USD", cut.Find("[data-testid='exp-currency']").GetAttribute("value"));
-        Assert.Empty(cut.FindAll("[data-testid='budget-dialog-kind']")); // a line does not change lists
+        Assert.DoesNotContain("budget-dialog-kind", cut.FindAll("[data-testid]").Select(e => e.GetAttribute("data-testid"))); // a line does not change lists
         cut.Find("[data-testid='exp-amount']").Change("15");
         cut.Find("[data-testid='exp-active']").Change(false);
         cut.Find("[data-testid='exp-save']").Click();

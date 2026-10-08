@@ -66,7 +66,7 @@ public class ReportsPageTests : ComponentTestBase
         return cut;
     }
 
-    private static void ChartView(IRenderedComponent<Reports> cut) => cut.Find("[data-testid='rep-view-chart']").Change(true);
+    private static void ChartView(IRenderedComponent<Reports> cut) => cut.Find("[data-testid='rep-view-option'][data-value='chart']").Change(true);
 
     // ---------------------------------------------------------------- the verdict: tiles + pace
 
@@ -100,7 +100,7 @@ public class ReportsPageTests : ComponentTestBase
         Assert.Empty(cut.FindAll("[data-testid='rep-donut']")); // table view by default: no charts below
 
         // The category card opens on the budgeted class, with the budget column, the bar column and the tone.
-        Assert.True(cut.Find("[data-testid='rep-class-budgeted']").HasAttribute("checked"));
+        Assert.True(cut.Find("[data-testid='rep-class-option'][data-value='budgeted']").HasAttribute("checked"));
         var rows = cut.FindAll("[data-testid='rep-category'] [data-testid='rep-row']");
         Assert.Equal(5, rows.Count);
         var actuals = cut.FindAll("[data-testid='rep-category'] [data-testid='rep-actual']");
@@ -134,7 +134,7 @@ public class ReportsPageTests : ComponentTestBase
         await SignInAsync();
         var cut = RenderMonth();
 
-        cut.Find("[data-testid='rep-class-extraordinary']").Change(true);
+        cut.Find("[data-testid='rep-class-option'][data-value='extraordinary']").Change(true);
         Assert.Contains("Dining", Assert.Single(cut.FindAll("[data-testid='rep-category'] [data-testid='rep-row']")).TextContent);
         Assert.Contains("Reports_SpentCol", cut.Find("[data-testid='rep-category'] thead").TextContent); // "Actual" only beside a Budgeted column
         Assert.DoesNotContain("Reports_ActualCol", cut.Find("[data-testid='rep-category'] thead").TextContent);
@@ -142,7 +142,7 @@ public class ReportsPageTests : ComponentTestBase
         Assert.Empty(cut.FindAll("[data-testid='rep-budget']"));
         Assert.Empty(cut.FindAll("[data-testid='rep-bar']")); // nothing to compare against
 
-        cut.Find("[data-testid='rep-class-unplanned_essential']").Change(true);
+        cut.Find("[data-testid='rep-class-option'][data-value='unplanned_essential']").Change(true);
         Assert.Contains("Reports_NoneInClass", cut.Find("[data-testid='rep-category']").TextContent);
         Assert.Single(Http.Requests, r => r.RequestUri!.AbsolutePath == "/api/reports/category-analysis"); // the rows were already there
     }
@@ -188,11 +188,11 @@ public class ReportsPageTests : ComponentTestBase
         Assert.Contains("$18.99", budgets);     // a dollar line stays in dollars
         var actuals = cut.FindAll("[data-testid='rep-category'] [data-testid='rep-actual']").Select(a => a.TextContent.Trim()).ToArray();
         Assert.All(actuals, a => Assert.StartsWith("$", a));
-        cut.Find("[data-testid='rep-class-extraordinary']").Change(true);
+        cut.Find("[data-testid='rep-class-option'][data-value='extraordinary']").Change(true);
         Assert.Contains("$4.00", cut.Find("[data-testid='rep-category']").TextContent);
         Assert.Contains(JSInterop.Invocations, i => i.Identifier == "appUi.setPref" && Equals(i.Arguments[0], "display.currency"));
 
-        cut.Find("[data-testid='rep-class-budgeted']").Change(true);
+        cut.Find("[data-testid='rep-class-option'][data-value='budgeted']").Change(true);
         cut.Find("[data-testid='rep-cur-both']").Click();
         cut.WaitForAssertion(() => Assert.Contains("₡138,990.00 · $277.98", cut.Find("[data-testid='rep-budget-total']").TextContent));
     }
@@ -209,27 +209,27 @@ public class ReportsPageTests : ComponentTestBase
         ChartView(cut);
 
         // Same five budgeted rows as bars, sorted by size; only ₡-budgeted lines get a ₡ budget overlay.
-        cut.WaitForAssertion(() => Assert.Equal(5, cut.FindAll("[data-testid='rep-budgeted-chart'] [data-testid='chart-bar']").Count));
+        cut.WaitForAssertion(() => Assert.Equal(5, cut.FindAll("[data-section='rep-budgeted'] [data-testid='rep-section-chart'] [data-testid='chart-bar']").Count));
         Assert.Empty(cut.FindAll("[data-testid='rep-category']")); // the table is replaced, not duplicated
-        var bars = cut.FindAll("[data-testid='rep-budgeted-chart'] [data-testid='chart-bar']");
+        var bars = cut.FindAll("[data-section='rep-budgeted'] [data-testid='rep-section-chart'] [data-testid='chart-bar']");
         Assert.Contains("Housing", bars[0].TextContent); // largest first (70,000)
         Assert.Equal("true", bars[0].GetAttribute("data-over"));
-        Assert.Equal(2, cut.FindAll("[data-testid='rep-budgeted-chart'] [data-testid='chart-budget']").Count);
-        Assert.Contains("₡", cut.Find("[data-testid='rep-budgeted-chart-total']").TextContent);
+        Assert.Equal(2, cut.FindAll("[data-section='rep-budgeted'] [data-testid='rep-section-chart'] [data-testid='chart-budget']").Count);
+        Assert.Contains("₡", cut.Find("[data-section='rep-budgeted'] [data-testid='rep-section-chart-total']").TextContent);
         Assert.Equal(3, cut.FindAll("[data-testid='rep-donut'] [data-testid='chart-legend-item']").Count);
         Assert.Equal(2, cut.FindAll("[data-testid='rep-donut'] [data-testid='chart-slice']").Count); // budgeted + extraordinary; unplanned is empty
-        Assert.Contains("Reports_NoneInClass", cut.Find("[data-testid='rep-unplanned']").TextContent);
+        Assert.Contains("Reports_NoneInClass", cut.Find("[data-testid='rep-section'][data-section='rep-unplanned']").TextContent);
         Assert.Empty(cut.FindAll("[data-testid='rep-pace-card'] [data-testid='rep-donut']")); // the pace card sits above the toggle, once
         Assert.Single(cut.FindAll("[data-testid='rep-pace-chart']"));
         Assert.Contains(JSInterop.Invocations, i => i.Identifier == "appUi.setPref"); // remembered per device
 
         // Dollars: values re-label, and now only the $-budgeted lines carry an overlay.
         cut.Find("[data-testid='rep-cur-usd']").Click();
-        cut.WaitForAssertion(() => Assert.Contains("$", cut.Find("[data-testid='rep-budgeted-chart-total']").TextContent));
-        Assert.Equal(4, cut.FindAll("[data-testid='rep-budgeted-chart'] [data-testid='chart-budget']").Count);
-        Assert.Contains("$25.00", cut.FindAll("[data-testid='rep-budgeted-chart'] [data-testid='chart-value']").Select(v => v.TextContent).First(t => t.Contains("25")));
+        cut.WaitForAssertion(() => Assert.Contains("$", cut.Find("[data-section='rep-budgeted'] [data-testid='rep-section-chart-total']").TextContent));
+        Assert.Equal(4, cut.FindAll("[data-section='rep-budgeted'] [data-testid='rep-section-chart'] [data-testid='chart-budget']").Count);
+        Assert.Contains("$25.00", cut.FindAll("[data-section='rep-budgeted'] [data-testid='rep-section-chart'] [data-testid='chart-value']").Select(v => v.TextContent).First(t => t.Contains("25")));
 
-        cut.Find("[data-testid='rep-view-table']").Change(true);
+        cut.Find("[data-testid='rep-view-option'][data-value='table']").Change(true);
         cut.WaitForAssertion(() => Assert.Equal(5, cut.FindAll("[data-testid='rep-category'] [data-testid='rep-row']").Count)); // and back
     }
 
@@ -276,7 +276,7 @@ public class ReportsPageTests : ComponentTestBase
         ChartView(cut);
 
         cut.WaitForElement("[data-testid='rep-income-donut']");
-        Assert.Empty(cut.FindAll("[data-testid='rep-members-card']"));
+        Assert.DoesNotContain("rep-members-card", cut.FindAll("[data-testid]").Select(e => e.GetAttribute("data-testid")));
     }
 
     [Fact]
@@ -519,8 +519,8 @@ public class ReportsPageTests : ComponentTestBase
 
         cut.Find("[data-testid='rep-pdf']").Click();
         foreach (var key in new[] { "rate", "source", "card", "class" })
-            cut.Find($"[data-testid='rep-pdf-col-{key}']").Change(false);
-        Assert.False(cut.Find("[data-testid='rep-pdf-col-rate']").HasAttribute("checked"));
+            cut.Find($"[data-testid='rep-pdf-col'][data-col='{key}']").Change(false);
+        Assert.False(cut.Find("[data-testid='rep-pdf-col'][data-col='rate']").HasAttribute("checked"));
         cut.Find("[data-testid='rep-pdf-email']").Click();
         cut.WaitForAssertion(() => Assert.Contains(Http.Requests, r => r.RequestUri!.AbsolutePath == "/api/reports/pdf/email"));
         var lean = await PdfBodyAsync(Http.Requests.Last(r => r.RequestUri!.AbsolutePath == "/api/reports/pdf/email"));

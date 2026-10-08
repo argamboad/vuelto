@@ -45,7 +45,7 @@
     }
     else if (_dash is null)
     {
-        <div class="alert alert-danger" data-testid="dash-error">@(_error ?? Localizer["Dash_LoadError"])</div>
+        <div class="alert alert-danger">@(_error ?? Localizer["Dash_LoadError"])</div>
     }
     else
     {
@@ -69,7 +69,7 @@
                 @* ₡ · $ · both for every converted pair on the page; a budget line keeps its own currency. *@
                 <CurrencySwitch Value="@_display" ValueChanged="SetDisplayAsync" TestId="dash-cur" Label="@Localizer["Reports_ShowIn"].Value" />
                 <div class="dash-head-buttons">
-                    <a class="btn btn-outline-primary btn-sm" href="/months/@_dash.Month.Id" data-testid="dash-month-link">@Localizer["Dash_MonthDetails"]</a>
+                    <a class="btn btn-outline-primary btn-sm" href="/months/@_dash.Month.Id">@Localizer["Dash_MonthDetails"]</a>
                     <a class="btn btn-primary btn-sm" href="/transactions/new" data-testid="dash-new-tx">@Localizer["Months_NewTransaction"]</a>
                 </div>
             </div>
@@ -98,7 +98,7 @@
 
                 @* ---------------------------------------------------------------- the pace *@
                 <div class="col-12 col-lg-7">
-                    <section class="dash-pace" data-testid="dash-pace">
+                    <section class="dash-pace">
                         <header>
                             <h2>@Localizer["Dash_ThisMonth"]</h2>
                             <span class="dash-pace-summary" data-testid="dash-pace-summary">
@@ -132,7 +132,7 @@
                             <ul>
                                 @foreach (var e in s.EnvelopeReminders)
                                 {
-                                    <li data-testid="dash-envelope-row">
+                                    <li>
                                         <span class="dash-env-name">@e.Name</span>
                                         <span class="dash-env-bar" aria-hidden="true"><span style="width: @Pct(EnvelopeFill(e))"></span></span>
                                         <span class="dash-env-money">@Localizer["Dash_Contributed"]: @Show(e.ContributedThisMonth)</span>
@@ -281,16 +281,29 @@
     /// </summary>
     private List<WaterfallStep> Steps(SummaryDto s) =>
     [
-        new("", Localizer["Dash_WfIncome"], MoneyOf(s.IncomeTotal, "dash-wf-income"), IncomeSub(s)),
-        new("−", Localizer["Dash_WfSpent"], MoneyOf(s.ExpensesTotal, "dash-wf-spent")),
-        new("−", Localizer["Dash_WfPlanned"], MoneyOf(s.PendingBudgeted, "dash-wf-planned")),
-        new("=", Localizer["Dash_WfForecast"], MoneyOf(s.ActualRemainder, "dash-wf-forecast"), RefundSub(s),
+        new("", Localizer["Dash_WfIncome"], IncomeMoney(s.IncomeTotal), IncomeSub(s)),
+        new("−", Localizer["Dash_WfSpent"], SpentMoney(s.ExpensesTotal)),
+        new("−", Localizer["Dash_WfPlanned"], PlannedMoney(s.PendingBudgeted)),
+        new("=", Localizer["Dash_WfForecast"], ForecastMoney(s.ActualRemainder), RefundSub(s),
             Side(s.ActualRemainder) < 0 ? "bad" : "good"),
     ];
 
-    private RenderFragment MoneyOf(MoneyDto m, string testId) => __builder =>
+    // One fragment per step so each money carries a literal test id (R149).
+    private RenderFragment IncomeMoney(MoneyDto m) => __builder =>
     {
-        <Money Crc="m.Crc" Usd="m.Usd" Display="@_display" Size="step" TestId="@testId" />
+        <Money Crc="m.Crc" Usd="m.Usd" Display="@_display" Size="step" TestId="dash-wf-income" />
+    };
+    private RenderFragment SpentMoney(MoneyDto m) => __builder =>
+    {
+        <Money Crc="m.Crc" Usd="m.Usd" Display="@_display" Size="step" TestId="dash-wf-spent" />
+    };
+    private RenderFragment PlannedMoney(MoneyDto m) => __builder =>
+    {
+        <Money Crc="m.Crc" Usd="m.Usd" Display="@_display" Size="step" TestId="dash-wf-planned" />
+    };
+    private RenderFragment ForecastMoney(MoneyDto m) => __builder =>
+    {
+        <Money Crc="m.Crc" Usd="m.Usd" Display="@_display" Size="step" TestId="dash-wf-forecast" />
     };
 
     /// <summary>Inflows (realized refunds, sales) are folded into income — say so, or the figure looks wrong.</summary>
@@ -382,7 +395,7 @@
        actually carried the month. *@
     private RenderFragment BankView(SummaryDto s) => __builder =>
     {
-        <table class="table table-sm dash-method" data-testid="dash-method">
+        <table class="table table-sm dash-method">
             <thead><tr><th>@Localizer["Dash_ByMethod"]</th><th class="text-end">@Localizer["Dash_Budgeted"]</th><th class="text-end">@Localizer["Dash_Actual"]</th></tr></thead>
             <tbody>
                 @foreach (var m in s.MethodBreakdown ?? [])
@@ -436,7 +449,7 @@
                         <td class="text-end" data-testid="dash-card-share">@Share(Side(c.Actual), total)</td>
                     </tr>
                 }
-                <tr class="fw-semibold" data-testid="dash-cards-total">
+                <tr class="fw-semibold">
                     <td>@Localizer["Dash_Total"]</td>
                     <td class="text-end text-nowrap">@Show(Sum(byCard.Select(c => c.Actual)))</td>
                     <td class="text-end">@Share(total, total)</td>
@@ -449,7 +462,7 @@
     {
         @if (s.OtherSpending.Count == 0)
         {
-            <p class="dash-empty-view" data-testid="dash-other-empty">@Localizer["Dash_NoLines"]</p>
+            <p class="dash-empty-view">@Localizer["Dash_NoLines"]</p>
         }
         else
         {
@@ -457,7 +470,7 @@
             @* Grouped by what kind of money it is (owner decision, 2026-09-14): Discretionary, then Unplanned, then
                "marked budgeted, no line" — the catalog smell — only when it occurs. A category whose money came in
                two classes sits once per group with that group's amount, so the subtotals and the total all add up. *@
-            <table class="table table-sm" data-testid="dash-other">
+            <table class="table table-sm">
                 <thead><tr><th>@Localizer["Tx_Category"]</th><th class="text-end">@Localizer["Dash_Actual"]</th></tr></thead>
                 <tbody>
                     @foreach (var group in UnbudgetedGroups(s.OtherSpending))

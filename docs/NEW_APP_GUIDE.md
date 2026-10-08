@@ -105,7 +105,8 @@ brand map (`Vuelto` → your brand, `vuelto` → its lowercase); `platform-owner
 the platform's (`platform`: keep them identical, or list a divergence with a reason in
 `tests/Api.Tests/App/PlatformDivergences.json`), which you are expected to edit (`adapts`: the UI, the journeys, the
 config, the docs) and which are yours (`app`: `src/Api/Features/**`, `AppComposition.cs`, `AppDbContext.App.cs`,
-`tests/Api.Tests/App/**`, `RulesEnforcement.App.cs`). After the rebrand, run the port once against the platform
+`tests/Api.Tests/App/**`, `RulesEnforcement.App.cs`). A folder of your own at the top of the repo (jigger-jot's `seed/`)
+is classed in `platform-ownership.App.json`, same shape, applied after the platform's rules. After the rebrand, run the port once against the platform
 checkout you cloned from, at that same commit, to write the manifest and the stamp:
 
 ```bash

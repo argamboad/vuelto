@@ -112,9 +112,11 @@ public sealed class MigrationsTests : IAsyncLifetime
         // the rotation-link Down silently discards RotatedAt and ReplacedByTokenId. From that migration on, a Down
         // that drops a column or a table carries a "Data loss on Down:" comment saying what is lost and why that
         // is acceptable. Earlier migrations predate the rule and are left as they shipped.
-        const string since = "20260922145324"; // this repo's id for AddRefreshTokenRotationLink (the platform's is 20260919010912)
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir is not null && !dir.EnumerateFiles("*.slnx").Any()) dir = dir.Parent;
+        // This repo's own id for it: an app regenerates the platform's migrations under its own timestamps.
+        var since = Path.GetFileName(Directory.EnumerateFiles(Path.Combine(dir!.FullName, "src", "Infrastructure", "Persistence", "Migrations"),
+            "*_AddRefreshTokenRotationLink.cs").Single())[..14];
         var migrations = Directory.EnumerateFiles(Path.Combine(dir!.FullName, "src", "Infrastructure", "Persistence", "Migrations"), "*.cs")
             .Where(f => !f.EndsWith(".Designer.cs", StringComparison.Ordinal) && char.IsDigit(Path.GetFileName(f)[0]))
             .Where(f => string.CompareOrdinal(Path.GetFileName(f)[..14], since) >= 0)

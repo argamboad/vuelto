@@ -20,7 +20,7 @@
             {
                 <label data-selected="@(Currency == c ? "true" : null)">
                     <input type="radio" name="@_name" value="@c" checked="@(Currency == c)"
-                           data-testid="@($"{TestId}-currency-{c}")" @onchange="@(() => CurrencyChanged.InvokeAsync(c))" />
+                           data-testid="@($"{TestId}-currency-option")" data-currency="@c" @onchange="@(() => CurrencyChanged.InvokeAsync(c))" />
                     <span>@(c == "USD" ? "$" : "₡")</span>
                 </label>
             }

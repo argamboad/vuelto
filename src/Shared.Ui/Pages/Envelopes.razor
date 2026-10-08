@@ -13,7 +13,7 @@
 
 @* ENV-1: the household's savings envelopes (ADR-V007/V008) — list, create, edit (targets + reminder
    cadence), deactivate/reactivate, and the inactive-name-clash reactivation offer. *@
-<div class="settings-wrapper" data-testid="envelopes-page">
+<div class="settings-wrapper">
     <PageHead Title="@Localizer["Envelopes_Title"]" Subtitle="@Localizer["Envelopes_Subtitle"]">
         <button class="btn btn-primary" data-testid="env-new" disabled="@(_form is not null)" @onclick="OpenNew">@Localizer["Envelopes_New"]</button>
     </PageHead>
@@ -24,7 +24,7 @@
     }
     @if (_error is not null)
     {
-        <div class="alert alert-danger py-2" data-testid="env-error">@_error</div>
+        <div class="alert alert-danger py-2">@_error</div>
     }
 
     @if (_form is not null)
@@ -57,7 +57,7 @@
                     {
                         <div class="col-12 col-md-6 d-flex align-items-end">
                             <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" id="env-active" data-testid="env-active" disabled="@_saving" @bind="_form.IsActive" />
+                                <input class="form-check-input" type="checkbox" id="env-active" disabled="@_saving" @bind="_form.IsActive" />
                                 <label class="form-check-label" for="env-active">@Localizer["Catalog_ActiveToggle"]</label>
                             </div>
                         </div>
@@ -66,7 +66,7 @@
 
                 @if (_form.Conflict is not null)
                 {
-                    <div class="alert alert-warning py-2 mt-3 d-flex align-items-center justify-content-between gap-2" data-testid="env-conflict">
+                    <div class="alert alert-warning py-2 mt-3 d-flex align-items-center justify-content-between gap-2">
                         <span>@_form.Conflict.Message</span>
                         <button class="btn btn-warning btn-sm" data-testid="env-reactivate" disabled="@_saving" @onclick="Reactivate">@Localizer["Catalog_Reactivate"]</button>
                     </div>
@@ -80,7 +80,7 @@
                     <button class="btn btn-primary" data-testid="env-save" disabled="@_saving" @onclick="Save">
                         @(_saving ? Localizer["Catalog_Saving"] : _form.Editing is null ? Localizer["Catalog_Create"] : Localizer["Catalog_Save"])
                     </button>
-                    <button class="btn btn-outline-secondary" data-testid="env-cancel" disabled="@_saving" @onclick="Cancel">@Localizer["Catalog_Cancel"]</button>
+                    <button class="btn btn-outline-secondary" disabled="@_saving" @onclick="Cancel">@Localizer["Catalog_Cancel"]</button>
                 </div>
             </div>
         </div>
@@ -92,13 +92,13 @@
     }
     else if (_items.Count == 0)
     {
-        <p class="text-muted" data-testid="env-empty">@Localizer["Envelopes_Empty"]</p>
+        <p class="text-muted">@Localizer["Envelopes_Empty"]</p>
     }
     else
     {
         <div class="card shadow-sm">
             <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0" data-testid="env-table">
+                <table class="table table-hover align-middle mb-0">
                     <thead>
                         <tr>
                             <th scope="col">@Localizer["Catalog_Name"]</th>
@@ -112,16 +112,16 @@
                         @foreach (var item in _items)
                         {
                             <tr data-testid="env-row" class="@(item.IsActive ? null : "text-muted")">
-                                <td data-testid="env-row-name">
+                                <td>
                                     <span class="fw-semibold">@item.Name</span>
                                     <span class="sub-line" data-testid="env-row-sub">@Cadence(item) · @(item.IsActive ? Localizer["Catalog_Active"] : Localizer["Catalog_Inactive"])</span>
                                 </td>
                                 @* Two targets, each in its own currency — stacked, ₡ over $, never converted (ADR-V007). *@
                                 <td class="text-end"><Money Crc="item.AnnualTargetCrc" Usd="item.AnnualTargetUsd" Size="row" TestId="env-row-target" /></td>
-                                <td class="fold-md" data-testid="env-row-cadence">@Cadence(item)</td>
+                                <td class="fold-md">@Cadence(item)</td>
                                 <td class="fold-md"><StatusChip Tone="@(item.IsActive ? "good" : "neutral")" TestId="env-row-status">@(item.IsActive ? Localizer["Catalog_Active"] : Localizer["Catalog_Inactive"])</StatusChip></td>
                                 <td class="text-end">
-                                    <button class="btn btn-outline-primary btn-sm" data-testid="env-edit" disabled="@(_form is not null)" @onclick="() => OpenEdit(item)">@Localizer["Catalog_Edit"]</button>
+                                    <button class="btn btn-outline-primary btn-sm" disabled="@(_form is not null)" @onclick="() => OpenEdit(item)">@Localizer["Catalog_Edit"]</button>
                                 </td>
                             </tr>
                         }

@@ -11,12 +11,16 @@ namespace Vuelto.Api.Tests;
 /// </summary>
 public class ResourceParityTests
 {
-    public static TheoryData<string, string> ResxPairs => new()
+    public static TheoryData<string, string> ResxPairs()
     {
-        { "src/Shared.Ui/Resources/AppStrings.resx", "src/Shared.Ui/Resources/AppStrings.es.resx" },
-        { "src/Infrastructure/Email/EmailStrings.resx", "src/Infrastructure/Email/EmailStrings.es.resx" },
-        { "src/Api/Features/Reports/Pdf/ReportPdfStrings.resx", "src/Api/Features/Reports/Pdf/ReportPdfStrings.es.resx" },
-    };
+        var data = new TheoryData<string, string>
+        {
+            { "src/Shared.Ui/Resources/AppStrings.resx", "src/Shared.Ui/Resources/AppStrings.es.resx" },
+            { "src/Infrastructure/Email/EmailStrings.resx", "src/Infrastructure/Email/EmailStrings.es.resx" },
+        };
+        foreach (var (neutral, translated) in App.AppAllowlists.ResxPairs) data.Add(neutral, translated); // the app's (Arch A1)
+        return data;
+    }
 
     [Theory]
     [MemberData(nameof(ResxPairs))]

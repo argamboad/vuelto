@@ -87,13 +87,13 @@ public class LedgerPagesTests : ComponentTestBase
         var cut = Render<TransactionForm>();
 
         cut.WaitForAssertion(() => Assert.Equal("448.27", cut.Find("[data-testid='tx-rate']").GetAttribute("value")));
-        cut.Find("[data-testid='tx-amount-field-currency-USD']").Change(true);
+        cut.Find("[data-testid='tx-amount-field-currency-option'][data-currency='USD']").Change(true);
         Assert.Equal("453.69", cut.Find("[data-testid='tx-rate']").GetAttribute("value"));
-        cut.Find("[data-testid='tx-amount-field-currency-CRC']").Change(true);
+        cut.Find("[data-testid='tx-amount-field-currency-option'][data-currency='CRC']").Change(true);
         Assert.Equal("448.27", cut.Find("[data-testid='tx-rate']").GetAttribute("value"));
 
         cut.Find("[data-testid='tx-rate']").Change("460");
-        cut.Find("[data-testid='tx-amount-field-currency-USD']").Change(true);
+        cut.Find("[data-testid='tx-amount-field-currency-option'][data-currency='USD']").Change(true);
         Assert.Equal("460", cut.Find("[data-testid='tx-rate']").GetAttribute("value"));
     }
 
@@ -114,11 +114,11 @@ public class LedgerPagesTests : ComponentTestBase
         var cut = Render<MonthDetail>(p => p.Add(x => x.Id, Guid.Parse(MonthId)));
 
         cut.WaitForAssertion(() => Assert.Equal("CASE-2026-4471, lent to Diego", cut.Find("[data-testid='refund-note']").GetAttribute("title")));
-        Assert.Empty(cut.FindAll("[data-testid='refund-case']"));        // no Case No. column: it lives in the notes
+        Assert.DoesNotContain("refund-case", cut.FindAll("[data-testid]").Select(e => e.GetAttribute("data-testid")));        // no Case No. column: it lives in the notes
         Assert.DoesNotContain("Refund_CaseNumber", cut.Find("[data-testid='month-refund-table']").TextContent);
 
         cut.Find("[data-testid='refund-edit']").Click();
-        Assert.Empty(cut.FindAll("[data-testid='refund-case-input']"));
+        Assert.DoesNotContain("refund-case-input", cut.FindAll("[data-testid]").Select(e => e.GetAttribute("data-testid")));
         Assert.Contains("Tx_RefundNotes", cut.Find("[data-testid='refund-edit-row']").TextContent); // the same label the transaction form uses
         cut.Find("[data-testid='refund-notes-input']").Input("  ");   // blank clears
         cut.Find("[data-testid='refund-details-save']").Click();
@@ -307,21 +307,21 @@ public class LedgerPagesTests : ComponentTestBase
 
         // Default: newest first (the API's order). Date header flips it.
         Assert.Equal(["Uber", "AutoMercado", "Café Britt"], Payees());
-        Assert.Equal("descending", cut.Find("[data-testid='month-tx-sort-date']").ParentElement!.GetAttribute("aria-sort"));
-        cut.Find("[data-testid='month-tx-sort-date']").Click();
+        Assert.Equal("descending", cut.Find("[data-testid='month-tx-sort'][data-sort='date']").ParentElement!.GetAttribute("aria-sort"));
+        cut.Find("[data-testid='month-tx-sort'][data-sort='date']").Click();
         Assert.Equal(["Café Britt", "AutoMercado", "Uber"], Payees());
 
         // Names sort A→Z first, then flip; category ties keep date order.
-        cut.Find("[data-testid='month-tx-sort-payee']").Click();
+        cut.Find("[data-testid='month-tx-sort'][data-sort='payee']").Click();
         Assert.Equal(["AutoMercado", "Café Britt", "Uber"], Payees());
-        cut.Find("[data-testid='month-tx-sort-payee']").Click();
+        cut.Find("[data-testid='month-tx-sort'][data-sort='payee']").Click();
         Assert.Equal(["Uber", "Café Britt", "AutoMercado"], Payees());
-        cut.Find("[data-testid='month-tx-sort-category']").Click();
+        cut.Find("[data-testid='month-tx-sort'][data-sort='category']").Click();
         Assert.Equal(["AutoMercado", "Café Britt", "Uber"], Payees()); // Groceries (Jul 10, Jul 2), then Transport
-        cut.Find("[data-testid='month-tx-sort-bank']").Click();
+        cut.Find("[data-testid='month-tx-sort'][data-sort='bank']").Click();
         Assert.Equal(["Uber", "Café Britt", "AutoMercado"], Payees()); // BAC (Jul 20, Jul 2), then Cash
-        cut.Find("[data-testid='month-tx-sort-class']").Click();
-        Assert.Equal("ascending", cut.Find("[data-testid='month-tx-sort-class']").ParentElement!.GetAttribute("aria-sort"));
+        cut.Find("[data-testid='month-tx-sort'][data-sort='class']").Click();
+        Assert.Equal("ascending", cut.Find("[data-testid='month-tx-sort'][data-sort='class']").ParentElement!.GetAttribute("aria-sort"));
 
         // Filters narrow the same rows; the count says how many survived; Clear restores everything.
         Assert.Contains("Month_FilterCount[3, 3]", cut.Find("[data-testid='month-tx-count']").TextContent);

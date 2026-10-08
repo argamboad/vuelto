@@ -10,21 +10,21 @@
     @* The marker sits beside the track, not inside it: the track clips its rounded ends, and a marker clipped to
        the bar's height was lost against a dark segment. Out here it overhangs the bar and keeps its halo. *@
     <div class="pace-rail" aria-hidden="true">
-        <div class="pace-track" data-testid="@Id("track")" data-thick="@(Thick ? "true" : null)">
+        <div class="pace-track" data-testid="@($"{TestId}-track")" data-thick="@(Thick ? "true" : null)">
             @foreach (var s in Segments.Where(s => s.Value > 0))
             {
-                <div class="pace-segment" data-testid="@Id("segment")" data-tone="@s.Tone"
+                <div class="pace-segment" data-testid="@($"{TestId}-segment")" data-tone="@s.Tone"
                      data-hatched="@(s.Hatched ? "true" : null)" style="width: @Pct(s.Value)" title="@s.Label"></div>
             }
         </div>
         @if (Marker is { } m)
         {
-            <div class="pace-marker" data-testid="@Id("marker")" style="left: @Percent(Math.Clamp(m, 0m, 1m))"></div>
+            <div class="pace-marker" data-testid="@($"{TestId}-marker")" style="left: @Percent(Math.Clamp(m, 0m, 1m))"></div>
         }
     </div>
     @if (ShowLegend && Segments.Count > 0)
     {
-        <ul class="pace-legend" data-testid="@Id("legend")">
+        <ul class="pace-legend" data-testid="@($"{TestId}-legend")">
             @foreach (var s in Segments.Where(s => s.Value > 0))
             {
                 <li data-tone="@s.Tone" data-hatched="@(s.Hatched ? "true" : null)">
@@ -51,8 +51,6 @@
     [Parameter] public bool Thick { get; set; }
 
     [Parameter] public string TestId { get; set; } = "pace";
-
-    private string Id(string part) => $"{TestId}-{part}";
 
     // A zero or negative total would divide by nothing; the floor keeps an empty month rendering its track.
     private string Pct(decimal value) => Percent(value / Math.Max(Total, 0.01m));

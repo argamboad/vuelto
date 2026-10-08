@@ -9,10 +9,10 @@
    MoneyDisplay stays as it is: it returns strings, which is still what a title or an aria-label needs. This
    renders; that formats. *@
 <span class="money money-@Size" data-testid="@TestId">
-    <span class="money-primary" data-testid="@Id("primary")">@Primary()</span>
+    <span class="money-primary" data-testid="@($"{TestId}-primary")">@Primary()</span>
     @if (Stacked)
     {
-        <span class="money-secondary" data-testid="@Id("secondary")">@Secondary()</span>
+        <span class="money-secondary" data-testid="@($"{TestId}-secondary")">@Secondary()</span>
     }
 </span>
 
@@ -32,8 +32,6 @@
     [Parameter] public string TestId { get; set; } = "money";
 
     private bool Stacked => Currency is null && Display == MoneyDisplay.Both;
-
-    private string Id(string part) => $"{TestId}-{part}";
 
     private string Primary() => Currency is not null
         ? MoneyDisplay.Native(Crc, Usd, Currency)

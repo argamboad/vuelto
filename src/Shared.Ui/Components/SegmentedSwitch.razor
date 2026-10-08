@@ -9,7 +9,7 @@
         {
             <label class="segmented-option" data-selected="@(o.Value == Value ? "true" : null)">
                 <input type="radio" name="@_name" value="@o.Value" checked="@(o.Value == Value)"
-                       data-testid="@($"{TestId}-{o.Value}")" @onchange="@(() => ValueChanged.InvokeAsync(o.Value))" />
+                       data-testid="@($"{TestId}-option")" data-value="@o.Value" @onchange="@(() => ValueChanged.InvokeAsync(o.Value))" />
                 <span>@o.Label</span>
             </label>
         }

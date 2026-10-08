@@ -24,11 +24,11 @@ public class SweepTests : ComponentTestBase
     public void PageHead_RendersTitleSubtitleAndActions()
     {
         var cut = Render<PageHead>(p => p.Add(x => x.Title, "Cards").Add(x => x.Subtitle, "What you pay with")
-            .AddChildContent("<button data-testid='act'>New</button>"));
+            .AddChildContent("<button data-probe='act'>New</button>")); // the test's own markup: a probe, not an app id
 
         Assert.Equal("Cards", cut.Find("h1").TextContent);
         Assert.Equal("What you pay with", cut.Find("[data-testid='page-subtitle']").TextContent);
-        Assert.NotNull(cut.Find("[data-testid='page-head-actions'] [data-testid='act']"));
+        Assert.NotNull(cut.Find("[data-testid='page-head-actions'] [data-probe='act']"));
 
         var bare = Render<PageHead>(p => p.Add(x => x.Title, "Cards"));
         Assert.Empty(bare.FindAll("[data-testid='page-subtitle']"));
@@ -156,7 +156,7 @@ public class SweepTests : ComponentTestBase
         var row = cut.WaitForElement("[data-testid='env-row']");
         Assert.Equal("₡718,000.00", row.QuerySelector("[data-testid='env-row-target-primary']")!.TextContent);
         Assert.Equal("$120.00", row.QuerySelector("[data-testid='env-row-target-secondary']")!.TextContent);
-        Assert.Empty(cut.FindAll("[data-testid='env-row-crc']")); // no longer two columns
+        Assert.DoesNotContain("env-row-crc", cut.FindAll("[data-testid]").Select(e => e.GetAttribute("data-testid"))); // no longer two columns
         Assert.Equal("Envelopes_CadenceFiveWeek · Catalog_Active", row.QuerySelector("[data-testid='env-row-sub']")!.TextContent.Trim());
         Assert.Equal("good", row.QuerySelector("[data-testid='env-row-status']")!.GetAttribute("data-tone"));
     }

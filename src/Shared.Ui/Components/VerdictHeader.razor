@@ -5,17 +5,17 @@
    who cannot tell green from amber still reads "On track", and so does a screen reader. Tone only tints. *@
 <section class="verdict" data-testid="@TestId" data-tone="@Tone">
     <p class="verdict-state">
-        <span class="verdict-dot" data-testid="@Id("dot")" aria-hidden="true"></span>
-        <span data-testid="@Id("state")">@State</span>
+        <span class="verdict-dot" data-testid="@($"{TestId}-dot")" aria-hidden="true"></span>
+        <span data-testid="@($"{TestId}-state")">@State</span>
     </p>
     @if (!string.IsNullOrWhiteSpace(Caption))
     {
-        <p class="verdict-caption" data-testid="@Id("caption")">@Caption</p>
+        <p class="verdict-caption" data-testid="@($"{TestId}-caption")">@Caption</p>
     }
-    <div class="verdict-value" data-testid="@Id("value")">@Value</div>
+    <div class="verdict-value" data-testid="@($"{TestId}-value")">@Value</div>
     @if (!string.IsNullOrWhiteSpace(Explanation))
     {
-        <p class="verdict-explanation" data-testid="@Id("explanation")">@Explanation</p>
+        <p class="verdict-explanation" data-testid="@($"{TestId}-explanation")">@Explanation</p>
     }
 </section>
 
@@ -36,6 +36,4 @@
     [Parameter] public string? Explanation { get; set; }
 
     [Parameter] public string TestId { get; set; } = "verdict";
-
-    private string Id(string part) => $"{TestId}-{part}";
 }

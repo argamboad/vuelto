@@ -613,7 +613,7 @@ public class EnforcementGateTests
         var claudeMd = File.ReadAllText(Path.Combine(root, "CLAUDE.md"));
 
         // Folders mapped as ONE row: their files come and go (a new run log, a new lesson) without a map edit.
-        string[] folderRows = [.. new[] { "docs/tutorial/", "docs/qa-runs/", "docs/postman/" }.Where(row => Directory.Exists(Path.Combine(root, row)))]; // Vuelto: no course here (see above)
+        string[] folderRows = [.. new[] { "docs/tutorial/", "docs/qa-runs/", "docs/postman/" }.Where(row => Directory.Exists(Path.Combine(root, row)))]; // a downstream app has no course
         var missingRows = folderRows.Where(row => !claudeMd.Contains($"| `{row}` |", StringComparison.Ordinal)).ToList();
         Assert.True(missingRows.Count == 0, $"CLAUDE.md doc map has no row for: {string.Join(", ", missingRows)}");
 
@@ -640,7 +640,7 @@ public class EnforcementGateTests
     [Fact]
     public void ClaudeMd_CarriesTheCourseReconcileRule() // R118
     {
-        // Vuelto: the course lives in perezosoft-platform (R114/R115/R118 NotHere) — platform gap, kept as a listed divergence.
+        // The course lives in perezosoft-platform; a downstream app has no docs/tutorial (its R114/R115/R118 say NotHere).
         if (!Directory.Exists(Path.Combine(RepoRoot(), "docs", "tutorial"))) return;
         // The habit that keeps the course true — a lesson is reconciled in the PR that changes the code it
         // quotes — lived only in the maintainer's memory, so a clone lost it.
@@ -711,6 +711,7 @@ public class EnforcementGateTests
             Assert.True(entry.Checks.Length > 0 || pending is not null || !string.IsNullOrWhiteSpace(notHere),
                 $"{entry.Rule}: no check, no pending issue, and no reason it does not apply here");
             if (pending is { } p) Assert.Matches(@"[\w.-]+#\d+", p); // the issue that owes it (repo#n), so it is visible
+            if (!string.IsNullOrWhiteSpace(over?.NotHere)) continue; // its subject is not in this repo, nor need its checks be
             foreach (var check in entry.Checks)
             {
                 var ok = check.StartsWith("ci:", StringComparison.Ordinal) ? steps.Contains(check[3..]) : symbols.Contains(check);
@@ -888,7 +889,7 @@ public class EnforcementGateTests
     [InlineData(".github/workflows/ci.yml")]
     public void CourseCoverageAndQuotes_AreCheckedBesideTheQaArtifacts(string workflow) // v4 audit TR-19/TR-12 (T61), R114/R115
     {
-        // Vuelto: the course lives in perezosoft-platform (R114/R115/R118 NotHere) — platform gap, kept as a listed divergence.
+        // The course lives in perezosoft-platform; a downstream app has no docs/tutorial (its R114/R115/R118 say NotHere).
         if (!Directory.Exists(Path.Combine(RepoRoot(), "docs", "tutorial"))) return;
         // gen_coverage.py only ran when someone remembered to; the map claimed 901 files and 0 unmapped while the
         // generator found 903 and 1, and lessons quoted code the repo no longer had. The qa-artifacts job — which

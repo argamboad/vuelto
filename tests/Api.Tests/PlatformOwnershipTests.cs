@@ -23,11 +23,14 @@ public class PlatformOwnershipTests(ITestOutputHelper output)
         var root = RepoRoot();
         var rules = ParseRules(File.ReadAllText(Path.Combine(root, "platform-ownership.json")));
         Assert.True(rules.Count >= 40, $"probe: {rules.Count} rules parsed");
+        // An app's own top-level folders (jigger-jot's seed/) are classed in its half of the map, after the platform's rules.
+        var appMap = Path.Combine(root, "platform-ownership.App.json");
+        if (File.Exists(appMap)) rules = [.. rules, .. ParseRules(File.ReadAllText(appMap))];
         var tracked = Git(root, "ls-files").Split('\n', StringSplitOptions.RemoveEmptyEntries).Select(l => l.Trim()).ToList();
         Assert.True(tracked.Count > 500, $"probe: git ls-files returned {tracked.Count} paths");
 
         var unclassified = tracked.Where(p => Classify(p, rules) is null).Order().ToList();
-        Assert.True(unclassified.Count == 0, "tracked files with no ownership class — add a rule to platform-ownership.json: " + string.Join(", ", unclassified));
+        Assert.True(unclassified.Count == 0, "tracked files with no ownership class — add a rule to platform-ownership.json (an app: platform-ownership.App.json): " + string.Join(", ", unclassified));
 
         // The decisions of the Architecture milestone, pinned: the A1 seams are the app's, the composition files the platform's,
         // the UI the app's (#368), the rules file the platform's.

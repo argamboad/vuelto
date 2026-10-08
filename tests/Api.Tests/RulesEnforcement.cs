@@ -104,10 +104,10 @@ public static partial class RulesEnforcement
 
         // ── 9. Docs / course / rule hygiene / template ──
         new("R83", ["PostmanParityTests", "EveryErrorCodeAnActionReturns_IsNamedInItsRequestDescription"]),
-        new("R114", [], NotHere: "the course (docs/tutorial) lives in perezosoft-platform; its gates run there"),
-        new("R115", [], NotHere: "the course (docs/tutorial) lives in perezosoft-platform; its gates run there"),
+        new("R114", ["CourseCoverageAndQuotes_AreCheckedBesideTheQaArtifacts", "ci:Course coverage and quote currency"]),
+        new("R115", ["CourseCoverageAndQuotes_AreCheckedBesideTheQaArtifacts", "ci:Course coverage and quote currency"]),
         new("R116", ["RuleIds_CitedInTests_AreFinalRules", "EveryMachineRule_NamesAStandingCheck"]),
-        new("R118", ["ClaudeMdDocMap_ListsEveryDoc"]), // the rule's course-reconcile half has nothing to hold here: the course lives in perezosoft-platform
+        new("R118", ["ClaudeMdDocMap_ListsEveryDoc", "ClaudeMd_CarriesTheCourseReconcileRule"]),
         new("R119", ["GatedAndRefusingRequests_NameTheGateKeyAndTheRefusal"]),
         new("R120", ["CompiledInLimits_AreListedInTheEnvExample"]),
         new("R121", ["ArchitectureAndFlows_NameTheClassesAndTheAuthErrorCodes"]),

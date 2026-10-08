@@ -10,29 +10,29 @@
    request that can be slow or fail (no exchange rate resolves), and a card never waits on it to exist. *@
 <a class="month-card" href="@Href" data-testid="@TestId" data-state="@State" aria-label="@AccessibleName()">
     <div class="month-card-head">
-        <h2 class="month-card-title" data-testid="@Id("title")">@Title</h2>
-        <span class="month-card-chip" data-testid="@Id("chip")" data-state="@State">@Localizer[ChipKey()]</span>
+        <h2 class="month-card-title" data-testid="month-card-title">@Title</h2>
+        <span class="month-card-chip" data-testid="month-card-chip" data-state="@State">@Localizer[ChipKey()]</span>
     </div>
-    <p class="month-card-window" data-testid="@Id("window")">@Window()</p>
+    <p class="month-card-window" data-testid="month-card-window">@Window()</p>
 
     @if (Figures is { } f)
     {
-        <PaceBar Total="@BarTotal(f)" Segments="@Segments(f)" ShowLegend="false" TestId="@Id("bar")" />
+        <PaceBar Total="@BarTotal(f)" Segments="@Segments(f)" ShowLegend="false" TestId="month-card-bar" />
         <div class="month-card-foot">
-            <span class="month-card-spent" data-testid="@Id("spent")">@Localizer["Months_Spent", Amount(f.Spent)]</span>
-            <span class="month-card-result" data-testid="@Id("result")" data-tone="@(Side(f.Result) < 0 ? "bad" : "good")">@SignedResult(f)</span>
+            <span class="month-card-spent" data-testid="month-card-spent">@Localizer["Months_Spent", Amount(f.Spent)]</span>
+            <span class="month-card-result" data-testid="month-card-result" data-tone="@(Side(f.Result) < 0 ? "bad" : "good")">@SignedResult(f)</span>
         </div>
     }
     else if (FiguresLoaded)
     {
-        <PaceBar Total="1" Segments="@NoSegments" ShowLegend="false" TestId="@Id("bar")" />
-        <p class="month-card-nofigures" data-testid="@Id("nofigures")">@Localizer["Months_NoFigures"]</p>
+        <PaceBar Total="1" Segments="@NoSegments" ShowLegend="false" TestId="month-card-bar" />
+        <p class="month-card-nofigures" data-testid="month-card-nofigures">@Localizer["Months_NoFigures"]</p>
     }
     else
     {
         @* Still on its way: the track is there so the card does not jump when the figures land. *@
-        <PaceBar Total="1" Segments="@NoSegments" ShowLegend="false" TestId="@Id("bar")" />
-        <p class="month-card-nofigures month-card-pending" data-testid="@Id("pending")" aria-hidden="true">…</p>
+        <PaceBar Total="1" Segments="@NoSegments" ShowLegend="false" TestId="month-card-bar" />
+        <p class="month-card-nofigures month-card-pending" aria-hidden="true">…</p>
     }
 </a>
 
@@ -55,8 +55,6 @@
     [Parameter] public string Display { get; set; } = MoneyDisplay.Both;
 
     [Parameter] public string TestId { get; set; } = "month-card";
-
-    private string Id(string part) => $"month-card-{part}";
 
     private static readonly IReadOnlyList<PaceSegment> NoSegments = [];
 

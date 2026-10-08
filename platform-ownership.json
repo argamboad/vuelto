@@ -7,6 +7,8 @@
     "  adapts    platform origin, the app is expected to edit (its UI, its journeys, its config, its docs): drift is reported.",
     "  app       the app's own: slices, the app halves of the seams (Arch A1), app entities and migrations. Never ported.",
     "  sample    the DELETE-ME Notes slice: may be absent downstream.",
+    "An app classes its own top-level folders in platform-ownership.App.json (same shape, its rules apply after these).",
+    "Migrations are adapts: every app regenerates the platform's under its own timestamps; PlatformSchemaTests holds the schema.",
     "The port tool (tools/port-platform.ps1) merges platform and adapts files from the stamped platform commit and writes",
     "the manifest the gate compares against; the stamp (platform-stamp.json) names that commit."
   ],
@@ -25,9 +27,11 @@
     { "glob": "tests/Api.Tests/RulesEnforcement.App.cs", "class": "app" },
     { "glob": "tests/Ui.Tests/App/**", "class": "app" },
     { "glob": "platform-stamp.json", "class": "app" },
+    { "glob": "platform-ownership.App.json", "class": "app" },
 
-    { "glob": "src/Infrastructure/Persistence/Migrations/*ModelSnapshot.cs", "class": "adapts" },
+    { "glob": "src/Infrastructure/Persistence/Migrations/**", "class": "adapts" },
     { "glob": "src/Infrastructure/Email/BrandedEmail.cs", "class": "adapts" },
+    { "glob": "src/Infrastructure/Email/Assets/**", "class": "adapts" },
     { "glob": "src/Infrastructure/Email/EmailStrings*.resx", "class": "adapts" },
     { "glob": "src/Api/appsettings*.json", "class": "adapts" },
     { "glob": "src/Api/Properties/launchSettings.json", "class": "adapts" },

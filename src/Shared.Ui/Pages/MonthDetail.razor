@@ -16,14 +16,14 @@
 @* LEDGER-1/2: one budget month — its weeks, editable income, and its transactions (ADR-V005/V007), presented per
    SKIN-8: income is a short list of rows (INCOME-1), the ledger is one table with class chips and a stacked amount, and below md
    it hides columns instead of scrolling sideways. Sort and filter stay on the rows already loaded — no request. *@
-<div class="settings-wrapper" data-testid="month-page">
+<div class="settings-wrapper">
     @if (_loading)
     {
         <div class="text-muted"><span class="spinner-border spinner-border-sm me-2"></span>@Localizer["Common_Loading"]</div>
     }
     else if (_month is null)
     {
-        <div class="alert alert-warning" data-testid="month-missing">@Localizer["Month_NotFound"]</div>
+        <div class="alert alert-warning">@Localizer["Month_NotFound"]</div>
         <p><a href="/months">← @Localizer["Month_AllMonths"]</a></p>
     }
     else
@@ -46,7 +46,7 @@
             </div>
             <div class="month-head-buttons">
                 <button class="btn btn-outline-secondary" data-testid="month-export" @onclick="ExportCsvAsync" disabled="@_exporting">@(_exporting ? Localizer["Reports_Exporting"] : Localizer["Reports_ExportCsv"])</button>
-                <a class="btn btn-primary" href="/transactions/new" data-testid="month-new-tx">@Localizer["Months_NewTransaction"]</a>
+                <a class="btn btn-primary" href="/transactions/new">@Localizer["Months_NewTransaction"]</a>
             </div>
         </header>
 
@@ -69,7 +69,7 @@
             </div>
             @if (_incomeRows.Count == 0)
             {
-                <p class="small text-muted mb-2" data-testid="month-inc-empty">@Localizer["Month_IncomeEmpty"]</p>
+                <p class="small text-muted mb-2">@Localizer["Month_IncomeEmpty"]</p>
             }
             @foreach (var row in _incomeRows)
             {
@@ -88,7 +88,7 @@
                         }
                         else if (row.IncomeLineId is null)
                         {
-                            <div class="income-planned" data-testid="month-inc-oneoff">@Localizer["Month_IncomeOneOff"]</div>
+                            <div class="income-planned">@Localizer["Month_IncomeOneOff"]</div>
                         }
                     </div>
                     <button type="button" class="btn btn-outline-secondary income-remove" data-testid="month-inc-remove" aria-label="@Localizer["Month_IncomeRemove"]" title="@Localizer["Month_IncomeRemove"]" disabled="@_saving" @onclick="() => _incomeRows.Remove(row)">×</button>
@@ -110,14 +110,14 @@
             }
         </section>
 
-        <section class="month-card ledger" data-testid="month-tx-section">
+        <section class="month-card ledger">
             <div class="ledger-head">
                 <h2>@Localizer["Month_Transactions"] <span class="count-pill" data-testid="month-tx-total">@_transactions.Count</span></h2>
                 @if (_transactions.Count > 0)
                 {
                     @* Filters compose, client-side, over the loaded month. Inline at md and up; below md the search stays
                        and the rest folds behind the toggle (the handout's sheet, as a disclosure rather than a modal). *@
-                    <div class="ledger-filters" data-testid="month-tx-filters">
+                    <div class="ledger-filters">
                         <input type="search" class="form-control form-control-sm ledger-search" placeholder="@Localizer["Month_SearchPayee"]" aria-label="@Localizer["Month_SearchPayee"]" data-testid="month-tx-filter-payee" @bind="_fPayee" @bind:event="oninput" />
                         <button type="button" class="btn btn-outline-secondary btn-sm filters-toggle" data-testid="month-tx-filters-toggle" aria-expanded="@(_filtersOpen ? "true" : "false")" aria-controls="month-filters-more" @onclick="() => _filtersOpen = !_filtersOpen">@Localizer["Month_Filters"]@(FiltersActive ? " •" : "")</button>
                         <div class="filters-more" id="month-filters-more" data-testid="month-tx-filters-more" data-open="@(_filtersOpen ? "true" : "false")">
@@ -151,7 +151,7 @@
             }
             else
             {
-                <table class="table ledger-table" data-testid="month-tx-table">
+                <table class="table ledger-table">
                     <thead>
                         <tr>
                             @SortHeader("date", Localizer["Tx_Date"], "")
@@ -187,9 +187,9 @@
                                     @* Below md the category and paid-with columns hide; this sub-line repeats them so the row loses nothing. *@
                                     <span class="tx-sub" data-testid="month-tx-sub" aria-hidden="true">@SubLine(t)</span>
                                     @* On a phone the class column goes too, and the chip sits under the payee instead. *@
-                                    <span class="tx-sub-chip" aria-hidden="true"><ClassChip Class="@t.TransactionType" TestId="month-tx-class-sub" /></span>
+                                    <span class="tx-sub-chip" aria-hidden="true"><ClassChip Class="@t.TransactionType" /></span>
                                 </td>
-                                <td class="col-md" data-testid="month-tx-category">@t.CategoryName</td>
+                                <td class="col-md">@t.CategoryName</td>
                                 <td class="col-md tx-paid" data-testid="month-tx-paid">
                                     @t.BankName
                                     @if (!string.IsNullOrEmpty(t.CardName))
@@ -203,7 +203,7 @@
                                 <td class="text-end tx-actions">
                                     @if (t.Source != "refund_realization")
                                     {
-                                        <a class="btn btn-outline-primary btn-sm" href="/transactions/@t.Id/edit" data-testid="month-tx-edit">@Localizer["Catalog_Edit"]</a>
+                                        <a class="btn btn-outline-primary btn-sm" href="/transactions/@t.Id/edit">@Localizer["Catalog_Edit"]</a>
                                         @if (_confirmDelete == t.Id)
                                         {
                                             <button class="btn btn-danger btn-sm" data-testid="month-tx-confirm" disabled="@_saving" @onclick="() => DeleteAsync(t.Id)">@Localizer["Month_ConfirmDelete"]</button>
@@ -225,11 +225,11 @@
             }
         </section>
 
-        <section class="month-card ledger" data-testid="month-refund-section">
+        <section class="month-card ledger">
             <div class="ledger-head"><h2>@Localizer["Month_Refunds"] <span class="count-pill">@_refunds.Count</span></h2></div>
             @if (_refunds.Count == 0)
             {
-                <p class="ledger-empty" data-testid="month-no-refunds">@Localizer["Month_NoRefunds"]</p>
+                <p class="ledger-empty">@Localizer["Month_NoRefunds"]</p>
             }
             else
             {
@@ -303,7 +303,7 @@
                                             </div>
                                             <div class="refund-edit-buttons">
                                                 <button class="btn btn-primary btn-sm" data-testid="refund-details-save" disabled="@_saving" @onclick="() => SaveRefundDetailsAsync(r)">@Localizer["Catalog_Save"]</button>
-                                                <button class="btn btn-outline-secondary btn-sm" data-testid="refund-details-cancel" disabled="@_saving" @onclick="() => _editingRefund = null">@Localizer["Common_Cancel"]</button>
+                                                <button class="btn btn-outline-secondary btn-sm" disabled="@_saving" @onclick="() => _editingRefund = null">@Localizer["Common_Cancel"]</button>
                                             </div>
                                         </div>
                                     </td>
@@ -544,7 +544,7 @@
     {
         var active = _sortKey == key;
         <th scope="col" class="@cssClass" aria-sort="@(active ? (_sortAsc ? "ascending" : "descending") : "none")">
-            <button type="button" class="sort-button" data-testid="@($"month-tx-sort-{key}")" @onclick="() => Sort(key)">
+            <button type="button" class="sort-button" data-testid="month-tx-sort" data-sort="@key" @onclick="() => Sort(key)">
                 @label@(active ? (_sortAsc ? " ▲" : " ▼") : "")
             </button>
         </th>

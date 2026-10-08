@@ -10,11 +10,11 @@
         <span class="cur-label" id="@(TestId + "-label")">@Label</span>
     }
     <div class="cur-track" role="group" aria-labelledby="@(Label is null ? null : TestId + "-label")" aria-label="@(Label is null ? Localizer["Reports_ShowIn"].Value : null)">
-        <button type="button" class="cur-option" aria-pressed="@Pressed(MoneyDisplay.Crc)" data-testid="@(TestId + "-crc")" @onclick='() => PickAsync(MoneyDisplay.Crc)'>₡</button>
-        <button type="button" class="cur-option" aria-pressed="@Pressed(MoneyDisplay.Usd)" data-testid="@(TestId + "-usd")" @onclick='() => PickAsync(MoneyDisplay.Usd)'>$</button>
+        <button type="button" class="cur-option" aria-pressed="@Pressed(MoneyDisplay.Crc)" data-testid="@($"{TestId}-crc")" @onclick='() => PickAsync(MoneyDisplay.Crc)'>₡</button>
+        <button type="button" class="cur-option" aria-pressed="@Pressed(MoneyDisplay.Usd)" data-testid="@($"{TestId}-usd")" @onclick='() => PickAsync(MoneyDisplay.Usd)'>$</button>
         @if (AllowBoth)
         {
-            <button type="button" class="cur-option" aria-pressed="@Pressed(MoneyDisplay.Both)" data-testid="@(TestId + "-both")" @onclick='() => PickAsync(MoneyDisplay.Both)'>@Localizer["Cur_Both"]</button>
+            <button type="button" class="cur-option" aria-pressed="@Pressed(MoneyDisplay.Both)" data-testid="@($"{TestId}-both")" @onclick='() => PickAsync(MoneyDisplay.Both)'>@Localizer["Cur_Both"]</button>
         }
     </div>
 </div>
