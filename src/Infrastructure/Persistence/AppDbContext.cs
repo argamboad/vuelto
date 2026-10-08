@@ -6,7 +6,7 @@ using Vuelto.Core.Entities;
 
 namespace Vuelto.Infrastructure.Persistence;
 
-public class AppDbContext : DbContext, IDataProtectionKeyContext
+public partial class AppDbContext : DbContext, IDataProtectionKeyContext
 {
     private readonly ICurrentTenant _currentTenant;
 
@@ -81,26 +81,6 @@ public class AppDbContext : DbContext, IDataProtectionKeyContext
     // append-only via AuditAppendOnlyInterceptor.
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
 
-    // ── App (budget domain) sets — one per port slice (ADR-V001); all ITenantScoped. ──
-    public DbSet<BudgetSettings> BudgetSettings => Set<BudgetSettings>();
-    public DbSet<Category> Categories => Set<Category>();
-    public DbSet<Bank> Banks => Set<Bank>();
-    public DbSet<Envelope> Envelopes => Set<Envelope>();
-    public DbSet<Month> Months => Set<Month>();
-    public DbSet<Week> Weeks => Set<Week>();
-    public DbSet<Transaction> Transactions => Set<Transaction>();
-    public DbSet<Refund> Refunds => Set<Refund>();
-    public DbSet<FixedExpense> FixedExpenses => Set<FixedExpense>();
-    public DbSet<VariableExpense> VariableExpenses => Set<VariableExpense>();
-    public DbSet<EmailConnection> EmailConnections => Set<EmailConnection>(); // EMAIL-2 (user-keyed, ADR-V002)
-    public DbSet<PendingVoucher> PendingVouchers => Set<PendingVoucher>();       // EMAIL-4 (household-scoped drafts)
-    public DbSet<IngestedVoucher> IngestedVouchers => Set<IngestedVoucher>();    // EMAIL-4 (dedup tombstones)
-    public DbSet<MerchantCategoryMapping> MerchantCategoryMappings => Set<MerchantCategoryMapping>(); // EMAIL-5 (household suggestion rules)
-    public DbSet<UserDisplaySettings> UserDisplaySettings => Set<UserDisplaySettings>(); // DISPLAY-1 (user-keyed, ADR-V020)
-    public DbSet<Card> Cards => Set<Card>(); // CARDS-1 (household payment cards, ADR-V021)
-    public DbSet<CardIdentity> CardIdentities => Set<CardIdentity>(); // CARDS-1: every (brand, last four) a card is known by
-    public DbSet<IncomeLine> IncomeLines => Set<IncomeLine>();       // INCOME-1 (the household's incomes, ADR-V023)
-    public DbSet<MonthIncome> MonthIncomes => Set<MonthIncome>();    // INCOME-1: each month's income rows
 
     // Tenant isolation is structural in BOTH directions: the global query filter (below)
     // scopes reads, and this interceptor scopes writes — stamping the current tenant onto
@@ -135,8 +115,24 @@ public class AppDbContext : DbContext, IDataProtectionKeyContext
                 ApplyTenantFilterMethod
                     .MakeGenericMethod(entityType.ClrType)
                     .Invoke(this, [builder]);
+
+            // The shared-or-tenant shape (Arch A4, ISharedOrTenantScoped): rows that are EITHER shared (TenantId
+            // null) OR one tenant's. ITenantScoped cannot express them — its TenantId is non-nullable and its filter
+            // would hide every shared row — so they get this parallel filter. Deliberately in the same loop, so the
+            // two are read as a pair and a reader cannot take "not ITenantScoped" to mean "not filtered".
+            if (typeof(ISharedOrTenantScoped).IsAssignableFrom(entityType.ClrType))
+                ApplySharedOrTenantFilterMethod
+                    .MakeGenericMethod(entityType.ClrType)
+                    .Invoke(this, [builder]);
         }
+
+        // The app's model rules, if it has any (Arch A1): AppDbContext.App.cs implements the partial method.
+        OnAppModelCreating(builder);
     }
+
+    /// <summary>The app's half of the model (Arch A1, R159): its own filters and conventions, in <c>AppDbContext.App.cs</c>.
+    /// Unimplemented on the platform; the compiler drops the call.</summary>
+    partial void OnAppModelCreating(ModelBuilder builder);
 
     private static readonly MethodInfo ApplyTenantFilterMethod =
         typeof(AppDbContext).GetMethod(nameof(ApplyTenantFilter),
@@ -144,4 +140,18 @@ public class AppDbContext : DbContext, IDataProtectionKeyContext
 
     private void ApplyTenantFilter<TEntity>(ModelBuilder builder) where TEntity : class, ITenantScoped
         => builder.Entity<TEntity>().HasQueryFilter(e => e.TenantId == CurrentTenantId);
+
+    private static readonly MethodInfo ApplySharedOrTenantFilterMethod =
+        typeof(AppDbContext).GetMethod(nameof(ApplySharedOrTenantFilter),
+            BindingFlags.Instance | BindingFlags.NonPublic)!;
+
+    /// <summary>
+    /// A tenant sees the shared rows plus its own, and nothing of anyone else's. Mirrored by the four command-scoped
+    /// RLS policies (<see cref="RlsDdl.SharedOrTenantStatementsFor(string, string)"/>) — change the two together or
+    /// the database and the app disagree about what is visible. With no tenant current (<see cref="CurrentTenantId"/>
+    /// is <see cref="Guid.Empty"/>: a system or seed context) this admits exactly the shared rows, which is what
+    /// seeding a catalog needs and why it is not written as a fail-closed comparison.
+    /// </summary>
+    private void ApplySharedOrTenantFilter<TEntity>(ModelBuilder builder) where TEntity : class, ISharedOrTenantScoped
+        => builder.Entity<TEntity>().HasQueryFilter(e => e.TenantId == null || e.TenantId == CurrentTenantId);
 }

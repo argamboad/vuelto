@@ -85,16 +85,16 @@ public sealed class ServiceHarness(AppDbContext db, TimeProvider? clock = null, 
             QuotaService(), tenantContext, Clock, NullLogger<TenantInvitationService>.Instance);
     }
 
-    /// <summary>
-    /// Every <see cref="ITenantDataContributor"/> this app registers in DI, as production resolves them: the
-    /// platform's six (API keys, webhooks, usage metering, billing, the audit log, the outbox) plus each feature
-    /// slice's (budget settings, the category and bank catalogs, envelopes, the ledger, fixed and variable
-    /// expenses, income, voucher staging, cards, merchant mappings). The whole set rather than just the platform's, so an
-    /// accept-and-dissolve test also proves no slice counts an empty household as content and every slice's
-    /// wipe runs inside the dissolve. Keep it in step with the <c>AddScoped&lt;ITenantDataContributor, …&gt;</c>
-    /// lines in <c>Program.cs</c>, <c>ServiceRegistrationExtensions</c> and Infrastructure's
-    /// <c>ServiceCollectionExtensions</c> when a slice adds one.
-    /// </summary>
+    /// <summary>Every <see cref="ITenantDataContributor"/> DI registers, as production resolves them: the platform's six
+    /// plus the app's slices' (<c>AppTestComposition.Contributors</c>, Arch A1). The whole set, so an accept-and-dissolve
+    /// test proves no slice counts an empty household as content and every slice's wipe runs inside the dissolve.</summary>
+    public IReadOnlyList<ITenantDataContributor> Contributors() =>
+    [
+        .. PlatformContributors(),
+        .. Vuelto.Api.Tests.App.AppTestComposition.Contributors(Db, Clock),
+    ];
+
+    /// <summary>The platform's own contributors: API keys, webhooks, usage metering, billing, the audit log, the outbox.</summary>
     public IReadOnlyList<ITenantDataContributor> PlatformContributors() =>
     [
         new ApiKeyDataContributor(new EfRepository<ApiKey>(Db)),
@@ -102,18 +102,6 @@ public sealed class ServiceHarness(AppDbContext db, TimeProvider? clock = null, 
         new UsageCounterDataContributor(UsageCounters),
         new BillingDataContributor(Subscriptions, new Vuelto.Infrastructure.Outbox.EfOutbox(Db, Clock)),
         new Vuelto.Infrastructure.Audit.AuditDataContributor(new EfRepository<AuditEvent>(Db)),
-        new Vuelto.Api.Features.Budget.BudgetSettingsDataContributor(new EfRepository<BudgetSettings>(Db)),
-        new Vuelto.Api.Features.Catalog.CategoryDataContributor(new EfRepository<Category>(Db)),
-        new Vuelto.Api.Features.Catalog.BankDataContributor(new EfRepository<Bank>(Db)),
-        new Vuelto.Api.Features.Envelopes.EnvelopeDataContributor(new EfRepository<Envelope>(Db)),
-        new Vuelto.Api.Features.Ledger.LedgerDataContributor(new EfRepository<Month>(Db), new EfRepository<Week>(Db),
-            new EfRepository<Transaction>(Db), new EfRepository<Refund>(Db)),
-        new Vuelto.Api.Features.Expenses.FixedExpenseDataContributor(new EfRepository<FixedExpense>(Db)),
-        new Vuelto.Api.Features.Expenses.VariableExpenseDataContributor(new EfRepository<VariableExpense>(Db)),
-        new Vuelto.Api.Features.Income.IncomeDataContributor(new EfRepository<IncomeLine>(Db), new EfRepository<MonthIncome>(Db)),
-        new Vuelto.Api.Features.Email.VoucherStagingDataContributor(new EfRepository<PendingVoucher>(Db), new EfRepository<IngestedVoucher>(Db)),
-        new Vuelto.Api.Features.Cards.CardDataContributor(new EfRepository<Card>(Db), new EfRepository<CardIdentity>(Db)),
-        new Vuelto.Api.Features.Email.MerchantMappingDataContributor(new EfRepository<MerchantCategoryMapping>(Db)),
         // Only the email handler is needed to classify: a type no handler claims is kept, which is what the
         // billing.cancel this dissolve queues must be.
         new Vuelto.Infrastructure.Outbox.OutboxDataContributor(new EfRepository<OutboxMessage>(Db),
@@ -145,7 +133,7 @@ internal sealed class TestMfaSettings : IMfaSettings
 
 internal sealed class TestAppSettings : IApplicationSettings
 {
-    public string ClientUrl => "https://localhost:7108";
+    public string ClientUrl => LocalPorts.WebHttpsUrl;
     public string NativeCallbackScheme => string.Empty;
 }
 

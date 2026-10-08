@@ -11,7 +11,7 @@ public class NativeRedirectPolicyTests
     [Theory]
     [InlineData("http://127.0.0.1:5000/")]
     [InlineData("http://127.0.0.1:53123/")]
-    [InlineData("http://localhost:8080/")]
+    [InlineData("http://localhost:8090/")]
     [InlineData("http://[::1]:9000/")]
     public void Allows_LoopbackHttp(string redirect)
     {

@@ -48,8 +48,9 @@ Tests mirror the trees: `Api.Tests` (server, Testcontainers Postgres/MinIO), `Co
 ## 2. The server onion and its seams
 
 `Api` depends on `Core` abstractions; `Infrastructure` implements them. A feature slice under
-`src/Api/Features/` may only touch `Core` seams — rule R8 says only `Program.cs` references
-`Features.*`, and the arch tests ban `IgnoreQueryFilters()` there outright.
+`src/Api/Features/` may only touch `Core` seams — rule R8 (as amended by R159, Arch A1) says only
+`src/Api/AppComposition.cs`, the app's half of composition, references `Features.*`; `Program.cs` calls it once and
+stays identical in every app. The arch tests ban `IgnoreQueryFilters()` there outright.
 
 The seams that matter (all in `src/Core/Abstractions/` unless noted):
 

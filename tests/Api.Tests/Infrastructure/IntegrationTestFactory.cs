@@ -9,10 +9,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using OtpNet;
 using Vuelto.Api.Services;
 using Vuelto.Core.Entities;
-using Microsoft.Extensions.Options;
-using Vuelto.Core.Mail;
 using Vuelto.Infrastructure;
-using Vuelto.Infrastructure.ExchangeRate;
 using Vuelto.Infrastructure.Persistence;
 using Testcontainers.PostgreSql;
 
@@ -50,11 +47,7 @@ public sealed class IntegrationTestFactory : WebApplicationFactory<Program>, IAs
         // Must be present when Program reads Jwt:Secret at CreateBuilder time (before Build) — env vars
         // are a CreateBuilder config source; the WebApplicationFactory config hooks run too late.
         Environment.SetEnvironmentVariable("Jwt__Secret", TestJwtSecret);
-        // ADR-V019: the provider is chosen at registration (Program reads ExchangeRate:Provider before any
-        // service hook), so pin the keyless world feed here — with its key blanked below it reports
-        // "unavailable" without a call, and the resolver falls to the last-transaction tier as the suite
-        // asserts. The BCCR default would otherwise reach the real mirror from the test host.
-        Environment.SetEnvironmentVariable("ExchangeRate__Provider", "exchangerate-api");
+        App.AppTestComposition.PinEnvironment(); // the app's own process-level pins (Arch A1)
     }
 
     public async Task InitializeAsync()
@@ -104,14 +97,6 @@ public sealed class IntegrationTestFactory : WebApplicationFactory<Program>, IAs
             services.RemoveAll<AppDbContext>();
             services.AddDbContext<AppDbContext>(o => o.UseNpgsql(RuntimeConnectionString));
 
-            // Fresh-checkout posture regardless of the developer's .env (Program loads it into the process
-            // environment before any factory hook runs, so a config override is too late for settings
-            // built at registration): no mail-consent apps, no live rate provider. The suite asserts the
-            // "not configured" branches and must never reach a real IdP or spend the FX quota.
-            services.RemoveAll<MailConsentSettings>();
-            services.AddSingleton(new MailConsentSettings());
-            services.RemoveAll<IConfigureOptions<ExchangeRateSettings>>();
-
             // Swap the External (OAuth carrier) cookie scheme's handler for a test one that authenticates
             // from headers — so the OAuth callback's [Authorize(External)] can be driven without a real
             // provider round-trip. The scheme's cookie options are left intact (the handler ignores them).
@@ -126,6 +111,9 @@ public sealed class IntegrationTestFactory : WebApplicationFactory<Program>, IAs
             // across the auth-flow tests. This keeps the limiter active but non-colliding — the limiter
             // itself is tested in isolation by RateLimitingTests.
             services.AddSingleton<Microsoft.AspNetCore.Hosting.IStartupFilter, UniqueClientIpStartupFilter>();
+
+            // The app's own swaps, after the platform's (Arch A1).
+            App.AppTestComposition.ConfigureTestServices(services);
         });
     }
 
