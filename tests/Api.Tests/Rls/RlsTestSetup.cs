@@ -63,7 +63,7 @@ public static class RlsTestSetup
     public static async Task ProvisionAsync(DbContext db)
     {
         await ProvisionRuntimeRoleAsync(db);
-        foreach (var sql in RlsDdl.StatementsFor(db.Model))
+        foreach (var sql in RlsDdl.StatementsFor(db.Model).Concat(RlsDdl.SharedOrTenantStatementsFor(db.Model))) // both families (Arch A4)
 #pragma warning disable EF1002 // no user input — DDL is model-derived
             await db.Database.ExecuteSqlRawAsync(sql);
 #pragma warning restore EF1002

@@ -75,6 +75,68 @@ Open Claude Code in the repo and use **the expected first prompt from `README.md
 - Verifies: `git grep -i perezosoft` returns nothing, and a test OTP email arrives with the new
   brand.
 
+### Phase 3 → ports: re-pin before the first run
+
+If anything else from this platform runs on the same machine — the platform itself, another
+downstream app — the defaults collide. `docker ps` first: every compose stack binds Postgres and
+Mailpit host ports from its own `.env`. The **app** ports are pinned in the launch profiles and
+mirrored across the tree, so pick a free set and change it everywhere in **one** pass, then re-run
+restore/build/tests. JiggerJot took API `7260`/`5338`, Web `7108`/`5269`, `DB_PORT=5435`,
+`MAIL_SMTP_PORT=1027`, `MAIL_UI_PORT=8027`, `APP_PORT=8280`; the platform sits on `7160`/`5238`,
+`7008`/`5169`, `5433`, `1025`/`8025`, `8080`.
+
+The block is stated once, in **`local-ports.props`** (Arch A10). Edit the eight numbers there, then
+`pwsh tools/ports.ps1 -Apply`: it rewrites every file that cannot read MSBuild — both
+`Properties/launchSettings.json`, `src/Api/appsettings.Development.json` (SMTP port, CORS origins,
+`Auth:AppBaseUrl`), `src/Web/wwwroot/appsettings.json`, `docker-compose.yml`'s `${VAR:-default}` fallbacks,
+`.env.example` (`*_PORT` and the connection string), `tests/E2E.Tests/playwright.runsettings`, the Postman
+local environment and this app's row in the README table. Code (the API's dev fallback, `MauiProgram.cs`,
+the E2E defaults, the test harness) and the MAUI `adb reverse` read the props at build time, so nothing to
+edit there. Two sites stay by hand: `ci.yml` (the app URLs, and the **host** side of the Mailpit service
+mappings — `"1025:1025"` → `"1027:1025"`, container side unchanged) and the docs that quote ports
+(`QA_TEST_PLAN.md`, `MOBILE_TESTING.md`). `LocalPortsTests` then fails on anything that still disagrees,
+and on any port number written into code, tools or tests. Compose already namespaces containers, network and
+the `db_data` volume by folder name, so no rename is needed there.
+
+### Phase 3b → the platform boundary: stamp, manifest, ownership (Arch A2)
+
+Your repo is a clone of a platform commit, and it should say so. `platform-stamp.json` names that commit and the
+brand map (`Vuelto` → your brand, `vuelto` → its lowercase); `platform-ownership.json` says which files are
+the platform's (`platform`: keep them identical, or list a divergence with a reason in
+`tests/Api.Tests/App/PlatformDivergences.json`), which you are expected to edit (`adapts`: the UI, the journeys, the
+config, the docs) and which are yours (`app`: `src/Api/Features/**`, `AppComposition.cs`, `AppDbContext.App.cs`,
+`tests/Api.Tests/App/**`, `RulesEnforcement.App.cs`). After the rebrand, run the port once against the platform
+checkout you cloned from, at that same commit, to write the manifest and the stamp:
+
+```bash
+pwsh tools/port-platform.ps1 -Platform ../perezosoft-platform -To <the commit you cloned> -Apply
+```
+
+From then on **porting a platform change is one command**: `pwsh tools/port-platform.ps1 -Platform ../perezosoft-platform`
+(dry run; prints added / clean / CONFLICT / deleted upstream), then the same with `-Apply`, resolve any `<<<<<<<`
+markers, build, run the tests. `PlatformOwnershipTests` fails on a platform file that differs from the stamped
+manifest without a listed reason, and `/api/version` reports the platform commit beside your own. `PlatformSchemaTests`
+holds your migrated database to `platform-schema.json` for the platform's tables (Arch A5): if a port brings a platform
+migration, your regenerated copy of it must build the same columns, constraints, indexes and policies.
+
+### Removing the Notes sample (touches no platform migration)
+
+The sample is a removable unit (Arch A6): its code, and its two migrations (`AddNotesSample`, which creates the table,
+and `NotesSampleRlsPolicy`, its RLS policy). No platform migration names it, so removing it is an ordinary app change:
+
+1. Delete the code: `src/Api/Features/Notes/`, `src/Core/Entities/Note.cs`,
+   `src/Infrastructure/Persistence/Configurations/NoteConfiguration.cs`, `tests/Api.Tests/NotesSliceTests.cs`; the
+   `Notes` lines in `src/Api/AppComposition.cs`, the `DbSet<Note>` in `AppDbContext.App.cs`, the `nameof(Note)` entry
+   in `tests/Api.Tests/App/AppAllowlists.cs`, the `Notes_*` strings in both resx files, the Notes folder of the Postman
+   collection and its `noteId` variable, and the `/notes` page and nav entry in `Shared.Ui`.
+2. Drop the table with an **app migration**: `dotnet ef migrations add RemoveNotesSample --project src/Infrastructure
+   --startup-project src/Api` scaffolds the `DropTable("Notes")` from the model change and regenerates the snapshot.
+   Say "Data loss on Down: the sample's rows" in its summary (the migrations gate asks for it).
+3. Leave `AddNotesSample` and `NotesSampleRlsPolicy` in place as history. **Never delete or edit a platform
+   migration**: a repo that deleted `AddNotesSample` had to edit `RlsTenancyBackstop` too, and its platform
+   migrations diverged from upstream for good. `PlatformMigrations_DoNotNameTheSample` holds the platform side of
+   this: no platform migration may name the sample's table.
+
 ## Phase 4 — First local run
 
 ```bash
@@ -105,7 +167,7 @@ The rhythm, per `docs/WAYS_OF_WORKING.md`:
 2. Each slice = one branch + one PR off `develop`, test-first (the failing test precedes the
    code), end-to-end (API + UI + tests), leaving the app working.
 3. Copy **`src/Api/Features/Notes`** as the reference slice shape; **delete the Notes sample**
-   when your first real feature lands.
+   when your first real feature lands — the recipe is below ("Removing the Notes sample").
 4. CI gates every PR; once Phase 7 is done, a manual GitHub *Run workflow* with `deploy=staging` deploys
    `develop` to staging (ADR-031).
 

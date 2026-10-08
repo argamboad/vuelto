@@ -40,7 +40,7 @@ public class AcceptDissolveTests(PostgresFixture fixture) : PostgresTestBase(fix
         {
             var harness = new ServiceHarness(db, currentTenant: ambient);
             Assert.Equal(AcceptStatus.Joined,
-                await harness.InvitationService(contributors: harness.PlatformContributors()).AcceptAsync(joinerId, token));
+                await harness.InvitationService(contributors: harness.Contributors()).AcceptAsync(joinerId, token));
         }
 
         await using var read = Fixture.CreateContext();

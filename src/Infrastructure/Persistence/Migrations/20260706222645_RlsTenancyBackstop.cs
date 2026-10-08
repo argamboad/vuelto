@@ -21,7 +21,10 @@ namespace Vuelto.Infrastructure.Persistence.Migrations
     /// </summary>
     public partial class RlsTenancyBackstop : Migration
     {
-        // Frozen output of RlsDdl.StatementsFor for the ITenantScoped tables as of 2026-07-06.
+        // Frozen output of RlsDdl.StatementsFor for the ITenantScoped tables as of 2026-07-06 — minus the DELETE-ME sample's
+        // table (Arch A6, 2026-10-07): "Notes" left this list so that no platform migration names the sample; its policy
+        // comes from the sample's own NotesSampleRlsPolicy migration. A database that ran this migration with "Notes" in
+        // the list is unchanged (the sample migration re-creates the policy idempotently); a fresh database gets it there.
         private static readonly string[] Tables =
         [
             "ApiKeys",

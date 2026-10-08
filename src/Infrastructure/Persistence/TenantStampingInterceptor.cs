@@ -17,6 +17,10 @@ namespace Vuelto.Infrastructure.Persistence;
 ///   from being updated or deleted under the wrong tenant (v2 audit ADV-1) — not just inserted.</item>
 /// </list>
 /// <para>
+/// For an <see cref="ISharedOrTenantScoped"/> entity (Arch A4) while a tenant is current there is NO stamping — a
+/// shared row and an owned row are different intents, so the writer sets <c>TenantId</c> — and any insert, update or
+/// delete of a shared row (null) or of another tenant's row throws. Shared rows are written by tenant-less contexts.
+/// <para>
 /// When there is no current tenant (<see cref="AppDbContext.CurrentTenantId"/> is
 /// <see cref="Guid.Empty"/>) the context is a system/seed/cross-tenant one — the same trust
 /// level that may call <c>IgnoreQueryFilters()</c> — so no stamping or validation is applied.
@@ -49,6 +53,22 @@ public sealed class TenantStampingInterceptor : SaveChangesInterceptor
 
         var currentTenantId = db.CurrentTenantId;
         if (currentTenantId == Guid.Empty) return; // system/seed/cross-tenant context — not enforced
+
+        foreach (var entry in db.ChangeTracker.Entries<ISharedOrTenantScoped>())
+        {
+            if (entry.State is not (EntityState.Added or EntityState.Modified or EntityState.Deleted))
+                continue;
+            var tenantId = (Guid?)entry.Property(nameof(ISharedOrTenantScoped.TenantId)).CurrentValue;
+            if (tenantId is null)
+                throw new InvalidOperationException(
+                    $"Refusing to {entry.State.ToString().ToLowerInvariant()} a shared row of {entry.Entity.GetType().Name} (TenantId null) " +
+                    $"while the current tenant is {currentTenantId}. Shared rows are written by a tenant-less context only; a tenant's " +
+                    "own row says so with TenantId set (Arch A4).");
+            if (tenantId != currentTenantId)
+                throw new InvalidOperationException(
+                    $"Refusing to {entry.State.ToString().ToLowerInvariant()} a {entry.Entity.GetType().Name} for tenant {tenantId} " +
+                    $"while the current tenant is {currentTenantId}. A shared-or-tenant row may only be written under its owning tenant.");
+        }
 
         foreach (var entry in db.ChangeTracker.Entries<ITenantScoped>())
         {

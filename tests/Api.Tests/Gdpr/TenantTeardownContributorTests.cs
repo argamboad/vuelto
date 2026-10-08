@@ -116,7 +116,7 @@ public class TenantTeardownContributorTests(PostgresFixture fixture) : PostgresT
 
         await using var db = Fixture.CreateContext(tenant);
         var parts = new List<object?>();
-        foreach (var contributor in new ServiceHarness(db).PlatformContributors())
+        foreach (var contributor in new ServiceHarness(db).Contributors())
             parts.Add(await contributor.ExportAsync(tenant));
         var json = JsonSerializer.Serialize(parts);
 
