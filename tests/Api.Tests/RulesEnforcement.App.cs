@@ -17,7 +17,6 @@ public static partial class RulesEnforcement
     /// <summary>Per rule, this repo's departure from the platform's entry.</summary>
     public static readonly IReadOnlyDictionary<string, AppOverride> AppOverrides = new Dictionary<string, AppOverride>
     {
-        ["R149"] = new(Pending: "vuelto#198 (the test-id sweep of this app's UI under the A12 amendment; the gate is skipped until it lands)"),
         ["R114"] = new(NotHere: "the course (docs/tutorial) lives in perezosoft-platform; its gates run there"),
         ["R115"] = new(NotHere: "the course (docs/tutorial) lives in perezosoft-platform; its gates run there"),
         ["R118"] = new(NotHere: "the rule's course-reconcile half has nothing to hold here: the course lives in perezosoft-platform"),

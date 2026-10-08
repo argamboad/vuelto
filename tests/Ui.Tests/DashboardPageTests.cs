@@ -224,7 +224,7 @@ public class DashboardPageTests : ComponentTestBase
         var cut = await DashboardAsync(MidMonth);
         var before = Http.Requests.Count;
 
-        cut.Find("[data-testid='dash-breakdown-switch-bank']").Change(true);
+        cut.Find("[data-testid='dash-breakdown-switch-option'][data-value='bank']").Change(true);
         // Owner, 2026-09-14: a plan names no bank, so the bank cut is actuals only (three cells: bank, method, actual)
         // under a Card / Bank account summary that carries the plan-vs-spent comparison.
         var methodRows = cut.FindAll("[data-testid='dash-method-row']");
@@ -238,7 +238,7 @@ public class DashboardPageTests : ComponentTestBase
         Assert.Equal(3, bankRows[0].QuerySelectorAll("td").Length);
         Assert.Contains("₡310,000.00", cut.Find("[data-testid='dash-banks-total']").TextContent);
 
-        cut.Find("[data-testid='dash-breakdown-switch-card']").Change(true);
+        cut.Find("[data-testid='dash-breakdown-switch-option'][data-value='card']").Change(true);
         var cardRows = cut.FindAll("[data-testid='dash-card-row']");
         Assert.Equal(2, cardRows.Count);
         Assert.Equal("Dash_CardCount[1]", cardRows[0].QuerySelector("[data-testid='dash-card-meta']")!.TextContent.Trim());
@@ -253,7 +253,7 @@ public class DashboardPageTests : ComponentTestBase
     {
         // Owner decision, 2026-09-11: the old Other-spending card becomes an option here.
         var cut = await DashboardAsync(MidMonth);
-        cut.Find("[data-testid='dash-breakdown-switch-other']").Change(true);
+        cut.Find("[data-testid='dash-breakdown-switch-option'][data-value='other']").Change(true);
         // Owner decision, 2026-09-14: the rows group by class with a subtotal each, so "how much of this was
         // unplanned" is read off a heading, not added up by eye. Discretionary first, then Unplanned, then the
         // catalog smell — money classed Budgeted in a category no line covers — only when it occurs.
@@ -271,7 +271,7 @@ public class DashboardPageTests : ComponentTestBase
         Assert.Equal(["Trips", "Dining", "Trips"], rows.Select(r => r.QuerySelector("td")!.TextContent.Trim()).ToList());
         Assert.Contains("₡3,000.00", rows[0].TextContent);
         Assert.Contains("₡1,000.00", rows[2].TextContent);
-        Assert.Empty(cut.FindAll("[data-testid='dash-other-class']")); // no chips: the heading says the class
+        Assert.DoesNotContain("dash-other-class", cut.FindAll("[data-testid]").Select(e => e.GetAttribute("data-testid"))); // no chips: the heading says the class
 
         Assert.Contains("₡14,000.00", cut.Find("[data-testid='dash-other-total']").TextContent); // Dining 10,000 + Trips 4,000
     }

@@ -16,7 +16,7 @@
    creating and editing so the lists never jump. The header is a projection: lines in two currencies add up
    only at today's rate, and a typical income is a four-week month of the active income lines (INCOME-1: weekly × 4,
    biweekly × 2, monthly × 1). *@
-<div class="settings-wrapper" data-testid="budget-page">
+<div class="settings-wrapper">
     <div class="budget-head">
         <div>
             <h1>@Localizer["Budget_Title"]</h1>
@@ -45,9 +45,9 @@
                              FixedText="@BudgetMoney.Format(_fixed, _rate, _display)" VariableText="@BudgetMoney.Format(_variable, _rate, _display)"
                              Income="@TypicalIncome()" IncomeText="@(TypicalIncome() is { } i ? BudgetMoney.Amount(i, _display) : "")" HasRate="@(_rate is not null)" />
 
-        <ExpenseLinesSection @ref="_fixedSection" Kind="fixed" TitleKey="Budget_Fixed" HintKey="Budget_FixedHint" Categories="_categories"
+        <ExpenseLinesSection @ref="_fixedSection" Kind="fixed" TestId="exp-fixed" TitleKey="Budget_Fixed" HintKey="Budget_FixedHint" Categories="_categories"
                              Rate="_rate" Display="@_display" OnEdit="OpenEdit" OnItemsChanged="items => _fixed = items" />
-        <ExpenseLinesSection @ref="_variableSection" Kind="variable" TitleKey="Budget_Variable" HintKey="Budget_VariableHint" Categories="_categories"
+        <ExpenseLinesSection @ref="_variableSection" Kind="variable" TestId="exp-variable" TitleKey="Budget_Variable" HintKey="Budget_VariableHint" Categories="_categories"
                              Rate="_rate" Display="@_display" OnEdit="OpenEdit" OnItemsChanged="items => _variable = items" />
     }
 

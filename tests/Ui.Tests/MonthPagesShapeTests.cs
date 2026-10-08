@@ -188,7 +188,7 @@ public class MonthPagesShapeTests : ComponentTestBase
         Assert.Equal("Groceries · Cash", cut.FindAll("[data-testid='month-tx-row']")[1].QuerySelector("[data-testid='month-tx-sub']")!.TextContent.Trim());
         Assert.Equal("Uber", uber.QuerySelector("[data-testid='month-tx-payee']")!.TextContent.Trim()); // the name alone; the sub-line is a sibling
         Assert.Equal("Jul 6", uber.QuerySelector("[data-testid='month-tx-date-short']")!.TextContent.Trim());
-        Assert.Contains("Month_PaidWith", cut.Find("[data-testid='month-tx-sort-bank']").TextContent);
+        Assert.Contains("Month_PaidWith", cut.Find("[data-testid='month-tx-sort'][data-sort='bank']").TextContent);
     }
 
     [Fact]

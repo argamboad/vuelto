@@ -80,20 +80,20 @@
         var budgeted = Sum(_report.Budgeted);
         var discretionary = Sum(_report.Extraordinary);
         var unplanned = Sum(_report.UnplannedEssential);
-        <div class="row g-3 rep-kpis" data-testid="rep-kpis">
+        <div class="row g-3 rep-kpis">
             <div class="col-6 col-md-6 col-lg-3">
-                <KpiTile TestId="rep-kpi-total" Label="@Localizer["Reports_Kpi_TotalSpend"]" Value="@Tile(spend, "rep-kpi-total-money")"
+                <KpiTile TestId="rep-kpi-total" Label="@Localizer["Reports_Kpi_TotalSpend"]" Value="@TotalMoney(spend)"
                          Sub="@(_report.Income is { } inc ? Localizer["Reports_OfIncome", Pct(Side(spend), Side(inc))].Value : null)" />
             </div>
             <div class="col-6 col-md-6 col-lg-3">
-                <KpiTile TestId="rep-kpi-budgeted" Label="@Localizer["Reports_Kpi_Budgeted"]" Value="@Tile(budgeted, "rep-kpi-budgeted-money")" Sub="@Localizer["Reports_OfSpend", Pct(Side(budgeted), Side(spend))].Value" />
+                <KpiTile TestId="rep-kpi-budgeted" Label="@Localizer["Reports_Kpi_Budgeted"]" Value="@BudgetedMoney(budgeted)" Sub="@Localizer["Reports_OfSpend", Pct(Side(budgeted), Side(spend))].Value" />
             </div>
             <div class="col-6 col-md-6 col-lg-3">
-                <KpiTile TestId="rep-kpi-discretionary" Label="@Localizer["Reports_Kpi_Discretionary"]" Value="@Tile(discretionary, "rep-kpi-discretionary-money")" Sub="@Localizer["Reports_OfSpend", Pct(Side(discretionary), Side(spend))].Value" />
+                <KpiTile TestId="rep-kpi-discretionary" Label="@Localizer["Reports_Kpi_Discretionary"]" Value="@DiscretionaryMoney(discretionary)" Sub="@Localizer["Reports_OfSpend", Pct(Side(discretionary), Side(spend))].Value" />
             </div>
             <div class="col-6 col-md-6 col-lg-3">
                 @* Unplanned essentials are reported gross; what is expected back is the month's refunds total, noted beside it. *@
-                <KpiTile TestId="rep-kpi-unplanned" Label="@Localizer["Reports_Kpi_Unplanned"]" Value="@Tile(unplanned, "rep-kpi-unplanned-money")"
+                <KpiTile TestId="rep-kpi-unplanned" Label="@Localizer["Reports_Kpi_Unplanned"]" Value="@UnplannedMoney(unplanned)"
                          Sub="@(_refunds is { } r && Side(r) > 0 ? Localizer["Reports_Refundable", MoneyDisplay.Format(r.Crc, r.Usd, _display == MoneyDisplay.Both ? MoneyDisplay.Crc : _display)].Value : Localizer["Reports_OfSpend", Pct(Side(unplanned), Side(spend))].Value)" />
             </div>
         </div>
@@ -136,11 +136,11 @@
 
         @if (_report.Budgeted.Count == 0 && _report.Extraordinary.Count == 0 && _report.UnplannedEssential.Count == 0)
         {
-            <div class="alert alert-info" data-testid="rep-empty">@Localizer["Reports_Empty"]</div>
+            <div class="alert alert-info">@Localizer["Reports_Empty"]</div>
         }
         else if (_view == "table")
         {
-            <CategoryTable Budgeted="_report.Budgeted" Extraordinary="_report.Extraordinary" Unplanned="_report.UnplannedEssential"
+            <CategoryTable TestId="rep-category" Budgeted="_report.Budgeted" Extraordinary="_report.Extraordinary" Unplanned="_report.UnplannedEssential"
                            SingleMonth="_report.SingleMonth" Display="@_display" ExchangeRate="_report.ExchangeRate" ExchangeRateBuy="_report.ExchangeRateBuy" />
         }
         else
@@ -176,7 +176,7 @@
                             }
                         </div>
                     </div>
-                    <div class="col-12 col-lg-4" data-testid="rep-budget-col">
+                    <div class="col-12 col-lg-4">
                         <div class="rep-card h-100" data-testid="rep-budget-card">
                             <h2 class="rep-card-title">@Localizer["Reports_BudgetSplit"]</h2>
                             @if (_report.Income is null || _report.BudgetTotal is null)
@@ -213,7 +213,7 @@
                 }
                 @* Where the money leaves from (REPORTS-4): by bank, and card vs account — stored amounts, so any period. *@
                 <div class="col-12 col-lg-6">
-                    <div class="rep-card h-100" data-testid="rep-bank-card">
+                    <div class="rep-card h-100">
                         <h2 class="rep-card-title">@Localizer["Reports_ByBank"]</h2>
                         <DonutChart TestId="rep-bank-donut" Currency="@_chartCurrency" Title="@Localizer["Reports_ByBank"].Value" Slices="BankSlices()" />
                     </div>
@@ -221,14 +221,14 @@
                 @if (_report.ByCard is { } byCard && byCard.Any(c => c.Key != "none"))
                 {
                     <div class="col-12 col-lg-6">
-                        <div class="rep-card h-100" data-testid="rep-card-card">
+                        <div class="rep-card h-100">
                             <h2 class="rep-card-title">@Localizer["Reports_ByCard"]</h2>
                             <DonutChart TestId="rep-card-donut" Currency="@_chartCurrency" Title="@Localizer["Reports_ByCard"].Value" Slices="CardSlices()" />
                         </div>
                     </div>
                 }
                 <div class="col-12">
-                    <div class="rep-card" data-testid="rep-method-card">
+                    <div class="rep-card">
                         <h2 class="rep-card-title">@Localizer["Reports_ByMethod"]</h2>
                         <div class="row g-3">
                             <div class="col-12 col-lg-5">
@@ -343,9 +343,22 @@
 
     private static int Pct(decimal part, decimal whole) => whole <= 0 ? 0 : (int)Math.Round(100m * part / whole);
 
-    private RenderFragment Tile(MoneyDto m, string testId) => __builder =>
+    // One fragment per tile so each money carries a literal test id (R149).
+    private RenderFragment TotalMoney(MoneyDto m) => __builder =>
     {
-        <Money Crc="m.Crc" Usd="m.Usd" Display="@_display" Size="step" TestId="@testId" />
+        <Money Crc="m.Crc" Usd="m.Usd" Display="@_display" Size="step" TestId="rep-kpi-total-money" />
+    };
+    private RenderFragment BudgetedMoney(MoneyDto m) => __builder =>
+    {
+        <Money Crc="m.Crc" Usd="m.Usd" Display="@_display" Size="step" TestId="rep-kpi-budgeted-money" />
+    };
+    private RenderFragment DiscretionaryMoney(MoneyDto m) => __builder =>
+    {
+        <Money Crc="m.Crc" Usd="m.Usd" Display="@_display" Size="step" TestId="rep-kpi-discretionary-money" />
+    };
+    private RenderFragment UnplannedMoney(MoneyDto m) => __builder =>
+    {
+        <Money Crc="m.Crc" Usd="m.Usd" Display="@_display" Size="step" TestId="rep-kpi-unplanned-money" />
     };
 
     // ---- the charts ----
@@ -560,7 +573,7 @@
     /// <summary>Chart view: one class as horizontal bars, largest first, the budget as a track where there is one.</summary>
     private RenderFragment Section(string title, IReadOnlyList<ReportCategoryEntry> entries, string testId, bool showBudget) => __builder =>
     {
-        <div class="rep-card h-100" data-testid="@testId">
+        <div class="rep-card h-100" data-testid="rep-section" data-section="@testId">
             <h2 class="rep-card-title">@title</h2>
             @if (entries.Count == 0)
             {
@@ -568,8 +581,8 @@
             }
             else
             {
-                <BarChart TestId="@($"{testId}-chart")" Currency="@_chartCurrency" Title="@title" Items="Bars(entries, showBudget)" />
-                <div class="rep-card-note" data-testid="@($"{testId}-chart-total")">@Localizer["Reports_Total"]: @Amount(entries.Sum(x => ChartSide(x.TotalCrc, x.TotalUsd)))</div>
+                <BarChart TestId="rep-section-chart" Currency="@_chartCurrency" Title="@title" Items="Bars(entries, showBudget)" />
+                <div class="rep-card-note" data-testid="rep-section-chart-total">@Localizer["Reports_Total"]: @Amount(entries.Sum(x => ChartSide(x.TotalCrc, x.TotalUsd)))</div>
             }
         </div>
     };

@@ -15,7 +15,7 @@
 @* LEDGER-2: enter or edit a transaction (ADR-V006/V007). The date decides the month (banner shows
    which, and whether it will be created); the rate is pre-filled from today's quote on create and
    frozen on edit; both amounts are previewed from the rate. *@
-<div class="settings-wrapper" data-testid="tx-page">
+<div class="settings-wrapper">
     <h1 class="h4 fw-bold mb-3">@(Id is null ? Localizer["Tx_NewTitle"] : Localizer["Tx_EditTitle"])</h1>
 
     @if (_loading)
@@ -24,12 +24,12 @@
     }
     else if (_notFound)
     {
-        <div class="alert alert-warning" data-testid="tx-missing">@Localizer["Tx_NotFound"]</div>
+        <div class="alert alert-warning">@Localizer["Tx_NotFound"]</div>
         <p><a href="/months">← @Localizer["Month_BackToMonths"]</a></p>
     }
     else if (_derived)
     {
-        <div class="alert alert-warning" data-testid="tx-derived">@Localizer["Tx_Derived"]</div>
+        <div class="alert alert-warning">@Localizer["Tx_Derived"]</div>
         <p><a href="/months/@_monthId">← @Localizer["Tx_BackToMonth"]</a></p>
     }
     else

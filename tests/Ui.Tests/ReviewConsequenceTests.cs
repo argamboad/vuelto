@@ -55,16 +55,16 @@ public class ReviewConsequenceTests : ComponentTestBase
         var cut = Render<Review>();
         cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("[data-testid='review-voucher']").Count));
 
-        var body = cut.WaitForElement($"[data-testid='consequence-{Complete}-body']");
-        cut.WaitForAssertion(() => Assert.Contains("Review_MonthWeek[September 2026, 3]", Draft(cut, 0).QuerySelector($"[data-testid='consequence-{Complete}-body']")!.TextContent));
-        cut.WaitForAssertion(() => Assert.Contains("Tx_LineImpact[Groceries, ₡8,000.00, ₡60,000.00, ₡56,320.00]", Draft(cut, 0).QuerySelector($"[data-testid='consequence-{Complete}-body']")!.TextContent));
+        var body = cut.WaitForElement("[data-testid=\'review-consequence-body\']");
+        cut.WaitForAssertion(() => Assert.Contains("Review_MonthWeek[September 2026, 3]", Draft(cut, 0).QuerySelector($"[data-testid='review-consequence-body']")!.TextContent));
+        cut.WaitForAssertion(() => Assert.Contains("Tx_LineImpact[Groceries, ₡8,000.00, ₡60,000.00, ₡56,320.00]", Draft(cut, 0).QuerySelector($"[data-testid='review-consequence-body']")!.TextContent));
     }
 
     [Fact]
     public async Task ACompleteDraftStatesWhatConfirmingWillBook()
     {
         var cut = await QueueAsync();
-        var body = Draft(cut, 0).QuerySelector($"[data-testid='consequence-{Complete}-body']")!;
+        var body = Draft(cut, 0).QuerySelector($"[data-testid='review-consequence-body']")!;
 
         // Amount, category, class — and the PAY-CYCLE month, which is the part not readable off the row.
         Assert.Contains("Review_ConfirmingWillBook", body.TextContent);
@@ -96,7 +96,7 @@ public class ReviewConsequenceTests : ComponentTestBase
 
         Assert.True(draft.QuerySelector("[data-testid='review-confirm']")!.HasAttribute("disabled"));
 
-        var body = draft.QuerySelector($"[data-testid='consequence-{Incomplete}-body']")!.TextContent;
+        var body = draft.QuerySelector($"[data-testid='review-consequence-body']")!.TextContent;
         Assert.Contains("Review_ConfirmingBlocked", body);
         Assert.Contains("Tx_Category", body);   // no suggestion on this draft
         Assert.Contains("Tx_Payee", body);      // the parser could not read it
@@ -117,7 +117,7 @@ public class ReviewConsequenceTests : ComponentTestBase
         cut.WaitForAssertion(() =>
             Assert.False(Draft(cut, 1).QuerySelector("[data-testid='review-confirm']")!.HasAttribute("disabled")));
         Assert.Contains("Review_ConfirmingWillBook",
-            Draft(cut, 1).QuerySelector($"[data-testid='consequence-{Incomplete}-body']")!.TextContent);
+            Draft(cut, 1).QuerySelector($"[data-testid='review-consequence-body']")!.TextContent);
     }
 
     [Fact]
@@ -145,14 +145,14 @@ public class ReviewConsequenceTests : ComponentTestBase
         var cut = await QueueAsync();
         var draft = Draft(cut, 0);
 
-        Assert.NotNull(draft.QuerySelector("[data-testid='review-class-budgeted']"));
-        Assert.NotNull(draft.QuerySelector("[data-testid='review-class-extraordinary']"));
-        Assert.NotNull(draft.QuerySelector("[data-testid='review-class-unplanned_essential']"));
+        Assert.NotNull(draft.QuerySelector("[data-testid='review-class-option'][data-value='budgeted']"));
+        Assert.NotNull(draft.QuerySelector("[data-testid='review-class-option'][data-value='extraordinary']"));
+        Assert.NotNull(draft.QuerySelector("[data-testid='review-class-option'][data-value='unplanned_essential']"));
         Assert.NotNull(draft.QuerySelector("fieldset"));   // a real radio group, not styled buttons
 
         // The handout's frame draws only two chips; picking the third is what reveals the refund switch.
         Assert.Null(draft.QuerySelector("[data-testid='review-refund-expected']"));
-        draft.QuerySelector("[data-testid='review-class-unplanned_essential']")!.Change(true);
+        draft.QuerySelector("[data-testid='review-class-option'][data-value='unplanned_essential']")!.Change(true);
         Assert.NotNull(Draft(cut, 0).QuerySelector("[data-testid='review-refund-expected']"));
     }
 
@@ -172,7 +172,7 @@ public class ReviewConsequenceTests : ComponentTestBase
         // Two drafts, one with a date and one without → exactly one resolve call.
         Assert.Single(Http.Requests, r => r.RequestUri!.AbsolutePath == "/api/months/resolve");
         Assert.Contains("September 2026",
-            Draft(cut, 0).QuerySelector($"[data-testid='consequence-{Complete}-body']")!.TextContent);
+            Draft(cut, 0).QuerySelector($"[data-testid='review-consequence-body']")!.TextContent);
     }
 
     [Fact]
@@ -187,7 +187,7 @@ public class ReviewConsequenceTests : ComponentTestBase
         var cut = Render<Review>();
         cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("[data-testid='review-voucher']").Count));
 
-        var body = Draft(cut, 0).QuerySelector($"[data-testid='consequence-{Complete}-body']")!.TextContent;
+        var body = Draft(cut, 0).QuerySelector($"[data-testid='review-consequence-body']")!.TextContent;
         Assert.Contains("Review_ConfirmingWillBookNoMonth", body);
         Assert.Contains("Groceries", body);
     }

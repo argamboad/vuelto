@@ -17,24 +17,24 @@
     </select>
     @if (!_creating)
     {
-        <button type="button" class="btn btn-outline-secondary @(Size == "sm" ? "btn-sm" : "") text-nowrap" data-testid="@(TestId)-new"
+        <button type="button" class="btn btn-outline-secondary @(Size == "sm" ? "btn-sm" : "") text-nowrap" data-testid="@($"{TestId}-new")"
                 disabled="@Disabled" title="@Localizer["Category_NewTitle"]" @onclick="Open">+ @Localizer["Category_New"]</button>
     }
 </div>
 @if (_creating)
 {
-    <div class="category-create" data-testid="@(TestId)-new-form">
-        <input class="form-control form-control-sm category-create-name" data-testid="@(TestId)-new-name" placeholder="@Localizer["Category_NewPlaceholder"]"
+    <div class="category-create" data-testid="@($"{TestId}-new-form")">
+        <input class="form-control form-control-sm category-create-name" data-testid="@($"{TestId}-new-name")" placeholder="@Localizer["Category_NewPlaceholder"]"
                @bind="_name" @bind:event="oninput" @onkeydown="OnKeyDown" disabled="@_saving" />
-        <button type="button" class="btn btn-primary btn-sm" data-testid="@(TestId)-new-save" @onclick="CreateAsync" disabled="@_saving">@Localizer["Catalog_Create"]</button>
-        <button type="button" class="btn btn-outline-secondary btn-sm" data-testid="@(TestId)-new-cancel" @onclick="Close" disabled="@_saving">@Localizer["Common_Cancel"]</button>
+        <button type="button" class="btn btn-primary btn-sm" data-testid="@($"{TestId}-new-save")" @onclick="CreateAsync" disabled="@_saving">@Localizer["Catalog_Create"]</button>
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-testid="@($"{TestId}-new-cancel")" @onclick="Close" disabled="@_saving">@Localizer["Common_Cancel"]</button>
         @if (_conflict is { ExistingId: not null } conflict)
         {
-            <button type="button" class="btn btn-warning btn-sm" data-testid="@(TestId)-reactivate" @onclick="ReactivateAsync" disabled="@_saving">
+            <button type="button" class="btn btn-warning btn-sm" data-testid="@($"{TestId}-reactivate")" @onclick="ReactivateAsync" disabled="@_saving">
                 @Localizer["Category_ReactivateExisting", conflict.ExistingName ?? _name]
             </button>
         }
-        @if (_error is not null) { <p class="category-create-error" data-testid="@(TestId)-new-error">@_error</p> }
+        @if (_error is not null) { <p class="category-create-error" data-testid="@($"{TestId}-new-error")">@_error</p> }
     </div>
 }
 

@@ -2,11 +2,11 @@
    <Money> and get the stacked treatment; the sub-line is the one place a tile explains itself, and a tile
    with nothing to add renders no empty row. *@
 <div class="kpi" data-testid="@TestId" data-tone="@Tone">
-    <div class="kpi-label" data-testid="@Id("label")">@Label</div>
-    <div class="kpi-value" data-testid="@Id("value")">@Value</div>
+    <div class="kpi-label" data-testid="@($"{TestId}-label")">@Label</div>
+    <div class="kpi-value" data-testid="@($"{TestId}-value")">@Value</div>
     @if (!string.IsNullOrWhiteSpace(Sub))
     {
-        <div class="kpi-sub" data-testid="@Id("sub")">@Sub</div>
+        <div class="kpi-sub" data-testid="@($"{TestId}-sub")">@Sub</div>
     }
 </div>
 
@@ -21,6 +21,4 @@
     [Parameter] public string Tone { get; set; } = "neutral";
 
     [Parameter] public string TestId { get; set; } = "kpi";
-
-    private string Id(string part) => $"{TestId}-{part}";
 }

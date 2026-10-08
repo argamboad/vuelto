@@ -16,7 +16,7 @@
    the month's weeks, biweekly × the pay days in it, monthly × 1); the month page corrects a single month. Same catalog
    shape as the envelopes page: an inline form, the reactivation offer, deactivate instead of delete; plus up/down
    ordering. Any member edits any line. *@
-<div class="settings-wrapper" data-testid="incomes-page">
+<div class="settings-wrapper">
     <PageHead Title="@Localizer["Income_Title"]" Subtitle="@Localizer["Income_Subtitle"]">
         <button class="btn btn-primary" data-testid="inc-new" disabled="@(_form is not null || _loading)" @onclick="OpenNew">@Localizer["Income_New"]</button>
     </PageHead>
@@ -27,7 +27,7 @@
     }
     @if (_error is not null)
     {
-        <div class="alert alert-danger py-2" data-testid="inc-error">@_error</div>
+        <div class="alert alert-danger py-2">@_error</div>
     }
 
     @if (_form is { } form)
@@ -112,7 +112,7 @@
 
                 @if (form.Conflict is not null)
                 {
-                    <div class="alert alert-warning py-2 mt-3 d-flex align-items-center justify-content-between gap-2" data-testid="inc-conflict">
+                    <div class="alert alert-warning py-2 mt-3 d-flex align-items-center justify-content-between gap-2">
                         <span>@form.Conflict.Message</span>
                         <button class="btn btn-warning btn-sm" data-testid="inc-reactivate" disabled="@_saving" @onclick="Reactivate">@Localizer["Catalog_Reactivate"]</button>
                     </div>
@@ -126,7 +126,7 @@
                     <button class="btn btn-primary" data-testid="inc-save" disabled="@_saving" @onclick="Save">
                         @(_saving ? Localizer["Catalog_Saving"] : form.Editing is null ? Localizer["Catalog_Create"] : Localizer["Catalog_Save"])
                     </button>
-                    <button class="btn btn-outline-secondary" data-testid="inc-cancel" disabled="@_saving" @onclick="() => _form = null">@Localizer["Catalog_Cancel"]</button>
+                    <button class="btn btn-outline-secondary" disabled="@_saving" @onclick="() => _form = null">@Localizer["Catalog_Cancel"]</button>
                 </div>
             </div>
         </div>
@@ -145,7 +145,7 @@
         var active = _items.Where(i => i.IsActive).ToList();
         <div class="card shadow-sm">
             <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0" data-testid="inc-table">
+                <table class="table table-hover align-middle mb-0">
                     <thead>
                         <tr>
                             <th scope="col">@Localizer["Catalog_Name"]</th>

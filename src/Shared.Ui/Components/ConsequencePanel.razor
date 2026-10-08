@@ -8,12 +8,12 @@
 <aside class="consequence" data-testid="@TestId">
     @if (!string.IsNullOrWhiteSpace(Eyebrow))
     {
-        <p class="consequence-eyebrow" data-testid="@Id("eyebrow")">@Eyebrow</p>
+        <p class="consequence-eyebrow" data-testid="@($"{TestId}-eyebrow")">@Eyebrow</p>
     }
-    <div class="consequence-body" data-testid="@Id("body")" aria-live="polite">@ChildContent</div>
+    <div class="consequence-body" id="@BodyId" data-testid="@($"{TestId}-body")" aria-live="polite">@ChildContent</div>
     @if (Actions is not null)
     {
-        <div class="consequence-actions" data-testid="@Id("actions")">@Actions</div>
+        <div class="consequence-actions" data-testid="@($"{TestId}-actions")">@Actions</div>
     }
 </aside>
 
@@ -29,5 +29,6 @@
 
     [Parameter] public string TestId { get; set; } = "consequence";
 
-    private string Id(string part) => $"{TestId}-{part}";
+    /// <summary>The body's element id, for a control's aria-describedby. Optional.</summary>
+    [Parameter] public string? BodyId { get; set; }
 }

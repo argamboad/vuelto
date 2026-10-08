@@ -62,14 +62,14 @@
 
                 @if (_conflict is not null)
                 {
-                    <div class="alert alert-warning py-2 mt-3 d-flex align-items-center justify-content-between gap-2" data-testid="exp-conflict">
+                    <div class="alert alert-warning py-2 mt-3 d-flex align-items-center justify-content-between gap-2">
                         <span>@_conflict.Message</span>
                         <button type="button" class="btn btn-warning btn-sm" data-testid="exp-reactivate" disabled="@_saving" @onclick="ReactivateAsync">@Localizer["Catalog_Reactivate"]</button>
                     </div>
                 }
                 else if (_error is not null)
                 {
-                    <div class="alert alert-danger py-2 mt-3" data-testid="exp-form-error">@_error</div>
+                    <div class="alert alert-danger py-2 mt-3">@_error</div>
                 }
             </div>
             <div class="modal-footer">

@@ -231,7 +231,7 @@ public class SkinComponentsTests : ComponentTestBase
             .Add(x => x.Value, "week").Add(x => x.TestId, "s")
             .Add(x => x.ValueChanged, v => picked = v));
 
-        await cut.Find("[data-testid='s-card']").ChangeAsync(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value = true });
+        await cut.Find("[data-testid='s-option'][data-value='card']").ChangeAsync(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value = true });
         Assert.Equal("card", picked);
     }
 
@@ -265,7 +265,7 @@ public class SkinComponentsTests : ComponentTestBase
         var cut = Render<ConsequencePanel>(p => p
             .Add(x => x.Eyebrow, "Confirming will").Add(x => x.TestId, "cp")
             .Add(x => x.ChildContent, (Microsoft.AspNetCore.Components.RenderFragment)(b => b.AddContent(0, "Book ₡48,320 into Groceries.")))
-            .Add(x => x.Actions, (Microsoft.AspNetCore.Components.RenderFragment)(b => b.AddMarkupContent(0, "<button data-testid='cp-confirm'>Confirm</button>"))));
+            .Add(x => x.Actions, (Microsoft.AspNetCore.Components.RenderFragment)(b => b.AddMarkupContent(0, "<button data-probe='cp-confirm'>Confirm</button>"))));
 
         var panel = cut.Find("[data-testid='cp']");
         Assert.Equal("Confirming will", cut.Find("[data-testid='cp-eyebrow']").TextContent.Trim());

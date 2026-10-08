@@ -34,7 +34,7 @@
                             {
                                 <div class="col">
                                     <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" id="pdf-col-@key" data-testid="rep-pdf-col-@key"
+                                        <input class="form-check-input" type="checkbox" id="pdf-col-@key" data-testid="rep-pdf-col" data-col="@key"
                                                checked="@_columns.Contains(key)" @onchange="e => Toggle(key, e.Value is true)" />
                                         <label class="form-check-label small" for="pdf-col-@key">@label</label>
                                     </div>

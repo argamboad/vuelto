@@ -9,7 +9,7 @@
    menu (up, down, to position), which is the keyboard path and the only path on a touch screen; the
    section's total in the header. Creating and editing live in the page's dialog — this list only lists and
    reorders. Reorder is optimistic: the rows move first, the PUT follows, a refused PUT puts them back. *@
-<section class="lines" data-testid="@($"exp-{Kind}")">
+<section class="lines" data-testid="@TestId">
     <header class="lines-head">
         <h2>@Localizer[TitleKey] <span class="lines-hint">@Localizer[HintKey]</span></h2>
         <span class="lines-total" data-testid="exp-total">@BudgetMoney.Format(_items, Rate, Display)</span>
@@ -74,7 +74,7 @@
                         <span class="line-sub" data-testid="exp-row-sub" aria-hidden="true">@SubLine(item)</span>
                     </div>
                     <span class="line-amount" data-testid="exp-row-budget">
-                        <Money Crc="item.BudgetCrc" Usd="item.BudgetUsd" Currency="@item.Currency" Size="row" TestId="@($"exp-row-money")" />
+                        <Money Crc="item.BudgetCrc" Usd="item.BudgetUsd" Currency="@item.Currency" Size="row" />
                     </span>
                     <span class="line-category col-md" data-testid="exp-row-category">@CategoryName(item)</span>
                     <span class="line-paid col-md"><span class="line-chip" data-testid="exp-row-paid">@PaidWith(item)</span></span>
@@ -88,6 +88,9 @@
 @code {
     /// <summary><c>fixed</c> or <c>variable</c> — selects the API list.</summary>
     [Parameter, EditorRequired] public string Kind { get; set; } = "fixed";
+
+    /// <summary>exp-fixed / exp-variable: the caller names the list (R149: a literal id, not one built from Kind).</summary>
+    [Parameter, EditorRequired] public string TestId { get; set; } = "";
     [Parameter, EditorRequired] public string TitleKey { get; set; } = "";
     [Parameter, EditorRequired] public string HintKey { get; set; } = "";
     /// <summary>Active categories the page loaded once for both lists.</summary>

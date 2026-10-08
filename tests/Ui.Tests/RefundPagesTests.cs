@@ -34,7 +34,7 @@ public class RefundPagesTests : ComponentTestBase
         cut.WaitForElement("[data-testid='tx-save']");
         Assert.Empty(cut.FindAll("[data-testid='tx-refund-expected']")); // budgeted by default: no refund fields
 
-        cut.Find("[data-testid='tx-type-unplanned_essential']").Change(true);
+        cut.Find("[data-testid='tx-type-option'][data-value='unplanned_essential']").Change(true);
         cut.Find("[data-testid='tx-refund-expected']").Change(true);
         cut.Find("[data-testid='tx-payee']").Input("Hospital");
         cut.Find("[data-testid='tx-amount-field-input']").Change("50000");
@@ -58,7 +58,7 @@ public class RefundPagesTests : ComponentTestBase
 
         var cut = Render<TransactionForm>();
         cut.WaitForElement("[data-testid='tx-save']");
-        cut.Find("[data-testid='tx-type-unplanned_essential']").Change(true);
+        cut.Find("[data-testid='tx-type-option'][data-value='unplanned_essential']").Change(true);
         cut.Find("[data-testid='tx-refund-expected']").Change(true);
         cut.Find("[data-testid='tx-payee']").Input("Hospital");
         cut.Find("[data-testid='tx-amount-field-input']").Change("100");

@@ -16,7 +16,7 @@
    category and class (prefilled from the household's merchant rules, never applied silently); the parsed fields
    are shown read-only and open for editing only where the parser left a blank. Confirm books the transaction
    through the same create as manual entry; discard drops the draft (the dedup tombstone stays). *@
-<div class="review-wrapper" data-testid="review-page">
+<div class="review-wrapper">
     <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
         <h1 class="h4 fw-bold mb-0">@Localizer["Review_Title"]</h1>
         @if (_vouchers.Count > 0)
@@ -173,7 +173,7 @@
                 </div>
 
                 @* ---------------------------------------------------------------- what confirming will do *@
-                <ConsequencePanel TestId="@($"consequence-{v.Id}")" Eyebrow="@Localizer["Review_ConfirmingWill"]">
+                <ConsequencePanel TestId="review-consequence" BodyId="@describedBy" Eyebrow="@Localizer["Review_ConfirmingWill"]">
                     <ChildContent>@Consequence(v, blockers)</ChildContent>
                     <Actions>
                         @* Disabled only while something required is EMPTY, and the panel above says which —
