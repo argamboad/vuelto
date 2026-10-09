@@ -1,0 +1,6 @@
+/* #209 · a member's or an invitee's email is one unbroken word; on a phone it must be allowed to break, and its column to
+   shrink (a flex item won't go below its content's width without min-width: 0), or the page scrolls sideways. */
+.member-id {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}

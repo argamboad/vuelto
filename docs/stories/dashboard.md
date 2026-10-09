@@ -168,3 +168,37 @@ Scenario: The month page points at them
   When I click the link
   Then the transactions table shows only the inflow rows
 ```
+
+### DASH-3 — The week cut shows unplanned spending too *(owner request, 2026-10-09 · #211)* ✅
+
+**As** a household member, **I want** "Where it went → By week" to show an **Unplanned** column beside Budgeted and
+Discretionary, **so that** I can see which week the surprises landed in.
+
+**Context / notes:** `DashboardSummaryService` already builds a per-week total for any class; the summary gains
+`weekly_unplanned` (unplanned essentials at their frozen amounts, both currencies) and the week table a third money
+column plus its total. The column adds up to the month's `unplanned_essential_total`.
+
+```gherkin
+Scenario: Surprises by week
+  Given an unplanned ₡20,000 in week 1 and ₡56,000 across week 2
+  When I open the dashboard on "By week"
+  Then the Unplanned column reads ₡20,000.00 and ₡56,000.00, and its total ₡76,000.00
+```
+
+### DASH-4 — Choose ₡ · $ · both where you are *(owner request, 2026-10-09 · #207)* ✅
+
+**As** a household member, **I want** the "Show in" switch on the month page (and the Months list and Budget), **so
+that** I don't have to go to the dashboard and back to change the currency.
+
+**Context / notes:** the same `CurrencySwitch` the dashboard and Reports use, writing through `DisplayCurrencyStore`
+(device + account copy, DASH-2 / ADR-V020), per page like those two — not a global header control. The month page's
+"Other income" line now follows the preference too; income rows and budget lines keep their own currency, as they
+always have.
+
+```gherkin
+Scenario: Switch on the month page
+  Given the preference is Both
+  When I pick $ on a month page
+  Then its amounts show dollars only at once
+  And the dashboard opens in $ afterwards
+```

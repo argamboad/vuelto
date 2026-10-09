@@ -106,7 +106,7 @@ public class LedgerPagesTests : ComponentTestBase
         Http.On(HttpMethod.Get, $"/api/months/{MonthId}", $$"""{"id":"{{MonthId}}","year":2026,"month_number":7,"week_count":5,"week1_start_date":"2026-06-25","income_rows":[{"id":"eeeeeeee-0000-0000-0000-000000000001","income_line_id":"ffffffff-0000-0000-0000-000000000001","label":"Primary","member_user_id":null,"currency":"USD","amount":3750,"planned_amount":3750}],"weeks":[{"week_number":1,"start_date":"2026-06-25","end_date":"2026-07-01"}]}""");
         Http.On(HttpMethod.Get, $"/api/months/{MonthId}/transactions", "[]");
         Http.On(HttpMethod.Get, $"/api/months/{MonthId}/refunds", $$"""
-            [{"id":"{{RefundId}}","payee":"Clinic","transaction_date":"2026-07-10","percentage":50,"amount_crc":25000,"amount_usd":50,"status":"pending","notes":"CASE-2026-4471, lent to Diego"}]
+            {"refunds":[{"id":"{{RefundId}}","payee":"Clinic","transaction_date":"2026-07-10","percentage":50,"amount_crc":25000,"amount_usd":50,"status":"pending","notes":"CASE-2026-4471, lent to Diego"}],"totals":null}
             """);
         Http.On(HttpMethod.Put, $"/api/refunds/{RefundId}/details", $$"""{"id":"{{RefundId}}","payee":"Clinic","transaction_date":"2026-07-10","percentage":50,"amount_crc":25000,"amount_usd":50,"status":"pending","notes":""}""");
 
@@ -381,6 +381,8 @@ public class LedgerPagesTests : ComponentTestBase
 
         cut.WaitForElement("[data-testid='month-income-other']");
         Assert.Contains("₡50,000.00 · $100.00", cut.Find("[data-testid='month-income-other']").TextContent); // the two inflows, frozen amounts
+        cut.Find("[data-testid='month-cur-usd']").Click(); // #207: it follows the page's ₡ · $ · both like every other pair
+        cut.WaitForAssertion(() => Assert.DoesNotContain("₡", cut.Find("[data-testid='month-income-other']").TextContent));
         Assert.Contains("Month_OtherIncomeShow[2]", cut.Find("[data-testid='month-income-other-show']").TextContent);
         Assert.Equal(3, cut.FindAll("[data-testid='month-tx-row']").Count);
 

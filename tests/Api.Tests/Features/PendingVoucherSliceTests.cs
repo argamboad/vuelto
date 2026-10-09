@@ -40,7 +40,7 @@ public class PendingVoucherSliceTests(PostgresFixture fixture) : PostgresTestBas
             Task.FromResult<ResolvedRate?>(new ResolvedRate(rates, RateSources.Live, T0));
     }
 
-    private sealed record Ctx(AppDbContext Db, Guid Tenant, PendingVoucherHandler Handler, MerchantMappingHandler Mappings, Guid CategoryId, Guid BankId);
+    private sealed record Ctx(AppDbContext Db, Guid Tenant, PendingVoucherHandler Handler, MerchantMappingHandler Mappings, Guid CategoryId, Guid BankId, CardHandler Cards);
 
     private async Task<Ctx> ContextAsync(decimal? rate = 500m, FxRates? pair = null)
     {
@@ -61,9 +61,9 @@ public class PendingVoucherSliceTests(PostgresFixture fixture) : PostgresTestBas
         var months = new MonthHandler(new EfRepository<Month>(db), new EfRepository<Week>(db), new EfRepository<Transaction>(db), new EfRepository<BudgetSettings>(db), new EfRepository<IncomeLine>(db), new EfRepository<MonthIncome>(db), new TenantRepository(db), new WeekBoundaryService(), current, clock);
         var transactions = new TransactionHandler(new EfRepository<Transaction>(db), new EfRepository<Refund>(db), new EfRepository<Category>(db), new EfRepository<Bank>(db), new EfRepository<Envelope>(db), new EfRepository<Card>(db), months, resolver, current, clock, NullLogger<TransactionHandler>.Instance);
         var mappings = new MerchantMappingHandler(new EfRepository<MerchantCategoryMapping>(db), new EfRepository<Category>(db), current, clock, NullLogger<MerchantMappingHandler>.Instance);
-        var cards = new CardHandler(new EfRepository<Card>(db), new EfRepository<Vuelto.Core.Entities.CardIdentity>(db), new TransactionCards(new EfRepository<Transaction>(db)), new EfRepository<Bank>(db), current, clock);
+        var cards = new CardHandler(new EfRepository<Card>(db), new EfRepository<Vuelto.Core.Entities.CardIdentity>(db), new EfRepository<CardPattern>(db), new TransactionCards(new EfRepository<Transaction>(db)), new EfRepository<Bank>(db), current, clock);
         var handler = new PendingVoucherHandler(new EfRepository<PendingVoucher>(db), new EfRepository<IngestedVoucher>(db), new EfRepository<EmailConnection>(db), transactions, mappings, cards, new EfUnitOfWork(db), clock, NullLogger<PendingVoucherHandler>.Instance);
-        return new Ctx(db, tenant, handler, mappings, categoryId, bankId);
+        return new Ctx(db, tenant, handler, mappings, categoryId, bankId, cards);
     }
 
     private Ctx Sibling(Ctx c) => Build(Fixture.CreateContext(c.Tenant), c.Tenant, c.CategoryId, c.BankId, new FixedRate(500m));
@@ -240,6 +240,75 @@ public class PendingVoucherSliceTests(PostgresFixture fixture) : PostgresTestBas
         Assert.Equal((card.Id, card.Id, null), (byId[t1!.TransactionId], byId[t2!.TransactionId], byId[t3!.TransactionId]));
     }
 
+    // ---- #210 (ADR-V027): a masked number whose digits aren't the last four — ask, don't guess ----
+
+    [Fact]
+    public async Task List_SaysWhenACardMustBeChosen_AndShowsTheCardChosenLastTime()
+    {
+        var c = await ContextAsync();
+        var black = (await c.Cards.ResolveOrCreateAsync("VISA", "************7558", c.BankId, default))!.CardId;
+        await DraftAsync(c, merchant: "PAGO TARJETA", cardNumber: "XXXXXXXXXXX8755X");
+        await DraftAsync(c, merchant: "SODA", cardNumber: "************7558", cardBrand: "VISA");
+
+        var before = await c.Handler.ListPendingAsync(default);
+        var pago = before.Single(v => v.Merchant == "PAGO TARJETA");
+        Assert.Equal(("XXXXXXXXXXX8755X", true, (Guid?)null), (pago.CardLabel, pago.CardAmbiguous, pago.KnownCardId));
+        var soda = before.Single(v => v.Merchant == "SODA");
+        Assert.Equal(("VISA ····7558", false, (Guid?)null), (soda.CardLabel, soda.CardAmbiguous, soda.KnownCardId));
+
+        await c.Cards.ResolveChosenAsync(black, "XXXXXXXXXXX8755X", default);
+        Assert.Equal(black, (await c.Handler.ListPendingAsync(default)).Single(v => v.Merchant == "PAGO TARJETA").KnownCardId);
+    }
+
+    [Fact]
+    public async Task Confirm_AnAmbiguousNumber_WithoutAnAnswer_BooksNoCard_AndInventsNone()
+    {
+        var c = await ContextAsync();
+        var draft = await DraftAsync(c, merchant: "PAGO TARJETA", cardNumber: "XXXXXXXXXXX8755X");
+
+        var (confirmed, error) = await c.Handler.ConfirmAsync(draft.Id, Confirm(c), default);
+
+        Assert.Null(error);
+        Assert.Null((await c.Db.Transactions.SingleAsync(t => t.Id == confirmed!.TransactionId)).CardId);
+        Assert.Equal(0, await c.Db.Cards.CountAsync()); // no CARD-8755
+    }
+
+    [Fact]
+    public async Task Confirm_WithTheCardTheHouseholdPicked_BooksOnIt_AndTheNextVoucherOnThatPatternFollows()
+    {
+        var c = await ContextAsync();
+        var black = (await c.Cards.ResolveOrCreateAsync("VISA", "************7558", c.BankId, default))!.CardId;
+        var first = await DraftAsync(c, merchant: "PAGO TARJETA", cardNumber: "XXXXXXXXXXX8755X");
+        var second = await DraftAsync(c, merchant: "PAGO TARJETA 2", amount: 15_000m, cardNumber: "XXXXXXXXXXX8755X");
+
+        var (t1, e1) = await c.Handler.ConfirmAsync(first.Id, Confirm(c) with { CardId = black }, default);
+        var (t2, e2) = await c.Handler.ConfirmAsync(second.Id, Confirm(c), default); // no question the second time
+
+        Assert.Null(e1); Assert.Null(e2);
+        var byId = await c.Db.Transactions.ToDictionaryAsync(t => t.Id, t => t.CardId);
+        Assert.Equal(((Guid?)black, (Guid?)black), (byId[t1!.TransactionId], byId[t2!.TransactionId]));
+        Assert.Equal(1, await c.Db.Cards.CountAsync());
+    }
+
+    [Fact]
+    public async Task Confirm_SkipCard_BooksNoCard_EvenForAPlainNumber_AndAnUnknownCard_Is400_NothingWritten()
+    {
+        var c = await ContextAsync();
+        var plain = await DraftAsync(c, merchant: "SODA", cardNumber: "************1234", cardBrand: "VISA");
+        var pattern = await DraftAsync(c, merchant: "PAGO TARJETA", cardNumber: "XXXXXXXXXXX8755X");
+
+        var (_, unknown) = await c.Handler.ConfirmAsync(pattern.Id, Confirm(c) with { CardId = Guid.CreateVersion7() }, default);
+        Assert.Equal("invalid_request", unknown!.Error);
+        Assert.Equal(PendingVoucherStatuses.Pending, (await ReloadAsync(c, pattern.Id)).Status);
+        Assert.Equal(0, await c.Db.Transactions.CountAsync());
+        Assert.Equal(0, await c.Db.CardPatterns.CountAsync());
+
+        var (skipped, error) = await c.Handler.ConfirmAsync(plain.Id, Confirm(c) with { SkipCard = true }, default);
+        Assert.Null(error);
+        Assert.Null((await c.Db.Transactions.SingleAsync(t => t.Id == skipped!.TransactionId)).CardId);
+        Assert.Equal(0, await c.Db.Cards.CountAsync()); // not even the VISA-1234 it would have created
+    }
+
     [Fact]
     public async Task Confirm_ADebitVoucher_BooksItAgainstTheAccount_NotTheCard()
     {
@@ -264,34 +333,48 @@ public class PendingVoucherSliceTests(PostgresFixture fixture) : PostgresTestBas
         var draft = await DraftAsync(c);
 
         // The manual form's rules, through the same ledger create: an invalid percentage is refused and nothing is written.
-        Assert.Equal("invalid_request", (await c.Handler.ConfirmAsync(draft.Id, new(c.CategoryId, "unplanned_essential", RefundExpected: true, RefundPercentage: 150m), default)).Error!.Error);
+        Assert.Equal("invalid_request", (await c.Handler.ConfirmAsync(draft.Id, new(c.CategoryId, "unplanned_essential", RefundExpected: true, RefundAmount: 9_000m), default)).Error!.Error);
         Assert.Equal("invalid_request", (await c.Handler.ConfirmAsync(draft.Id, new(c.CategoryId, "unplanned_essential", RefundExpected: true), default)).Error!.Error);
         Assert.Equal(0, await c.Db.Transactions.CountAsync());
         Assert.Equal(PendingVoucherStatuses.Pending, (await ReloadAsync(c, draft.Id)).Status);
 
-        var (confirmed, error) = await c.Handler.ConfirmAsync(draft.Id, new(c.CategoryId, "unplanned_essential", RefundExpected: true, RefundPercentage: 30m, RefundNotes: "CASE-7 · lent to Diego"), default);
+        var (confirmed, error) = await c.Handler.ConfirmAsync(draft.Id, new(c.CategoryId, "unplanned_essential", RefundExpected: true, RefundAmount: 2_286m, RefundNotes: "CASE-7 · lent to Diego"), default);
 
         Assert.Null(error);
         var tx = await c.Db.Transactions.SingleAsync();
         var refund = await c.Db.Refunds.SingleAsync();
-        // 30 % of ₡7,620 / $15.24 at the frozen rate, pending, in the voucher's month, bound to the booked transaction.
-        Assert.Equal((tx.Id, tx.MonthId, 30m, 2_286m, 4.57m, RefundStatuses.Pending, "TACO BELL PLAZA REAL C"),
+        // ₡2,286 (what 30 % of ₡7,620 comes to — the form's arithmetic, #202) and its dollars at the frozen rate, pending,
+        // in the voucher's month, bound to the booked transaction; no percentage is stored.
+        Assert.Equal((tx.Id, tx.MonthId, (decimal?)null, 2_286m, 4.57m, RefundStatuses.Pending, "TACO BELL PLAZA REAL C"),
             (refund.TransactionId, refund.MonthId, refund.Percentage, refund.AmountCrc, refund.AmountUsd, refund.Status, refund.Payee));
         Assert.Equal("CASE-7 · lent to Diego", refund.Notes); // the queue asks for the same refund notes the form does
         Assert.Equal((PendingVoucherStatuses.Confirmed, confirmed!.TransactionId), ((await ReloadAsync(c, draft.Id)).Status, tx.Id));
     }
 
     [Fact]
-    public async Task Confirm_RefundFlagOnAnotherClass_IsIgnored_NoRefund()
+    public async Task Confirm_RefundFlagOnBudgeted_Is400_TheDraftStaysPending()
+    {
+        // ADR-V025: budgeted spending cannot carry a refund — refused, never silently dropped.
+        var c = await ContextAsync();
+        var draft = await DraftAsync(c);
+
+        var (_, error) = await c.Handler.ConfirmAsync(draft.Id, new(c.CategoryId, "budgeted", RefundExpected: true, RefundAmount: 2_286m), default);
+
+        Assert.Equal("invalid_request", error!.Error);
+        Assert.Equal(0, await c.Db.Refunds.CountAsync());
+        Assert.Equal(PendingVoucherStatuses.Pending, (await ReloadAsync(c, draft.Id)).Status);
+    }
+
+    [Fact]
+    public async Task Confirm_AsDiscretionaryWithAPercentage_SpawnsThePendingRefund()
     {
         var c = await ContextAsync();
         var draft = await DraftAsync(c);
 
-        var (confirmed, error) = await c.Handler.ConfirmAsync(draft.Id, new(c.CategoryId, "budgeted", RefundExpected: true, RefundPercentage: 30m), default);
+        var (confirmed, error) = await c.Handler.ConfirmAsync(draft.Id, new(c.CategoryId, "extraordinary", RefundExpected: true, RefundAmount: 2_286m), default);
 
         Assert.Null(error);
-        Assert.NotNull(confirmed);
-        Assert.Equal(0, await c.Db.Refunds.CountAsync());
+        Assert.Equal(confirmed!.TransactionId, (await c.Db.Refunds.SingleAsync()).TransactionId);
     }
 
     [Fact]

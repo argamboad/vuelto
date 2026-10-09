@@ -30,7 +30,7 @@ public class TransactionFormShapeTests : ComponentTestBase
         Http.On(HttpMethod.Get, "/api/envelopes", "[]");
         Http.On(HttpMethod.Get, "/api/exchange-rate", """{"rate":540.11,"source":"live","as_of":"2026-09-12T12:00:00+00:00","buy":538,"sell":540.11}""");
         Http.On(HttpMethod.Get, "/api/months/resolve", """{"id":null,"year":2026,"month_number":9,"is_new":true}""");
-        Http.On(HttpMethod.Post, "/api/transactions", $$"""{"id":"{{TxId}}","month_id":"{{TxId}}","payee":"x","bank_id":"{{Bank}}","payment_method":"credit_card","original_amount":1,"currency":"CRC","transaction_date":"2026-09-12","category_id":"{{Cat}}","exchange_rate_used":540.11,"transaction_type":"budgeted","source":"manual","envelope_id":null,"refund_expected":false,"refund_percentage":null}""", System.Net.HttpStatusCode.Created);
+        Http.On(HttpMethod.Post, "/api/transactions", $$"""{"id":"{{TxId}}","month_id":"{{TxId}}","payee":"x","bank_id":"{{Bank}}","payment_method":"credit_card","original_amount":1,"currency":"CRC","transaction_date":"2026-09-12","category_id":"{{Cat}}","exchange_rate_used":540.11,"transaction_type":"budgeted","source":"manual","envelope_id":null,"refund_expected":false,"refund_amount":null}""", System.Net.HttpStatusCode.Created);
 
         var cut = Render<TransactionForm>();
         cut.WaitForElement("[data-testid='tx-form']");
@@ -97,6 +97,12 @@ public class TransactionFormShapeTests : ComponentTestBase
         Assert.Empty(cut.FindAll("[data-testid='tx-refund-expected']"));
         cut.Find("[data-testid='tx-type-option'][data-value='unplanned_essential']").Change(true);
         Assert.NotNull(cut.Find("[data-testid='tx-refund-expected']"));
+
+        // Discretionary → the refund fields too (ADR-V025); budgeted → none (you don't budget for money you expect back).
+        cut.Find("[data-testid='tx-type-option'][data-value='extraordinary']").Change(true);
+        Assert.NotNull(cut.Find("[data-testid='tx-refund-expected']"));
+        cut.Find("[data-testid='tx-type-option'][data-value='budgeted']").Change(true);
+        Assert.Empty(cut.FindAll("[data-testid='tx-refund-expected']"));
 
         // Envelope → the bucket picker. Dropping either chip would remove the path entirely.
         cut.Find("[data-testid='tx-type-option'][data-value='envelope_contribution']").Change(true);
@@ -245,7 +251,7 @@ public class TransactionFormShapeTests : ComponentTestBase
         Http.On(HttpMethod.Get, "/api/envelopes", "[]");
         Http.On(HttpMethod.Get, "/api/exchange-rate", """{"rate":540.11,"source":"live","as_of":"2026-09-12T12:00:00+00:00","buy":538,"sell":540.11}""");
         Http.On(HttpMethod.Get, "/api/months/resolve", """{"id":null,"year":2026,"month_number":9,"is_new":true}""");
-        Http.On(HttpMethod.Get, $"/api/transactions/{TxId}", $$"""{"id":"{{TxId}}","month_id":"{{TxId}}","payee":"Hospital","bank_id":"{{Bank}}","card_id":"{{Card}}","notes":null,"payment_method":"bank_account","original_amount":50000,"currency":"CRC","transaction_date":"2026-09-12","category_id":"{{Cat}}","exchange_rate_used":540.11,"transaction_type":"unplanned_essential","source":"manual","envelope_id":null,"refund_expected":true,"refund_percentage":30,"refund_notes":"CASE-7, lent to Diego"}""");
+        Http.On(HttpMethod.Get, $"/api/transactions/{TxId}", $$"""{"id":"{{TxId}}","month_id":"{{TxId}}","payee":"Hospital","bank_id":"{{Bank}}","card_id":"{{Card}}","notes":null,"payment_method":"bank_account","original_amount":50000,"currency":"CRC","transaction_date":"2026-09-12","category_id":"{{Cat}}","exchange_rate_used":540.11,"transaction_type":"unplanned_essential","source":"manual","envelope_id":null,"refund_expected":true,"refund_amount":15000,"refund_status":"pending","refund_notes":"CASE-7, lent to Diego"}""");
 
         var cut = Render<TransactionForm>(p => p.Add(x => x.Id, Guid.Parse(TxId)));
         cut.WaitForElement("[data-testid='tx-form']");
@@ -254,6 +260,54 @@ public class TransactionFormShapeTests : ComponentTestBase
         Assert.Contains("BAC", cut.Find("[data-testid='tx-bank-locked']").TextContent);
         Assert.Contains("Tx_BankAccount", cut.Find("[data-testid='tx-method-locked']").TextContent);
         Assert.Equal("CASE-7, lent to Diego", cut.Find("[data-testid='tx-refund-notes']").GetAttribute("value")); // a bound textarea carries its text as value
+    }
+
+    private async Task<IRenderedComponent<TransactionForm>> EditRefundAsync(string status)
+    {
+        await SignInAsync();
+        Http.On(HttpMethod.Get, "/api/categories", $$"""[{"id":"{{Cat}}","name":"Health","is_active":true}]""");
+        Http.On(HttpMethod.Get, "/api/banks", $$"""[{"id":"{{Bank}}","name":"BAC","is_active":true}]""");
+        Http.On(HttpMethod.Get, "/api/cards", "[]");
+        Http.On(HttpMethod.Get, "/api/envelopes", "[]");
+        Http.On(HttpMethod.Get, "/api/exchange-rate", """{"rate":540.11,"source":"live","as_of":"2026-09-12T12:00:00+00:00","buy":538,"sell":540.11}""");
+        Http.On(HttpMethod.Get, "/api/months/resolve", """{"id":null,"year":2026,"month_number":9,"is_new":true}""");
+        Http.On(HttpMethod.Get, $"/api/transactions/{TxId}", $$"""{"id":"{{TxId}}","month_id":"{{TxId}}","payee":"Hospital","bank_id":"{{Bank}}","card_id":null,"notes":null,"payment_method":"credit_card","original_amount":50000,"currency":"CRC","transaction_date":"2026-09-12","category_id":"{{Cat}}","exchange_rate_used":540.11,"transaction_type":"unplanned_essential","source":"manual","envelope_id":null,"refund_expected":true,"refund_amount":15000,"refund_status":"{{status}}","refund_notes":null}""");
+        Http.On(HttpMethod.Put, $"/api/transactions/{TxId}", $$"""{"id":"{{TxId}}","month_id":"{{TxId}}","payee":"Hospital","bank_id":"{{Bank}}","card_id":null,"notes":null,"payment_method":"credit_card","original_amount":50000,"currency":"CRC","transaction_date":"2026-09-12","category_id":"{{Cat}}","exchange_rate_used":540.11,"transaction_type":"unplanned_essential","source":"manual","envelope_id":null,"refund_expected":true,"refund_amount":10000,"refund_status":"{{status}}"}""");
+        var cut = Render<TransactionForm>(p => p.Add(x => x.Id, Guid.Parse(TxId)));
+        cut.WaitForElement("[data-testid='tx-refund-amount']");
+        return cut;
+    }
+
+    [Fact]
+    public async Task EditingARefund_OpensOnTheStoredAmount_AndACorrectionByPercentage_SendsTheNewAmount()
+    {
+        // #202 (owner, 2026-10-09): the amount is what is stored; a % is typed only to compute it — on edit too.
+        var cut = await EditRefundAsync("pending");
+
+        Assert.Equal("15000", cut.Find("[data-testid='tx-refund-amount']").GetAttribute("value"));
+        Assert.Contains("Tx_RefundShare[30, ₡50,000.00]", cut.Find("[data-testid='tx-refund-hint']").TextContent);
+
+        cut.Find("[data-testid='tx-refund-mode'][data-value='percent']").Change(true);
+        Assert.Equal("30", cut.Find("[data-testid='tx-refund-pct']").GetAttribute("value")); // the figure carries across
+        cut.Find("[data-testid='tx-refund-pct']").Change("20");
+        Assert.Contains("Tx_RefundPreview[₡10,000.00]", cut.Find("[data-testid='tx-refund-hint']").TextContent);
+        cut.Find("[data-testid='tx-save']").Click();
+
+        cut.WaitForAssertion(() => Assert.Single(Http.Requests, r => r.Method == HttpMethod.Put));
+        var body = await Http.Requests.Single(r => r.Method == HttpMethod.Put).Content!.ReadAsStringAsync();
+        Assert.Contains("\"refund_amount\":10000", body);
+        Assert.DoesNotContain("refund_percentage", body);
+    }
+
+    [Fact]
+    public async Task AReceivedRefund_IsLocked_AndSaysHowToChangeIt()
+    {
+        // ADR-V026: its inflow is booked — "mark it back to pending" first (owner-confirmed 2026-10-09).
+        var cut = await EditRefundAsync("received");
+
+        Assert.True(cut.Find("[data-testid='tx-refund-amount']").HasAttribute("disabled"));
+        Assert.True(cut.Find("[data-testid='tx-refund-expected']").HasAttribute("disabled"));
+        Assert.Contains("Tx_RefundLocked", cut.Find("[data-testid='tx-refund-hint']").TextContent);
     }
 
     [Fact]
@@ -266,7 +320,8 @@ public class TransactionFormShapeTests : ComponentTestBase
         Assert.Empty(cut.FindAll("[data-testid='tx-refund-notes']"));
         cut.Find("[data-testid='tx-refund-expected']").Change(true);
 
-        cut.Find("[data-testid='tx-refund-pct']").Change("30");
+        cut.Find("[data-testid='tx-refund-mode'][data-value='percent']").Change(true);
+        cut.Find("[data-testid='tx-refund-pct']").Change("30"); // before the amount: the refund follows it once typed
         var notes = cut.Find("textarea[data-testid='tx-refund-notes']");
         Assert.Equal("250", notes.GetAttribute("maxlength"));
         Assert.Equal("1", notes.GetAttribute("rows")); // one row, the percentage's height; the user can drag it taller
@@ -277,7 +332,7 @@ public class TransactionFormShapeTests : ComponentTestBase
 
         cut.Find("[data-testid='tx-bank']").Change(Bank);
         var body = await SavedBodyAsync(cut);
-        Assert.Contains("\"refund_percentage\":30", body);
+        Assert.Contains("\"refund_amount\":15000", body); // 30 % of the 50,000 typed after it
         Assert.DoesNotContain("refund_case_number", body);
         Assert.Contains("\"refund_notes\":\"CASE-7, lent to Diego\"", body);
     }

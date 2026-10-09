@@ -253,3 +253,121 @@ Scenario: An insurance claim, and a loan to a son
   When I clear them
   Then blank stores null, not an empty string
 ```
+
+### LEDGER-5 — A discretionary purchase can expect a refund *(owner request, 2026-10-09 · #201)* ✅
+
+**As** a household member, **I want** to expect a refund on a discretionary purchase too, **so that** money I'll get
+back on something I chose to buy is tracked like an insurance refund is.
+
+**Context / notes:** ADR-V025. The refund expectation is an **attribute** of a transaction, not a sixth class: the
+class says which part of the plan the money came from, a refund says some of it comes back, and a discretionary
+purchase you'll be reimbursed for is still discretionary spend. It rides on `unplanned_essential` and
+`extraordinary` only — not `budgeted` ("why would I budget something I expect a refund for?"). The flag on any other
+class is now a **400** `invalid_request` (it used to be silently ignored — fail closed). The dashboard summary splits
+the pending refunds by the transaction's class (`unplanned_refunds`, `discretionary_refunds`; `refunds_total` stays
+the sum), so the Reports page and the PDF give each tile its own "refundable" figure.
+
+```gherkin
+Scenario: A refund on a discretionary purchase
+  Given a discretionary purchase of ₡50,000
+  When I tick "refund expected" and enter 30 %
+  Then a pending refund of ₡15,000 is listed under the month's refunds
+  And the Discretionary tile on Reports says "₡15,000 refundable", the Unplanned tile does not
+
+Scenario: Not on budgeted spending
+  Given a budgeted purchase
+  Then the form offers no refund fields
+  And an API call flagging it is refused with 400 invalid_request, and nothing is written
+
+Scenario: Moving between the two classes keeps the refund
+  Given an unplanned essential expecting 50 %
+  When I change it to discretionary
+  Then the refund stays, re-derived as before
+```
+
+### LEDGER-6 — A refund is an amount, typed directly or as a percentage; a received one is locked *(owner request, 2026-10-09 · #202)* ✅
+
+**As** a household member, **I want** to enter an expected refund as a fixed amount or as a percentage, **so that** a
+"₡12,000 back from the insurer" and a "half of it back" are both quick to type — and **I want** a refund I already
+received to stay put, **so that** an edit can't quietly rewrite money that's already booked.
+
+**Context / notes:** ADR-V026. The amount is stored (in the purchase's currency; the other side at the frozen rate); a
+percentage is only how the form computes it — `refund_amount` replaces `refund_percentage` on `POST/PUT
+/api/transactions` and on the voucher confirm, and `refund_status` rides on the transaction response. A purchase
+amount edit keeps the refund's amount (a purchase below it is a 400). `Refunds.Percentage` is nullable and no longer
+written (`RefundPercentageOptional`, expand-only); the refunds list computes the share. A **received** refund is locked:
+amount change, switching it off, an incompatible class or deleting the purchase → 409 `refund_status_conflict`; put it
+back to pending first (that path stays, owner-confirmed).
+
+```gherkin
+Scenario: A fixed refund
+  Given a purchase of ₡80,000
+  When I tick "refund expected", keep "₡" and type 12000
+  Then the refund is ₡12,000 and the hint says "15 % of ₡80,000"
+
+Scenario: A refund typed as a percentage is stored as its amount
+  Given a purchase of ₡50,000
+  When I switch to "%" and type 30
+  Then the hint says "Expected back: ₡15,000.00" and ₡15,000 is what is saved
+
+Scenario: Correcting it by percentage later
+  Given that refund of ₡15,000 on a purchase now of ₡60,000
+  When I edit the transaction
+  Then the refund opens on ₡15,000 ("25 % of ₡60,000")
+  When I switch to "%" and type 20
+  Then ₡12,000 is saved
+
+Scenario: A received refund is locked
+  Given a refund marked received
+  When I edit its purchase
+  Then the refund switch and amount are disabled, saying to mark it back to pending first
+  And deleting the purchase is refused with 409 refund_status_conflict
+  When I put the refund back to pending on the month page, correct it and mark it received again
+  Then the booked income follows the new amount
+```
+
+### LEDGER-7 — Refunds show what came in and what is still out *(owner request, 2026-10-09 · #206)* ✅
+
+**As** a household member, **I want** the month's refunds to show the total received and the total still pending,
+**so that** I can see at a glance how much of what I'm owed has come back.
+
+**Context / notes:** a pure `RefundTotals` in Core (golden rule 4: computed, never stored), both currencies, 2 dp;
+`GET /api/months/{id}/refunds` now answers `{ refunds, totals }` with `totals = { pending, received, expected }`. The
+month page's Expected refunds header shows *Received · Pending · of expected* in the display currency.
+
+```gherkin
+Scenario: A month with one refund in, one out
+  Given a ₡15,000 refund pending and a ₡6,170 refund received this month
+  When I open the month
+  Then the refunds header reads Received ₡6,170.00 · Pending ₡15,000.00 · of ₡21,170.00
+```
+
+### LEDGER-8 — Every refund across months, filtered, grouped, and marked received together *(owner request, 2026-10-09 · #208)* ✅
+
+**As** a household member, **I want** one place with every refund I'm owed — filterable by payee and status, groupable,
+with how long each has been out — **so that** I know what to chase and can tick off a deposit that paid several at once.
+
+**Context / notes:** `GET /api/refunds?status=&payee=&from=&to=` (Ledger slice, tenant-scoped through `Query()`):
+oldest purchase first, each with its budget month and `pending_days`, the totals (`RefundTotals`) over every match,
+`truncated` past 1000 rows instead of paging — grouping and subtotals happen on the page, and a household's refunds
+are few. `/refunds` page: status chips (Pending default · Received · All), payee search, From / To, Group by (none ·
+payee · status · month) with per-group received / pending, multi-select + one received date → one guarded
+`PUT /api/refunds/{id}` per refund (ADR-V007/V014: each books its own inflow; failures are named, the rest land).
+Status and grouping persist per device (`appUi` prefs `refunds.status`, `refunds.group`). Linked from the month
+page's refunds header and under the dashboard's forecast step.
+
+```gherkin
+Scenario: What's still out, oldest first
+  Given a pending refund from June and one from July
+  When I open Refunds
+  Then June's comes first, with "pending 90 days"
+
+Scenario: One deposit paid two refunds
+  Given two pending refunds
+  When I tick both, set the received date to September 1 and click "Mark them received"
+  Then both are received on September 1, each with its own income row in that month
+
+Scenario: Group by payee
+  When I group by payee
+  Then "Hospital" and "hospital" are one group showing its received and its pending
+```

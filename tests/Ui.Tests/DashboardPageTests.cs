@@ -33,6 +33,7 @@ public class DashboardPageTests : ComponentTestBase
          "other_spending":[{"category_name":"Dining","actual":{"crc":10000,"usd":20},"by_class":[{"class":"unplanned_essential","actual":{"crc":10000,"usd":20}}]},{"category_name":"Trips","actual":{"crc":4000,"usd":8},"by_class":[{"class":"budgeted","actual":{"crc":1000,"usd":2}},{"class":"extraordinary","actual":{"crc":3000,"usd":6}}]}],
          "weekly_budgeted":[{"week_number":1,"start_date":"2026-06-25","end_date":"2026-07-01","total":{"crc":0,"usd":0}},{"week_number":2,"start_date":"2026-07-02","end_date":"2026-07-08","total":{"crc":300000,"usd":600}}],
          "weekly_extraordinary":[{"week_number":1,"start_date":"2026-06-25","end_date":"2026-07-01","total":{"crc":0,"usd":0}},{"week_number":2,"start_date":"2026-07-02","end_date":"2026-07-08","total":{"crc":0,"usd":0}}],
+         "weekly_unplanned":[{"week_number":1,"start_date":"2026-06-25","end_date":"2026-07-01","total":{"crc":0,"usd":0}},{"week_number":2,"start_date":"2026-07-02","end_date":"2026-07-08","total":{"crc":10000,"usd":20}}],
          "current_balance":{"crc":1190000,"usd":2380},"remainder_for_debts":{"crc":1150000,"usd":2300},"pending_budgeted":{"crc":50000,"usd":100},"actual_remainder":{"crc":1140000,"usd":2280},
          "unplanned_essential_total":{"crc":10000,"usd":20},"refunds_total":{"crc":5000,"usd":10},
          "envelope_reminders":[{"name":"Marchamo","annual_target":{"crc":718000,"usd":0},"contributed_this_month":{"crc":0,"usd":0},"remaining":{"crc":718000,"usd":0},"cadence":"monthly"}],
@@ -61,6 +62,7 @@ public class DashboardPageTests : ComponentTestBase
     {
         // Spent 21% of income with 60% of the month gone, and a forecast still in the black.
         var onTrack = await DashboardAsync(MidMonth);
+        Assert.Equal("/refunds", onTrack.Find("[data-testid='dash-refunds-link']").GetAttribute("href")); // #208: refunds are expected this month
         Assert.Equal("Dash_Verdict_OnTrack", onTrack.Find("[data-testid='dash-verdict-state']").TextContent.Trim());
         Assert.Equal("good", onTrack.Find("[data-testid='dash-verdict']").GetAttribute("data-tone"));
 
@@ -216,6 +218,11 @@ public class DashboardPageTests : ComponentTestBase
 
         var weekTotal = cut.Find("[data-testid='dash-week-total']").QuerySelectorAll("td");
         Assert.Contains("₡300,000.00", weekTotal[1].TextContent);
+
+        // #211: an Unplanned column beside Budgeted and Discretionary, week by week and in the total.
+        Assert.Contains("Tx_Unplanned", cut.Find("[data-testid='dash-breakdown'] thead").TextContent);
+        Assert.Contains("₡10,000.00", cut.FindAll("[data-testid='dash-week-row']")[1].QuerySelectorAll("td")[3].TextContent);
+        Assert.Contains("₡10,000.00", weekTotal[3].TextContent);
     }
 
     [Fact]

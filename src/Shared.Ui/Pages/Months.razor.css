@@ -21,3 +21,11 @@
     font-weight: var(--w-body);
     color: var(--ink-3);
 }
+
+/* #207: the "show in" switch beside the primary action; both wrap under the title on a phone. */
+.months-head-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+}

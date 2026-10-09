@@ -118,3 +118,27 @@
         display: none;
     }
 }
+
+/* #209 · on a phone the name gets its own line and the two figures sit under it, budget left and delta right — at 375
+   pixels a "₡450,000.00 · $994.23" budget left the name a few letters ("Hipote…"). */
+@media (max-width: 575.98px) {
+    .lines-row {
+        grid-template-columns: minmax(0, 1fr) auto;
+        row-gap: 2px;
+    }
+
+    .lines-name {
+        grid-column: 1 / -1;
+        white-space: normal;
+    }
+
+    .lines-budget {
+        text-align: left;
+        color: var(--ink-2);
+    }
+
+    .lines-budget,
+    .lines-delta {
+        font-size: 12px;
+    }
+}

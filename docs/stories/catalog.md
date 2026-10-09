@@ -178,3 +178,35 @@ Scenario: Flipping a card, and the past
 rename clears auto, tenant isolation, contributor); ledger + voucher-confirm tests; `CardEndpointTests`; bUnit
 `CardsPageTests` + form/month/review assertions; migration `AddCards` with RLS; Postman folder 24; QA-CAT-05 +
 QA-EMAIL-06 / QA-REP-02 lines; EN/ES resx; snapshot tool; ADR-V021.
+
+### CARDS-4 — A half-hidden card number is asked about, not guessed *(owner request, 2026-10-09 · #210)* ✅
+
+**As** a household member, **I want** the review queue to ask which card a payment was when the bank hides part of
+the number, and to remember my answer, **so that** BN payments stop landing on a card that doesn't exist.
+
+**Context / notes:** ADR-V027. `CardIdentity.Read` is the one rule: digits closing the number are the last four;
+digits followed by a mask (`XXXXXXXXXXX8755X`) are a pattern. A pattern is never auto-matched or auto-created. The
+queue shows the pattern, a **Which card was it?** picker (the household's cards + **No card**), and refuses to confirm
+until it is answered; the confirm sends `card_id` (remembered for the pattern in `CardPattern`) or `skip_card`. Next
+time the same pattern books on that card and the picker comes preselected. Existing wrong bookings: merge the auto
+card into the real one on `/cards`.
+
+```gherkin
+Scenario: The first BN payment on the Black card
+  Given a BN payment receipt printing XXXXXXXXXXX8755X and no answer yet
+  When I open the review queue
+  Then it shows XXXXXXXXXXX8755X, not "····8755", and asks "Which card was it?"
+  And Confirm says to choose the card first
+  When I pick Black and confirm
+  Then the payment is booked on Black and no CARD-8755 is created
+
+Scenario: The next one
+  Given I answered Black for that pattern
+  When another BN payment prints XXXXXXXXXXX8755X
+  Then the picker comes preselected with Black, and confirming books on Black
+  And a voucher confirmed without the queue's picker (the API) books on Black too
+
+Scenario: Not a card I track
+  When I pick "No card"
+  Then the payment is booked with no card and nothing is remembered
+```

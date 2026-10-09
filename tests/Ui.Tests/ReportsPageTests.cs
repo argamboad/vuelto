@@ -151,10 +151,11 @@ public class ReportsPageTests : ComponentTestBase
     public async Task UnplannedTile_ShowsTheRefundableAmount_FromTheMonthSummary_AndTheShareForARange()
     {
         await SignInAsync();
-        Http.On(HttpMethod.Get, $"/api/months/{M2}/summary", """{"month":{"id":"x","year":2026,"month_number":7,"week_count":5,"week1_start_date":"2026-06-25","last_day":"2026-07-29"},"exchange_rate":500,"rate_unavailable":false,"summary":{"refunds_total":{"crc":38600,"usd":77.2}}}""");
+        Http.On(HttpMethod.Get, $"/api/months/{M2}/summary", """{"month":{"id":"x","year":2026,"month_number":7,"week_count":5,"week1_start_date":"2026-06-25","last_day":"2026-07-29"},"exchange_rate":500,"rate_unavailable":false,"summary":{"refunds_total":{"crc":40600,"usd":81.2},"unplanned_refunds":{"crc":38600,"usd":77.2},"discretionary_refunds":{"crc":2000,"usd":4}}}""");
         var cut = RenderMonth();
 
         cut.WaitForAssertion(() => Assert.Contains("Reports_Refundable[₡38,600.00]", cut.Find("[data-testid='rep-kpi-unplanned-sub']").TextContent));
+        Assert.Contains("Reports_Refundable[₡2,000.00]", cut.Find("[data-testid='rep-kpi-discretionary-sub']").TextContent); // ADR-V025: each tile its own
 
         Http.On(HttpMethod.Get, "/api/reports/category-analysis", Range);
         cut.Find("[data-testid='rep-mode']").Change("range");
@@ -648,7 +649,7 @@ public class ReportsPageTests : ComponentTestBase
         await SignInAsync();
         Http.On(HttpMethod.Get, $"/api/months/{M1}", $$"""{"id":"{{M1}}","year":2026,"month_number":6,"week_count":4,"week1_start_date":"2026-05-28","income_rows":[],"weeks":[{"week_number":1,"start_date":"2026-05-28","end_date":"2026-06-03"}]}""");
         Http.On(HttpMethod.Get, $"/api/months/{M1}/transactions", "[]");
-        Http.On(HttpMethod.Get, $"/api/months/{M1}/refunds", "[]");
+        Http.On(HttpMethod.Get, $"/api/months/{M1}/refunds", """{"refunds":[],"totals":null}""");
         Http.On(HttpMethod.Post, "/api/reports/transactions/export", Export);
 
         var cut = Render<MonthDetail>(p => p.Add(x => x.Id, Guid.Parse(M1)));

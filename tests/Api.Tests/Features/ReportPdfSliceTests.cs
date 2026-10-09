@@ -101,7 +101,7 @@ public class ReportPdfSliceTests(PostgresFixture fixture) : PostgresTestBase(fix
             new EfRepository<Bank>(db), new EfRepository<Card>(db), new EfRepository<FixedExpense>(db), new EfRepository<VariableExpense>(db),
             new EfRepository<MonthIncome>(db), new TenantRepository(db), new TestCurrentTenant { TenantId = tenant }, files, new FixedRate(rate), clock);
         var email = new CapturingEmailSender();
-        var pdf = new ReportPdfHandler(reports, new EfRepository<Month>(db), new EfRepository<Refund>(db),
+        var pdf = new ReportPdfHandler(reports, new EfRepository<Month>(db), new EfRepository<Refund>(db), new EfRepository<Transaction>(db),
             new TenantRepository(db), new UserRepository(db), new TestCurrentTenant { TenantId = tenant }, files, email, clock);
         return new Ctx(db, tenant, user.Id, reports, pdf, files, email, month.Id, groceries.Id, bac.Id);
     }
@@ -299,6 +299,22 @@ public class ReportPdfSliceTests(PostgresFixture fixture) : PostgresTestBase(fix
         var report = await c.Pdf.RenderAsync(await JuneAsync(c), Options(), default);
 
         Assert.Equal("₡5,000.00 refundable", report.Model.Kpis[3].Sub); // the received one is already income
+    }
+
+    [Fact]
+    public async Task DiscretionaryRefunds_AreTheDiscretionaryTilesFigure_NotTheUnplannedOnes()
+    {
+        // ADR-V025: each tile's "refundable" counts only refunds on its own class.
+        var c = await SeedAsync();
+        var gift = await AddTxAsync(c, new DateOnly(2026, 6, 10), 12_000m, "Gift shop", type: "extraordinary");
+        c.Db.Add(new Refund { TenantId = c.Tenant, MonthId = c.MonthId, TransactionId = gift.Id, Payee = "Gift shop", TransactionDate = gift.TransactionDate, Percentage = 25m, AmountCrc = 3_000m, AmountUsd = 6m, CreatedAt = T0, UpdatedAt = T0 });
+        await c.Db.SaveChangesAsync();
+        c.Db.ChangeTracker.Clear();
+
+        var report = await c.Pdf.RenderAsync(await JuneAsync(c), Options(), default);
+
+        Assert.Equal("₡3,000.00 refundable", report.Model.Kpis[2].Sub);
+        Assert.DoesNotContain("refundable", report.Model.Kpis[3].Sub);
     }
 
     [Fact]

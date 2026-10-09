@@ -113,6 +113,28 @@ public class DashboardSummaryServiceTests
     }
 
     [Fact]
+    public void Refunds_PendingSplitsByTheSourceTransactionsClass()
+    {
+        // ADR-V025: a discretionary purchase can carry a refund too, so each tile's "refundable" is its own class's.
+        var unplanned = Tx(GroceriesCat, 40_000m, 80m, "unplanned_essential", new DateOnly(2026, 6, 3));
+        var discretionary = Tx(DiningCat, 20_000m, 40m, "extraordinary", new DateOnly(2026, 6, 4));
+        var refunds = new List<Refund>
+        {
+            WithSource(RefundExpected(10_000m, 20m, "pending"), unplanned),
+            WithSource(RefundExpected(4_000m, 8m, "received"), unplanned),   // already income — never refundable
+            WithSource(RefundExpected(6_000m, 12m, "pending"), discretionary),
+        };
+
+        var summary = With(transactions: [unplanned, discretionary], refunds: refunds);
+
+        Assert.Equal((16_000m, 32m), (summary.RefundsTotal.Crc, summary.RefundsTotal.Usd));
+        Assert.Equal((10_000m, 20m), (summary.UnplannedRefunds.Crc, summary.UnplannedRefunds.Usd));
+        Assert.Equal((6_000m, 12m), (summary.DiscretionaryRefunds.Crc, summary.DiscretionaryRefunds.Usd));
+    }
+
+    private static Refund WithSource(Refund r, Transaction t) { r.TransactionId = t.Id; return r; }
+
+    [Fact]
     public void Refunds_NeverTouchBalanceOrExpenses()
     {
         var baseline = Calculate();
@@ -235,6 +257,25 @@ public class DashboardSummaryServiceTests
         Assert.Equal(new DateOnly(2026, 5, 28), weekly[0].StartDate);
         Assert.Equal([25_000m, 0m, 10_000m, 0m], weekly.Select(w => w.Total.Crc));
         Assert.Equal(20m, weekly[2].Total.Usd);
+    }
+
+    [Fact]
+    public void WeeklyUnplanned_OneRowPerWeek_OnlyUnplannedEssentials()
+    {
+        // #211: the third column of "Where it went → By week", beside budgeted and discretionary.
+        var summary = With(transactions:
+        [
+            .. GetTransactions(),
+            Tx(GroceriesCat, 20_000m, 40m, "unplanned_essential", new DateOnly(2026, 6, 3)),   // week 1
+            Tx(DiningCat, 55_000m, 110m, "unplanned_essential", new DateOnly(2026, 6, 9)),     // week 2
+            Tx(DiningCat, 1_000m, 2m, "unplanned_essential", new DateOnly(2026, 6, 10)),       // week 2
+        ]);
+
+        var weekly = summary.WeeklyUnplanned;
+        Assert.Equal([1, 2, 3, 4], weekly.Select(w => w.WeekNumber));
+        Assert.Equal([20_000m, 56_000m, 0m, 0m], weekly.Select(w => w.Total.Crc));
+        Assert.Equal(112m, weekly[1].Total.Usd);
+        Assert.Equal(summary.UnplannedEssentialTotal.Crc, weekly.Sum(w => w.Total.Crc)); // adds up to the month's unplanned
     }
 
     [Fact]

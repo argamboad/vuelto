@@ -147,3 +147,23 @@ Scenario: The PDF
   Then it has an "Income by member" table with a share column and a total, in my language
   And no "Income by member" chart, in the PDF or on the Reports page
 ```
+
+### INCOME-4 — Income lives with the budget *(owner request, 2026-10-09 · #203)* ✅
+
+**As** a household member, **I want** my income on the Budget page, **so that** what comes in sits above what it pays
+for instead of under Settings.
+
+**Context / notes:** the Budget page (already reading `/api/incomes` for its commitment header) gains an **Income**
+card above the fixed and variable lines: the active lines in their own currency with their pay period, "A typical
+month" at today's rate in the Show in currency, and **Edit income** → `/incomes` (the editor itself is unchanged; its
+back link now returns to the budget). Settings loses both entry points (the Catalog button and the Budget card's
+"Income now has its own page" note). The month page keeps its link to the lines.
+
+```gherkin
+Scenario: Income on the budget
+  Given a weekly ₡250,000 salary and a twice-a-month $250 side job
+  When I open Budget
+  Then an Income card above the lines lists both in their own currencies with "A typical month"
+  And Edit income opens the income page, whose back link returns to the budget
+  And Settings has no income link
+```

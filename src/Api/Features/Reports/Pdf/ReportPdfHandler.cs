@@ -20,6 +20,7 @@ public sealed class ReportPdfHandler(
     ReportHandler reports,
     IRepository<Month> months,
     IRepository<Refund> refunds,
+    IRepository<Transaction> transactions,
     ITenantRepository tenants,
     IUserRepository users,
     ICurrentTenant currentTenant,
@@ -76,23 +77,31 @@ public sealed class ReportPdfHandler(
 
         ReportPdfMonth? month = null;
         MonthsTrendResponse? trend = null;
-        MoneyPair? pending = null;
+        MoneyPair? unplannedRefunds = null, discretionaryRefunds = null;
         if (period.MonthId is { } monthId)
         {
             month = await months.Query().Where(m => m.Id == monthId)
                 .Select(m => new ReportPdfMonth(m.Year, m.MonthNumber)).FirstOrDefaultAsync(cancellationToken);
             trend = await reports.TrendAsync(ReportHandler.TrendDefaultCount, cancellationToken);
-            // The unplanned tile's "refundable" figure — the dashboard's refunds total: pending only (a received refund is already income).
+            // Each tile's "refundable" figure — the dashboard's refunds split by class (ADR-V025): pending only (a received
+            // refund is already income), keyed by the class of the transaction it rides on.
             var open = await refunds.Query().Where(r => r.MonthId == monthId && r.Status != RefundStatuses.Received)
-                .Select(r => new { r.AmountCrc, r.AmountUsd }).ToListAsync(cancellationToken);
-            pending = new MoneyPair(CurrencyMath.Round2(open.Sum(r => r.AmountCrc)), CurrencyMath.Round2(open.Sum(r => r.AmountUsd)));
+                .Join(transactions.Query(), r => r.TransactionId, t => t.Id, (r, t) => new { r.AmountCrc, r.AmountUsd, t.TransactionType })
+                .ToListAsync(cancellationToken);
+            MoneyPair Of(string type)
+            {
+                var rows = open.Where(r => r.TransactionType == type).ToList();
+                return new MoneyPair(CurrencyMath.Round2(rows.Sum(r => r.AmountCrc)), CurrencyMath.Round2(rows.Sum(r => r.AmountUsd)));
+            }
+            unplannedRefunds = Of(TransactionTypes.UnplannedEssential);
+            discretionaryRefunds = Of(TransactionTypes.Extraordinary);
         }
 
         var appendix = options.IncludeAppendix ? await reports.ExportRowsAsync(period, null, null, cancellationToken) : null;
         var household = currentTenant.TenantId is { } tenantId ? (await tenants.GetByIdAsync(tenantId, cancellationToken))?.Name : null;
 
         var model = ReportPdfModelBuilder.Build(new ReportPdfInput(
-            household ?? "", clock.GetUtcNow(), analysis, month, trend, pending, appendix, options));
+            household ?? "", clock.GetUtcNow(), analysis, month, trend, unplannedRefunds, appendix, options, discretionaryRefunds));
         var content = ReportPdfRenderer.Render(model);
         return new RenderedReport(content, $"report-{period.From.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)}_{period.To.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)}.pdf", model);
     }

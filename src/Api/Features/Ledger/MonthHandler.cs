@@ -41,6 +41,9 @@ public sealed class MonthHandler(
     }
 
     /// <summary>Null = not found for this household (uniform 404).</summary>
+    /// <summary>The household's months, tenant-filtered — for a read that labels rows with their budget month (#208).</summary>
+    public IQueryable<Month> QueryMonths() => months.Query();
+
     public async Task<MonthResponse?> GetAsync(Guid id, CancellationToken cancellationToken)
     {
         var month = await months.Query().FirstOrDefaultAsync(m => m.Id == id, cancellationToken);

@@ -1,0 +1,17 @@
+/* The label and the ₡|% toggle share one line above the input, so the toggle reads as "how you type this field". */
+.refund-amount-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5rem;
+}
+
+.refund-amount-head .form-label {
+    margin-bottom: .25rem;
+}
+
+.refund-amount-mode {
+    border: 0;
+    padding: 0;
+    margin: 0 0 .25rem;
+}

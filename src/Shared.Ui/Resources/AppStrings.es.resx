@@ -444,7 +444,7 @@
   <data name="Tx_CardNoBank" xml:space="preserve"><value>Esta tarjeta aún no tiene banco; asignalo en</value></data>
   <data name="Tx_RefundNotes" xml:space="preserve"><value>Notas del reembolso</value></data>
   <data name="Tx_ClassHint_Budgeted" xml:space="preserve"><value>Cuenta contra una línea del presupuesto de este mes.</value></data>
-  <data name="Tx_ClassHint_Extraordinary" xml:space="preserve"><value>No planificado pero prescindible — cuenta en gastos, fuera del plan.</value></data>
+  <data name="Tx_ClassHint_Extraordinary" xml:space="preserve"><value>No planificado pero prescindible — cuenta en gastos, fuera del plan, y puede esperar un reembolso.</value></data>
   <data name="Tx_ClassHint_Unplanned" xml:space="preserve"><value>No planificado e inevitable — cuenta en gastos y puede esperar un reembolso.</value></data>
   <data name="Tx_ClassHint_Inflow" xml:space="preserve"><value>Dinero que entra — se suma al ingreso del mes, no a los gastos.</value></data>
   <data name="Tx_ClassHint_Envelope" xml:space="preserve"><value>Un aporte al ahorro — queda fuera de los gastos y requiere cuenta bancaria.</value></data>
@@ -491,10 +491,36 @@
   <data name="Tx_RefundExpected" xml:space="preserve"><value>Se espera reembolso</value></data>
   <data name="Tx_RefundPercent" xml:space="preserve"><value>Porcentaje que se espera de vuelta</value></data>
   <data name="Tx_RefundPreview" xml:space="preserve"><value>Se espera de vuelta: {0}</value></data>
-  <data name="Tx_Validation_Refund" xml:space="preserve"><value>Ingresa un porcentaje de reembolso entre 0 y 100.</value></data>
+  <data name="Tx_RefundAmount" xml:space="preserve"><value>Monto que se espera de vuelta</value></data>
+  <data name="Tx_RefundMode" xml:space="preserve"><value>Ingresar el reembolso como</value></data>
+  <data name="Tx_RefundShare" xml:space="preserve"><value>{0} % de {1}</value></data>
+  <data name="Tx_RefundLocked" xml:space="preserve"><value>Ya se recibió: vuelve a marcarlo pendiente en la página del mes para cambiarlo.</value></data>
+  <data name="Tx_Validation_Refund" xml:space="preserve"><value>Ingresa el reembolso que esperas: mayor que cero y no más que el monto.</value></data>
   <data name="Month_Refunds" xml:space="preserve"><value>Reembolsos esperados</value></data>
   <data name="Month_NoRefunds" xml:space="preserve"><value>No se esperan reembolsos este mes.</value></data>
   <data name="Refund_NotesHint" xml:space="preserve"><value>Opcional: número de caso, quién lo debe, cuándo esperás que vuelva</value></data>
+  <data name="Refund_TotalReceived" xml:space="preserve"><value>Recibido</value></data>
+  <data name="Refund_TotalPending" xml:space="preserve"><value>Pendiente</value></data>
+  <data name="Refund_TotalExpected" xml:space="preserve"><value>de</value></data>
+  <data name="Refunds_Title" xml:space="preserve"><value>Reembolsos</value></data>
+  <data name="Refunds_Subtitle" xml:space="preserve"><value>Todo lo que esperas que vuelva, de todos los meses: primero lo pendiente más antiguo.</value></data>
+  <data name="Refunds_Status" xml:space="preserve"><value>Mostrar</value></data>
+  <data name="Refunds_All" xml:space="preserve"><value>Todos</value></data>
+  <data name="Refunds_PayeeHint" xml:space="preserve"><value>Buscar un comercio</value></data>
+  <data name="Refunds_GroupBy" xml:space="preserve"><value>Agrupar por</value></data>
+  <data name="Refunds_GroupNone" xml:space="preserve"><value>Nada</value></data>
+  <data name="Refunds_Month" xml:space="preserve"><value>Mes</value></data>
+  <data name="Refunds_None" xml:space="preserve"><value>Ningún reembolso coincide.</value></data>
+  <data name="Refunds_Truncated" xml:space="preserve"><value>Se muestran los primeros {0}: filtra más para ver el resto. Los totales los incluyen todos.</value></data>
+  <data name="Refunds_Select" xml:space="preserve"><value>Seleccionar</value></data>
+  <data name="Refunds_SelectFor" xml:space="preserve"><value>Seleccionar {0}</value></data>
+  <data name="Refunds_Selected" xml:space="preserve"><value>{0} seleccionados</value></data>
+  <data name="Refunds_MarkSelected" xml:space="preserve"><value>Marcarlos recibidos</value></data>
+  <data name="Refunds_MarkedReceived" xml:space="preserve"><value>{0} reembolso(s) marcados como recibidos.</value></data>
+  <data name="Refunds_MarkedSome" xml:space="preserve"><value>{0} marcados como recibidos; estos siguen pendientes: {1}.</value></data>
+  <data name="Refunds_PendingFor" xml:space="preserve"><value>pendiente hace {0} días</value></data>
+  <data name="Refunds_LoadError" xml:space="preserve"><value>No se pudieron cargar los reembolsos. Intenta de nuevo.</value></data>
+  <data name="Refunds_SeeAll" xml:space="preserve"><value>Ver todos los reembolsos</value></data>
   <data name="Refund_Pending" xml:space="preserve"><value>Pendiente</value></data>
   <data name="Refund_Received" xml:space="preserve"><value>Recibido</value></data>
   <data name="Refund_MarkReceived" xml:space="preserve"><value>Marcar recibido</value></data>
@@ -743,6 +769,12 @@
   <data name="Review_Confirmed" xml:space="preserve"><value>Confirmado: la transacción ya está en tu presupuesto.</value></data>
   <data name="Review_ConfirmedRemembered" xml:space="preserve"><value>Confirmado y recordado: este comercio se sugerirá la próxima vez.</value></data>
   <data name="Review_Discarded" xml:space="preserve"><value>Borrador descartado.</value></data>
+  <data name="Review_CardWhich" xml:space="preserve"><value>¿Qué tarjeta fue?</value></data>
+  <data name="Review_CardChoose" xml:space="preserve"><value>Elige la tarjeta…</value></data>
+  <data name="Review_CardNone" xml:space="preserve"><value>Sin tarjeta</value></data>
+  <data name="Review_CardHint" xml:space="preserve"><value>El banco oculta parte de este número ({0}), así que la app no sabe qué tarjeta es. Tu respuesta se recuerda para la próxima.</value></data>
+  <data name="Review_CardRemembered" xml:space="preserve"><value>Tu respuesta anterior para este número; cámbiala si no era correcta.</value></data>
+  <data name="Review_CardRequired" xml:space="preserve"><value>Elige qué tarjeta fue (o Sin tarjeta).</value></data>
   <data name="Review_CategoryRequired" xml:space="preserve"><value>Elige una categoría primero.</value></data>
   <data name="Review_NotPending" xml:space="preserve"><value>Este voucher ya fue procesado; recargando la cola.</value></data>
   <data name="Review_RateUnavailable" xml:space="preserve"><value>No hay tipo de cambio disponible ahora; intenta más tarde.</value></data>
@@ -835,6 +867,9 @@
   <data name="Dash_WfRefundsExpected" xml:space="preserve"><value>Reembolsos esperados</value></data>
   <data name="Dash_RefundsNote" xml:space="preserve"><value>no cuentan hasta que entren como ingreso</value></data>
   <data name="Dash_BudgetedNoLine" xml:space="preserve"><value>Marcado como presupuestado, sin línea</value></data>
+  <data name="Budget_IncomeTypical" xml:space="preserve"><value>Un mes típico: {0}</value></data>
+  <data name="Budget_IncomeEdit" xml:space="preserve"><value>Editar ingresos</value></data>
+  <data name="Income_BackToBudget" xml:space="preserve"><value>Volver al presupuesto</value></data>
   <data name="Income_Title" xml:space="preserve"><value>Ingresos</value></data>
   <data name="Income_Subtitle" xml:space="preserve"><value>Quién gana qué, cada cuánto se paga y cuánto por pago. Cada mes nuevo empieza con estos; la página del mes corrige un mes puntual. Lo comparte todo el hogar.</value></data>
   <data name="Income_New" xml:space="preserve"><value>Nuevo ingreso</value></data>
@@ -868,7 +903,6 @@
   <data name="Income_MoveUp" xml:space="preserve"><value>Subir</value></data>
   <data name="Income_MoveDown" xml:space="preserve"><value>Bajar</value></data>
   <data name="BudgetSettings_WeekStartHint" xml:space="preserve"><value>Si te pagan cada semana, elige el día en que llega el dinero: decide si un mes tiene 4 o 5 pagos.</value></data>
-  <data name="BudgetSettings_IncomeMoved" xml:space="preserve"><value>Los ingresos ahora tienen su propia página.</value></data>
   <data name="Month_IncomeEmpty" xml:space="preserve"><value>Este mes no tiene ingresos registrados.</value></data>
   <data name="Month_IncomeLabel" xml:space="preserve"><value>Nombre del ingreso</value></data>
   <data name="Month_IncomePlanned" xml:space="preserve"><value>Planeado {0}</value></data>
@@ -882,4 +916,6 @@
   <data name="Reports_PdfColumnsHint" xml:space="preserve"><value>La fecha y el comercio siempre se imprimen.</value></data>
   <data name="Reports_PdfColRate" xml:space="preserve"><value>Tipo de cambio</value></data>
   <data name="Reports_PdfColSource" xml:space="preserve"><value>Origen</value></data>
+  <data name="Card_Collapse" xml:space="preserve"><value>Contraer {0}</value></data>
+  <data name="Card_Expand" xml:space="preserve"><value>Expandir {0}</value></data>
 </root>

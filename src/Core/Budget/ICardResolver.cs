@@ -14,5 +14,20 @@ public sealed record CardResolution(Guid CardId, string Kind)
 /// </summary>
 public interface ICardResolver
 {
+    /// <summary>
+    /// The card a voucher's text names: by brand + last four (created on first sight), or — when the digits are not
+    /// the last four (a pattern, #210) — the card the household mapped that pattern to, never a guess; null when
+    /// there is no card number or an unmapped pattern.
+    /// </summary>
     Task<CardResolution?> ResolveOrCreateAsync(string? brand, string? cardNumber, Guid? bankId, string? kind = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The card the household picked for a voucher (#210): an active card of this household (null otherwise). When the
+    /// voucher's number is a pattern, the answer is remembered for the next voucher that prints it — a different
+    /// earlier answer is replaced.
+    /// </summary>
+    Task<CardResolution?> ResolveChosenAsync(Guid cardId, string? cardNumber, CancellationToken cancellationToken = default);
+
+    /// <summary>The cards these patterns were mapped to — for the review queue's preselection (#210).</summary>
+    Task<IReadOnlyDictionary<string, Guid>> KnownPatternsAsync(IReadOnlyCollection<string> patterns, CancellationToken cancellationToken = default);
 }

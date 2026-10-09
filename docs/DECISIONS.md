@@ -1704,7 +1704,7 @@ they enter the URL, which is the allowlist rationale in `ArchitectureTests`. No 
 lazy one-hour cache already bounds quota, and a job would spend ~720 of the 1,500 monthly requests
 warming a cache nobody may read.
 
-**ADR-V007 — Five transaction classes; payment method and a required bank live on the transaction; category required; refunds are derived from unplanned essentials and realize as inflows; envelopes are transactional. (2026-09-02; from donor ADR-0009, 0010, 0014, 0018, 0019, 0020)**
+**ADR-V007 — Five transaction classes; payment method and a required bank live on the transaction; category required; refunds are derived from unplanned essentials and realize as inflows; envelopes are transactional. (2026-09-02; from donor ADR-0009, 0010, 0014, 0018, 0019, 0020; *amended by ADR-V025: discretionary spend may carry a refund too*)**
 Classes: `budgeted`, `extraordinary` (label "Discretionary"), `unplanned_essential` (label
 "Unplanned"), `inflow` (money in, folded into income), `envelope_contribution` (requires an
 envelope and `bank_account`; carved out of expenses/balance). The first three count as expenses.
@@ -2127,6 +2127,62 @@ unverified) and a new tier in ADR-V006's chain. **Trade-off:** the staged rate i
 (EMAIL-7); it is never later than confirm, so nothing gets worse. *Amends:* ADR-V006 (a voucher's rate is resolved at
 staging, not at confirm) and ADR-V010 (confirm still books only through `TransactionService.CreateAsync` — now with a
 rate). Migration `AddPendingVoucherStagedRate` adds three nullable columns and drops nothing.
+
+**ADR-V025 — A refund expectation is an attribute of unplanned and discretionary spending, not a class of its own. (2026-10-09; owner decision, LEDGER-5, #201)**
+
+The owner asked for refunds on discretionary spending and whether "expecting a refund" should be a new class.
+**Decision:** no sixth class. The class answers *which part of the plan this money came out of*; a refund answers *will
+some of it come back* — a discretionary purchase you will be reimbursed for is still discretionary spend, and a new
+class would force a choice between two true things and touch every per-class cut (the dashboard waterfall, the weekly
+cuts, reports, the PDF, the CSV, budget-line backing). A refund now rides on `unplanned_essential` **and**
+`extraordinary`; **not** on `budgeted` (the owner: you don't budget for money you expect back), and never on money
+in or set aside (`TransactionTypes.RefundClasses`). The flag on another class is a **400** `invalid_request` — it was
+silently ignored, and a refund the household asked for must never quietly vanish. The dashboard summary splits the
+pending refunds by the transaction's class (`unplanned_refunds`, `discretionary_refunds`), so each Reports/PDF tile
+shows its own "refundable" figure; `refunds_total` stays their sum. *Amends:* ADR-V007 (refunds were derived from
+unplanned essentials only). No schema change.
+
+**ADR-V026 — A refund is stored as its amount; a percentage is only a way to type it. A received refund is locked. (2026-10-09; owner decision, LEDGER-6, #202)**
+
+The owner asked for refunds as a percentage **or** a fixed amount, then settled the shape: *"the amount is what should
+be stored, the percentage if used should be only used in the moment to calculate the amount."* **Decision:** the API
+takes `refund_amount` in the transaction's own currency (`0 < amount ≤ original_amount`, 2 dp); the other currency is
+derived at the transaction's frozen rate with the same `CurrencyMath.DeriveAmounts` the purchase uses, so a full
+refund matches it to the cent (golden rule 1). The form offers a ₡ | % toggle; in % mode it computes the amount from
+the purchase (and follows the purchase while you're still in % mode), and an edit opens on the stored amount with the
+share it comes to as a hint — correcting "by percentage" later is the form computing a new amount from the purchase's
+current amount. A transaction amount edit **no longer rescales** a refund; a purchase below its refund is a 400.
+`Refunds.Percentage` becomes nullable and is no longer written (an edit nulls it); a percentage on screen is computed
+from the amounts (`RefundResponse.percentage`). **Received refunds are locked** (owner, 2026-10-09 — this is new:
+before, an edit silently re-derived a received refund and rewrote its booked inflow, and a class change deleted both):
+changing its amount, clearing the flag, moving the purchase to a class that can't carry it, or deleting the purchase is
+`409 refund_status_conflict` until it is put back to pending — which stays allowed and removes the inflow (owner-
+confirmed: the way to fix a mistake). Edits that don't touch the refund still save; the inflow is never rewritten.
+*Data:* migration `RefundPercentageOptional` only relaxes the column (every existing refund keeps its amounts and
+percentage — nothing is recomputed); its `Down` refills an emptied percentage from the amounts against the purchase.
+Dropping the column is a later, owner-gated step. *Amends:* ADR-V007 (amounts = percentage × the transaction) and
+LEDGER-3 (a realized refund's inflow tracked the re-derived amounts).
+
+**ADR-V027 — A masked card number whose digits are not the last four is asked about once and remembered, never guessed. (2026-10-09; owner request, CARDS-4, #210)**
+
+BN "pagos" receipts print the card as `XXXXXXXXXXX8755X` for the owner's Black card, which ends **7558**: the visible
+digits are not the last four. `CardIdentity.Last4` took the last run of digits and kept its final four, so every BN
+payment was booked on an auto-created `CARD-8755`, and the confirm had no way to say otherwise. **Decision:** one rule
+in Core, `CardIdentity.Read` — spaces and dashes are layout, any other non-digit is a mask; digits that close the
+number are its last four, digits **followed by a mask** are a **pattern** (normalized: upper-case, every mask an `X`)
+with no last four. A pattern is never matched or auto-created by digits. The household maps it once: the review queue
+shows the pattern (`card_label`), says a card must be chosen (`card_ambiguous`), and offers the household's cards and
+"No card"; the confirm takes `card_id` (an active card of the household — 400 otherwise) or `skip_card`, and a
+`card_id` on a pattern is remembered in a new `CardPattern` table (tenant-scoped, RLS, unique per household, moved by
+a merge, exported and wiped with the cards). The next voucher printing that pattern books on that card and the queue
+preselects it (`known_card_id`), where it can still be changed — a different answer replaces the old one. A plain
+number keeps CARDS-1's behaviour (found by brand + last four, created as `VISA-1234` on first sight). **Rejected:**
+assuming BN hides the final digit and rebuilding the last four (`8755X` → `…755?`) — the owner's case shows the
+digits do not line up with the plastic's last four in any fixed way, and a wrong guess silently books money on the
+wrong card; and a per-bank rule — the mask, not the bank, is what says the digits are not the last four. *Existing
+data:* payments already on an auto card are moved with the existing merge on `/cards`; no migration rewrites history.
+Migration `AddCardPatterns` adds one empty table. *Amends:* ADR-V021 (identity = brand + last four, now only when the
+number ends in its digits).
 
 **ADR-025 — (number reserved; never adopted) CI runner selection is variable-driven with a hosted fallback (LOCALCI-1). (drafted 2026-09-08)**
 *Stub.* A platform draft (it lives in the perezosoft-platform repo, `docs/stories/localci.md`) that was never

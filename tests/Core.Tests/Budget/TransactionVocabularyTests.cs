@@ -27,6 +27,16 @@ public class TransactionVocabularyTests
         Assert.Equal(new[] { "budgeted", "extraordinary", "unplanned_essential" }, TransactionTypes.Expenses.OrderBy(x => x));
     }
 
+    [Fact]
+    public void Refunds_RideOnUnplannedAndDiscretionary_Only()
+    {
+        // ADR-V025 (owner, 2026-10-09): not budgeted — you don't budget for something you expect back.
+        Assert.Equal(new[] { "extraordinary", "unplanned_essential" }, TransactionTypes.RefundClasses.OrderBy(x => x));
+        Assert.True(TransactionTypes.CanCarryRefund("extraordinary"));
+        Assert.False(TransactionTypes.CanCarryRefund("budgeted"));
+        Assert.False(TransactionTypes.CanCarryRefund(null));
+    }
+
     [Theory]
     [InlineData(null, "credit_card")]
     [InlineData("", "credit_card")]

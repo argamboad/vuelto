@@ -170,7 +170,8 @@ Notes:
 **Goal:** list every income once — whose it is and how it is paid — so each month starts with the right plan.
 
 Flow:
-1. On Settings → **Manage income** (`/incomes`), a member adds a line: a name, whose income it is (a member, or the
+1. On **Budget → Edit income** (`/incomes`; the Budget page lists the lines in an Income card above the fixed and
+   variable lines — #203), a member adds a line: a name, whose income it is (a member, or the
    household), the currency, **fixed** or **variable** (an estimate), how often it is paid (**weekly**, **twice a
    month** on two days — 15th and the last day by default — or **monthly**) and the amount per payment.
 2. Lines are ordered (up/down), deactivated rather than deleted, and a new line under an inactive line's name offers
@@ -233,7 +234,9 @@ Flow:
    **bank (required)**, payment method (`credit_card` default | `bank_account`), **class**:
    `budgeted` | `extraordinary` (UI: "Discretionary") | `unplanned_essential` (UI: "Unplanned")
    | `inflow` | `envelope_contribution`; optional rate override.
-2. For `unplanned_essential`, an optional **refund expected %** spawns a derived `Refund` (§11).
+2. For `unplanned_essential` or `extraordinary` (discretionary), an optional **expected refund** spawns a derived
+   `Refund` (§11). Not on `budgeted` (ADR-V025) — the flag on any other class is a 400. The refund is entered as an **amount** or a **%**
+   of the purchase, and stored as the amount (ADR-V026).
    For `envelope_contribution`, an **envelope is required** and the method must be `bank_account`.
 3. `POST /api/transactions` validates, resolves the rate, resolves/creates the month (§9), derives
    `amount_crc`/`amount_usd`, **freezes** `exchange_rate_used`, saves with `source = manual`.
@@ -250,16 +253,30 @@ resolved category/bank names.
 **Goal:** track money you expect back from an unplanned essential, and book it when it lands.
 
 Flow:
-1. A `Refund` is **derived** from its transaction: `percentage × amounts` at the frozen rate,
-   status `pending`. It is created/re-derived/removed by the transaction's create/update/delete —
-   never edited directly except its status.
-2. `GET /api/months/{id}/refunds` lists the month's refunds; `PUT /api/refunds/{id}` flips
+1. A `Refund` belongs to its transaction: an **amount** in the transaction's currency (typed directly, or as a % the
+   form turns into the amount — only the amount is stored, ADR-V026), the other currency at the frozen rate, status
+   `pending`. It is created/rewritten/removed by the transaction's create/update/delete — never edited directly except
+   its status and notes. A bigger purchase does not grow it; a purchase below its refund is a 400. Editing it later by
+   percentage is the same: the form computes a new amount from the purchase's current amount.
+1a. Once **received** it is **locked** (owner, 2026-10-09): changing its amount, switching it off, moving the purchase
+   to a class that can't carry it or deleting the purchase is 409 `refund_status_conflict` — put it back to pending on
+   the month page (which removes the inflow), correct it, mark it received again. Edits that don't touch the refund
+   still save, and the booked inflow is never rewritten.
+2. `GET /api/months/{id}/refunds` lists the month's refunds with their totals — **received**, **pending** and the
+   **expected** sum, shown beside the count in the display currency (#206); `PUT /api/refunds/{id}` flips
    `pending → received` with a `received_date` (default today, never before the purchase), which
    **auto-creates a derived `inflow` transaction** (same amounts and rate, the source transaction's
    bank, `source = refund_realization`) **dated that day and filed in that day's month** — the month
    the money actually arrived in, auto-created if needed (ADR-V017). The refund stays listed under
    its purchase's month, showing the received date and linking the inflow's month. Flipping back
    removes the inflow (and its month if emptied).
+
+3. **The Refunds page** (`/refunds`, #208) — every refund across months, linked from a month's refunds ("See all
+   refunds") and from the dashboard's forecast step. `GET /api/refunds?status=&payee=&from=&to=` lists them oldest
+   purchase first with their month and "pending N days", plus the totals of every match. The page filters by status
+   (Pending by default), payee and purchase dates; groups by payee, status or month with each group's received and
+   pending; and marks several pending refunds received at once on one date — each through its own guarded flip and
+   inflow. The status and grouping are remembered on the device.
 
 Notes: refunds are informational — never in expenses or balance; the realized inflow is what
 counts as income. The flip is a conditional update: concurrent flips create **exactly one** inflow
@@ -313,7 +330,7 @@ Flow:
 2. Sections: **income** (the month's income rows, inflows folded in, total); **expense summary**
    (card total, account total, grand total, remainder); **fixed** and **variable** tables
    (budgeted vs actual per line + "other spending"); **weekly breakdowns** (budgeted and
-   extraordinary, per week with date ranges); **unplanned** slice with subtotal; **refunds**;
+   extraordinary and (#211) unplanned, per week with date ranges); **unplanned** slice with subtotal; **refunds**;
    **envelopes** reminder; **by payment method** (budgeted vs actual, Card / Bank account) and
    **by bank × method** (actuals only — a budget line names no bank, 2026-09-14); **balance** (current, remainder for debts, pending budgeted,
    actual remainder). Each figure is a CRC/USD pair.
@@ -352,7 +369,7 @@ Flow:
 2. **Download** calls `POST /api/reports/pdf` with the shown period (`month_id` or `from`+`to`), the
    "show in" side, the chart currency, the appendix choice, the app language and the device date. The API
    renders the PDF (QuestPDF) and returns the CSV's 15-minute signed link; the launcher downloads it
-   (native shells: the share sheet).
+   (native shells: the share sheet on a phone and the Mac, a Save As dialog on Windows — #204).
 
 Notes: the PDF is built from the same figures the page reads — tiles, pace, the donuts, month by month, the
 method bars, the income by member table (INCOME-2), the category tables — plus a landscape appendix of exactly the CSV export's rows. No rate
@@ -421,6 +438,11 @@ Flow:
    (`source = email`), inside one transaction with a conditional `pending → confirmed` flip — a
    double-click yields one transaction (loser: 409 `not_pending`). Rate unavailable → 400, draft
    stays pending, nothing written.
+2a. **The card** (CARDS-1, ADR-V027): a number that ends in its digits (`************1234`) names the card by brand + last
+   four, created as `VISA-1234` on first sight. A number whose digits are followed by a mask (BN pagos:
+   `XXXXXXXXXXX8755X`) has no knowable last four — the queue shows the pattern and asks **Which card was it?** (the
+   household's cards, or **No card**) and won't confirm until answered; the answer is remembered for that pattern
+   (`CardPattern`), preselected next time and used by any later confirm of the same pattern.
 3. **Discard** (`POST …/{id}/discard`) marks it `discarded` (tombstone stays).
 4. Opt-in **"remember this merchant"** creates a merchant mapping (§20a) — never overwrites.
 

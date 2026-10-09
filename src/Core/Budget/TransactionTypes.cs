@@ -23,6 +23,17 @@ public static class TransactionTypes
         Budgeted, Extraordinary, UnplannedEssential,
     };
 
+    /// <summary>
+    /// The classes a transaction may expect a refund on (ADR-V025): unplanned essentials and discretionary spend.
+    /// Not <see cref="Budgeted"/> — you don't budget for money you expect back — and never money in or set aside.
+    /// </summary>
+    public static readonly IReadOnlySet<string> RefundClasses = new HashSet<string>(StringComparer.Ordinal)
+    {
+        Extraordinary, UnplannedEssential,
+    };
+
+    public static bool CanCarryRefund(string? type) => type is not null && RefundClasses.Contains(type);
+
     /// <summary>Normalizes user input to a stored code, or null when it is not a class.</summary>
     public static string? Normalize(string? value)
     {

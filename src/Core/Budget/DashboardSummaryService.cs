@@ -47,6 +47,12 @@ public sealed class DashboardSummaryService : IDashboardSummaryService
 
         var unplanned = transactions.Where(t => Is(t.TransactionType, TransactionTypes.UnplannedEssential)).ToList();
         var pendingRefunds = refunds.Where(r => !Is(r.Status, RefundStatuses.Received)).ToList(); // a received refund is already income (its inflow)
+        var classOf = transactions.ToDictionary(t => t.Id, t => t.TransactionType);
+        MoneyPair PendingOf(string type)
+        {
+            var rows = pendingRefunds.Where(r => classOf.TryGetValue(r.TransactionId, out var c) && Is(c, type)).ToList();
+            return Pair(rows.Sum(r => r.AmountCrc), rows.Sum(r => r.AmountUsd));
+        }
 
         return new DashboardSummary(
             income, expenses, fixedLines, variableLines,
@@ -59,7 +65,10 @@ public sealed class DashboardSummaryService : IDashboardSummaryService
             CalculateOtherSpending(activeFixed, activeVariable, transactions, categoryNames ?? new Dictionary<Guid, string>()),
             CalculateBankMethodBreakdown(transactions, bankNames ?? new Dictionary<Guid, string>()),
             CalculateMethodBreakdown(activeFixed, activeVariable, transactions, rate),
-            CardSpend.Calculate(transactions, cardLabels)); // CARDS-2: the month's spend by card, "no card" last
+            CardSpend.Calculate(transactions, cardLabels), // CARDS-2: the month's spend by card, "no card" last
+            PendingOf(TransactionTypes.UnplannedEssential),
+            PendingOf(TransactionTypes.Extraordinary),
+            CalculateWeeklyTotals(weeks, transactions, TransactionTypes.UnplannedEssential));
     }
 
     // Income (the month's income rows at the passed-in rate + inflows' frozen amounts) is the shared

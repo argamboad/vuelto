@@ -315,6 +315,39 @@ namespace Vuelto.Infrastructure.Persistence.Migrations
                     b.ToTable("CardIdentities");
                 });
 
+            modelBuilder.Entity("Vuelto.Core.Entities.CardPattern", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CardId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Pattern")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CardId");
+
+                    b.HasIndex("TenantId", "Pattern")
+                        .IsUnique();
+
+                    b.ToTable("CardPatterns");
+                });
+
             modelBuilder.Entity("Vuelto.Core.Entities.Category", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1176,7 +1209,7 @@ namespace Vuelto.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
-                    b.Property<decimal>("Percentage")
+                    b.Property<decimal?>("Percentage")
                         .HasPrecision(5, 2)
                         .HasColumnType("numeric(5,2)");
 
@@ -1806,6 +1839,15 @@ namespace Vuelto.Infrastructure.Persistence.Migrations
                 });
 
             modelBuilder.Entity("Vuelto.Core.Entities.CardIdentity", b =>
+                {
+                    b.HasOne("Vuelto.Core.Entities.Card", null)
+                        .WithMany()
+                        .HasForeignKey("CardId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Vuelto.Core.Entities.CardPattern", b =>
                 {
                     b.HasOne("Vuelto.Core.Entities.Card", null)
                         .WithMany()

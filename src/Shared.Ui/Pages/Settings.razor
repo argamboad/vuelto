@@ -67,18 +67,24 @@
          choice server-side when signed in, so it follows the user across devices. ── *@
     <div class="card shadow-sm mt-4" data-testid="preferences-card">
         <div class="card-body">
-            <h2 class="h6 fw-bold mb-1">@Localizer["Settings_Preferences"]</h2>
-            <p class="small text-muted mb-3">@Localizer["Settings_PreferencesHint"]</p>
-            <div class="row g-3">
-                <div class="col-12 col-sm-6">
-                    <label class="form-label small fw-medium mb-1">@Localizer["Common_Language"]</label>
-                    <LanguageSwitcher />
-                </div>
-                <div class="col-12 col-sm-6">
-                    <label class="form-label small fw-medium mb-1">@Localizer["Theme_Label"]</label>
-                    <ThemeSwitcher />
-                </div>
-            </div>
+            <CollapsibleCard Key="settings.preferences" Label="@Localizer["Settings_Preferences"].Value">
+                <Head>
+                    <h2 class="h6 fw-bold mb-1">@Localizer["Settings_Preferences"]</h2>
+                </Head>
+                <ChildContent>
+                    <p class="small text-muted mb-3">@Localizer["Settings_PreferencesHint"]</p>
+                    <div class="row g-3">
+                        <div class="col-12 col-sm-6">
+                            <label class="form-label small fw-medium mb-1">@Localizer["Common_Language"]</label>
+                            <LanguageSwitcher />
+                        </div>
+                        <div class="col-12 col-sm-6">
+                            <label class="form-label small fw-medium mb-1">@Localizer["Theme_Label"]</label>
+                            <ThemeSwitcher />
+                        </div>
+                    </div>
+                </ChildContent>
+            </CollapsibleCard>
         </div>
     </div>
 
@@ -88,33 +94,50 @@
     @* ── Catalog: categories + banks (CATALOG-1/2, ADR-V008) — household-wide, any member. ── *@
     <div class="card shadow-sm mt-4">
         <div class="card-body">
-            <h2 class="h6 fw-bold mb-1">@Localizer["Catalog_SettingsTitle"]</h2>
-            <p class="small text-muted mb-3">@Localizer["Catalog_SettingsHint"]</p>
-            <div class="d-flex flex-wrap gap-2">
-                <a class="btn btn-outline-primary btn-sm" href="/categories">@Localizer["Catalog_ManageCategories"]</a>
-                <a class="btn btn-outline-primary btn-sm" href="/banks">@Localizer["Catalog_ManageBanks"]</a>
-                <a class="btn btn-outline-primary btn-sm" href="/cards">@Localizer["Cards_SettingsLink"]</a>
-                <a class="btn btn-outline-primary btn-sm" href="/envelopes">@Localizer["Envelopes_SettingsLink"]</a>
-                <a class="btn btn-outline-primary btn-sm" href="/incomes" data-testid="catalog-link-incomes">@Localizer["Income_SettingsLink"]</a>
-            </div>
+            <CollapsibleCard Key="settings.catalog" Label="@Localizer["Catalog_SettingsTitle"].Value">
+                <Head>
+                    <h2 class="h6 fw-bold mb-1">@Localizer["Catalog_SettingsTitle"]</h2>
+                </Head>
+                <ChildContent>
+                    <p class="small text-muted mb-3">@Localizer["Catalog_SettingsHint"]</p>
+                    <div class="d-flex flex-wrap gap-2">
+                        <a class="btn btn-outline-primary btn-sm" href="/categories">@Localizer["Catalog_ManageCategories"]</a>
+                        <a class="btn btn-outline-primary btn-sm" href="/banks">@Localizer["Catalog_ManageBanks"]</a>
+                        <a class="btn btn-outline-primary btn-sm" href="/cards">@Localizer["Cards_SettingsLink"]</a>
+                        <a class="btn btn-outline-primary btn-sm" href="/envelopes">@Localizer["Envelopes_SettingsLink"]</a>
+                    </div>
+                </ChildContent>
+            </CollapsibleCard>
         </div>
     </div>
 
     @* ── Email inboxes (EMAIL-2/3, ADR-V002) — the user's own, not the household's. ── *@
     <div class="card shadow-sm mt-4">
         <div class="card-body">
-            <h2 class="h6 fw-bold mb-1">@Localizer["Email_SettingsTitle"]</h2>
-            <p class="small text-muted mb-3">@Localizer["Email_SettingsHint"]</p>
-            <a class="btn btn-outline-primary btn-sm" href="/email">@Localizer["Email_SettingsLink"]</a>
+            <CollapsibleCard Key="settings.email" Label="@Localizer["Email_SettingsTitle"].Value">
+                <Head>
+                    <h2 class="h6 fw-bold mb-1">@Localizer["Email_SettingsTitle"]</h2>
+                </Head>
+                <ChildContent>
+                    <p class="small text-muted mb-3">@Localizer["Email_SettingsHint"]</p>
+                    <a class="btn btn-outline-primary btn-sm" href="/email">@Localizer["Email_SettingsLink"]</a>
+                </ChildContent>
+            </CollapsibleCard>
         </div>
     </div>
 
     @* ── Merchant suggestions (EMAIL-5) — household rules that prefill the review queue. ── *@
     <div class="card shadow-sm mt-4">
         <div class="card-body">
-            <h2 class="h6 fw-bold mb-1">@Localizer["Mapping_SettingsTitle"]</h2>
-            <p class="small text-muted mb-3">@Localizer["Mapping_SettingsHint"]</p>
-            <a class="btn btn-outline-primary btn-sm" href="/merchant-mappings">@Localizer["Mapping_SettingsLink"]</a>
+            <CollapsibleCard Key="settings.mappings" Label="@Localizer["Mapping_SettingsTitle"].Value">
+                <Head>
+                    <h2 class="h6 fw-bold mb-1">@Localizer["Mapping_SettingsTitle"]</h2>
+                </Head>
+                <ChildContent>
+                    <p class="small text-muted mb-3">@Localizer["Mapping_SettingsHint"]</p>
+                    <a class="btn btn-outline-primary btn-sm" href="/merchant-mappings">@Localizer["Mapping_SettingsLink"]</a>
+                </ChildContent>
+            </CollapsibleCard>
         </div>
     </div>
 
@@ -127,18 +150,24 @@
     @* ── Danger zone: delete account (GDPR / ADR-011) ── *@
     <div class="card mt-4">
         <div class="card-body">
-            <h2 class="h6 fw-bold text-danger mb-3">@Localizer["Settings_DangerZone"]</h2>
-            @* SKIN-11, decision 5: what erasing does, above the button. The browser confirms stay behind it. *@
-            <ConsequencePanel TestId="consequence-delete-account" Eyebrow="@Localizer["Consequence_Eyebrow"]">
-                <ChildContent>@Localizer["Settings_DeleteAccountWarning"]</ChildContent>
-                <Actions>
-                    <div>
-                        <button class="btn btn-outline-danger" disabled="@_busy" data-testid="delete-account" @onclick="DeleteAccount">
-                            @Localizer["Settings_DeleteAccount"]
-                        </button>
-                    </div>
-                </Actions>
-            </ConsequencePanel>
+            <CollapsibleCard Key="settings.danger" Label="@Localizer["Settings_DangerZone"].Value">
+                <Head>
+                    <h2 class="h6 fw-bold text-danger mb-3">@Localizer["Settings_DangerZone"]</h2>
+                </Head>
+                <ChildContent>
+                    @* SKIN-11, decision 5: what erasing does, above the button. The browser confirms stay behind it. *@
+                    <ConsequencePanel TestId="consequence-delete-account" Eyebrow="@Localizer["Consequence_Eyebrow"]">
+                        <ChildContent>@Localizer["Settings_DeleteAccountWarning"]</ChildContent>
+                        <Actions>
+                            <div>
+                                <button class="btn btn-outline-danger" disabled="@_busy" data-testid="delete-account" @onclick="DeleteAccount">
+                                    @Localizer["Settings_DeleteAccount"]
+                                </button>
+                            </div>
+                        </Actions>
+                    </ConsequencePanel>
+                </ChildContent>
+            </CollapsibleCard>
         </div>
     </div>
 </div>

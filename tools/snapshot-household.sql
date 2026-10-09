@@ -15,7 +15,7 @@
 --     household does not exist yet. Every INSERT is ON CONFLICT DO NOTHING, so a re-run is a no-op.
 --   • Run the restore as the owner / migrations role: the runtime role is fenced by RLS (ADR-020).
 --   • Included (FK order): Users (the members), Tenants, TenantMemberships, UserLogins,
---     BudgetSettings, Categories, Banks, Cards, CardIdentities, Envelopes, FixedExpenses, VariableExpenses,
+--     BudgetSettings, Categories, Banks, Cards, CardIdentities, CardPatterns, Envelopes, FixedExpenses, VariableExpenses,
 --     MerchantCategoryMappings, IncomeLines, Months, MonthIncomes, Weeks, Transactions, Refunds, PendingVouchers,
 --     IngestedVouchers.
 --   • A table the source database doesn't have yet (an older schema — e.g. staging before INCOME-1 has no
@@ -41,7 +41,7 @@ DECLARE
     v_kind   text;
     v_tables text[][] := ARRAY[
         ['Users', 'members'], ['Tenants', 'tenant'], ['TenantMemberships', 'tenantid'], ['UserLogins', 'members'],
-        ['BudgetSettings', 'tenantid'], ['Categories', 'tenantid'], ['Banks', 'tenantid'], ['Cards', 'tenantid'], ['CardIdentities', 'tenantid'], ['Envelopes', 'tenantid'],
+        ['BudgetSettings', 'tenantid'], ['Categories', 'tenantid'], ['Banks', 'tenantid'], ['Cards', 'tenantid'], ['CardIdentities', 'tenantid'], ['CardPatterns', 'tenantid'], ['Envelopes', 'tenantid'],
         ['FixedExpenses', 'tenantid'], ['VariableExpenses', 'tenantid'], ['MerchantCategoryMappings', 'tenantid'],
         ['IncomeLines', 'tenantid'], ['Months', 'tenantid'], ['MonthIncomes', 'tenantid'],
         ['Weeks', 'tenantid'], ['Transactions', 'tenantid'], ['Refunds', 'tenantid'],

@@ -96,6 +96,41 @@ public class BudgetPageTests : ComponentTestBase
     }
 
     [Fact]
+    public async Task Income_SitsAboveTheLines_InItsOwnCurrencies_WithATypicalMonth_AndTheWayToEditIt()
+    {
+        // #203 (owner, 2026-10-09): income belongs with the budget, not under Settings.
+        await SignInAsync();
+        StubPage();
+        var cut = RenderPage();
+
+        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("[data-testid='budget-income-row']").Count));
+        var rows = cut.FindAll("[data-testid='budget-income-row']");
+        Assert.Contains("Salary", rows[0].TextContent);
+        Assert.Contains("Income_PeriodWeekly", rows[0].TextContent);
+        Assert.Contains("₡250,000.00", rows[0].TextContent);
+        Assert.Contains("Income_PeriodBiweekly", rows[1].TextContent);
+        Assert.Contains("$250.00", rows[1].TextContent);                    // its own currency, never converted
+        Assert.Contains("Budget_IncomeTypical[", cut.Find("[data-testid='budget-income-total']").TextContent);
+        Assert.Equal("/incomes", cut.Find("[data-testid='budget-income-edit']").GetAttribute("href"));
+
+        // Above the lines it pays for.
+        var html = cut.Markup;
+        Assert.True(html.IndexOf("data-testid=\"budget-income-card\"", StringComparison.Ordinal) < html.IndexOf("data-testid=\"exp-fixed\"", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Income_None_SaysSo_AndStillLeadsToTheEditor()
+    {
+        await SignInAsync();
+        StubPage(income: false);
+        var cut = RenderPage();
+
+        cut.WaitForElement("[data-testid='budget-income-empty']");
+        Assert.Empty(cut.FindAll("[data-testid='budget-income-total']"));
+        Assert.NotNull(cut.Find("[data-testid='budget-income-edit']"));
+    }
+
+    [Fact]
     public async Task Header_FollowsTheShowInPreference()
     {
         await SignInAsync();
@@ -105,6 +140,13 @@ public class BudgetPageTests : ComponentTestBase
 
         cut.WaitForAssertion(() => Assert.Equal("$813.00", cut.Find("[data-testid='budget-planned']").TextContent.Trim()));
         Assert.Contains("₡300,000.00", cut.Find("[data-testid='exp-row-budget']").TextContent); // a line stays in its own currency
+
+        // #207: switched right here, the header follows; the lines keep their own currency.
+        cut.Find("[data-testid='budget-cur-crc']").Click();
+        cut.WaitForAssertion(() => Assert.StartsWith("₡", cut.Find("[data-testid='budget-planned']").TextContent.Trim()));
+        Assert.Contains("₡300,000.00", cut.Find("[data-testid='exp-row-budget']").TextContent);
+        Assert.NotNull(cut.Find("[data-testid='budget-cur-usd']"));
+        Assert.NotNull(cut.Find("[data-testid='budget-cur-both']"));
     }
 
     // ---------------------------------------------------------------- rows

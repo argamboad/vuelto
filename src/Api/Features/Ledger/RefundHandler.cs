@@ -26,15 +26,73 @@ public sealed class RefundHandler(
     TimeProvider clock,
     ILogger<RefundHandler> logger)
 {
-    /// <summary>The month's refunds newest first. Null = month not found (uniform 404).</summary>
-    public async Task<IReadOnlyList<RefundResponse>?> ListForMonthAsync(Guid monthId, CancellationToken cancellationToken)
+    /// <summary>The month's refunds newest first, with their received / pending totals (#206). Null = month not found (uniform 404).</summary>
+    public async Task<RefundListResponse?> ListForMonthAsync(Guid monthId, CancellationToken cancellationToken)
     {
         if (await months.GetAsync(monthId, cancellationToken) is null) return null;
         var rows = await refunds.Query().Where(r => r.MonthId == monthId)
             .OrderByDescending(r => r.TransactionDate).ThenByDescending(r => r.CreatedAt)
             .ToListAsync(cancellationToken);
         var inflowMonths = await InflowMonthsAsync(rows, cancellationToken);
-        return rows.Select(r => RefundResponse.From(r, r.InflowTransactionId is { } i ? inflowMonths.GetValueOrDefault(i) : null)).ToList();
+        var sourceIds = rows.Select(r => r.TransactionId).ToList();
+        var sources = await transactions.Query().Where(t => sourceIds.Contains(t.Id)).ToDictionaryAsync(t => t.Id, cancellationToken);
+        return new RefundListResponse(
+            rows.Select(r => RefundResponse.From(r, r.InflowTransactionId is { } i ? inflowMonths.GetValueOrDefault(i) : null, sources.GetValueOrDefault(r.TransactionId))).ToList(),
+            RefundTotalsResponse.From(RefundTotals.Calculate(rows)));
+    }
+
+    /// <summary>The refund's purchase — for the percentage the response computes (ADR-V026: never stored).</summary>
+    private Task<Transaction?> SourceAsync(Refund refund, CancellationToken cancellationToken) =>
+        transactions.Query().FirstOrDefaultAsync(t => t.Id == refund.TransactionId, cancellationToken);
+
+    /// <summary>The most rows the cross-month list returns; a household past it narrows the filter (the totals still cover all).</summary>
+    public const int ListCap = 1000;
+
+    /// <summary>
+    /// #208: every refund of the household across months, oldest purchase first (the ones to chase lead), filtered by
+    /// status, payee fragment and purchase-date range, with the purchase's budget month, the days a pending refund has
+    /// been out, and the totals of everything that matched. Tenant-scoped through <c>Query()</c>.
+    /// </summary>
+    public async Task<(RefundListResponse? List, ErrorResponse? Error)> ListAsync(RefundQuery query, CancellationToken cancellationToken)
+    {
+        string? status = null;
+        if (!string.IsNullOrWhiteSpace(query.Status) && (status = RefundStatuses.Normalize(query.Status)) is null)
+            return (null, new ErrorResponse("invalid_request", "status must be pending or received"));
+        if (query.From is { } from && query.To is { } to && from > to)
+            return (null, new ErrorResponse("invalid_request", "from must be on or before to"));
+
+        var q = refunds.Query();
+        if (status is not null) q = q.Where(r => r.Status == status);
+        if (!string.IsNullOrWhiteSpace(query.Payee))
+        {
+            var fragment = "%" + query.Payee.Trim().Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_") + "%";
+            q = q.Where(r => EF.Functions.ILike(r.Payee, fragment));
+        }
+        if (query.From is { } f) q = q.Where(r => r.TransactionDate >= f);
+        if (query.To is { } t) q = q.Where(r => r.TransactionDate <= t);
+
+        var all = await q.OrderBy(r => r.TransactionDate).ThenBy(r => r.CreatedAt).ToListAsync(cancellationToken);
+        var rows = all.Take(ListCap).ToList();
+
+        var inflowMonths = await InflowMonthsAsync(rows, cancellationToken);
+        var sourceIds = rows.Select(r => r.TransactionId).ToList();
+        var sources = await transactions.Query().Where(x => sourceIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, cancellationToken);
+        var monthIds = rows.Select(r => r.MonthId).Distinct().ToList();
+        var monthsById = await months.QueryMonths().Where(m => monthIds.Contains(m.Id))
+            .Select(m => new { m.Id, m.Year, m.MonthNumber }).ToDictionaryAsync(m => m.Id, cancellationToken);
+        var today = DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime);
+
+        var items = rows.Select(r =>
+        {
+            var month = monthsById.GetValueOrDefault(r.MonthId);
+            return RefundResponse.From(r, r.InflowTransactionId is { } i ? inflowMonths.GetValueOrDefault(i) : null, sources.GetValueOrDefault(r.TransactionId)) with
+            {
+                MonthYear = month?.Year,
+                MonthNumber = month?.MonthNumber,
+                PendingDays = r.Status == RefundStatuses.Pending ? Math.Max(0, today.DayNumber - r.TransactionDate.DayNumber) : null,
+            };
+        }).ToList();
+        return (new RefundListResponse(items, RefundTotalsResponse.From(RefundTotals.Calculate(all)), all.Count > ListCap), null);
     }
 
     /// <summary>Where each realized inflow lives — a received refund may be booked in a later month (ADR-V017).</summary>
@@ -66,7 +124,7 @@ public sealed class RefundHandler(
         refund.UpdatedAt = clock.GetUtcNow();
         refunds.Update(refund);
         await refunds.SaveChangesAsync(cancellationToken);
-        return (RefundResponse.From(refund), null);
+        return (RefundResponse.From(refund, source: await SourceAsync(refund, cancellationToken)), null);
     }
 
     public async Task<(RefundResponse? Refund, ErrorResponse? Error)> SetStatusAsync(Guid id, UpdateRefundStatusRequest request, CancellationToken cancellationToken)
@@ -78,7 +136,7 @@ public sealed class RefundHandler(
         var refund = await refunds.Query().FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
         if (refund is null) return (null, new ErrorResponse("not_found", "refund not found"));
         var current = refund.Status;
-        if (current == next) return (RefundResponse.From(refund, await InflowMonthAsync(refund, cancellationToken)), null); // idempotent
+        if (current == next) return (RefundResponse.From(refund, await InflowMonthAsync(refund, cancellationToken), await SourceAsync(refund, cancellationToken)), null); // idempotent
 
         var now = clock.GetUtcNow();
         DateOnly? receivedDate = null;
@@ -150,7 +208,7 @@ public sealed class RefundHandler(
         await scope.CommitAsync(cancellationToken);
         refund.Status = next; refund.InflowTransactionId = inflowId; refund.ReceivedDate = receivedDate; refund.UpdatedAt = now;
         logger.LogInformation("Refund {RefundId} marked {Status}", id, next);
-        return (RefundResponse.From(refund, inflowMonthId), null);
+        return (RefundResponse.From(refund, inflowMonthId, await SourceAsync(refund, cancellationToken)), null);
     }
 
     private async Task<Guid?> InflowMonthAsync(Refund refund, CancellationToken cancellationToken) =>

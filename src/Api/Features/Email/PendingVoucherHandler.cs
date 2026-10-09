@@ -89,7 +89,10 @@ public sealed class PendingVoucherHandler(
             .Where(v => v.Status == PendingVoucherStatuses.Pending)
             .OrderByDescending(v => v.ReceivedAt ?? v.CreatedAt).ThenByDescending(v => v.CreatedAt)
             .ToListAsync(cancellationToken);
-        return rows.Select(PendingVoucherResponse.From).ToList();
+        // #210: a draft whose card digits aren't the last four shows the card the household mapped that pattern to last time.
+        var wanted = rows.Select(v => Vuelto.Core.Budget.CardIdentity.Read(v.CardNumber).Pattern).OfType<string>().Distinct().ToList();
+        var known = await cards.KnownPatternsAsync(wanted, cancellationToken);
+        return rows.Select(v => PendingVoucherResponse.From(v, known)).ToList();
     }
 
     public Task<int> CountPendingAsync(CancellationToken cancellationToken) =>
@@ -117,8 +120,8 @@ public sealed class PendingVoucherHandler(
             CategoryId: categoryId,
             TransactionType: cls,
             ExchangeRate: StagedRate(voucher, currency), // EMAIL-8: the rate when it arrived; null → today's, like manual entry (ADR-V006)
-            RefundExpected: r.RefundExpected, // the ledger validates the percentage and spawns the refund (LEDGER-3)
-            RefundPercentage: r.RefundPercentage,
+            RefundExpected: r.RefundExpected, // the ledger validates the amount and spawns the refund (LEDGER-3)
+            RefundAmount: r.RefundAmount,
             Source: TransactionSources.Email,
             Notes: r.Notes,
             RefundNotes: r.RefundNotes);
@@ -127,7 +130,15 @@ public sealed class PendingVoucherHandler(
         await using var scope = await unitOfWork.BeginTransactionAsync(cancellationToken);
 
         // CARDS-1: the card the voucher printed — found, or created as BRAND-1234 on first sight — rides on the transaction.
-        var card = await cards.ResolveOrCreateAsync(voucher.CardBrand, voucher.CardNumber, r.BankId ?? voucher.BankId, voucher.CardKind, cancellationToken);
+        // #210 (ADR-V027): unless the household said which card it was (remembered for a pattern), or that it was none.
+        CardResolution? card;
+        if (r.SkipCard) card = null;
+        else if (r.CardId is { } chosen)
+        {
+            card = await cards.ResolveChosenAsync(chosen, voucher.CardNumber, cancellationToken);
+            if (card is null) return (null, Invalid("unknown or inactive card")); // scope disposes: nothing written, the draft stays pending
+        }
+        else card = await cards.ResolveOrCreateAsync(voucher.CardBrand, voucher.CardNumber, r.BankId ?? voucher.BankId, voucher.CardKind, cancellationToken);
         // CARDS-3: the card says how the money left — a debit card spends the account. An explicit choice still wins.
         var command2 = command with { CardId = card?.CardId, PaymentMethod = r.PaymentMethod ?? card?.PaymentMethod };
         var (created, error) = await transactions.CreateAsync(command2, cancellationToken);

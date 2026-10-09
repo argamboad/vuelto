@@ -2,11 +2,17 @@
    is a real radiogroup; the caller renders whichever view is selected, because each one is a different shape
    of table and pretending otherwise would make this component a router. *@
 <section class="breakdown" data-testid="@TestId">
-    <header class="breakdown-head">
-        <h2>@Title</h2>
-        <SegmentedSwitch Options="Options" Value="@Value" ValueChanged="ValueChanged" TestId="@($"{TestId}-switch")" />
-    </header>
-    <div class="breakdown-body">@ChildContent</div>
+    <CollapsibleCard Key="@CollapseKey" Label="@Title">
+        <Head>
+            <header class="breakdown-head">
+                <h2>@Title</h2>
+                <SegmentedSwitch Options="Options" Value="@Value" ValueChanged="ValueChanged" TestId="@($"{TestId}-switch")" />
+            </header>
+        </Head>
+        <ChildContent>
+            <div class="breakdown-body">@ChildContent</div>
+        </ChildContent>
+    </CollapsibleCard>
 </section>
 
 @code {
@@ -16,4 +22,6 @@
     [Parameter] public EventCallback<string> ValueChanged { get; set; }
     [Parameter] public RenderFragment? ChildContent { get; set; }
     [Parameter] public string TestId { get; set; } = "breakdown";
+    /// <summary>#205: where the device remembers whether the panel is folded.</summary>
+    [Parameter] public string CollapseKey { get; set; } = "breakdown";
 }

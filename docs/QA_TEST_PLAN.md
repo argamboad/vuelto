@@ -833,6 +833,44 @@ And signing in on a fresh browser profile renders dark as part of the sign-in
    check). Auto is stored per user too: a second browser showing Dark returns to the OS scheme
    on its next sign-in/reload.
 
+### QA-SET-10 — Cards fold to their heading and stay folded on this device 🟢 (Web + Android)
+**Gherkin**
+```gherkin
+Given I am on Settings
+Then every card (Preferences, Budget, Catalog, Email, Merchant suggestions, Notifications, Two-factor, Danger zone) has a fold button at the right of its heading
+When I fold Catalog and Danger zone and reload
+Then they are still folded, and only their headings show
+When I unfold Catalog
+Then its links are back
+And the same holds for the Reports cards (pace and every chart), the Household's Members, Invitations and Data cards, and the Dashboard's Fixed, Variable and "Where it went" panels
+And the fold button is reachable with Tab, toggled with Enter or Space, and announces "Collapse <card>" / "Expand <card>"
+```
+**Walkthrough:** **Settings** → **Expected:** a small chevron at the right of each card heading. Click **Catalog**'s
+→ **Expected:** only the heading remains, the chevron turns. Fold **Danger zone** too → reload → **Expected:** both
+still folded, the others open. Tab to a chevron → **Space** → **Expected:** it folds; a screen reader announces the
+button as "Collapse Catalog" (expanded) / "Expand Catalog" (collapsed). **Reports** (chart view) → fold **Spend by
+bank** and the pace → reload → **Expected:** still folded. **Household** → fold **Members** → reload → still folded.
+**Dashboard** → fold **Where it went** → its switch stays visible in the heading, the table is gone; reload → still
+folded. On the phone app the same, and a fold on the phone does not fold the web (it is a device preference).
+
+### QA-SET-11 — On a phone no page scrolls sideways; tables fit or scroll inside their card 🟠 (Web + Android) ⚙️ Automated in CI
+**Gherkin**
+```gherkin
+Given a household with two months of purchases, refunds pending and received, budget lines and income
+When I open each main page at phone width (375 px): Dashboard (all four "Where it went" cuts), a month, Months, Budget,
+  Refunds, Reports, Settings, Household, Review and New transaction
+Then none of them can be dragged sideways
+And on the dashboard a "both" amount reads ₡ over $ in the breakdown tables, and a budget line's name has its own line
+And on Refunds each row reads tick · payee (date · month · status under it) · amount
+And on a desktop the same tables read "₡x · $y" on one line as before
+```
+**Walkthrough:** open the app on the phone (or a browser at 375 px). On each page above try to drag the page left →
+**Expected:** it does not move; a table wider than the screen (none should be, with ordinary amounts) scrolls inside its
+own card instead. **Dashboard → Where it went** → each of **By week**, **By bank**, **By card**, **Unbudgeted** → the
+amounts stack ₡ over $ and every column is visible. **Fixed** / **Variable** → each line's name is whole on its own
+line, budget and delta under it. **Household** with a long member email → it wraps. Back on a desktop → the same
+dashboard tables keep ₡ and $ on one line. Automated by `PhoneLayoutTests` (E2E).
+
 ### QA-MFA-01 — Enable two-factor (authenticator TOTP) 🟠 (Web) ⚙️ Automated in CI
 **Precondition:** signed in; an authenticator app (Google Authenticator, 1Password, Authy, …) to hand.
 **Gherkin**
@@ -1228,12 +1266,12 @@ And cancelling at the provider returns me to /billing/cancel — the same page w
 Given I am signed in to a household that has never saved budget settings
 When I open /settings
 Then the Budget card shows Thursday and "Last Thursday of the previous month"
-And a hint says a weekly-paid household should start the week on its payday, with a link to the income page
+And a hint says a weekly-paid household should start the week on its payday (income itself lives on the Budget page — #203)
 ```
 **Walkthrough:** sign in with a fresh account (QA-ONB-01), open **Settings**. **Expected:** a
 **Budget** card between Preferences and Notifications: *Week starts on* = Thursday with the payday hint beneath it,
-*Month begins* = "Last Thursday of the previous month", no income fields — "Income now has its own page." with a
-**Manage income** link (INCOME-1). Nothing has been saved (`GET /api/budget-settings` returns `is_default: true`
+*Month begins* = "Last Thursday of the previous month", no income fields and no income link (income is on the
+**Budget** page since #203). Nothing has been saved (`GET /api/budget-settings` returns `is_default: true`
 and no income fields).
 
 ### QA-BUD-02 — Save the household's budget structure and see it persist 🟠 (Web)
@@ -1510,8 +1548,9 @@ And a PUT to an envelope id from another household returns 404
 ### QA-INC-01 — Add, order, deactivate and reactivate income lines; the catalog rules hold ⚙️ Automated in CI 🟠 (Web / API)
 **Gherkin**
 ```gherkin
-Given I am on Settings in a fresh household
-When I click Manage income
+Given I am on Budget in a fresh household
+Then its Income card says there is no income yet
+When I click Edit income
 Then I see the empty-state message
 When I add "My salary", mine, Weekly, $500 and Create
 And I add "Son salary", the household, Twice a month (15th and Last day), ₡300,000
@@ -1523,8 +1562,12 @@ Then it shows Inactive and has no up/down buttons
 When I add "my SALARY", Weekly, $550
 Then I am offered Reactivate, and clicking it restores "My salary" (stored spelling) as active, weekly, with $550 — the typed details win
 And an amount of 0, or the same pay day twice, is refused before any request
+When I go back to the budget
+Then its Income card, above the fixed and variable lines, lists the active lines in their own currencies with "A typical month"
+And Settings has no income link any more
 ```
-**Walkthrough:** **Settings → Catalog → Manage income** → **Expected:** "No income yet…". **New income** → name
+**Walkthrough:** **Budget** → **Expected:** an **Income** card above the fixed and variable lines saying "No income
+yet…" → **Edit income** → **Expected:** "No income yet…". **New income** → name
 `My salary`, **Whose income** = yourself, **Paid** = Weekly, `500`, **USD** → the hint under the form says a month
 counts one payment per week and points to the week start → **Create** → **Expected:** "Created." and the row
 (`$500.00`, your name · Fixed · Weekly). **New income** → `Son salary`, **Whose income** = "The household", **Paid** =
@@ -1560,10 +1603,10 @@ after saving, **Reports → Chart → Income by member** counts it under **your*
 adds it).
 Leave a name blank → **Save income** → "Every income needs a name." and no request; fill it → **Save income** →
 **Expected:** "Income updated."; reload → the three rows as saved. **Dashboard** → the Income step's total is the
-three rows at today's rate. **Settings → Manage income** → **Edit** Son salary → set **Whose income** to yourself →
+three rows at today's rate. **Budget → Edit income** → **Edit** Son salary → set **Whose income** to yourself →
 **Save** → back on September → **Expected:** Son salary's row unchanged in name and amount, and **Reports → Chart →
-Income by member** now counts it under your name (the member follows the line; the amounts never do). **Settings →
-Manage income** → **Expected:** My salary still $550.00 weekly. Remove
+Income by member** now counts it under your name (the member follows the line; the amounts never do). **Budget →
+Edit income** → **Expected:** My salary still $550.00 weekly. Remove
 **Sold the bike** (×) → **Save income** → gone after reload. With Tuesday weeks (**Settings → Budget**, *Week starts
 on* Tuesday) a transaction in a month not yet created gets five weeks and five weekly payments (Sep 2026 would be
 Aug 25 – Sep 28 — use a later empty month on a household that already has September). Via Postman (**15 · Months →
@@ -1585,7 +1628,7 @@ Point a local API at the branch → it migrates on start. Run:
 ```sh
 psql "$BRANCH_URL" -f tools/check-income-parity.sql
 ```
-**Expected:** `(0 rows)`. Open **Settings → Manage income** → **Expected:** "Primary income" / "Secondary income" with
+**Expected:** `(0 rows)`. Open **Budget → Edit income** → **Expected:** "Primary income" / "Secondary income" with
 the pay period the old figures implied; a pair that fit no period shows a **Check this** badge (hover: why), which
 clears on the first save. Open three past months and their dashboards → **Expected:** the same income totals as
 production before the deploy. Repeat the parity query on staging right after the deploy, **before anyone edits a
@@ -1616,7 +1659,7 @@ with `kind` per slice, summing to `income`; the range request → `income_by_mem
 > currency toggle inside the same input group and the live conversion under it; then two named groups,
 > **What it was** and **How it was paid**; then a **Before you save** rail stating which pay-cycle month the
 > date lands in and both sides of the money. The class picker is five CHIPS in a radio group, not a dropdown
-> — all five, because each one opens a different path (unplanned → expected refund, envelope → bucket
+> — all five, because each one opens a different path (unplanned or discretionary → expected refund, envelope → bucket
 > picker, inflow → income). Save stays ENABLED and surfaces validation on submit; it never goes quietly
 > dead. Unchanged: which month a date falls into is the pay-cycle logic's business, and the rate freezes on
 > save, never on edit.
@@ -1660,7 +1703,7 @@ Then I land on July 2026: five week chips (W1 · Jun 25 … W5 · Jul 23), incom
 And the transactions table sorts by Date, Payee, Category, Paid with or Class when I click the header (click again to flip; ▲/▼ marks the active one)
 And the filters above it narrow the rows by payee search, category, bank, card, class and date range, with "Showing n of m" and a Clear button; on a phone the search stays and the rest fold behind a Filters button
 ```
-**Walkthrough:** **Settings → Manage income** → add `Salary` $750 weekly and `Rent` ₡312,500 monthly. **Dashboard →
+**Walkthrough:** **Budget → Edit income** → add `Salary` $750 weekly and `Rent` ₡312,500 monthly. **Dashboard →
 New transaction** (or nav **Months → New transaction**): fill the fields; beside **Category** click
 **+ New**, type `Viajes`, **Create** → **Expected:** the inline form closes and **Viajes** is selected
 (Enter also creates, Esc cancels; a blank name → "A name is required."; a name matching an inactive
@@ -1731,33 +1774,40 @@ Months → Update month income — invalid (400)**) → `invalid_request`. With 
 *different* household's list → **Expected:** 404 (never 403 — no existence oracle). Also
 (**16 · Transactions → Create transaction — invalid (400)**) → `invalid_request` naming the field.
 
-### QA-LED-05 — An unplanned essential can expect a refund; the refund follows the transaction 🟠 (Web / API)
+### QA-LED-05 — An unplanned or discretionary purchase can expect a refund; the refund follows the transaction 🟠 (Web / API)
 **Gherkin**
 ```gherkin
 Given I am on New transaction
 When I pick class Unplanned
-Then a "Refund expected" switch appears; switching it on shows the percentage beside a "Refund notes" box that spans the row like the transaction's own Notes
-When I enter "Hospital", 50000 CRC, 30 %, "CASE-7 · lent to Diego", and Save
+Then a "Refund expected" switch appears; switching it on shows the amount expected back (a ₡ | % toggle beside its label) beside a "Refund notes" box that spans the row like the transaction's own Notes
+When I enter "Hospital", 50000 CRC, switch the refund to % and type 30, "CASE-7 · lent to Diego", and Save
 Then the month page lists an expected refund: Hospital · 30% · ₡15,000.00 · $<30> · Pending, with the note behind its icon
 When I Edit the transaction to 80000 and Save
-Then the refund reads ₡24,000.00 (30 % of 80,000)
+Then the refund still reads ₡15,000.00 (an amount: a bigger purchase doesn't grow it) at 19 %
+When I Edit it, switch the refund to % and type 30, and Save
+Then the refund reads ₡24,000.00
 When I Edit it again, switch Refund expected off and Save
 Then the refund is gone
+When I pick class Discretionary
+Then the "Refund expected" switch is there too; for Budgeted it is not
 ```
 **Walkthrough:** **New transaction** → **Class** "Unplanned" → **Expected:** the **Refund expected**
-switch appears (it is absent for every other class). Switch it on → **Expected:** the percentage
-field with **Refund notes** beside it — a one-row box at the percentage's height (drag it taller) spanning the rest of the row, with a 0/250 counter
+switch appears. Pick **Discretionary** → **Expected:** it is still there (ADR-V025); pick **Budgeted**, **Income** or
+**Savings** → **Expected:** it is gone. Back to **Unplanned**. Switch it on → **Expected:** the **Amount expected back** field with a **₡ | %** toggle beside its label, and **Refund notes** beside it — a one-row box at the percentage's height (drag it taller) spanning the rest of the row, with a 0/250 counter
 like the transaction's own Notes and a placeholder reading "Optional — case number, who owes it, when you expect
-it back"; no separate Case No.; with `50000` and `30` the hint reads "Expected back: 15,000.00 CRC". Type
+it back"; no separate Case No.; with `50000`, the toggle on **%** and `30` the hint reads "Expected back: ₡15,000.00"; back on
+**₡** the field holds `15000` and the hint reads "30 % of ₡50,000.00". Type
 `CASE-7 · lent to Diego`, fill the rest and **Save** → **Expected:** the month page's **Refunds** table shows
 Hospital · 30% · ₡15,000.00 stacked over $30 · an amber **Pending** pill and a note icon whose hover text is
 "CASE-7 · lent to Diego", with a **Mark received** button (its accessible name says "Mark Hospital received").
 **Edit the transaction** → **Expected:** the refund notes prefilled; clear them and **Save** → **Expected:**
 the note icon is gone. **Edit** → amount `80000` → **Save** →
-**Expected:** the refund row reads ₡24,000.00. **Edit** → switch off → **Save** → **Expected:** "No
+**Expected:** the refund row still reads ₡15,000.00, now at 19 %. **Edit** → the refund opens on `15000` → toggle **%**, type
+`30` → **Save** → **Expected:** ₡24,000.00. **Edit** → switch off → **Save** → **Expected:** "No
 refunds expected this month." Via Postman (**16 · Transactions → Create transaction**) with
-`refund_expected: true, refund_percentage: 150` → **Expected:** 400 `invalid_request` naming
-`refund_percentage`.
+`refund_expected: true, refund_amount: 60000` on a 50000 purchase → **Expected:** 400 `invalid_request` naming
+`refund_amount`; with `transaction_type: "budgeted", refund_expected: true, refund_amount: 15000` →
+**Expected:** 400 `invalid_request` naming `refund_expected`, and nothing is created.
 
 ### QA-LED-06 — Marking a refund received books an inflow; reverting removes it 🟠 (Web / API)
 **Gherkin**
@@ -1773,6 +1823,10 @@ Then the inflow row disappears and the pill is Pending again
 When I pick a date in the NEXT month and click Mark received
 Then the pill reads "Received <date>" with a "booked in another month — view" link, this month's table has NO inflow row, and the linked month (created if needed) holds it
 When I click Back to pending → the inflow is gone, and that month with it if it was otherwise empty
+And the Expected refunds header reads "Received ₡15,000.00 · Pending ₡0.00 · of ₡15,000.00" while it is received
+When the refund is Received and I Edit its purchase
+Then the refund switch and amount are disabled with "Already received — mark it back to pending on the month page to change it."
+And deleting the purchase is refused with 409 refund_status_conflict, and nothing changes
 ```
 **Walkthrough:** on the month page, the pending row shows **Received on** (today) next to **Mark
 received**; the date input's minimum is the purchase date. **Mark received** → **Expected:** "Refund
@@ -1790,6 +1844,12 @@ this month's transactions table has no inflow; the link opens the next month (au
 not exist) with the inflow row dated as picked. Postman **Update refund status** with `received_date`
 before the purchase → **Expected:** 400 `invalid_request`. **Back to pending** → **Expected:** the
 inflow is gone and the next month too if it held nothing else.
+**Totals (#206):** with the refund received, the **Expected refunds** header reads **Received** ₡15,000.00 ·
+**Pending** ₡0.00 · **of** ₡15,000.00; back to pending, the two swap. **Locked once received (ADR-V026):** **Mark received** again, then **Edit** its purchase → **Expected:** the **Refund
+expected** switch and the amount are greyed out with "Already received — mark it back to pending on the month page to
+change it."; change the purchase's notes and **Save** → **Expected:** saved, the inflow unchanged. Postman **Delete
+transaction** on the purchase → **Expected:** 409 `refund_status_conflict`, the purchase, refund and inflow all still
+there. **Back to pending** → **Edit** → the refund is editable again.
 
 ---
 
@@ -1841,8 +1901,8 @@ Postman (**22 · Review queue → Clear the review queue**) with `confirm: false
 Given an unplanned essential expecting a 50% refund
 When I open the month page and Edit the refund
 Then I can set Refund notes (case number and all — there is no separate Case No. field or column since 2026-09-14), and blank clears them (the transaction form asks for the same notes at entry — QA-LED-05)
-When I change the transaction's amount
-Then the refund's ₡/$ re-derive and the notes survive
+When I change the refund's amount in the transaction form
+Then the refund's ₡/$ change and the notes survive
 When I untick "refund expected" on the transaction
 Then the refund row is gone, and with it the notes
 And PUT /api/refunds/{id}/details with 251-character notes is 400; an unknown id is 404
@@ -1851,10 +1911,39 @@ And PUT /api/refunds/{id}/details with 251-character notes is 400; an unknown id
 refunds** → **Expected:** a row with no note icon and no Case No. column. **Edit** → **Refund notes**
 `CASE-2026-4471, lent to Diego` → **Save** → **Expected:** a note icon beside the payee whose hover text is the
 note (on a phone the % column hides and the payee's sub-line reads "50%"). **Edit the transaction** → double the
-amount → **Save** → month page → **Expected:** the refund's amounts doubled, the note untouched. **Edit the
+refund's amount → **Save** → month page → **Expected:** the refund's amounts doubled, the note untouched. **Edit the
 refund** → clear it → **Save** → **Expected:** no icon. **Edit the transaction** → untick refund expected →
 **Save** → **Expected:** the refund row is gone. Via Postman (**17 · Refunds → Set refund notes**) with
 251-character `notes` → **Expected:** 400 naming `notes`.
+
+### QA-LED-09 — Every refund across months: filter, group, and mark several received at once 🟠 (Web / API)
+**Gherkin**
+```gherkin
+Given refunds in two months — one received, two pending
+When I open Refunds (from a month's "See all refunds", or the dashboard's link under the forecast)
+Then the pending ones are listed oldest purchase first, each with its month and "pending N days"
+And the header reads Received · Pending · of expected for what is listed
+When I pick All, type part of a payee, or set a From / To date
+Then the list and the totals follow; Group by Payee / Status / Month shows one group each with its received and pending
+When I tick two pending refunds, set the received date and click "Mark them received"
+Then each books its own inflow on that day, the list reloads, and a refund that could not be marked is named
+When I come back later
+Then the page opens on the status and grouping I left it on
+```
+**Walkthrough:** with refunds in June (one **received**) and July (one **pending**) and a second pending one in June,
+open a month → **Expected refunds** → **See all refunds** → **Expected:** the **Refunds** page on **Pending**: the two
+pending ones, June's first, each with its month (a link to that month) and "pending N days"; the header shows
+**Received** ₡0.00 · **Pending** <their sum> · **of** <the same>. **All** → **Expected:** the received one too, the
+totals now include it. Type part of a payee in **Payee** (any case) → **Expected:** only matching rows. **From**
+the first of July → **Expected:** only July's. Clear the filters, **Group by → Payee** → **Expected:** one header
+per payee (case ignored) with its received and pending; **Month** → one per month, in order; **Status** → Pending
+then Received. Tick both pending refunds → **Expected:** a bar "2 selected" with a **Received on** date and **Mark
+them received**; set a date → click → **Expected:** "2 refund(s) marked received.", both now Received; each month
+page shows its inflow on that date. Repeat with a received date *before* one purchase → **Expected:** "1 marked
+received; these stayed pending: <payee>." Reload the page → **Expected:** it opens on the status and grouping you
+left. Postman **17 · Refunds → List all refunds** with `status=maybe` → **Expected:** 400 `invalid_request`; from a
+second household → **Expected:** none of the first household's refunds. The dashboard shows **See all refunds**
+under the forecast only when refunds are expected.
 
 ## 10i. Web — Budget lines: fixed & variable (app slice EXPENSES-1) 🟠
 
@@ -2042,6 +2131,8 @@ Then the dashboard and Reports open in $ without touching the switch
 When I set it to Both there
 Then this browser shows Both on its next load
 And GET /api/display-settings returns { display_currency: "both", is_default: false }
+When I pick ₡ on a month page, the Months list or the Budget page instead
+Then that page switches at once, and the dashboard opens in ₡ too
 ```
 **Walkthrough:** on the **Dashboard**, set **Show in** to **$**. Via Postman (**23 · Display settings → Get
 display settings**) → **Expected:** 200 with `display_currency` = `USD`, `is_default` = `false`. Open the
@@ -2049,6 +2140,10 @@ app in a private window (same account, sign in) → **Expected:** the dashboard 
 (table view) too. Set **Both** there; reload the first window → **Expected:** Both. Postman **Update
 display settings — invalid (400)** → **Expected:** 400 `invalid_request`; **Reset display settings to
 both** → 200. (The impersonation refusal and the account-erasure wipe are covered by `Api.Tests`.)
+**The switch where you are (#207):** open a month → **Show in** sits in its header → pick **₡** → **Expected:** the
+ledger, the refunds, their totals and the **Other income** line switch at once (income rows keep their own currency).
+Open **Dashboard** → **Expected:** ₡ there too. Same on **Months** (each card's figures) and **Budget** (the
+commitment header converts at today's rate; every line keeps its own currency).
 
 ### QA-DASH-04 — One verdict, the pace, and the four-step month 🟠 (Web)
 **Gherkin**
@@ -2083,7 +2178,7 @@ Given the month above, with at least one transaction naming a card and one categ
 When I open Dashboard
 Then ONE "Where it went" panel replaces the separate week, bank and card cards, with a segmented switch reading By week | By bank | By card | Unbudgeted
 And the switch is a real radio group: it is reachable by keyboard and announces its position
-And By week opens first; each cut ends in a Total row, and switching between them refetches nothing
+And By week opens first, with Budgeted, Discretionary and Unplanned columns per week (#211); each cut ends in a Total row, and switching between them refetches nothing
 And By bank opens on a two-row "Planned vs spent, by payment method" summary — Card and Bank account, budgeted against actual, red when over — above a table of actual spend per bank and method with its Total; there is no budgeted column per bank, because a budget line names no bank
 And Unbudgeted lists the categories with spend and no budget line — the old "Other spending" card — grouped by class with a subtotal per group: Discretionary, then Unplanned, then "Marked budgeted, no line" only when a purchase classed Budgeted sits in a category no line covers; a category whose money came in two classes appears once per group with that group's share
 And By card lists each card's alias with its kind and transaction count beneath, its spend, and its share of the month — "No card" last
@@ -2093,7 +2188,8 @@ When no envelope is due
 Then that strip is absent entirely, and the page is one section shorter
 ```
 **Walkthrough:** **Dashboard** → scroll to **Where it went** → **Expected:** one panel, the switch on
-**By week**. Tab to the switch and use the arrow keys → **Expected:** it moves between the four options
+**By week**, its columns **Budgeted**, **Discretionary** and **Unplanned** — the unplanned lunch's ₡10,000.00 in its
+week's Unplanned cell and in the Unplanned total. Tab to the switch and use the arrow keys → **Expected:** it moves between the four options
 like a radio group. Click through **By bank**, **By card**, **Unbudgeted** → **Expected:** each renders
 its own table with a **Total**, nothing scrolls sideways, and no money pair breaks across two lines (check
 in **Both**, the widest). **By bank:** first a two-row summary, **Credit card** and **Bank account**, each
@@ -2151,7 +2247,7 @@ When I POST the export with month_id of another household
 Then 404
 ```
 **Walkthrough:** **Reports** → **Export CSV** → **Expected:** the green notice with the row count and the
-browser download (on Android/Windows: the OS share sheet). Open the file → **Expected:** the header line
+browser download (on Android: the OS share sheet; on Windows: a Save As dialog, #204). Open the file → **Expected:** the header line
 exactly as above; one line per transaction incl. the inflow (the export is the whole period, not just
 spending); `exchange_rate_used` with four decimals; payees containing commas/quotes are quoted. **Months**
 → June → **Export CSV** → **Expected:** the same download and the notice under the header. Via Postman
@@ -2213,7 +2309,7 @@ Given the June data above, in month mode, with "Show in" on both sides and the c
 When I press PDF beside Export CSV
 Then a dialog offers "Include the transactions" (ticked) and says the amounts, charts and language it will use
 When I press Download
-Then a file "report-<first day>_<last day>.pdf" downloads (Android/Windows: the share sheet opens) and the page shows "PDF ready"
+Then a file "report-<first day>_<last day>.pdf" downloads (Android: the share sheet opens; Windows: a Save As dialog) and the page shows "PDF ready"
 And the PDF opens with the household, "June 2026", the period, the generated time and the buy/sell rate used
 And it has the four tiles with the same figures as the screen, the pace chart, the donuts, month by month, the method bars and the three category tables with the same budgets and red/green
 And its last pages are landscape and list every row the CSV export lists for June, in the same order, with readable class, method and source labels
@@ -2228,7 +2324,7 @@ Then there is no pace, no income or budget card and no month by month, and the t
 ```
 **Walkthrough:** **Reports** (month mode) → press **PDF** → **Expected:** the dialog with the
 transactions box ticked and three lines: amounts "₡ and $", charts "₡", language "English". Press
-**Download** → **Expected:** a file `report-2026-05-28_2026-06-24.pdf` (on Android/Windows the share sheet)
+**Download** → **Expected:** a file `report-2026-05-28_2026-06-24.pdf` (on Android the share sheet, on Windows a Save As dialog)
 and "PDF ready" on the page. Open it → **Expected:** the ¿Y el vuelto? lockup and the household on every
 page; page 1 with "Spending report", "June 2026", the period and "Exchange rate: buy … · sell … per $1";
 the four tiles matching the screen (a pair prints ₡ on one line and $ under it); the pace card; then the
@@ -2427,6 +2523,30 @@ a real email, or the SQL row from QA-EMAIL-06 with `merchant = 'TACO BELL PLAZA 
 **Review** → **Expected:** the category select already shows the mapped category, the "Suggested" badge is
 on, and **Months** shows no new transaction yet.
 
+### QA-CAT-08 — A half-hidden card number is asked about once and remembered 🟠 (Web / API)
+**Gherkin**
+```gherkin
+Given a card "Black" (VISA ····7558) and a BN payment receipt in the queue printing XXXXXXXXXXX8755X
+When I open Review
+Then the voucher shows XXXXXXXXXXX8755X (not ····8755) and a "Which card was it?" picker listing my cards and "No card"
+And Confirm without answering says to choose the card first, and nothing is booked
+When I pick Black and Confirm
+Then the payment is on Black in the month, and Settings → Manage cards has no CARD-8755
+When the next BN payment with the same number arrives
+Then its picker comes preselected with Black, saying it was my answer last time
+When I pick "No card" instead and Confirm
+Then that payment carries no card
+```
+**Walkthrough:** stage a BN payment receipt (a real one, or the `bn-payment` fixture through the dev mailbox) whose
+card reads `XXXXXXXXXXX8755X`, with a card **Black** already in **Manage cards**. **Review** → **Expected:** the card
+reads `XXXXXXXXXXX8755X` and a **Which card was it?** select sits under the class, with "The bank hides part of this
+number…" under it. **Confirm** → **Expected:** "Choose which card this was (or No card)." and the voucher still
+there. Pick **Black** → **Confirm** → **Expected:** "Confirmed", the month row shows **Black**, and **Manage cards**
+has no new auto-named card. Stage a second receipt with the same number → **Expected:** **Black** preselected and the
+hint "Your answer last time…". Pick **No card** → **Confirm** → **Expected:** that row has no card. Postman **Confirm
+pending voucher** with a `card_id` from another household → **Expected:** 400 `invalid_request`, the draft still
+pending. A BAC voucher (`************1234`) shows no picker and books on its card as before.
+
 ### QA-EMAIL-06 — Review queue: confirm books the transaction once, discard never reverts a confirm 🟠 (Web / API)
 **Gherkin**
 ```gherkin
@@ -2466,9 +2586,9 @@ them in flips the panel to the booking sentence and enables Confirm without the 
 a name, **Create** → **Expected:** selected on this card and offered on every other card — tick **Remember this merchant**,
 **Confirm** → **Expected:** the green notice, the card gone, the badge gone; **Months → that month** lists
 the transaction (source `email`); **Settings → Manage suggestions** has the new rule. On another draft pick
-class **Unplanned** → **Expected:** a **Refund expected** switch; turn it on, type `30` → **Expected:**
-"Expected back: <30 % of the amount>"; **Confirm** → **Expected:** the month's **Expected refunds** table has
-the pending refund (Postman **Confirm pending voucher** with `refund_percentage: 150` → 400 `invalid_request`,
+class **Unplanned** → **Expected:** a **Refund expected** switch; turn it on, toggle **%**, type `30` → **Expected:**
+"Expected back: <30 % of the amount>" (the amount is what is sent); **Confirm** → **Expected:** the month's **Expected refunds** table has
+the pending refund (Postman **Confirm pending voucher** with a `refund_amount` above the voucher's amount → 400 `invalid_request`,
 draft still pending). Postman
 (**Confirm pending voucher** with the same `{{pendingVoucherId}}`) → **Expected:** 409 `not_pending`;
 **Months → transactions** still shows one row for it. Stage a second draft → **Review → Discard** →
@@ -2616,12 +2736,16 @@ Then it launches in Spanish
 Given I am the owner, signed in on desktop
 When I request the data export and click Download
 Then the file is offered through the platform share/save UI, not a dead WebView navigation
+And on Windows that is a Save As dialog starting in Downloads, not the share flyout (#204); Cancel saves nothing
 ```
 **Walkthrough**
 1. **Household** → **Data** → **Export my data** → wait for the ready alert → **Download**.
-2. **Expected:** the **Windows share flyout** opens with the JSON bundle staged (server-named
-   `…-<id>.json`); the app page is not navigated away. Save it and open — valid JSON, no secrets
-   (spot-check: no token hashes).
+2. **Expected:** a **Save As** dialog opens in **Downloads** with the server's name (`…-<id>.json`) and the
+   JSON file type (#204 — no longer the share flyout); the app page is not navigated away. Save it and open —
+   valid JSON, no secrets (spot-check: no token hashes).
+3. **Reports → Export CSV** and **Reports → PDF → Download** → **Expected:** the same Save As dialog, the type
+   CSV / PDF; pick another folder → the file lands there. Run one again and **Cancel** → **Expected:** nothing is
+   saved and no error shows.
 
 ### QA-DSK-11 — Billing: checkout leaves, summary refreshes on return 🟠 (Desktop)
 **Gherkin**
@@ -3833,7 +3957,7 @@ Then every web gate runs, and only when all pass the Render hook fires and the v
 | Envelopes (app ENV-1) | ENV-01..02 | `GET/POST /api/envelopes`, `PUT /api/envelopes/{id}` (400 `invalid_request`; 409 `envelope_exists` / `envelope_exists_inactive` + `existing_id` + `existing_name`; uniform 404) |
 | Income lines + month income rows + income by member (app INCOME-1/2 · ADR-V023) | INC-01..04 (04: `Core.Tests` `IncomeByMemberTests`, `Api.Tests` `ReportSliceTests` / `ReportPdfModelBuilderTests` / `ReportPdfRendererTests`, `Ui.Tests` `ReportsPageTests`) (01–02 ⚙️ E2E `IncomeJourneyTests`) + `Core.Tests` (`IncomeSnapshotTests`, `IncomeCalculatorTests`) + `Api.Tests` (`IncomeSliceTests`, `IncomeEndpointTests`, `IncomeMigrationTests` on real Postgres, `ArchitectureTests.LegacyIncomeColumns_AreReadOrWrittenByNothing`) + `Ui.Tests` (`IncomesPageTests`, `LedgerPagesTests`) | `GET/POST /api/incomes`, `PUT /api/incomes/{id}`, `PUT /api/incomes/order` (400 `invalid_request`; 409 `income_exists` / `income_exists_inactive` + `existing_id` + `existing_name`; uniform 404); `GET /api/months/{id}` → `income_rows`; `PUT /api/months/{id}/income` `{rows:[…]}`; `tools/check-income-parity.sql` |
 | Months & transactions (app LEDGER-1/2) | LED-01..04 + `Api.Tests` (`LedgerSliceTests`) | `GET /api/months`, `GET /api/months/resolve?date=`, `GET /api/months/{id}`, `PUT /api/months/{id}/income`, `GET /api/months/{id}/transactions`; `POST /api/transactions`, `GET/PUT/DELETE /api/transactions/{id}` (400 `invalid_request` / `exchange_rate_unavailable` / `derived_transaction`; uniform 404) |
-| Expected refunds & realization (app LEDGER-3) | LED-05..06 + `Api.Tests` (`RefundSliceTests`, incl. the two-context concurrency proof) | `refund_expected` / `refund_percentage` on `POST/PUT /api/transactions`; `GET /api/months/{id}/refunds`; `PUT /api/refunds/{id}` (200; 400 `invalid_request`; 404; 409 `refund_status_conflict`) |
+| Expected refunds & realization (app LEDGER-3, LEDGER-5..8) | LED-05..06, LED-08..09 + `Api.Tests` (`RefundSliceTests`, incl. the two-context concurrency proof) | `refund_expected` / `refund_amount` on `POST/PUT /api/transactions` (409 `refund_status_conflict` on a received refund's purchase — ADR-V026); `GET /api/months/{id}/refunds` (`{ refunds, totals }`); `GET /api/refunds` (400 on a bad status/range); `PUT /api/refunds/{id}` (200; 400 `invalid_request`; 404; 409 `refund_status_conflict`) |
 | Budget lines: fixed + variable (app EXPENSES-1) | EXP-01..03 | `GET/POST /api/expenses/{fixed\|variable}`, `PUT …/{id}`, `PUT …/order` (400 `invalid_request`; 409 `expense_exists` / `expense_exists_inactive` + `existing_id` + `existing_name`; uniform 404) |
 | Dashboard (app DASH-1) | DASH-01..02 + `Core.Tests` (`DashboardSummaryServiceTests`, 45 donor cases) + `Api.Tests` (`DashboardSliceTests`) | `GET /api/months/{id}/summary` (200 `{month, exchange_rate, rate_source, rate_as_of, rate_unavailable, summary}`; 401 anonymous; uniform 404) |
 | Reports: category analysis + CSV export + PDF + email + appendix columns (app REPORTS-1/2/7/8/9) | REP-01..02, REP-05..07 + `Core.Tests` (`CategoryAnalysisCalculatorTests`, `TransactionCsvWriterTests`) + `Api.Tests` (`ReportSliceTests`, `ReportPdfChartsTests`, `ReportPdfModelBuilderTests`, `ReportPdfSliceTests`) + E2E `ReportPdfJourneyTests` | `GET /api/reports/category-analysis`, `POST /api/reports/transactions/export`, `POST /api/reports/pdf`, `POST /api/reports/pdf/email` (`month_id` \| `from`+`to`; 400 `period_required` / `period_ambiguous` / `period_incomplete` / `period_invalid`; uniform 404; export → signed `download_url` served by `GET /api/files/{token}`) |
@@ -3989,6 +4113,8 @@ Record one row per executed case. Build = API/web commit SHA (`git rev-parse --s
 | QA-SET-06 | Web | | | | | |
 | QA-SET-07 | Web | | | | | |
 | QA-SET-08 | Web | | | | | |
+| QA-SET-10 | Web + Android | | | | | |
+| QA-SET-11 | Web + Android | | | | | |
 | QA-MFA-01 | Web | | | | | |
 | QA-MFA-02 | Web | | | | | |
 | QA-MFA-03 | Web | | | | | |
@@ -4021,6 +4147,7 @@ Record one row per executed case. Build = API/web commit SHA (`git rev-parse --s
 | QA-CAT-05 | Web/API | | | | | |
 | QA-CAT-06 | Web/API | | | | | |
 | QA-CAT-07 | Web/API | | | | | |
+| QA-CAT-08 | Web/API | | | | | |
 | QA-FX-01 | Web/API | | | | | |
 | QA-FX-02 | Web/API | | | | | |
 | QA-ENV-01 | Web/API | | | | | |
@@ -4037,6 +4164,7 @@ Record one row per executed case. Build = API/web commit SHA (`git rev-parse --s
 | QA-LED-06 | Web/API | | | | | |
 | QA-LED-07 | Web/API | | | | | |
 | QA-LED-08 | Web/API | | | | | |
+| QA-LED-09 | Web/API | | | | | |
 | QA-EMAIL-07 | Web/API | | | | | |
 | QA-EXP-01 | Web/API | | | | | |
 | QA-EXP-02 | Web/API | | | | | |
@@ -4488,7 +4616,7 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   member** donut in the chart view, and in the PDF the same donut plus a table with shares and a total. New
   **QA-INC-04**; Postman's category-analysis description names the field. **Case count 202 → 203.**
 - **Updated 2026-09-16** — **Income lines (INCOME-1, ADR-V023; owner decision).** Income is no longer two 4-week /
-  5-week defaults on the budget settings: **Settings → Manage income** keeps a list of lines (whose, currency,
+  5-week defaults on the budget settings: **Budget → Edit income** keeps a list of lines (whose, currency,
   fixed/variable, weekly / twice a month / monthly, amount per payment), and each new month starts with one editable
   income row per line, derived by its pay period; a month can add a one-off or drop a row. The migration copied every
   household's defaults into lines and every month's two incomes verbatim into rows (`tools/check-income-parity.sql`
@@ -4880,3 +5008,14 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   platform these were first recorded Blocked while the findings were open; every remediation had landed here
   before the cases did, so they arrive unseeded. QA-ADV-15 now counts seats relative to the cap (T47).
   204 → 221 cases.
+- **Updated 2026-10-09 (owner feedback, milestone "Owner feedback · 2026-10")** — refunds: QA-LED-05 covers a
+  discretionary purchase (#201) and a refund typed as ₡ or % and stored as its amount (#202); QA-LED-06 the
+  received / pending totals (#206) and the lock on a received refund (#202); QA-LED-08 no longer expects a purchase
+  edit to re-derive a refund; new **QA-LED-09**, the cross-month Refunds page (#208). QA-DASH-05: the week cut's
+  Unplanned column (#211). QA-DASH-03: the Show in switch on the month page, Months and Budget (#207). Income moved
+  from Settings to the Budget page (#203): QA-BUD-01, QA-INC-01 and every "Settings → Manage income" step now read
+  "Budget → Edit income". New **QA-CAT-08**, a half-hidden card number asked about once and remembered (#210).
+  QA-DSK-10 and the CSV/PDF download steps: Windows saves through a Save As dialog, not the share flyout (#204).
+  New **QA-SET-10**, cards that fold and stay folded on the device (#205). New **QA-SET-11**, no page scrolls sideways on a
+  phone (#209, automated by `PhoneLayoutTests`).
+  221 → 225 cases.

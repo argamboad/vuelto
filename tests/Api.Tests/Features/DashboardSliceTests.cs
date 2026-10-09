@@ -99,9 +99,12 @@ public class DashboardSliceTests(PostgresFixture fixture) : PostgresTestBase(fix
         Assert.Equal(("unplanned_essential", 10_000m, 20m), (lunch.Class, lunch.Actual.Crc, lunch.Actual.Usd));
         Assert.Equal(10_000m, s.UnplannedEssentialTotal.Crc);
         Assert.Equal(5_000m, s.RefundsTotal.Crc);
+        Assert.Equal((5_000m, 0m), (s.UnplannedRefunds.Crc, s.DiscretionaryRefunds.Crc)); // ADR-V025: by the lunch's class
         Assert.Equal("Marchamo", Assert.Single(s.EnvelopeReminders).Name);
         Assert.Equal(4, s.WeeklyBudgeted.Count);
         Assert.Equal(300_000m, s.WeeklyBudgeted[1].Total.Crc);
+        Assert.Equal(4, s.WeeklyUnplanned.Count); // #211: the week cut's third column
+        Assert.Equal(10_000m, s.WeeklyUnplanned.Sum(w => w.Total.Crc));
         var bacAccount = Assert.Single(s.BankMethodBreakdown, b => b.PaymentMethod == "bank_account");
         Assert.Equal(("BAC", 300_000m), (bacAccount.BankName, bacAccount.Actual.Crc)); // actuals only: a plan names no bank (2026-09-14)
         var account = Assert.Single(s.MethodBreakdown, m => m.PaymentMethod == "bank_account");

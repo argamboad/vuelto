@@ -30,7 +30,7 @@ public class CardSliceTests(PostgresFixture fixture) : PostgresTestBase(fixture)
         db.Add(bank);
         await db.SaveChangesAsync();
         db.ChangeTracker.Clear();
-        return new Ctx(db, new CardHandler(new EfRepository<Card>(db), new EfRepository<CardIdentity>(db), new TransactionCards(new EfRepository<Transaction>(db)), new EfRepository<Bank>(db), new TestCurrentTenant { TenantId = tenant }, new FakeTimeProvider(T0)), tenant, bank.Id);
+        return new Ctx(db, new CardHandler(new EfRepository<Card>(db), new EfRepository<CardIdentity>(db), new EfRepository<CardPattern>(db), new TransactionCards(new EfRepository<Transaction>(db)), new EfRepository<Bank>(db), new TestCurrentTenant { TenantId = tenant }, new FakeTimeProvider(T0)), tenant, bank.Id);
     }
 
     [Fact]
@@ -96,16 +96,68 @@ public class CardSliceTests(PostgresFixture fixture) : PostgresTestBase(fixture)
 
         var first = await c.Handler.ResolveOrCreateAsync("VISA", "************1234", c.BankId, default);
         var again = await c.Handler.ResolveOrCreateAsync("visa", "4111 1111 1111 1234", null, default); // same card, however the bank prints it
-        var bn = await c.Handler.ResolveOrCreateAsync(null, "XXXXXXXXXXX0000X", c.BankId, default);      // BN payment receipt: no brand label
+        var bn = await c.Handler.ResolveOrCreateAsync(null, "XXXXXXXXXXX0000X", c.BankId, default);      // BN payment receipt: digits then a mask (#210)
         var none = await c.Handler.ResolveOrCreateAsync("VISA", null, c.BankId, default);
 
         Assert.NotNull(first);
         Assert.Equal(first, again);
         Assert.Null(none);
-        var cards = (await c.Handler.ListAsync(true, default))!.OrderBy(x => x.Name).ToList();
-        Assert.Equal(["CARD-0000", "VISA-1234"], cards.Select(x => x.Name));
-        Assert.All(cards, x => Assert.True(x.AutoNamed));
-        Assert.Equal(((Guid?)c.BankId, (Guid?)bn!.CardId), (cards[0].BankId, (Guid?)cards[0].Id));
+        Assert.Null(bn); // its digits aren't the last four — no guessed CARD-0000 (#210, ADR-V027)
+        var card = Assert.Single((await c.Handler.ListAsync(true, default))!);
+        Assert.Equal(("VISA-1234", true), (card.Name, card.AutoNamed));
+    }
+
+    // ---- #210 (ADR-V027): a pattern is mapped once, by the household, and remembered ----
+
+    [Fact]
+    public async Task ResolveChosen_RemembersThePattern_TheNextVoucherFindsIt_AndADifferentAnswerReplacesIt()
+    {
+        var c = await ContextAsync();
+        var black = (await c.Handler.ResolveOrCreateAsync("VISA", "************7558", c.BankId, default))!.CardId;
+        var other = (await c.Handler.ResolveOrCreateAsync("VISA", "************1234", c.BankId, default))!.CardId;
+        Assert.Null(await c.Handler.ResolveOrCreateAsync(null, "XXXXXXXXXXX8755X", c.BankId, default)); // nobody has said yet
+
+        Assert.Equal(black, (await c.Handler.ResolveChosenAsync(black, "XXXXXXXXXXX8755X", default))!.CardId);
+
+        Assert.Equal(black, (await c.Handler.ResolveOrCreateAsync(null, "xxxx xxxx xxx8 755x", c.BankId, default))!.CardId); // however it is spaced
+        Assert.Equal(black, (await c.Handler.KnownPatternsAsync(["XXXXXXXXXXX8755X", "XXXXXXXXXXX0000X"], default))["XXXXXXXXXXX8755X"]);
+
+        await c.Handler.ResolveChosenAsync(other, "XXXXXXXXXXX8755X", default); // the household corrects itself
+        Assert.Equal(other, (await c.Handler.ResolveOrCreateAsync(null, "XXXXXXXXXXX8755X", c.BankId, default))!.CardId);
+        Assert.Equal(1, await c.Db.CardPatterns.CountAsync());
+        Assert.Equal(2, await c.Db.Cards.CountAsync()); // and never a third, guessed card
+    }
+
+    [Fact]
+    public async Task ResolveChosen_ForAPlainNumber_RemembersNothing_AndRefusesAnInactiveOrForeignCard()
+    {
+        var c = await ContextAsync();
+        var card = (await c.Handler.ResolveOrCreateAsync("VISA", "************1234", c.BankId, default))!.CardId;
+
+        Assert.Equal(card, (await c.Handler.ResolveChosenAsync(card, "************9999", default))!.CardId);
+        Assert.Equal(0, await c.Db.CardPatterns.CountAsync());
+
+        Assert.Null(await c.Handler.ResolveChosenAsync(Guid.CreateVersion7(), "XXXXXXXXXXX8755X", default));
+        await c.Handler.UpdateAsync(card, new UpdateCardRequest("VISA-1234", c.BankId, IsActive: false), default);
+        Assert.Null(await c.Handler.ResolveChosenAsync(card, "XXXXXXXXXXX8755X", default));
+
+        var b = await ContextAsync();
+        Assert.Null(await b.Handler.ResolveChosenAsync(card, "XXXXXXXXXXX8755X", default)); // another household's card does not exist here
+        Assert.Equal(0, await c.Db.CardPatterns.CountAsync());
+    }
+
+    [Fact]
+    public async Task Merge_MovesTheRememberedPatterns_ToTheSurvivor()
+    {
+        var c = await ContextAsync();
+        var old = (await c.Handler.ResolveOrCreateAsync("VISA", "************1111", c.BankId, default))!.CardId;
+        var renewed = (await c.Handler.ResolveOrCreateAsync("VISA", "************2222", c.BankId, default))!.CardId;
+        await c.Handler.ResolveChosenAsync(old, "XXXXXXXXXXX8755X", default);
+        c.Db.ChangeTracker.Clear(); // a fresh request, as in production — the merge moves rows with set-based updates
+
+        await c.Handler.MergeAsync(old, renewed, default);
+
+        Assert.Equal(renewed, (await c.Handler.ResolveOrCreateAsync(null, "XXXXXXXXXXX8755X", null, default))!.CardId);
     }
 
     [Fact]
@@ -234,7 +286,8 @@ public class CardSliceTests(PostgresFixture fixture) : PostgresTestBase(fixture)
     {
         var c = await ContextAsync();
         await c.Handler.CreateAsync(new CreateCardRequest("Main", "VISA", "1234", null), default);
-        var contributor = new CardDataContributor(new EfRepository<Card>(c.Db), new EfRepository<CardIdentity>(c.Db));
+        await c.Handler.ResolveChosenAsync((await c.Db.Cards.FirstAsync()).Id, "XXXXXXXXXXX8755X", default); // #210: a remembered pattern goes too
+        var contributor = new CardDataContributor(new EfRepository<Card>(c.Db), new EfRepository<CardIdentity>(c.Db), new EfRepository<CardPattern>(c.Db));
 
         Assert.True(await contributor.HasDataAsync(c.Tenant));
         Assert.NotNull(await contributor.ExportAsync(c.Tenant));

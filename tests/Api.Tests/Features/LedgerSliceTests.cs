@@ -199,7 +199,7 @@ public class LedgerSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
     {
         // CARDS-1: the card is optional; when given it must be the household's and active — like the bank.
         var c = await ContextAsync();
-        var cards = new CardHandler(new EfRepository<Card>(c.Db), new EfRepository<Vuelto.Core.Entities.CardIdentity>(c.Db), new TransactionCards(new EfRepository<Transaction>(c.Db)), new EfRepository<Bank>(c.Db), new TestCurrentTenant { TenantId = c.Tenant }, new FakeTimeProvider(T0));
+        var cards = new CardHandler(new EfRepository<Card>(c.Db), new EfRepository<Vuelto.Core.Entities.CardIdentity>(c.Db), new EfRepository<CardPattern>(c.Db), new TransactionCards(new EfRepository<Transaction>(c.Db)), new EfRepository<Bank>(c.Db), new TestCurrentTenant { TenantId = c.Tenant }, new FakeTimeProvider(T0));
         var card = (await cards.CreateAsync(new CreateCardRequest("Main", "VISA", "1234", c.BankId), default)).Card!;
 
         var (tx, error) = await c.Transactions.CreateAsync(Create(c, Jun5) with { CardId = card.Id }, default);

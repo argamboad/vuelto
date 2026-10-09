@@ -25,7 +25,7 @@ internal static partial class AppAllowlists
         nameof(BudgetSettings),                          // BudgetSettingsDataContributor (BUDGET-1)
         nameof(Category),                                // CategoryDataContributor (CATALOG-1)
         nameof(Bank),                                    // BankDataContributor (CATALOG-2)
-        nameof(Card), nameof(CardIdentity),              // CardDataContributor (CARDS-1)
+        nameof(Card), nameof(CardIdentity), nameof(CardPattern), // CardDataContributor (CARDS-1, #210)
         nameof(Envelope),                                // EnvelopeDataContributor (ENV-1)
         nameof(Month), nameof(Week),                     // LedgerDataContributor (LEDGER-1/2)
         nameof(Transaction),                             // LedgerDataContributor
@@ -94,6 +94,7 @@ internal static partial class AppAllowlists
         [nameof(MerchantCategoryMapping)] = "Email",
         [nameof(Card)] = "Cards",                 // its transactions are rewritten through ITransactionCards
         [nameof(CardIdentity)] = "Cards",
+        [nameof(CardPattern)] = "Cards",          // #210: remembered through ICardResolver.ResolveChosenAsync
         [nameof(UserDisplaySettings)] = "DisplaySettings",
     };
 

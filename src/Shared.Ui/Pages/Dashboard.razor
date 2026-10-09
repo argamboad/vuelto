@@ -117,6 +117,11 @@
                     {
                         <p class="dash-overplan" data-testid="dash-wf-overplan">@Localizer["Dash_WfOverPlan"]</p>
                     }
+                    @if (s.RefundsTotal.Crc != 0 || s.RefundsTotal.Usd != 0)
+                    {
+                        @* #208: the refundable figure on the forecast step leads to the refunds themselves. *@
+                        <p class="dash-refunds-link"><a href="/refunds" data-testid="dash-refunds-link">@Localizer["Refunds_SeeAll"]</a></p>
+                    }
                 </div>
 
                 @* ---------------------------------------------------------------- envelopes, only when due
@@ -146,17 +151,17 @@
 
                 @* ---------------------------------------------------------------- the two line lists *@
                 <div class="col-12 col-lg-6">
-                    <BudgetLineList TestId="dash-fixed" Title="@Localizer["Budget_Fixed"]" Rows="LineRows(s.FixedExpenses)"
+                    <BudgetLineList TestId="dash-fixed" CollapseKey="dashboard.fixed" Title="@Localizer["Budget_Fixed"]" Rows="LineRows(s.FixedExpenses)"
                                     Summary="@ListSummary(s.FixedExpenses)" SummaryOver="@ListOver(s.FixedExpenses)" />
                 </div>
                 <div class="col-12 col-lg-6">
-                    <BudgetLineList TestId="dash-variable" Title="@Localizer["Budget_Variable"]" Rows="LineRows(s.VariableExpenses)"
+                    <BudgetLineList TestId="dash-variable" CollapseKey="dashboard.variable" Title="@Localizer["Budget_Variable"]" Rows="LineRows(s.VariableExpenses)"
                                     Summary="@ListSummary(s.VariableExpenses)" SummaryOver="@ListOver(s.VariableExpenses)" />
                 </div>
 
                 @* ---------------------------------------------------------------- one panel, four cuts *@
                 <div class="col-12">
-                    <BreakdownPanel TestId="dash-breakdown" Title="@Localizer["Dash_WhereItWent"]"
+                    <BreakdownPanel TestId="dash-breakdown" CollapseKey="dashboard.breakdown" Title="@Localizer["Dash_WhereItWent"]"
                                     Options="BreakdownOptions()" Value="@_breakdown" ValueChanged="@(v => _breakdown = v)">
                         @switch (_breakdown)
                         {
@@ -367,27 +372,48 @@
         new("other", Localizer["Dash_Unbudgeted"]),
     ];
 
+    /// <summary>
+    /// #209: a money pair in a breakdown cell. One currency reads as before; "both" keeps "₡x · $y" on a wide screen and
+    /// stacks ₡ over $ on a phone (the CSS hides the middot there), so four money columns fit a 375-pixel screen.
+    /// </summary>
+    private RenderFragment Pair(MoneyDto m) => __builder =>
+    {
+        if (_display != MoneyDisplay.Both)
+        {
+            <span class="text-nowrap">@Show(m)</span>
+        }
+        else
+        {
+            <span class="dash-pair"><span class="text-nowrap">@MoneyDisplay.Format(m.Crc, m.Usd, MoneyDisplay.Crc)</span><span class="dash-pair-sep"> · </span><span class="dash-pair-alt text-nowrap">@MoneyDisplay.Format(m.Crc, m.Usd, MoneyDisplay.Usd)</span></span>
+        }
+    };
+
     private RenderFragment WeekView(SummaryDto s) => __builder =>
     {
-        <table class="table table-sm">
-            <thead><tr><th>@Localizer["Dash_Week"]</th><th class="text-end">@Localizer["Tx_Budgeted"]</th><th class="text-end">@Localizer["Tx_Extraordinary"]</th></tr></thead>
-            <tbody>
-                @foreach (var w in s.WeeklyBudgeted)
-                {
-                    var extra = s.WeeklyExtraordinary.FirstOrDefault(x => x.WeekNumber == w.WeekNumber);
-                    <tr data-testid="dash-week-row">
-                        <td>@Localizer["Month_Week", w.WeekNumber] <span class="dash-meta">@w.StartDate.ToString("d", CultureInfo.CurrentCulture) – @w.EndDate.ToString("d", CultureInfo.CurrentCulture)</span></td>
-                        <td class="text-end text-nowrap">@Show(w.Total)</td>
-                        <td class="text-end text-nowrap">@Show(extra?.Total ?? new MoneyDto(0, 0))</td>
+        <div class="table-responsive">
+            <table class="table table-sm dash-table">
+                <thead><tr><th>@Localizer["Dash_Week"]</th><th class="text-end">@Localizer["Tx_Budgeted"]</th><th class="text-end">@Localizer["Tx_Extraordinary"]</th><th class="text-end">@Localizer["Tx_Unplanned"]</th></tr></thead>
+                <tbody>
+                    @foreach (var w in s.WeeklyBudgeted)
+                    {
+                        var extra = s.WeeklyExtraordinary.FirstOrDefault(x => x.WeekNumber == w.WeekNumber);
+                        var unplanned = s.WeeklyUnplanned?.FirstOrDefault(x => x.WeekNumber == w.WeekNumber); // #211
+                        <tr data-testid="dash-week-row">
+                            <td>@Localizer["Month_Week", w.WeekNumber] <span class="dash-meta">@w.StartDate.ToString("d", CultureInfo.CurrentCulture) – @w.EndDate.ToString("d", CultureInfo.CurrentCulture)</span></td>
+                            <td class="text-end">@Pair(w.Total)</td>
+                            <td class="text-end">@Pair(extra?.Total ?? new MoneyDto(0, 0))</td>
+                            <td class="text-end">@Pair(unplanned?.Total ?? new MoneyDto(0, 0))</td>
+                        </tr>
+                    }
+                    <tr class="fw-semibold" data-testid="dash-week-total">
+                        <td>@Localizer["Dash_Total"]</td>
+                        <td class="text-end">@Pair(Sum(s.WeeklyBudgeted.Select(w => w.Total)))</td>
+                        <td class="text-end">@Pair(Sum(s.WeeklyExtraordinary.Select(w => w.Total)))</td>
+                        <td class="text-end">@Pair(Sum((s.WeeklyUnplanned ?? []).Select(w => w.Total)))</td>
                     </tr>
-                }
-                <tr class="fw-semibold" data-testid="dash-week-total">
-                    <td>@Localizer["Dash_Total"]</td>
-                    <td class="text-end text-nowrap">@Show(Sum(s.WeeklyBudgeted.Select(w => w.Total)))</td>
-                    <td class="text-end text-nowrap">@Show(Sum(s.WeeklyExtraordinary.Select(w => w.Total)))</td>
-                </tr>
-            </tbody>
-        </table>
+                </tbody>
+            </table>
+        </div>
     };
 
     @* Owner, 2026-09-14: a budget line names no bank, so the plan-vs-spent comparison sits on the method axis
@@ -395,67 +421,73 @@
        actually carried the month. *@
     private RenderFragment BankView(SummaryDto s) => __builder =>
     {
-        <table class="table table-sm dash-method">
-            <thead><tr><th>@Localizer["Dash_ByMethod"]</th><th class="text-end">@Localizer["Dash_Budgeted"]</th><th class="text-end">@Localizer["Dash_Actual"]</th></tr></thead>
-            <tbody>
-                @foreach (var m in s.MethodBreakdown ?? [])
-                {
-                    <tr data-testid="dash-method-row">
-                        <td>@(m.PaymentMethod == "bank_account" ? Localizer["Tx_BankAccount"] : Localizer["Tx_CreditCard"])</td>
-                        <td class="text-end text-nowrap">@Show(m.Budget)</td>
-                        <td class="text-end text-nowrap @OverTone(m.Budget, m.Actual)">@Show(m.Actual)</td>
+        <div class="table-responsive">
+            <table class="table table-sm dash-table dash-method">
+                <thead><tr><th>@Localizer["Dash_ByMethod"]</th><th class="text-end">@Localizer["Dash_Budgeted"]</th><th class="text-end">@Localizer["Dash_Actual"]</th></tr></thead>
+                <tbody>
+                    @foreach (var m in s.MethodBreakdown ?? [])
+                    {
+                        <tr data-testid="dash-method-row">
+                            <td>@(m.PaymentMethod == "bank_account" ? Localizer["Tx_BankAccount"] : Localizer["Tx_CreditCard"])</td>
+                            <td class="text-end">@Pair(m.Budget)</td>
+                            <td class="text-end @OverTone(m.Budget, m.Actual)">@Pair(m.Actual)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm dash-table">
+                <thead><tr><th>@Localizer["Tx_Bank"]</th><th>@Localizer["Tx_PaymentMethod"]</th><th class="text-end">@Localizer["Dash_Actual"]</th></tr></thead>
+                <tbody>
+                    @foreach (var b in s.BankMethodBreakdown)
+                    {
+                        <tr data-testid="dash-bank-row">
+                            <td>@b.BankName</td>
+                            <td>@(b.PaymentMethod == "bank_account" ? Localizer["Tx_BankAccount"] : Localizer["Tx_CreditCard"])</td>
+                            <td class="text-end">@Pair(b.Actual)</td>
+                        </tr>
+                    }
+                    <tr class="fw-semibold" data-testid="dash-banks-total">
+                        <td colspan="2">@Localizer["Dash_Total"]</td>
+                        <td class="text-end">@Pair(Sum(s.BankMethodBreakdown.Select(b => b.Actual)))</td>
                     </tr>
-                }
-            </tbody>
-        </table>
-        <table class="table table-sm">
-            <thead><tr><th>@Localizer["Tx_Bank"]</th><th>@Localizer["Tx_PaymentMethod"]</th><th class="text-end">@Localizer["Dash_Actual"]</th></tr></thead>
-            <tbody>
-                @foreach (var b in s.BankMethodBreakdown)
-                {
-                    <tr data-testid="dash-bank-row">
-                        <td>@b.BankName</td>
-                        <td>@(b.PaymentMethod == "bank_account" ? Localizer["Tx_BankAccount"] : Localizer["Tx_CreditCard"])</td>
-                        <td class="text-end text-nowrap">@Show(b.Actual)</td>
-                    </tr>
-                }
-                <tr class="fw-semibold" data-testid="dash-banks-total">
-                    <td colspan="2">@Localizer["Dash_Total"]</td>
-                    <td class="text-end text-nowrap">@Show(Sum(s.BankMethodBreakdown.Select(b => b.Actual)))</td>
-                </tr>
-            </tbody>
-        </table>
+                </tbody>
+            </table>
+        </div>
     };
 
     private RenderFragment CardView(SummaryDto s) => __builder =>
     {
         var byCard = s.ByCard ?? new List<CardSpendDto>();
         var total = Side(Sum(byCard.Select(c => c.Actual)));
-        <table class="table table-sm">
-            <thead><tr><th>@Localizer["Tx_Card"]</th><th class="text-end">@Localizer["Dash_Actual"]</th><th class="text-end">@Localizer["Dash_Share"]</th></tr></thead>
-            <tbody>
-                @foreach (var c in byCard)
-                {
-                    <tr data-testid="dash-card-row">
-                        <td>
-                            @c.CardName
-                            <span class="dash-meta" data-testid="dash-card-meta">
-                                @(c.Kind is null
-                                    ? Localizer["Dash_CardCount", c.Count]
-                                    : Localizer["Dash_CardMeta", c.Kind == "debit" ? Localizer["Cards_KindDebit"] : Localizer["Cards_KindCredit"], c.Count])
-                            </span>
-                        </td>
-                        <td class="text-end text-nowrap">@Show(c.Actual)</td>
-                        <td class="text-end" data-testid="dash-card-share">@Share(Side(c.Actual), total)</td>
+        <div class="table-responsive">
+            <table class="table table-sm dash-table">
+                <thead><tr><th>@Localizer["Tx_Card"]</th><th class="text-end">@Localizer["Dash_Actual"]</th><th class="text-end">@Localizer["Dash_Share"]</th></tr></thead>
+                <tbody>
+                    @foreach (var c in byCard)
+                    {
+                        <tr data-testid="dash-card-row">
+                            <td>
+                                @c.CardName
+                                <span class="dash-meta" data-testid="dash-card-meta">
+                                    @(c.Kind is null
+                                        ? Localizer["Dash_CardCount", c.Count]
+                                        : Localizer["Dash_CardMeta", c.Kind == "debit" ? Localizer["Cards_KindDebit"] : Localizer["Cards_KindCredit"], c.Count])
+                                </span>
+                            </td>
+                            <td class="text-end text-nowrap">@Show(c.Actual)</td>
+                            <td class="text-end" data-testid="dash-card-share">@Share(Side(c.Actual), total)</td>
+                        </tr>
+                    }
+                    <tr class="fw-semibold">
+                        <td>@Localizer["Dash_Total"]</td>
+                        <td class="text-end text-nowrap">@Show(Sum(byCard.Select(c => c.Actual)))</td>
+                        <td class="text-end">@Share(total, total)</td>
                     </tr>
-                }
-                <tr class="fw-semibold">
-                    <td>@Localizer["Dash_Total"]</td>
-                    <td class="text-end text-nowrap">@Show(Sum(byCard.Select(c => c.Actual)))</td>
-                    <td class="text-end">@Share(total, total)</td>
-                </tr>
-            </tbody>
-        </table>
+                </tbody>
+            </table>
+        </div>
     };
 
     private RenderFragment UnbudgetedView(SummaryDto s) => __builder =>
@@ -470,29 +502,31 @@
             @* Grouped by what kind of money it is (owner decision, 2026-09-14): Discretionary, then Unplanned, then
                "marked budgeted, no line" — the catalog smell — only when it occurs. A category whose money came in
                two classes sits once per group with that group's amount, so the subtotals and the total all add up. *@
-            <table class="table table-sm">
-                <thead><tr><th>@Localizer["Tx_Category"]</th><th class="text-end">@Localizer["Dash_Actual"]</th></tr></thead>
-                <tbody>
-                    @foreach (var group in UnbudgetedGroups(s.OtherSpending))
-                    {
-                        <tr class="dash-other-group" data-testid="dash-other-group" data-class="@group.Class">
-                            <th scope="rowgroup">@Localizer[group.LabelKey]</th>
-                            <th scope="rowgroup" class="text-end text-nowrap">@Show(Sum(group.Rows.Select(r => r.Actual)))</th>
-                        </tr>
-                        @foreach (var r in group.Rows)
+            <div class="table-responsive">
+                <table class="table table-sm dash-table">
+                    <thead><tr><th>@Localizer["Tx_Category"]</th><th class="text-end">@Localizer["Dash_Actual"]</th></tr></thead>
+                    <tbody>
+                        @foreach (var group in UnbudgetedGroups(s.OtherSpending))
                         {
-                            <tr data-testid="dash-other-row">
-                                <td>@r.CategoryName</td>
-                                <td class="text-end text-nowrap">@Show(r.Actual)</td>
+                            <tr class="dash-other-group" data-testid="dash-other-group" data-class="@group.Class">
+                                <th scope="rowgroup">@Localizer[group.LabelKey]</th>
+                                <th scope="rowgroup" class="text-end text-nowrap">@Show(Sum(group.Rows.Select(r => r.Actual)))</th>
                             </tr>
+                            @foreach (var r in group.Rows)
+                            {
+                                <tr data-testid="dash-other-row">
+                                    <td>@r.CategoryName</td>
+                                    <td class="text-end text-nowrap">@Show(r.Actual)</td>
+                                </tr>
+                            }
                         }
-                    }
-                    <tr class="fw-semibold" data-testid="dash-other-total">
-                        <td>@Localizer["Dash_Total"]</td>
-                        <td class="text-end text-nowrap">@Show(Sum(s.OtherSpending.Select(o => o.Actual)))</td>
-                    </tr>
-                </tbody>
-            </table>
+                        <tr class="fw-semibold" data-testid="dash-other-total">
+                            <td>@Localizer["Dash_Total"]</td>
+                            <td class="text-end text-nowrap">@Show(Sum(s.OtherSpending.Select(o => o.Actual)))</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
         }
     };
 
@@ -620,7 +654,8 @@
         [property: JsonPropertyName("envelope_reminders")] List<EnvelopeDto> EnvelopeReminders,
         [property: JsonPropertyName("bank_method_breakdown")] List<BankDto> BankMethodBreakdown,
         [property: JsonPropertyName("by_card")] List<CardSpendDto>? ByCard = null,
-        [property: JsonPropertyName("method_breakdown")] List<MethodDto>? MethodBreakdown = null);
+        [property: JsonPropertyName("method_breakdown")] List<MethodDto>? MethodBreakdown = null,
+        [property: JsonPropertyName("weekly_unplanned")] List<WeekDto>? WeeklyUnplanned = null); // #211
     private sealed record CardSpendDto([property: JsonPropertyName("card_id")] Guid? CardId, [property: JsonPropertyName("card_name")] string CardName, [property: JsonPropertyName("actual")] MoneyDto Actual, [property: JsonPropertyName("count")] int Count, [property: JsonPropertyName("kind")] string? Kind = null);
     private sealed record DashMonthDto([property: JsonPropertyName("id")] Guid Id, [property: JsonPropertyName("year")] int Year, [property: JsonPropertyName("month_number")] int MonthNumber, [property: JsonPropertyName("week_count")] int WeekCount, [property: JsonPropertyName("week1_start_date")] DateOnly Week1StartDate, [property: JsonPropertyName("last_day")] DateOnly LastDay);
     private sealed record DashDto(
