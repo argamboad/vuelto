@@ -19,7 +19,7 @@ public class ReviewPageTests : ComponentTestBase
     private const string Categories = $$"""[{"id":"{{Cat1}}","name":"Dining","is_active":true},{"id":"{{Cat2}}","name":"Groceries","is_active":true}]""";
     private const string Banks = $$"""[{"id":"{{Bank1}}","name":"BAC Credomatic","is_active":true}]""";
     private const string Queue = $$"""
-        [{"id":"{{V1}}","parsed_bank":"Bac","merchant":"TACO BELL PLAZA REAL C","amount":7620,"currency":"CRC","date":"2026-06-13","bank_id":"{{Bank1}}","card_number":"************1234","card_brand":"VISA","authorization":"662664","reference":null,"transaction_type":"COMPRA","missing_fields":[],"suggested_category_id":"{{Cat1}}","suggested_class":"extraordinary","received_at":"2026-06-16T12:00:00+00:00"},
+        [{"id":"{{V1}}","parsed_bank":"Bac","merchant":"TACO BELL PLAZA REAL C","amount":7620,"currency":"CRC","date":"2026-06-13","bank_id":"{{Bank1}}","card_number":"************1234","card_brand":"VISA","card_label":"VISA ····1234","authorization":"662664","reference":null,"transaction_type":"COMPRA","missing_fields":[],"suggested_category_id":"{{Cat1}}","suggested_class":"extraordinary","received_at":"2026-06-16T12:00:00+00:00"},
          {"id":"{{V2}}","parsed_bank":"BN","merchant":null,"amount":null,"currency":null,"date":"2026-06-14","bank_id":"{{Bank1}}","card_number":null,"authorization":null,"reference":"R1","transaction_type":"PAGO","missing_fields":["Merchant","Amount","Currency"],"suggested_category_id":null,"suggested_class":null,"received_at":null}]
         """;
 
@@ -31,6 +31,78 @@ public class ReviewPageTests : ComponentTestBase
         Http.On(HttpMethod.Get, "/api/categories", Categories);
         Http.On(HttpMethod.Get, "/api/banks", Banks);
         Http.On(HttpMethod.Get, "/api/pending-vouchers", queue);
+    }
+
+    // ---- #210 (ADR-V027): the bank half-hid the number — ask which card, remember, preselect ----
+
+    private const string Black = "cccccccc-0000-0000-0000-00000000b1ac";
+    private const string Other = "cccccccc-0000-0000-0000-000000000001";
+
+    private void StubAmbiguous(string? known)
+    {
+        StubQueue($$"""
+            [{"id":"{{V1}}","parsed_bank":"BN","merchant":"PAGO TARJETA","amount":50000,"currency":"CRC","date":"2026-10-05","bank_id":"{{Bank1}}","card_number":"XXXXXXXXXXX8755X","card_brand":null,"card_label":"XXXXXXXXXXX8755X","card_ambiguous":true,"known_card_id":{{(known is null ? "null" : $"\"{known}\"")}},"authorization":null,"reference":"R9","transaction_type":"PAGO","missing_fields":[],"suggested_category_id":"{{Cat1}}","suggested_class":"budgeted","received_at":null}]
+            """);
+        Http.On(HttpMethod.Get, "/api/cards", $$"""[{"id":"{{Black}}","name":"Black","auto_named":false},{"id":"{{Other}}","name":"VISA-1234","auto_named":true}]""");
+        Http.On(HttpMethod.Post, $"/api/pending-vouchers/{V1}/confirm", $$"""{"transaction_id":"{{V1}}","month_id":"{{V1}}","amount_crc":50000,"amount_usd":100,"remembered":false}""");
+    }
+
+    private async Task<string> ConfirmBodyAsync(IRenderedComponent<Review> cut)
+    {
+        Card(cut, 0).QuerySelector("[data-testid='review-confirm']")!.Click();
+        cut.WaitForAssertion(() => Assert.Contains("Review_Confirmed", cut.Find("[data-testid='review-notice']").TextContent));
+        return await Assert.Single(Http.Requests, r => r.Method == HttpMethod.Post && r.RequestUri!.AbsolutePath.StartsWith("/api/pending-vouchers")).Content!.ReadAsStringAsync();
+    }
+
+    [Fact]
+    public async Task AHalfHiddenNumber_AsksWhichCard_AndWillNotConfirmUntilAnswered()
+    {
+        await SignInAsync();
+        StubAmbiguous(known: null);
+        var cut = Render<Review>();
+        cut.WaitForElement("[data-testid='review-card-pick']");
+
+        Assert.Contains("XXXXXXXXXXX8755X", cut.Find("[data-testid='review-card']").TextContent); // the printed pattern, not a guessed ····8755
+        Assert.Contains("Review_CardHint[XXXXXXXXXXX8755X]", cut.Find("[data-testid='review-card-hint']").TextContent);
+        var options = cut.FindAll("[data-testid='review-card-pick'] option").Select(o => o.GetAttribute("value")).ToList();
+        Assert.Equal(["", Black, Other, "none"], options);
+
+        Card(cut, 0).QuerySelector("[data-testid='review-confirm']")!.Click();
+        cut.WaitForAssertion(() => Assert.Contains("Review_CardRequired", cut.Find("[data-testid='review-notice']").TextContent));
+        Assert.DoesNotContain(Http.Requests, r => r.Method == HttpMethod.Post && r.RequestUri!.AbsolutePath.StartsWith("/api/pending-vouchers"));
+
+        cut.Find("[data-testid='review-card-pick']").Change(Black);
+        var body = await ConfirmBodyAsync(cut);
+        Assert.Contains($"\"card_id\":\"{Black}\"", body);
+        Assert.Contains("\"skip_card\":false", body);
+    }
+
+    [Fact]
+    public async Task LastTimesAnswer_IsPreselected_AndNoCard_SkipsIt()
+    {
+        await SignInAsync();
+        StubAmbiguous(known: Black);
+        var cut = Render<Review>();
+        cut.WaitForElement("[data-testid='review-card-pick']");
+
+        Assert.Equal(Black, cut.Find("[data-testid='review-card-pick']").GetAttribute("value"));
+        Assert.Contains("Review_CardRemembered", cut.Find("[data-testid='review-card-hint']").TextContent);
+
+        cut.Find("[data-testid='review-card-pick']").Change("none");
+        var body = await ConfirmBodyAsync(cut);
+        Assert.Contains("\"card_id\":null", body);
+        Assert.Contains("\"skip_card\":true", body);
+    }
+
+    [Fact]
+    public async Task APlainNumber_AsksNothing_AndSendsNoCardChoice()
+    {
+        await SignInAsync();
+        StubQueue();
+        var cut = Render<Review>();
+        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("[data-testid='review-voucher']").Count));
+
+        Assert.Empty(cut.FindAll("[data-testid='review-card-pick']"));
     }
 
     [Fact]

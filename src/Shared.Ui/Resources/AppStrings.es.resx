@@ -769,6 +769,12 @@
   <data name="Review_Confirmed" xml:space="preserve"><value>Confirmado: la transacción ya está en tu presupuesto.</value></data>
   <data name="Review_ConfirmedRemembered" xml:space="preserve"><value>Confirmado y recordado: este comercio se sugerirá la próxima vez.</value></data>
   <data name="Review_Discarded" xml:space="preserve"><value>Borrador descartado.</value></data>
+  <data name="Review_CardWhich" xml:space="preserve"><value>¿Qué tarjeta fue?</value></data>
+  <data name="Review_CardChoose" xml:space="preserve"><value>Elige la tarjeta…</value></data>
+  <data name="Review_CardNone" xml:space="preserve"><value>Sin tarjeta</value></data>
+  <data name="Review_CardHint" xml:space="preserve"><value>El banco oculta parte de este número ({0}), así que la app no sabe qué tarjeta es. Tu respuesta se recuerda para la próxima.</value></data>
+  <data name="Review_CardRemembered" xml:space="preserve"><value>Tu respuesta anterior para este número; cámbiala si no era correcta.</value></data>
+  <data name="Review_CardRequired" xml:space="preserve"><value>Elige qué tarjeta fue (o Sin tarjeta).</value></data>
   <data name="Review_CategoryRequired" xml:space="preserve"><value>Elige una categoría primero.</value></data>
   <data name="Review_NotPending" xml:space="preserve"><value>Este voucher ya fue procesado; recargando la cola.</value></data>
   <data name="Review_RateUnavailable" xml:space="preserve"><value>No hay tipo de cambio disponible ahora; intenta más tarde.</value></data>

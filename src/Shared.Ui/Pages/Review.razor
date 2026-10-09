@@ -68,7 +68,7 @@
                             <div class="draft-merchant" data-testid="review-merchant">@(v.Merchant ?? Localizer["Review_UnknownMerchant"].Value)</div>
                             <div class="draft-meta">
                                 @(v.Date?.ToString("d", CultureInfo.CurrentCulture) ?? "—") · @(v.TransactionType ?? "—") · @BankName(v.BankId)
-                                @if (CardText(v) is { } card) { <span data-testid="review-card"> · @card</span> }
+                                @if (v.CardLabel is { } card) { <span data-testid="review-card"> · @card</span> }
                                 @if (v.ReceivedAt is { } at) { <span> · @Localizer["Review_Received", at.ToLocalTime().ToString("g", CultureInfo.CurrentCulture)]</span> }
                             </div>
                         </div>
@@ -94,6 +94,25 @@
                             <SegmentedSwitch TestId="review-class" Label="@Localizer["Tx_Class"].Value" Options="ClassOptions()"
                                              Value="@v.Form.TransactionClass" ValueChanged="@(c => v.Form.TransactionClass = c)" />
                         </div>
+
+                        @if (v.CardAmbiguous)
+                        {
+                            @* #210 (ADR-V027): the bank hid part of the number (BN pagos print XXXXXXXXXXX8755X for a card ending
+                               7558), so the app asks instead of guessing — once: the answer is remembered for this pattern and
+                               preselected next time, where it can still be changed. "No card" books the payment without one. *@
+                            <div class="draft-field">
+                                <label class="form-label" for="review-card-pick-@v.Id">@Localizer["Review_CardWhich"]</label>
+                                <select class="form-select form-select-sm" id="review-card-pick-@v.Id" data-testid="review-card-pick" @bind="v.Form.CardChoice">
+                                    <option value="">@Localizer["Review_CardChoose"]</option>
+                                    @foreach (var c in _cards)
+                                    {
+                                        <option value="@c.Id">@c.Name</option>
+                                    }
+                                    <option value="@NoCard">@Localizer["Review_CardNone"]</option>
+                                </select>
+                                <div class="draft-hint" data-testid="review-card-hint">@(v.KnownCardId is null ? Localizer["Review_CardHint", v.CardLabel ?? ""] : Localizer["Review_CardRemembered"])</div>
+                            </div>
+                        }
 
                         @if (TransactionClasses.CanCarryRefund(v.Form.TransactionClass))
                         {
@@ -211,8 +230,10 @@
             _banks = await Http.GetFromJsonAsync<List<NamedDto>>("/api/banks") ?? new();
             _vouchers = await Http.GetFromJsonAsync<List<VoucherDto>>("/api/pending-vouchers") ?? new();
             // Its own call and its own catch: the nudge is a footnote, never a reason the queue fails to render.
-            try { _unnamedCards = (await Http.GetFromJsonAsync<List<CardNudgeDto>>("/api/cards"))?.Count(c => c.AutoNamed) ?? 0; }
-            catch { _unnamedCards = 0; }
+            // #210: the same list feeds the "which card?" picker on a voucher whose number the bank half-hid.
+            try { _cards = await Http.GetFromJsonAsync<List<CardDto>>("/api/cards") ?? new(); }
+            catch { _cards = new(); }
+            _unnamedCards = _cards.Count(c => c.AutoNamed);
             foreach (var v in _vouchers) v.InitForm();
             await ResolveMonthsAsync();
         }
@@ -223,6 +244,7 @@
     private async Task ConfirmAsync(VoucherDto v)
     {
         if (string.IsNullOrEmpty(v.Form.CategoryId)) { Fail(Localizer["Review_CategoryRequired"]); return; }
+        if (v.CardAmbiguous && string.IsNullOrEmpty(v.Form.CardChoice)) { Fail(Localizer["Review_CardRequired"]); return; } // #210: ask, never guess
         _busy = true; _notice = null;
         try
         {
@@ -240,6 +262,9 @@
                 refund_expected = TransactionClasses.CanCarryRefund(v.Form.TransactionClass) && v.Form.RefundExpected,
                 refund_amount = TransactionClasses.CanCarryRefund(v.Form.TransactionClass) && v.Form.RefundExpected ? v.Form.RefundAmount : null,
                 refund_notes = TransactionClasses.CanCarryRefund(v.Form.TransactionClass) && v.Form.RefundExpected && !string.IsNullOrWhiteSpace(v.Form.RefundNotes) ? v.Form.RefundNotes.Trim() : null,
+                // #210: the household's answer for a hidden number — a card (remembered for its pattern) or none at all.
+                card_id = v.CardAmbiguous && Guid.TryParse(v.Form.CardChoice, out var chosen) ? chosen : (Guid?)null,
+                skip_card = v.CardAmbiguous && v.Form.CardChoice == NoCard,
             };
             var res = await Http.PostAsJsonAsync($"/api/pending-vouchers/{v.Id}/confirm", body);
             if (res.StatusCode == HttpStatusCode.Conflict) { Fail(Localizer["Review_NotPending"]); await ReloadAsync(); return; }
@@ -468,14 +493,10 @@
         public decimal? Amount { get; set; }
         public string Currency { get; set; } = "CRC";
         public DateOnly? Date { get; set; }
+        /// <summary>#210: "" not answered yet · a card id · "none".</summary>
+        public string CardChoice { get; set; } = "";
     }
 
-    /// <summary>"VISA ····1234" from what the bank printed (CARDS-1); null when the voucher names no card.</summary>
-    private static string? CardText(VoucherDto v)
-    {
-        var digits = new string((v.CardNumber ?? "").Where(char.IsDigit).ToArray());
-        return digits.Length < 4 ? null : $"{(string.IsNullOrWhiteSpace(v.CardBrand) ? "CARD" : v.CardBrand.ToUpperInvariant())} ····{digits[^4..]}";
-    }
 
     private sealed class VoucherDto
     {
@@ -492,6 +513,10 @@
         [JsonPropertyName("suggested_category_id")] public Guid? SuggestedCategoryId { get; set; }
         [JsonPropertyName("suggested_class")] public string? SuggestedClass { get; set; }
         [JsonPropertyName("received_at")] public DateTimeOffset? ReceivedAt { get; set; }
+        // #210: the API's one rule for the card ("VISA ····1234", or the printed pattern), whether to ask, and last time's answer.
+        [JsonPropertyName("card_label")] public string? CardLabel { get; set; }
+        [JsonPropertyName("card_ambiguous")] public bool CardAmbiguous { get; set; }
+        [JsonPropertyName("known_card_id")] public Guid? KnownCardId { get; set; }
 
         [JsonIgnore] public FormModel Form { get; } = new();
 
@@ -505,6 +530,7 @@
             Form.Amount = Amount;
             Form.Currency = Currency ?? "CRC";
             Form.Date = Date;
+            Form.CardChoice = KnownCardId?.ToString() ?? "";
         }
     }
 
@@ -516,7 +542,9 @@
         [property: JsonPropertyName("duplicates")] int Duplicates,
         [property: JsonPropertyName("unrecognized")] int Unrecognized);
     private int _unnamedCards;
-    private sealed record CardNudgeDto([property: JsonPropertyName("auto_named")] bool AutoNamed);
+    private sealed record CardDto([property: JsonPropertyName("id")] Guid Id, [property: JsonPropertyName("name")] string Name, [property: JsonPropertyName("auto_named")] bool AutoNamed);
+    private List<CardDto> _cards = new();
+    private const string NoCard = "none";
     private sealed record ConfirmDto([property: JsonPropertyName("transaction_id")] Guid TransactionId, [property: JsonPropertyName("remembered")] bool Remembered);
     private sealed record ErrorDto([property: JsonPropertyName("error")] string Error, [property: JsonPropertyName("message")] string Message);
 }

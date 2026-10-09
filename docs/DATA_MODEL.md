@@ -166,6 +166,14 @@ One (brand, last four) a card is known by — several after a renewal was merged
 - `id`, `tenant_id`, `card_id` (FK → Card, cascade), `brand`, `last4`, `created_at`
 - unique on (`tenant_id`, `brand`, `last4`) — a number names exactly one card
 
+### CardPattern *(#210, ADR-V027)*
+A printed number whose digits are **not** the last four — a mask follows them (BN pagos print `XXXXXXXXXXX8755X` for a
+card ending 7558) — mapped to the card the household picked in the review queue, so the next voucher printing it books
+on that card without asking. A later, different pick replaces it. Goes with its card (a merge moves it to the survivor).
+- `id`, `tenant_id`, `card_id` (FK → Card, cascade), `pattern` (≤ 32, as `CardIdentity.Read` normalizes it:
+  upper-case, spaces and dashes removed, every mask character an `X`), `created_at`, `updated_at`
+- unique on (`tenant_id`, `pattern`) — a pattern names exactly one card
+
 ### Envelope
 A savings bucket with an annual target and a reminder cadence. Soft-deleted; a catalog entry
 (`ICatalogEntry`) with two extra facts. Never seeded. Holds no balance — contributions are transactions.

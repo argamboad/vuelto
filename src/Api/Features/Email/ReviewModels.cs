@@ -42,11 +42,22 @@ public record PendingVoucherResponse(
     [property: JsonPropertyName("missing_fields")] string[] MissingFields,
     [property: JsonPropertyName("suggested_category_id")] Guid? SuggestedCategoryId,
     [property: JsonPropertyName("suggested_class")] string? SuggestedClass,
-    [property: JsonPropertyName("received_at")] DateTimeOffset? ReceivedAt)
+    [property: JsonPropertyName("received_at")] DateTimeOffset? ReceivedAt,
+    // #210 (ADR-V027): what the queue shows for the card ("VISA ····1234", or the printed pattern when its digits are not
+    // the last four), whether the household must say which card it is, and the card it said last time for that pattern.
+    [property: JsonPropertyName("card_label")] string? CardLabel = null,
+    [property: JsonPropertyName("card_ambiguous")] bool CardAmbiguous = false,
+    [property: JsonPropertyName("known_card_id")] Guid? KnownCardId = null)
 {
-    public static PendingVoucherResponse From(PendingVoucher v) => new(
-        v.Id, v.ParsedBank, v.Merchant, v.Amount, v.Currency, v.Date, v.BankId, v.CardNumber, v.CardBrand, v.Authorization, v.Reference,
-        v.TransactionType, v.MissingFields, v.SuggestedCategoryId, v.SuggestedClass, v.ReceivedAt);
+    public static PendingVoucherResponse From(PendingVoucher v, IReadOnlyDictionary<string, Guid>? knownPatterns = null)
+    {
+        var read = Vuelto.Core.Budget.CardIdentity.Read(v.CardNumber);
+        Guid? known = read.Pattern is { } pattern && knownPatterns?.TryGetValue(pattern, out var cardId) == true ? cardId : null;
+        return new(
+            v.Id, v.ParsedBank, v.Merchant, v.Amount, v.Currency, v.Date, v.BankId, v.CardNumber, v.CardBrand, v.Authorization, v.Reference,
+            v.TransactionType, v.MissingFields, v.SuggestedCategoryId, v.SuggestedClass, v.ReceivedAt,
+            Vuelto.Core.Budget.CardIdentity.Label(v.CardBrand, v.CardNumber), read.Ambiguous, known);
+    }
 }
 
 public record PendingCountResponse([property: JsonPropertyName("count")] int Count);
@@ -73,7 +84,12 @@ public record ConfirmVoucherRequest(
     // The reason, recorded while the voucher is in front of you — the ledger's optional 250-character note.
     [property: JsonPropertyName("notes")] string? Notes = null,
     // The refund's notes (LEDGER-4), same as the manual form (2026-09-14).
-    [property: JsonPropertyName("refund_notes")] string? RefundNotes = null);
+    [property: JsonPropertyName("refund_notes")] string? RefundNotes = null,
+    // #210 (ADR-V027): the household's own answer to "which card was it?" — an active card of theirs (remembered for the
+    // voucher's pattern when its digits aren't the last four), or skip_card for no card at all. Absent: the card the
+    // voucher's text names (CARDS-1), or none for a pattern nobody has mapped yet — never a guess.
+    [property: JsonPropertyName("card_id")] Guid? CardId = null,
+    [property: JsonPropertyName("skip_card")] bool SkipCard = false);
 
 /// <summary>EMAIL-7: the guard on the queue reset — the client has to say it means it (the household-dissolve shape, ADR-V009).</summary>
 public record ClearQueueRequest([property: JsonPropertyName("confirm")] bool Confirm = false);

@@ -2163,6 +2163,27 @@ percentage — nothing is recomputed); its `Down` refills an emptied percentage 
 Dropping the column is a later, owner-gated step. *Amends:* ADR-V007 (amounts = percentage × the transaction) and
 LEDGER-3 (a realized refund's inflow tracked the re-derived amounts).
 
+**ADR-V027 — A masked card number whose digits are not the last four is asked about once and remembered, never guessed. (2026-10-09; owner request, CARDS-4, #210)**
+
+BN "pagos" receipts print the card as `XXXXXXXXXXX8755X` for the owner's Black card, which ends **7558**: the visible
+digits are not the last four. `CardIdentity.Last4` took the last run of digits and kept its final four, so every BN
+payment was booked on an auto-created `CARD-8755`, and the confirm had no way to say otherwise. **Decision:** one rule
+in Core, `CardIdentity.Read` — spaces and dashes are layout, any other non-digit is a mask; digits that close the
+number are its last four, digits **followed by a mask** are a **pattern** (normalized: upper-case, every mask an `X`)
+with no last four. A pattern is never matched or auto-created by digits. The household maps it once: the review queue
+shows the pattern (`card_label`), says a card must be chosen (`card_ambiguous`), and offers the household's cards and
+"No card"; the confirm takes `card_id` (an active card of the household — 400 otherwise) or `skip_card`, and a
+`card_id` on a pattern is remembered in a new `CardPattern` table (tenant-scoped, RLS, unique per household, moved by
+a merge, exported and wiped with the cards). The next voucher printing that pattern books on that card and the queue
+preselects it (`known_card_id`), where it can still be changed — a different answer replaces the old one. A plain
+number keeps CARDS-1's behaviour (found by brand + last four, created as `VISA-1234` on first sight). **Rejected:**
+assuming BN hides the final digit and rebuilding the last four (`8755X` → `…755?`) — the owner's case shows the
+digits do not line up with the plastic's last four in any fixed way, and a wrong guess silently books money on the
+wrong card; and a per-bank rule — the mask, not the bank, is what says the digits are not the last four. *Existing
+data:* payments already on an auto card are moved with the existing merge on `/cards`; no migration rewrites history.
+Migration `AddCardPatterns` adds one empty table. *Amends:* ADR-V021 (identity = brand + last four, now only when the
+number ends in its digits).
+
 **ADR-025 — (number reserved; never adopted) CI runner selection is variable-driven with a hosted fallback (LOCALCI-1). (drafted 2026-09-08)**
 *Stub.* A platform draft (it lives in the perezosoft-platform repo, `docs/stories/localci.md`) that was never
 adopted: ADR-028 replaced the design before it was built, and ADR-030 retired self-hosted CI. The number

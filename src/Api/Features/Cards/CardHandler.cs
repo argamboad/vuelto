@@ -15,7 +15,7 @@ namespace Vuelto.Api.Features.Cards;
 /// more entry point: <see cref="ResolveOrCreateAsync"/>, what a voucher confirm calls with the text the bank
 /// printed, creating the card as <c>VISA-1234</c> on first sight. Never seeded. <c>Query()</c> is tenant-filtered.
 /// </summary>
-public sealed class CardHandler(IRepository<Card> cards, IRepository<CardIdentity> identities, ITransactionCards transactions, IRepository<Bank> banks, ICurrentTenant tenant, TimeProvider clock) : ICardResolver
+public sealed class CardHandler(IRepository<Card> cards, IRepository<CardIdentity> identities, IRepository<CardPattern> patterns, ITransactionCards transactions, IRepository<Bank> banks, ICurrentTenant tenant, TimeProvider clock) : ICardResolver
 {
     public async Task<IReadOnlyList<CardResponse>?> ListAsync(bool includeInactive, CancellationToken cancellationToken)
     {
@@ -101,6 +101,7 @@ public sealed class CardHandler(IRepository<Card> cards, IRepository<CardIdentit
 
         var now = clock.GetUtcNow();
         await identities.Query().Where(i => i.CardId == id).ExecuteUpdateAsync(u => u.SetProperty(i => i.CardId, into), cancellationToken);
+        await patterns.Query().Where(p => p.CardId == id).ExecuteUpdateAsync(u => u.SetProperty(p => p.CardId, into), cancellationToken); // #210
         await transactions.MoveAsync(id, into, now, cancellationToken); // the Ledger's rows (Arch A8)
         if (source.CreatedAt >= target.CreatedAt) { target.Brand = source.Brand; target.Last4 = source.Last4; } // the newest number is the one on the plastic; on a tie the card being folded in is the newcomer
         target.BankId ??= source.BankId;
@@ -119,6 +120,11 @@ public sealed class CardHandler(IRepository<Card> cards, IRepository<CardIdentit
     public async Task<CardResolution?> ResolveOrCreateAsync(string? brand, string? cardNumber, Guid? bankId, string? kind = null, CancellationToken cancellationToken = default)
     {
         if (tenant.TenantId is not { } tenantId) return null;
+        // #210: digits followed by a mask aren't a last four — only the household's own mapping names the card.
+        if (Identity.Read(cardNumber).Pattern is { } pattern)
+            return await patterns.Query().Where(p => p.Pattern == pattern).Select(p => (Guid?)p.CardId).FirstOrDefaultAsync(cancellationToken) is { } mapped
+                ? await ResolutionAsync(mapped, cancellationToken)
+                : null;
         if (Identity.Parse(brand, cardNumber) is not var (b, last4)) return null;
 
         if (await FindByIdentityAsync(b, last4, cancellationToken) is { } existing) return await ResolutionAsync(existing, cancellationToken);
@@ -142,6 +148,32 @@ public sealed class CardHandler(IRepository<Card> cards, IRepository<CardIdentit
             identities.Remove(identity); cards.Remove(card); // Added → Detached: a concurrent confirm created it first
             return await FindByIdentityAsync(b, last4, cancellationToken) is { } winner ? await ResolutionAsync(winner, cancellationToken) : null;
         }
+    }
+
+    public async Task<CardResolution?> ResolveChosenAsync(Guid cardId, string? cardNumber, CancellationToken cancellationToken = default)
+    {
+        if (tenant.TenantId is not { } tenantId) return null;
+        var chosen = await cards.Query().Where(c => c.Id == cardId && c.IsActive).Select(c => new CardResolution(c.Id, c.Kind)).FirstOrDefaultAsync(cancellationToken);
+        if (chosen is null || Identity.Read(cardNumber).Pattern is not { } pattern) return chosen;
+
+        // Remember the answer for the next voucher printing this pattern; a different earlier answer is replaced.
+        var now = clock.GetUtcNow();
+        var known = await patterns.Query().FirstOrDefaultAsync(p => p.Pattern == pattern, cancellationToken);
+        if (known is null)
+            await patterns.AddAsync(new CardPattern { TenantId = tenantId, CardId = cardId, Pattern = pattern, CreatedAt = now, UpdatedAt = now }, cancellationToken);
+        else if (known.CardId != cardId)
+        {
+            known.CardId = cardId; known.UpdatedAt = now;
+            patterns.Update(known);
+        }
+        await patterns.SaveChangesAsync(cancellationToken);
+        return chosen;
+    }
+
+    public async Task<IReadOnlyDictionary<string, Guid>> KnownPatternsAsync(IReadOnlyCollection<string> wanted, CancellationToken cancellationToken = default)
+    {
+        if (wanted.Count == 0) return new Dictionary<string, Guid>();
+        return await patterns.Query().Where(p => wanted.Contains(p.Pattern)).ToDictionaryAsync(p => p.Pattern, p => p.CardId, cancellationToken);
     }
 
     private async Task<CardResolution?> ResolutionAsync(Guid cardId, CancellationToken cancellationToken) =>

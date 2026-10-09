@@ -47,7 +47,7 @@ internal static class AppTestComposition
         new VariableExpenseDataContributor(new EfRepository<VariableExpense>(db)),
         new IncomeDataContributor(new EfRepository<IncomeLine>(db), new EfRepository<MonthIncome>(db), new MonthIncomeRows(new EfRepository<MonthIncome>(db))),
         new VoucherStagingDataContributor(new EfRepository<PendingVoucher>(db), new EfRepository<IngestedVoucher>(db)),
-        new CardDataContributor(new EfRepository<Card>(db), new EfRepository<CardIdentity>(db)),
+        new CardDataContributor(new EfRepository<Card>(db), new EfRepository<CardIdentity>(db), new EfRepository<CardPattern>(db)),
         new MerchantMappingDataContributor(new EfRepository<MerchantCategoryMapping>(db)),
     ];
 

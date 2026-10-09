@@ -438,6 +438,11 @@ Flow:
    (`source = email`), inside one transaction with a conditional `pending → confirmed` flip — a
    double-click yields one transaction (loser: 409 `not_pending`). Rate unavailable → 400, draft
    stays pending, nothing written.
+2a. **The card** (CARDS-1, ADR-V027): a number that ends in its digits (`************1234`) names the card by brand + last
+   four, created as `VISA-1234` on first sight. A number whose digits are followed by a mask (BN pagos:
+   `XXXXXXXXXXX8755X`) has no knowable last four — the queue shows the pattern and asks **Which card was it?** (the
+   household's cards, or **No card**) and won't confirm until answered; the answer is remembered for that pattern
+   (`CardPattern`), preselected next time and used by any later confirm of the same pattern.
 3. **Discard** (`POST …/{id}/discard`) marks it `discarded` (tombstone stays).
 4. Opt-in **"remember this merchant"** creates a merchant mapping (§20a) — never overwrites.
 

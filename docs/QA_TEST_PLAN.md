@@ -2485,6 +2485,30 @@ a real email, or the SQL row from QA-EMAIL-06 with `merchant = 'TACO BELL PLAZA 
 **Review** → **Expected:** the category select already shows the mapped category, the "Suggested" badge is
 on, and **Months** shows no new transaction yet.
 
+### QA-CAT-08 — A half-hidden card number is asked about once and remembered 🟠 (Web / API)
+**Gherkin**
+```gherkin
+Given a card "Black" (VISA ····7558) and a BN payment receipt in the queue printing XXXXXXXXXXX8755X
+When I open Review
+Then the voucher shows XXXXXXXXXXX8755X (not ····8755) and a "Which card was it?" picker listing my cards and "No card"
+And Confirm without answering says to choose the card first, and nothing is booked
+When I pick Black and Confirm
+Then the payment is on Black in the month, and Settings → Manage cards has no CARD-8755
+When the next BN payment with the same number arrives
+Then its picker comes preselected with Black, saying it was my answer last time
+When I pick "No card" instead and Confirm
+Then that payment carries no card
+```
+**Walkthrough:** stage a BN payment receipt (a real one, or the `bn-payment` fixture through the dev mailbox) whose
+card reads `XXXXXXXXXXX8755X`, with a card **Black** already in **Manage cards**. **Review** → **Expected:** the card
+reads `XXXXXXXXXXX8755X` and a **Which card was it?** select sits under the class, with "The bank hides part of this
+number…" under it. **Confirm** → **Expected:** "Choose which card this was (or No card)." and the voucher still
+there. Pick **Black** → **Confirm** → **Expected:** "Confirmed", the month row shows **Black**, and **Manage cards**
+has no new auto-named card. Stage a second receipt with the same number → **Expected:** **Black** preselected and the
+hint "Your answer last time…". Pick **No card** → **Confirm** → **Expected:** that row has no card. Postman **Confirm
+pending voucher** with a `card_id` from another household → **Expected:** 400 `invalid_request`, the draft still
+pending. A BAC voucher (`************1234`) shows no picker and books on its card as before.
+
 ### QA-EMAIL-06 — Review queue: confirm books the transaction once, discard never reverts a confirm 🟠 (Web / API)
 **Gherkin**
 ```gherkin
@@ -4079,6 +4103,7 @@ Record one row per executed case. Build = API/web commit SHA (`git rev-parse --s
 | QA-CAT-05 | Web/API | | | | | |
 | QA-CAT-06 | Web/API | | | | | |
 | QA-CAT-07 | Web/API | | | | | |
+| QA-CAT-08 | Web/API | | | | | |
 | QA-FX-01 | Web/API | | | | | |
 | QA-FX-02 | Web/API | | | | | |
 | QA-ENV-01 | Web/API | | | | | |
@@ -4945,4 +4970,5 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   edit to re-derive a refund; new **QA-LED-09**, the cross-month Refunds page (#208). QA-DASH-05: the week cut's
   Unplanned column (#211). QA-DASH-03: the Show in switch on the month page, Months and Budget (#207). Income moved
   from Settings to the Budget page (#203): QA-BUD-01, QA-INC-01 and every "Settings → Manage income" step now read
-  "Budget → Edit income". 221 → 222 cases.
+  "Budget → Edit income". New **QA-CAT-08**, a half-hidden card number asked about once and remembered (#210).
+  221 → 223 cases.
