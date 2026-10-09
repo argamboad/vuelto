@@ -99,3 +99,37 @@
 .ledger-empty {
     color: var(--ink-2);
 }
+
+/* #209 · on a phone the date, month and status columns hide and ride under the payee instead, so a row is
+   tick · payee (with its date, month and status) · amount — no sideways scrolling. */
+.refunds-sub {
+    display: none;
+}
+
+@media (max-width: 575.98px) {
+    .refunds-table .col-wide {
+        display: none;
+    }
+
+    .refunds-sub {
+        display: block;
+        margin-top: 2px;
+        font-size: .75rem;
+        color: var(--ink-2);
+    }
+
+    .refunds-sub-chip {
+        font-weight: 600;
+    }
+
+    .refunds-sub-chip[data-tone="good"] {
+        color: var(--good);
+    }
+
+    .refunds-sub-chip[data-tone="warn"] {
+        padding: 0 6px;
+        border-radius: var(--bs-border-radius-pill);
+        background: var(--warn-bg); /* the StatusChip's "needs attention" — amber, never red */
+        color: var(--ink);
+    }
+}

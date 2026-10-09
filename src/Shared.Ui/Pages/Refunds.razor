@@ -89,11 +89,11 @@
                     <thead>
                         <tr>
                             <th scope="col"><span class="visually-hidden">@Localizer["Refunds_Select"]</span></th>
-                            <th scope="col">@Localizer["Tx_Date"]</th>
+                            <th scope="col" class="col-wide">@Localizer["Tx_Date"]</th>
                             <th scope="col">@Localizer["Tx_Payee"]</th>
-                            <th scope="col" class="col-md">@Localizer["Refunds_Month"]</th>
+                            <th scope="col" class="col-wide">@Localizer["Refunds_Month"]</th>
                             <th scope="col" class="text-end">@Localizer["Tx_Amount"]</th>
-                            <th scope="col">@Localizer["Catalog_Status"]</th>
+                            <th scope="col" class="col-wide">@Localizer["Catalog_Status"]</th>
                         </tr>
                     </thead>
                     @foreach (var group in Groups(list.Refunds))
@@ -120,14 +120,20 @@
                                                    checked="@_selected.Contains(r.Id)" @onchange="e => Toggle(r.Id, e)" />
                                         }
                                     </td>
-                                    <td class="text-nowrap">@r.TransactionDate.ToString("d", CultureInfo.CurrentCulture)</td>
+                                    <td class="text-nowrap col-wide">@r.TransactionDate.ToString("d", CultureInfo.CurrentCulture)</td>
                                     <td>
                                         <span class="tx-payee">@r.Payee</span>
                                         @if (!string.IsNullOrWhiteSpace(r.Notes)) { <span class="tx-sub">@r.Notes</span> }
+                                        @* #209: on a phone the date, month and status columns fold into this line. *@
+                                        <span class="refunds-sub" aria-hidden="true">
+                                            @r.TransactionDate.ToString("d", CultureInfo.CurrentCulture) · <a href="/months/@r.MonthId" tabindex="-1">@MonthLabel(r)</a><br />
+                                            <span class="refunds-sub-chip" data-tone="@(r.Status == "received" ? "good" : "warn")">@StatusText(r)</span>
+                                            @if (r.PendingDays is { } subDays) { <span> · @Localizer["Refunds_PendingFor", subDays]</span> }
+                                        </span>
                                     </td>
-                                    <td class="col-md"><a href="/months/@r.MonthId">@MonthLabel(r)</a></td>
+                                    <td class="col-wide"><a href="/months/@r.MonthId">@MonthLabel(r)</a></td>
                                     <td class="text-end"><Money Crc="r.AmountCrc" Usd="r.AmountUsd" Display="@_display" Size="row" TestId="refunds-amount" /></td>
-                                    <td>
+                                    <td class="col-wide">
                                         <StatusChip Tone="@(r.Status == "received" ? "good" : "warn")" TestId="refunds-status-chip">@StatusText(r)</StatusChip>
                                         @if (r.PendingDays is { } days)
                                         {

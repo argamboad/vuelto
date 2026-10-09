@@ -853,6 +853,24 @@ bank** and the pace → reload → **Expected:** still folded. **Household** →
 **Dashboard** → fold **Where it went** → its switch stays visible in the heading, the table is gone; reload → still
 folded. On the phone app the same, and a fold on the phone does not fold the web (it is a device preference).
 
+### QA-SET-11 — On a phone no page scrolls sideways; tables fit or scroll inside their card 🟠 (Web + Android) ⚙️ Automated in CI
+**Gherkin**
+```gherkin
+Given a household with two months of purchases, refunds pending and received, budget lines and income
+When I open each main page at phone width (375 px): Dashboard (all four "Where it went" cuts), a month, Months, Budget,
+  Refunds, Reports, Settings, Household, Review and New transaction
+Then none of them can be dragged sideways
+And on the dashboard a "both" amount reads ₡ over $ in the breakdown tables, and a budget line's name has its own line
+And on Refunds each row reads tick · payee (date · month · status under it) · amount
+And on a desktop the same tables read "₡x · $y" on one line as before
+```
+**Walkthrough:** open the app on the phone (or a browser at 375 px). On each page above try to drag the page left →
+**Expected:** it does not move; a table wider than the screen (none should be, with ordinary amounts) scrolls inside its
+own card instead. **Dashboard → Where it went** → each of **By week**, **By bank**, **By card**, **Unbudgeted** → the
+amounts stack ₡ over $ and every column is visible. **Fixed** / **Variable** → each line's name is whole on its own
+line, budget and delta under it. **Household** with a long member email → it wraps. Back on a desktop → the same
+dashboard tables keep ₡ and $ on one line. Automated by `PhoneLayoutTests` (E2E).
+
 ### QA-MFA-01 — Enable two-factor (authenticator TOTP) 🟠 (Web) ⚙️ Automated in CI
 **Precondition:** signed in; an authenticator app (Google Authenticator, 1Password, Authy, …) to hand.
 **Gherkin**
@@ -4096,6 +4114,7 @@ Record one row per executed case. Build = API/web commit SHA (`git rev-parse --s
 | QA-SET-07 | Web | | | | | |
 | QA-SET-08 | Web | | | | | |
 | QA-SET-10 | Web + Android | | | | | |
+| QA-SET-11 | Web + Android | | | | | |
 | QA-MFA-01 | Web | | | | | |
 | QA-MFA-02 | Web | | | | | |
 | QA-MFA-03 | Web | | | | | |
@@ -4997,5 +5016,6 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   from Settings to the Budget page (#203): QA-BUD-01, QA-INC-01 and every "Settings → Manage income" step now read
   "Budget → Edit income". New **QA-CAT-08**, a half-hidden card number asked about once and remembered (#210).
   QA-DSK-10 and the CSV/PDF download steps: Windows saves through a Save As dialog, not the share flyout (#204).
-  New **QA-SET-10**, cards that fold and stay folded on the device (#205).
-  221 → 224 cases.
+  New **QA-SET-10**, cards that fold and stay folded on the device (#205). New **QA-SET-11**, no page scrolls sideways on a
+  phone (#209, automated by `PhoneLayoutTests`).
+  221 → 225 cases.

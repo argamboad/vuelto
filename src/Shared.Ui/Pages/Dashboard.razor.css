@@ -240,3 +240,37 @@
 
     .dash-env-bar { display: none; }
 }
+
+/* #209 · on a phone a "both" pair breaks after its middot (₡ over $) instead of forcing the table wider than the screen,
+   and the cells tighten; whatever still doesn't fit scrolls inside its own .table-responsive box, never the page. */
+@media (max-width: 575.98px) {
+    .dash-table {
+        font-size: .8125rem;
+    }
+
+    .dash-table th,
+    .dash-table td {
+        padding-left: .25rem;
+        padding-right: .25rem;
+    }
+
+    .dash-table thead th {
+        font-size: .625rem !important;   /* the shared table-head style is more specific */
+        letter-spacing: 0 !important;
+        white-space: normal;
+    }
+
+    .dash-table td.text-nowrap {
+        white-space: normal !important; /* Bootstrap's .text-nowrap is !important itself */
+    }
+
+    .dash-pair-sep {
+        display: none;
+    }
+
+    .dash-pair-alt {
+        display: block;
+        color: var(--ink-2);
+        font-size: .75rem;
+    }
+}

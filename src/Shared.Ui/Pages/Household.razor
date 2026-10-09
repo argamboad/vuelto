@@ -59,8 +59,8 @@
                         <ul class="list-group list-group-flush">
                             @foreach (var m in _household.Members)
                             {
-                                <li class="list-group-item d-flex align-items-center justify-content-between px-0" data-testid="member-row">
-                                    <div>
+                                <li class="list-group-item d-flex align-items-center justify-content-between gap-2 px-0" data-testid="member-row">
+                                    <div class="member-id">
                                         <div class="fw-medium">@(string.IsNullOrWhiteSpace(m.DisplayName) ? m.Email : m.DisplayName)</div>
                                         @if (!string.IsNullOrWhiteSpace(m.DisplayName))
                                         {
@@ -150,8 +150,8 @@
                                 <ul class="list-group list-group-flush">
                                     @foreach (var inv in _pending)
                                     {
-                                        <li class="list-group-item d-flex align-items-center justify-content-between px-0" data-testid="pending-invite-row">
-                                            <div>
+                                        <li class="list-group-item d-flex align-items-center justify-content-between gap-2 px-0" data-testid="pending-invite-row">
+                                            <div class="member-id">
                                                 <div class="fw-medium">@inv.InvitedEmail</div>
                                                 <div class="small text-muted">@Localizer["Household_Expires", inv.ExpiresAt.ToLocalTime().ToString("d")]</div>
                                             </div>

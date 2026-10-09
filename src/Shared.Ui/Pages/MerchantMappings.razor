@@ -67,34 +67,36 @@
     else
     {
         <div class="card">
-            <table class="table align-middle mb-0">
-                <thead><tr><th>@Localizer["Mapping_Pattern"]</th><th class="fold-md">@Localizer["Tx_Category"]</th><th class="fold-md">@Localizer["Mapping_Class"]</th><th></th></tr></thead>
-                <tbody>
-                    @foreach (var r in _rules)
-                    {
-                        <tr data-testid="mapping-row">
-                            <td>
-                                <span class="fw-semibold">@r.MerchantPattern</span>
-                                <span class="sub-line" data-testid="mapping-row-sub">@(r.CategoryName ?? "—") · @ClassLabel(r.SuggestedClass)</span>
-                            </td>
-                            <td class="fold-md">@(r.CategoryName ?? "—")</td>
-                            <td class="fold-md" data-testid="mapping-row-class"><ClassChip Class="@r.SuggestedClass" /></td>
-                            <td class="text-end text-nowrap">
-                                <button class="btn btn-sm btn-outline-primary" data-testid="mapping-edit" @onclick="() => Edit(r)">@Localizer["Mapping_Edit"]</button>
-                                @if (_confirmDelete == r.Id)
-                                {
-                                    <button class="btn btn-sm btn-danger" data-testid="mapping-delete-confirm" @onclick="() => DeleteAsync(r)" disabled="@_busy">@Localizer["Mapping_DeleteConfirm"]</button>
-                                    <button class="btn btn-sm btn-outline-secondary" @onclick="() => _confirmDelete = null">@Localizer["Common_Cancel"]</button>
-                                }
-                                else
-                                {
-                                    <button class="btn btn-sm btn-outline-danger" data-testid="mapping-delete" @onclick="() => _confirmDelete = r.Id">@Localizer["Mapping_Delete"]</button>
-                                }
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
+            <div class="table-responsive">
+                <table class="table align-middle mb-0">
+                    <thead><tr><th>@Localizer["Mapping_Pattern"]</th><th class="fold-md">@Localizer["Tx_Category"]</th><th class="fold-md">@Localizer["Mapping_Class"]</th><th></th></tr></thead>
+                    <tbody>
+                        @foreach (var r in _rules)
+                        {
+                            <tr data-testid="mapping-row">
+                                <td>
+                                    <span class="fw-semibold">@r.MerchantPattern</span>
+                                    <span class="sub-line" data-testid="mapping-row-sub">@(r.CategoryName ?? "—") · @ClassLabel(r.SuggestedClass)</span>
+                                </td>
+                                <td class="fold-md">@(r.CategoryName ?? "—")</td>
+                                <td class="fold-md" data-testid="mapping-row-class"><ClassChip Class="@r.SuggestedClass" /></td>
+                                <td class="text-end text-nowrap">
+                                    <button class="btn btn-sm btn-outline-primary" data-testid="mapping-edit" @onclick="() => Edit(r)">@Localizer["Mapping_Edit"]</button>
+                                    @if (_confirmDelete == r.Id)
+                                    {
+                                        <button class="btn btn-sm btn-danger" data-testid="mapping-delete-confirm" @onclick="() => DeleteAsync(r)" disabled="@_busy">@Localizer["Mapping_DeleteConfirm"]</button>
+                                        <button class="btn btn-sm btn-outline-secondary" @onclick="() => _confirmDelete = null">@Localizer["Common_Cancel"]</button>
+                                    }
+                                    else
+                                    {
+                                        <button class="btn btn-sm btn-outline-danger" data-testid="mapping-delete" @onclick="() => _confirmDelete = r.Id">@Localizer["Mapping_Delete"]</button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
         </div>
     }
 </div>

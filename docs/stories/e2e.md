@@ -8,7 +8,8 @@
 > Gherkin acceptance criteria. **Status: ✅ COMPLETE — E2E-1..5** (4 and 5 added after review
 > showed magic-link + destructive flows were automatable after all).
 >
-> **Current suite size: 44 tests** — 44 browser journeys (v4 T48, ported 2026-10-06: +4 gate journeys in
+> **Current suite size: 45 tests** — 45 browser journeys (#209, 2026-10-09: +1 `PhoneLayoutTests` — at 375×740 no main page
+> scrolls sideways, on a household seeded through the API; v4 T48, ported 2026-10-06: +4 gate journeys in
 > `GateJourneyTests`, run in their own gates-off lane — billing unset, a one-domain green list — `pwsh tools/e2e.ps1
 > -Gates` locally, the "gates off" step in CI; v4 T58, ported 2026-10-05: +3 session journeys in
 > `SessionJourneyTests` — Back after sign-out with the back/forward cache really on, keep-alive past the access

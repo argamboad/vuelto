@@ -53,6 +53,8 @@
 
 .month-head-buttons {
     display: flex;
+    flex-wrap: wrap; /* #209: the Show in switch (#207) plus two buttons don't fit one phone row */
+    align-items: center;
     gap: 8px;
 }
 
