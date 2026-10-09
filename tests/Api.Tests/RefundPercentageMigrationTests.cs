@@ -17,7 +17,7 @@ namespace Vuelto.Api.Tests;
 /// </summary>
 public sealed class RefundPercentageMigrationTests : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:17.11").Build();
+    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("public.ecr.aws/docker/library/postgres:17.11").Build();
 
     public Task InitializeAsync() => _container.StartAsync();
     public Task DisposeAsync() => _container.DisposeAsync().AsTask();
