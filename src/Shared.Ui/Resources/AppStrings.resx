@@ -499,6 +499,9 @@
   <data name="Month_Refunds" xml:space="preserve"><value>Expected refunds</value></data>
   <data name="Month_NoRefunds" xml:space="preserve"><value>No refunds expected this month.</value></data>
   <data name="Refund_NotesHint" xml:space="preserve"><value>Optional — case number, who owes it, when you expect it back</value></data>
+  <data name="Refund_TotalReceived" xml:space="preserve"><value>Received</value></data>
+  <data name="Refund_TotalPending" xml:space="preserve"><value>Pending</value></data>
+  <data name="Refund_TotalExpected" xml:space="preserve"><value>of</value></data>
   <data name="Refund_Pending" xml:space="preserve"><value>Pending</value></data>
   <data name="Refund_Received" xml:space="preserve"><value>Received</value></data>
   <data name="Refund_MarkReceived" xml:space="preserve"><value>Mark received</value></data>

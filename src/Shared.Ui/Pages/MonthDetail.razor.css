@@ -407,3 +407,23 @@
     .month-head-buttons { width: 100%; }
     .month-head-buttons .btn { flex: 1 1 0; }
 }
+
+/* #206: received · pending · of expected, beside the refunds count; wraps under it on a phone. */
+.refund-totals {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 16px;
+    margin: 0;
+    font-size: .875rem;
+    color: var(--ink-2);
+}
+
+.refund-totals > span {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+}
+
+.refund-totals-expected {
+    opacity: .8;
+}

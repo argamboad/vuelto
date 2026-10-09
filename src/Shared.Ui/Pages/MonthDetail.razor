@@ -226,7 +226,18 @@
         </section>
 
         <section class="month-card ledger">
-            <div class="ledger-head"><h2>@Localizer["Month_Refunds"] <span class="count-pill">@_refunds.Count</span></h2></div>
+            <div class="ledger-head">
+                <h2>@Localizer["Month_Refunds"] <span class="count-pill">@_refunds.Count</span></h2>
+                @if (_refundTotals is { } totals && _refunds.Count > 0)
+                {
+                    @* #206: what came in and what is still out, in the display currency; expected is their sum. *@
+                    <p class="refund-totals" data-testid="month-refund-totals">
+                        <span>@Localizer["Refund_TotalReceived"] <Money TestId="month-refund-received" Crc="totals.Received.Crc" Usd="totals.Received.Usd" Display="@_display" /></span>
+                        <span>@Localizer["Refund_TotalPending"] <Money TestId="month-refund-pending" Crc="totals.Pending.Crc" Usd="totals.Pending.Usd" Display="@_display" /></span>
+                        <span class="refund-totals-expected">@Localizer["Refund_TotalExpected"] <Money TestId="month-refund-expected" Crc="totals.Expected.Crc" Usd="totals.Expected.Usd" Display="@_display" /></span>
+                    </p>
+                }
+            </div>
             @if (_refunds.Count == 0)
             {
                 <p class="ledger-empty">@Localizer["Month_NoRefunds"]</p>
@@ -350,6 +361,7 @@
     private MonthDto? _month;
     private List<TxDto> _transactions = new();
     private List<RefundDto> _refunds = new();
+    private RefundTotalsDto? _refundTotals;
     private readonly Dictionary<Guid, DateOnly> _receivedDates = new();
 
     /// <summary>The date to book a pending refund on — today unless the user picked one (never before the purchase).</summary>
@@ -387,7 +399,9 @@
             _month = await res.Content.ReadFromJsonAsync<MonthDto>();
             ApplyIncome(_month!.IncomeRows);
             _transactions = await Http.GetFromJsonAsync<List<TxDto>>($"/api/months/{Id}/transactions") ?? new();
-            _refunds = await Http.GetFromJsonAsync<List<RefundDto>>($"/api/months/{Id}/refunds") ?? new();
+            var refundList = await Http.GetFromJsonAsync<RefundListDto>($"/api/months/{Id}/refunds");
+            _refunds = refundList?.Refunds ?? new();
+            _refundTotals = refundList?.Totals;
         }
         catch { _error = Localizer["Month_LoadError"]; }
         finally { _loading = false; }
@@ -617,6 +631,9 @@
         [property: JsonPropertyName("card_name")] string? CardName = null,
         [property: JsonPropertyName("notes")] string? Notes = null);
 
+    private sealed record RefundListDto([property: JsonPropertyName("refunds")] List<RefundDto> Refunds, [property: JsonPropertyName("totals")] RefundTotalsDto? Totals);
+    private sealed record RefundTotalsDto([property: JsonPropertyName("pending")] PairDto Pending, [property: JsonPropertyName("received")] PairDto Received, [property: JsonPropertyName("expected")] PairDto Expected);
+    private sealed record PairDto([property: JsonPropertyName("crc")] decimal Crc, [property: JsonPropertyName("usd")] decimal Usd);
     private sealed record RefundDto(
         [property: JsonPropertyName("id")] Guid Id,
         [property: JsonPropertyName("payee")] string Payee,

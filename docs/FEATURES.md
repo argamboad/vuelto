@@ -261,7 +261,8 @@ Flow:
    to a class that can't carry it or deleting the purchase is 409 `refund_status_conflict` — put it back to pending on
    the month page (which removes the inflow), correct it, mark it received again. Edits that don't touch the refund
    still save, and the booked inflow is never rewritten.
-2. `GET /api/months/{id}/refunds` lists the month's refunds; `PUT /api/refunds/{id}` flips
+2. `GET /api/months/{id}/refunds` lists the month's refunds with their totals — **received**, **pending** and the
+   **expected** sum, shown beside the count in the display currency (#206); `PUT /api/refunds/{id}` flips
    `pending → received` with a `received_date` (default today, never before the purchase), which
    **auto-creates a derived `inflow` transaction** (same amounts and rate, the source transaction's
    bank, `source = refund_realization`) **dated that day and filed in that day's month** — the month

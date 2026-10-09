@@ -402,7 +402,7 @@ public class RefundSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
         Assert.Equal((2026, 7), (july.Year, july.MonthNumber));
 
         // The refund still lists under June, pointing at July; June's transactions hold only the purchase.
-        var juneRefund = Assert.Single((await c.Refunds.ListForMonthAsync(tx.MonthId, default))!);
+        var juneRefund = Assert.Single((await c.Refunds.ListForMonthAsync(tx.MonthId, default))!.Refunds);
         Assert.Equal((tx.MonthId, inflow.MonthId, jul3), (juneRefund.MonthId, juneRefund.InflowMonthId, juneRefund.ReceivedDate));
         Assert.Single((await c.Transactions.ListForMonthAsync(tx.MonthId, default))!);
         Assert.Single((await c.Transactions.ListForMonthAsync(inflow.MonthId, default))!, r => r.Source == "refund_realization");
@@ -588,7 +588,8 @@ public class RefundSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
 
         var list = await c.Refunds.ListForMonthAsync(tx!.MonthId, default);
 
-        var only = Assert.Single(list!);
+        var only = Assert.Single(list!.Refunds);
+        Assert.Equal((25_000m, 0m, 25_000m), (list.Totals.Pending.Crc, list.Totals.Received.Crc, list.Totals.Expected.Crc)); // #206
         Assert.Equal(("Hospital", (decimal?)50m, "pending"), (only.Payee, only.Percentage, only.Status)); // computed: 25,000 of 50,000
         Assert.Null(await c.Refunds.ListForMonthAsync(Guid.CreateVersion7(), default));
     }

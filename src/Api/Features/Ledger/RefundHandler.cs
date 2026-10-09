@@ -26,8 +26,8 @@ public sealed class RefundHandler(
     TimeProvider clock,
     ILogger<RefundHandler> logger)
 {
-    /// <summary>The month's refunds newest first. Null = month not found (uniform 404).</summary>
-    public async Task<IReadOnlyList<RefundResponse>?> ListForMonthAsync(Guid monthId, CancellationToken cancellationToken)
+    /// <summary>The month's refunds newest first, with their received / pending totals (#206). Null = month not found (uniform 404).</summary>
+    public async Task<RefundListResponse?> ListForMonthAsync(Guid monthId, CancellationToken cancellationToken)
     {
         if (await months.GetAsync(monthId, cancellationToken) is null) return null;
         var rows = await refunds.Query().Where(r => r.MonthId == monthId)
@@ -36,7 +36,9 @@ public sealed class RefundHandler(
         var inflowMonths = await InflowMonthsAsync(rows, cancellationToken);
         var sourceIds = rows.Select(r => r.TransactionId).ToList();
         var sources = await transactions.Query().Where(t => sourceIds.Contains(t.Id)).ToDictionaryAsync(t => t.Id, cancellationToken);
-        return rows.Select(r => RefundResponse.From(r, r.InflowTransactionId is { } i ? inflowMonths.GetValueOrDefault(i) : null, sources.GetValueOrDefault(r.TransactionId))).ToList();
+        return new RefundListResponse(
+            rows.Select(r => RefundResponse.From(r, r.InflowTransactionId is { } i ? inflowMonths.GetValueOrDefault(i) : null, sources.GetValueOrDefault(r.TransactionId))).ToList(),
+            RefundTotalsResponse.From(RefundTotals.Calculate(rows)));
     }
 
     /// <summary>The refund's purchase — for the percentage the response computes (ADR-V026: never stored).</summary>

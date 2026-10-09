@@ -649,7 +649,7 @@ public class ReportsPageTests : ComponentTestBase
         await SignInAsync();
         Http.On(HttpMethod.Get, $"/api/months/{M1}", $$"""{"id":"{{M1}}","year":2026,"month_number":6,"week_count":4,"week1_start_date":"2026-05-28","income_rows":[],"weeks":[{"week_number":1,"start_date":"2026-05-28","end_date":"2026-06-03"}]}""");
         Http.On(HttpMethod.Get, $"/api/months/{M1}/transactions", "[]");
-        Http.On(HttpMethod.Get, $"/api/months/{M1}/refunds", "[]");
+        Http.On(HttpMethod.Get, $"/api/months/{M1}/refunds", """{"refunds":[],"totals":null}""");
         Http.On(HttpMethod.Post, "/api/reports/transactions/export", Export);
 
         var cut = Render<MonthDetail>(p => p.Add(x => x.Id, Guid.Parse(M1)));

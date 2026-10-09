@@ -3759,7 +3759,7 @@
                 "refunds"
               ]
             },
-            "description": "The month's expected refunds newest first: payee, transaction_date, percentage, amount_crc, amount_usd, status (pending | received), inflow_transaction_id (present ⇔ received). Captures the first id into {{refundId}}. 404 for an unknown month."
+            "description": "200 { refunds[], totals } — the month's expected refunds newest first: payee, transaction_date, percentage (computed from the amounts against the purchase — never stored, ADR-V026), amount_crc, amount_usd, status (pending | received), inflow_transaction_id (present ⇔ received); totals (#206) = { pending, received, expected } each {crc, usd}, computed (expected = pending + received). Captures the first id into {{refundId}}. 404 for an unknown month."
           },
           "event": [
             {
@@ -3767,7 +3767,7 @@
               "script": {
                 "exec": [
                   "pm.test(\"200 or 404 when no month yet\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));",
-                  "if (pm.response.code === 200) { const items = pm.response.json(); if (Array.isArray(items) && items.length) pm.environment.set('refundId', items[0].id); }"
+                  "if (pm.response.code === 200) { const items = pm.response.json().refunds; if (Array.isArray(items) && items.length) pm.environment.set('refundId', items[0].id); }"
                 ],
                 "type": "text/javascript"
               }

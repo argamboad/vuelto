@@ -127,7 +127,7 @@ public class MonthPagesShapeTests : ComponentTestBase
 
     // ---------------------------------------------------------------- Month detail
 
-    private void StubMonth(string transactions = "[]", string refunds = "[]")
+    private void StubMonth(string transactions = "[]", string refunds = """{"refunds":[],"totals":null}""")
     {
         Http.On(HttpMethod.Get, $"/api/months/{CurrentId}", $$"""{"id":"{{CurrentId}}","year":2026,"month_number":7,"week_count":2,"week1_start_date":"2026-06-25","income_rows":[{"id":"eeeeeeee-0000-0000-0000-000000000009","income_line_id":"ffffffff-0000-0000-0000-000000000009","label":"Primary","member_user_id":null,"currency":"USD","amount":3750,"planned_amount":3750},{"id":"eeeeeeee-0000-0000-0000-000000000010","income_line_id":"ffffffff-0000-0000-0000-000000000010","label":"Secondary","member_user_id":null,"currency":"CRC","amount":312500,"planned_amount":312500}],"weeks":[{"week_number":1,"start_date":"2026-06-25","end_date":"2026-07-01"},{"week_number":2,"start_date":"2026-07-02","end_date":"2026-07-08"}]}""");
         Http.On(HttpMethod.Get, $"/api/months/{CurrentId}/transactions", transactions);
@@ -229,7 +229,7 @@ public class MonthPagesShapeTests : ComponentTestBase
     public async Task MonthDetail_RefundRow_IsAStatusPill_AndItsButtonNamesTheMerchant()
     {
         await SignInAsync();
-        StubMonth(refunds: $$"""[{"id":"{{RefundId}}","month_id":"{{CurrentId}}","transaction_id":"dddddddd-0000-0000-0000-000000000004","payee":"Hospital","transaction_date":"2026-06-27","percentage":30,"amount_crc":15000,"amount_usd":30,"status":"pending","inflow_transaction_id":null}]""");
+        StubMonth(refunds: $$"""{"refunds":[{"id":"{{RefundId}}","month_id":"{{CurrentId}}","transaction_id":"dddddddd-0000-0000-0000-000000000004","payee":"Hospital","transaction_date":"2026-06-27","percentage":30,"amount_crc":15000,"amount_usd":30,"status":"pending","inflow_transaction_id":null}],"totals":null}""");
 
         var cut = Render<MonthDetail>(p => p.Add(x => x.Id, Guid.Parse(CurrentId)));
         cut.WaitForElement("[data-testid='month-refund-row']");
@@ -240,7 +240,7 @@ public class MonthPagesShapeTests : ComponentTestBase
         Assert.Equal("₡15,000.00", cut.Find("[data-testid='refund-amount-primary']").TextContent);
         Assert.Equal("Refund_MarkReceivedFor[Hospital]", cut.Find("[data-testid='refund-toggle']").GetAttribute("aria-label"));
 
-        StubMonth(refunds: $$"""[{"id":"{{RefundId}}","month_id":"{{CurrentId}}","transaction_id":"dddddddd-0000-0000-0000-000000000004","payee":"Hospital","transaction_date":"2026-06-27","percentage":30,"amount_crc":15000,"amount_usd":30,"status":"received","inflow_transaction_id":"dddddddd-0000-0000-0000-000000000009","received_date":"2026-07-03","inflow_month_id":"{{CurrentId}}"}]""");
+        StubMonth(refunds: $$"""{"refunds":[{"id":"{{RefundId}}","month_id":"{{CurrentId}}","transaction_id":"dddddddd-0000-0000-0000-000000000004","payee":"Hospital","transaction_date":"2026-06-27","percentage":30,"amount_crc":15000,"amount_usd":30,"status":"received","inflow_transaction_id":"dddddddd-0000-0000-0000-000000000009","received_date":"2026-07-03","inflow_month_id":"{{CurrentId}}"}],"totals":null}""");
         var received = Render<MonthDetail>(p => p.Add(x => x.Id, Guid.Parse(CurrentId)));
         received.WaitForElement("[data-testid='month-refund-row']");
         Assert.Equal("good", received.Find("[data-testid='refund-status']").GetAttribute("data-tone"));

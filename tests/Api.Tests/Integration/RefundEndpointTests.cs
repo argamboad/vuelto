@@ -37,8 +37,9 @@ public class RefundEndpointTests(IntegrationTestFactory factory)
         Assert.True(tx.RefundExpected);
         Assert.Equal((25_000m, "pending"), (tx.RefundAmount, tx.RefundStatus));
 
-        var refunds = (await client.GetFromJsonAsync<List<RefundDto>>($"/api/months/{tx.MonthId}/refunds"))!;
-        var refund = Assert.Single(refunds);
+        var list = (await client.GetFromJsonAsync<RefundListDto>($"/api/months/{tx.MonthId}/refunds"))!;
+        var refund = Assert.Single(list.Refunds);
+        Assert.Equal((25_000m, 0m), (list.Totals.Pending.Crc, list.Totals.Received.Crc)); // #206
         Assert.Equal((25_000m, 50m, "pending"), (refund.AmountCrc, refund.AmountUsd, refund.Status));
 
         var received = await client.PutAsJsonAsync($"/api/refunds/{refund.Id}", new { status = "received", received_date = "2026-06-20" }); // same month as the purchase
@@ -88,6 +89,9 @@ public class RefundEndpointTests(IntegrationTestFactory factory)
         [property: JsonPropertyName("refund_expected")] bool RefundExpected,
         [property: JsonPropertyName("refund_amount")] decimal? RefundAmount,
         [property: JsonPropertyName("refund_status")] string? RefundStatus);
+    private sealed record PairDto([property: JsonPropertyName("crc")] decimal Crc, [property: JsonPropertyName("usd")] decimal Usd);
+    private sealed record TotalsDto([property: JsonPropertyName("pending")] PairDto Pending, [property: JsonPropertyName("received")] PairDto Received, [property: JsonPropertyName("expected")] PairDto Expected);
+    private sealed record RefundListDto([property: JsonPropertyName("refunds")] List<RefundDto> Refunds, [property: JsonPropertyName("totals")] TotalsDto Totals);
     private sealed record RefundDto(
         [property: JsonPropertyName("id")] Guid Id,
         [property: JsonPropertyName("amount_crc")] decimal AmountCrc,

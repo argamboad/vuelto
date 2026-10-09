@@ -1780,6 +1780,7 @@ Then the inflow row disappears and the pill is Pending again
 When I pick a date in the NEXT month and click Mark received
 Then the pill reads "Received <date>" with a "booked in another month — view" link, this month's table has NO inflow row, and the linked month (created if needed) holds it
 When I click Back to pending → the inflow is gone, and that month with it if it was otherwise empty
+And the Expected refunds header reads "Received ₡15,000.00 · Pending ₡0.00 · of ₡15,000.00" while it is received
 When the refund is Received and I Edit its purchase
 Then the refund switch and amount are disabled with "Already received — mark it back to pending on the month page to change it."
 And deleting the purchase is refused with 409 refund_status_conflict, and nothing changes
@@ -1800,7 +1801,8 @@ this month's transactions table has no inflow; the link opens the next month (au
 not exist) with the inflow row dated as picked. Postman **Update refund status** with `received_date`
 before the purchase → **Expected:** 400 `invalid_request`. **Back to pending** → **Expected:** the
 inflow is gone and the next month too if it held nothing else.
-**Locked once received (ADR-V026):** **Mark received** again, then **Edit** its purchase → **Expected:** the **Refund
+**Totals (#206):** with the refund received, the **Expected refunds** header reads **Received** ₡15,000.00 ·
+**Pending** ₡0.00 · **of** ₡15,000.00; back to pending, the two swap. **Locked once received (ADR-V026):** **Mark received** again, then **Edit** its purchase → **Expected:** the **Refund
 expected** switch and the amount are greyed out with "Already received — mark it back to pending on the month page to
 change it."; change the purchase's notes and **Save** → **Expected:** saved, the inflow unchanged. Postman **Delete
 transaction** on the purchase → **Expected:** 409 `refund_status_conflict`, the purchase, refund and inflow all still

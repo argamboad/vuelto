@@ -173,6 +173,23 @@ public record RefundResponse(
     }
 }
 
+/// <summary>#206: a list of refunds with what it adds up to — received, still pending, and expected (their sum).</summary>
+public record RefundListResponse(
+    [property: JsonPropertyName("refunds")] IReadOnlyList<RefundResponse> Refunds,
+    [property: JsonPropertyName("totals")] RefundTotalsResponse Totals);
+
+public record RefundTotalsResponse(
+    [property: JsonPropertyName("pending")] MoneyPairDto Pending,
+    [property: JsonPropertyName("received")] MoneyPairDto Received,
+    [property: JsonPropertyName("expected")] MoneyPairDto Expected)
+{
+    public static RefundTotalsResponse From(RefundTotalsResult t) =>
+        new(new(t.Pending.Crc, t.Pending.Usd), new(t.Received.Crc, t.Received.Usd), new(t.Expected.Crc, t.Expected.Usd));
+}
+
+/// <summary>A CRC/USD pair on the wire.</summary>
+public record MoneyPairDto([property: JsonPropertyName("crc")] decimal Crc, [property: JsonPropertyName("usd")] decimal Usd);
+
 /// <summary><c>received_date</c> (only read for <c>received</c>) dates the inflow and picks its month; unset = today (ADR-V017).</summary>
 public record UpdateRefundStatusRequest([property: JsonPropertyName("status")] string? Status, [property: JsonPropertyName("received_date")] DateOnly? ReceivedDate = null);
 

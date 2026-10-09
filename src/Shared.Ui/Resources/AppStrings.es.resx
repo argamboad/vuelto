@@ -499,6 +499,9 @@
   <data name="Month_Refunds" xml:space="preserve"><value>Reembolsos esperados</value></data>
   <data name="Month_NoRefunds" xml:space="preserve"><value>No se esperan reembolsos este mes.</value></data>
   <data name="Refund_NotesHint" xml:space="preserve"><value>Opcional: número de caso, quién lo debe, cuándo esperás que vuelva</value></data>
+  <data name="Refund_TotalReceived" xml:space="preserve"><value>Recibido</value></data>
+  <data name="Refund_TotalPending" xml:space="preserve"><value>Pendiente</value></data>
+  <data name="Refund_TotalExpected" xml:space="preserve"><value>de</value></data>
   <data name="Refund_Pending" xml:space="preserve"><value>Pendiente</value></data>
   <data name="Refund_Received" xml:space="preserve"><value>Recibido</value></data>
   <data name="Refund_MarkReceived" xml:space="preserve"><value>Marcar recibido</value></data>

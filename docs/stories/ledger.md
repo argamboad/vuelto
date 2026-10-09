@@ -325,3 +325,19 @@ Scenario: A received refund is locked
   When I put the refund back to pending on the month page, correct it and mark it received again
   Then the booked income follows the new amount
 ```
+
+### LEDGER-7 — Refunds show what came in and what is still out *(owner request, 2026-10-09 · #206)* ✅
+
+**As** a household member, **I want** the month's refunds to show the total received and the total still pending,
+**so that** I can see at a glance how much of what I'm owed has come back.
+
+**Context / notes:** a pure `RefundTotals` in Core (golden rule 4: computed, never stored), both currencies, 2 dp;
+`GET /api/months/{id}/refunds` now answers `{ refunds, totals }` with `totals = { pending, received, expected }`. The
+month page's Expected refunds header shows *Received · Pending · of expected* in the display currency.
+
+```gherkin
+Scenario: A month with one refund in, one out
+  Given a ₡15,000 refund pending and a ₡6,170 refund received this month
+  When I open the month
+  Then the refunds header reads Received ₡6,170.00 · Pending ₡15,000.00 · of ₡21,170.00
+```
