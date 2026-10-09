@@ -65,14 +65,14 @@
                         </div>
 
                         @* Chips rather than a dropdown, and all FIVE classes — dropping any would remove a path:
-                           unplanned opens the refund fields, envelope opens the bucket picker, inflow is income. *@
+                           unplanned and discretionary open the refund fields (ADR-V025), envelope opens the bucket picker, inflow is income. *@
                         <div class="tx-field tx-field-wide">
                             <SegmentedSwitch TestId="tx-type" Label="@Localizer["Tx_Class"].Value" Options="ClassOptions()"
                                              Value="@_type" ValueChanged="OnTypeChanged" />
                             <p class="tx-hint" data-testid="tx-class-hint">@ClassHint()</p>
                         </div>
 
-                        @if (_type == "unplanned_essential")
+                        @if (TransactionClasses.CanCarryRefund(_type))
                         {
                             @* The refund block spans the row like Notes does: the switch, then the percentage beside the notes —
                                the notes (case number and all, asked while the receipt is in your hand, 2026-09-14) get the width
@@ -386,7 +386,7 @@
         if (_categoryId == "") { _error = Localizer["Tx_Validation_Category"]; return; }
         if (_bankId == "") { _error = Localizer["Tx_Validation_Bank"]; return; }
         if (_type == "envelope_contribution" && _envelopeId == "") { _error = Localizer["Tx_Validation_Envelope"]; return; }
-        var refund = _type == "unplanned_essential" && _refundExpected;
+        var refund = TransactionClasses.CanCarryRefund(_type) && _refundExpected;
         if (refund && _refundPercentage is null or <= 0 or > 100) { _error = Localizer["Tx_Validation_Refund"]; return; }
         if (Id is null && _rate is null or <= 0) { _error = Localizer["Tx_Validation_Rate"]; return; }
 

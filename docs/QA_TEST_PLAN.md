@@ -1616,7 +1616,7 @@ with `kind` per slice, summing to `income`; the range request → `income_by_mem
 > currency toggle inside the same input group and the live conversion under it; then two named groups,
 > **What it was** and **How it was paid**; then a **Before you save** rail stating which pay-cycle month the
 > date lands in and both sides of the money. The class picker is five CHIPS in a radio group, not a dropdown
-> — all five, because each one opens a different path (unplanned → expected refund, envelope → bucket
+> — all five, because each one opens a different path (unplanned or discretionary → expected refund, envelope → bucket
 > picker, inflow → income). Save stays ENABLED and surfaces validation on submit; it never goes quietly
 > dead. Unchanged: which month a date falls into is the pay-cycle logic's business, and the rate freezes on
 > save, never on edit.
@@ -1731,7 +1731,7 @@ Months → Update month income — invalid (400)**) → `invalid_request`. With 
 *different* household's list → **Expected:** 404 (never 403 — no existence oracle). Also
 (**16 · Transactions → Create transaction — invalid (400)**) → `invalid_request` naming the field.
 
-### QA-LED-05 — An unplanned essential can expect a refund; the refund follows the transaction 🟠 (Web / API)
+### QA-LED-05 — An unplanned or discretionary purchase can expect a refund; the refund follows the transaction 🟠 (Web / API)
 **Gherkin**
 ```gherkin
 Given I am on New transaction
@@ -1743,9 +1743,12 @@ When I Edit the transaction to 80000 and Save
 Then the refund reads ₡24,000.00 (30 % of 80,000)
 When I Edit it again, switch Refund expected off and Save
 Then the refund is gone
+When I pick class Discretionary
+Then the "Refund expected" switch is there too; for Budgeted it is not
 ```
 **Walkthrough:** **New transaction** → **Class** "Unplanned" → **Expected:** the **Refund expected**
-switch appears (it is absent for every other class). Switch it on → **Expected:** the percentage
+switch appears. Pick **Discretionary** → **Expected:** it is still there (ADR-V025); pick **Budgeted**, **Income** or
+**Savings** → **Expected:** it is gone. Back to **Unplanned**. Switch it on → **Expected:** the percentage
 field with **Refund notes** beside it — a one-row box at the percentage's height (drag it taller) spanning the rest of the row, with a 0/250 counter
 like the transaction's own Notes and a placeholder reading "Optional — case number, who owes it, when you expect
 it back"; no separate Case No.; with `50000` and `30` the hint reads "Expected back: 15,000.00 CRC". Type
@@ -1757,7 +1760,8 @@ the note icon is gone. **Edit** → amount `80000` → **Save** →
 **Expected:** the refund row reads ₡24,000.00. **Edit** → switch off → **Save** → **Expected:** "No
 refunds expected this month." Via Postman (**16 · Transactions → Create transaction**) with
 `refund_expected: true, refund_percentage: 150` → **Expected:** 400 `invalid_request` naming
-`refund_percentage`.
+`refund_percentage`; with `transaction_type: "budgeted", refund_expected: true, refund_percentage: 30` →
+**Expected:** 400 `invalid_request` naming `refund_expected`, and nothing is created.
 
 ### QA-LED-06 — Marking a refund received books an inflow; reverting removes it 🟠 (Web / API)
 **Gherkin**

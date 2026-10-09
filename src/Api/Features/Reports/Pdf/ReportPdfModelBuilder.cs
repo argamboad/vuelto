@@ -146,16 +146,17 @@ public static class ReportPdfModelBuilder
             var unplanned = Sum(_a.UnplannedEssential);
             string OfSpend((decimal Crc, decimal Usd) part) => T("OfSpend", Pct(Side(part.Crc, part.Usd), Side(spend.Crc, spend.Usd)));
 
-            var refundable = input.PendingRefunds is { } r && Side(r.Crc, r.Usd) > 0
+            // A tile with refunds expected on its class says how much is coming back instead of its share (ADR-V025).
+            string RefundableOr(MoneyPair? refunds, string fallback) => refunds is { } r && Side(r.Crc, r.Usd) > 0
                 ? T("Refundable", _o.Display == DisplayCurrencies.Usd ? "$" + Num(r.Usd) : "₡" + Num(r.Crc))
-                : OfSpend(unplanned);
+                : fallback;
             return
             [
                 new(T("KpiTotalSpend"), Show(spend.Crc, spend.Usd),
                     _a.Income is { } inc ? T("OfIncome", Pct(Side(spend.Crc, spend.Usd), Side(inc.Crc, inc.Usd))) : null),
                 new(T("KpiBudgeted"), Show(budgeted.Crc, budgeted.Usd), OfSpend(budgeted)),
-                new(T("KpiDiscretionary"), Show(discretionary.Crc, discretionary.Usd), OfSpend(discretionary)),
-                new(T("KpiUnplanned"), Show(unplanned.Crc, unplanned.Usd), refundable),
+                new(T("KpiDiscretionary"), Show(discretionary.Crc, discretionary.Usd), RefundableOr(input.DiscretionaryRefunds, OfSpend(discretionary))),
+                new(T("KpiUnplanned"), Show(unplanned.Crc, unplanned.Usd), RefundableOr(input.UnplannedRefunds, OfSpend(unplanned))),
             ];
         }
 

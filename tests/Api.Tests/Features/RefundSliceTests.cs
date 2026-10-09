@@ -174,18 +174,44 @@ public class RefundSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
         Assert.Equal(0, await c.Db.Refunds.CountAsync());
     }
 
-    [Theory]
-    [InlineData("extraordinary")]
-    [InlineData("inflow")]
-    [InlineData("budgeted")]
-    public async Task Create_FlagOnAnotherClass_IsIgnored_NoRefund(string type)
+    [Fact]
+    public async Task Create_DiscretionaryWithPercentage_SpawnsAPendingRefund()
     {
+        // ADR-V025 (owner, 2026-10-09): a discretionary purchase you expect money back on stays discretionary —
+        // the expectation is an attribute of the transaction, not a sixth class.
         var c = await ContextAsync();
 
-        var (tx, error) = await c.Transactions.CreateAsync(Unplanned(c, refund: true, pct: 30m, type: type), default);
+        var (tx, error) = await c.Transactions.CreateAsync(Unplanned(c, refund: true, pct: 30m, type: "extraordinary"), default);
 
         Assert.Null(error);
-        Assert.False(tx!.RefundExpected);
+        Assert.True(tx!.RefundExpected);
+        var refund = await TheRefund(c);
+        Assert.Equal((15_000m, 30m, "pending", tx.Id), (refund.AmountCrc, refund.AmountUsd, refund.Status, refund.TransactionId));
+    }
+
+    [Theory]
+    [InlineData("budgeted")]             // you don't budget for something you expect back (owner, 2026-10-09)
+    [InlineData("inflow")]
+    [InlineData("envelope_contribution")]
+    public async Task Create_FlagOnAClassThatCannotCarryARefund_Is400_NothingSaved(string type)
+    {
+        // Fail closed (was: silently ignored) — a refund the household asked for never quietly disappears.
+        var c = await ContextAsync();
+
+        var (_, error) = await c.Transactions.CreateAsync(Unplanned(c, refund: true, pct: 30m, type: type), default);
+
+        Assert.Equal("invalid_request", error!.Error);
+        Assert.Contains("refund_expected", error.Message);
+        Assert.Equal(0, await c.Db.Transactions.CountAsync());
+        Assert.Equal(0, await c.Db.Refunds.CountAsync());
+    }
+
+    [Fact]
+    public async Task Create_ClassThatCannotCarryARefund_WithoutTheFlag_IsFine()
+    {
+        var c = await ContextAsync();
+        var (_, error) = await c.Transactions.CreateAsync(Unplanned(c, type: "budgeted"), default);
+        Assert.Null(error);
         Assert.Equal(0, await c.Db.Refunds.CountAsync());
     }
 
@@ -220,8 +246,32 @@ public class RefundSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
         Assert.Equal(0, await c.Db.Refunds.CountAsync());
 
         var (b, _) = await c.Transactions.CreateAsync(Unplanned(c, refund: true, pct: 50m), default);
-        await c.Transactions.UpdateAsync(b!.Id, Edit(c, type: "budgeted"), default);
+        await c.Transactions.UpdateAsync(b!.Id, Edit(c, type: "budgeted", refund: false, pct: null), default);
         Assert.Equal(0, await c.Db.Refunds.CountAsync());
+    }
+
+    [Fact]
+    public async Task Update_UnplannedToDiscretionary_KeepsTheRefund()
+    {
+        var c = await ContextAsync();
+        var (tx, _) = await c.Transactions.CreateAsync(Unplanned(c, refund: true, pct: 50m), default);
+
+        var (_, error) = await c.Transactions.UpdateAsync(tx!.Id, Edit(c, type: "extraordinary"), default);
+
+        Assert.Null(error);
+        Assert.Equal((25_000m, "pending"), ((await TheRefund(c)).AmountCrc, (await TheRefund(c)).Status));
+    }
+
+    [Fact]
+    public async Task Update_ToBudgeted_StillFlagged_Is400_AndTheRefundStays()
+    {
+        var c = await ContextAsync();
+        var (tx, _) = await c.Transactions.CreateAsync(Unplanned(c, refund: true, pct: 50m), default);
+
+        var (_, error) = await c.Transactions.UpdateAsync(tx!.Id, Edit(c, type: "budgeted"), default);
+
+        Assert.Equal("invalid_request", error!.Error);
+        Assert.Equal(1, await c.Db.Refunds.CountAsync());
     }
 
     [Fact]

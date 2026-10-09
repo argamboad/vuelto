@@ -95,7 +95,7 @@
                                              Value="@v.Form.TransactionClass" ValueChanged="@(c => v.Form.TransactionClass = c)" />
                         </div>
 
-                        @if (v.Form.TransactionClass == "unplanned_essential")
+                        @if (TransactionClasses.CanCarryRefund(v.Form.TransactionClass))
                         {
                             @* Same as the manual form: an unplanned essential can carry an expected refund (LEDGER-3), and the block
                                takes the same shape — the switch, then the percentage beside a wide Refund notes box, real labels. *@
@@ -242,9 +242,9 @@
                 original_amount = v.Missing("Amount") || v.Missing("Currency") ? v.Form.Amount : null,
                 currency = v.Missing("Amount") || v.Missing("Currency") ? v.Form.Currency : null,
                 transaction_date = v.Missing("Date") ? v.Form.Date : null,
-                refund_expected = v.Form.TransactionClass == "unplanned_essential" && v.Form.RefundExpected,
-                refund_percentage = v.Form.TransactionClass == "unplanned_essential" && v.Form.RefundExpected ? v.Form.RefundPercentage : null,
-                refund_notes = v.Form.TransactionClass == "unplanned_essential" && v.Form.RefundExpected && !string.IsNullOrWhiteSpace(v.Form.RefundNotes) ? v.Form.RefundNotes.Trim() : null,
+                refund_expected = TransactionClasses.CanCarryRefund(v.Form.TransactionClass) && v.Form.RefundExpected,
+                refund_percentage = TransactionClasses.CanCarryRefund(v.Form.TransactionClass) && v.Form.RefundExpected ? v.Form.RefundPercentage : null,
+                refund_notes = TransactionClasses.CanCarryRefund(v.Form.TransactionClass) && v.Form.RefundExpected && !string.IsNullOrWhiteSpace(v.Form.RefundNotes) ? v.Form.RefundNotes.Trim() : null,
             };
             var res = await Http.PostAsJsonAsync($"/api/pending-vouchers/{v.Id}/confirm", body);
             if (res.StatusCode == HttpStatusCode.Conflict) { Fail(Localizer["Review_NotPending"]); await ReloadAsync(); return; }

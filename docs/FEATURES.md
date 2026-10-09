@@ -233,7 +233,8 @@ Flow:
    **bank (required)**, payment method (`credit_card` default | `bank_account`), **class**:
    `budgeted` | `extraordinary` (UI: "Discretionary") | `unplanned_essential` (UI: "Unplanned")
    | `inflow` | `envelope_contribution`; optional rate override.
-2. For `unplanned_essential`, an optional **refund expected %** spawns a derived `Refund` (§11).
+2. For `unplanned_essential` or `extraordinary` (discretionary), an optional **refund expected %** spawns a derived
+   `Refund` (§11). Not on `budgeted` (ADR-V025) — the flag on any other class is a 400.
    For `envelope_contribution`, an **envelope is required** and the method must be `bank_account`.
 3. `POST /api/transactions` validates, resolves the rate, resolves/creates the month (§9), derives
    `amount_crc`/`amount_usd`, **freezes** `exchange_rate_used`, saves with `source = manual`.

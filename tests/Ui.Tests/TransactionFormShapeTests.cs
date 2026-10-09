@@ -98,6 +98,12 @@ public class TransactionFormShapeTests : ComponentTestBase
         cut.Find("[data-testid='tx-type-option'][data-value='unplanned_essential']").Change(true);
         Assert.NotNull(cut.Find("[data-testid='tx-refund-expected']"));
 
+        // Discretionary → the refund fields too (ADR-V025); budgeted → none (you don't budget for money you expect back).
+        cut.Find("[data-testid='tx-type-option'][data-value='extraordinary']").Change(true);
+        Assert.NotNull(cut.Find("[data-testid='tx-refund-expected']"));
+        cut.Find("[data-testid='tx-type-option'][data-value='budgeted']").Change(true);
+        Assert.Empty(cut.FindAll("[data-testid='tx-refund-expected']"));
+
         // Envelope → the bucket picker. Dropping either chip would remove the path entirely.
         cut.Find("[data-testid='tx-type-option'][data-value='envelope_contribution']").Change(true);
         Assert.Empty(cut.FindAll("[data-testid='tx-refund-expected']"));

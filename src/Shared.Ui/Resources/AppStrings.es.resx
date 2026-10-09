@@ -444,7 +444,7 @@
   <data name="Tx_CardNoBank" xml:space="preserve"><value>Esta tarjeta aún no tiene banco; asignalo en</value></data>
   <data name="Tx_RefundNotes" xml:space="preserve"><value>Notas del reembolso</value></data>
   <data name="Tx_ClassHint_Budgeted" xml:space="preserve"><value>Cuenta contra una línea del presupuesto de este mes.</value></data>
-  <data name="Tx_ClassHint_Extraordinary" xml:space="preserve"><value>No planificado pero prescindible — cuenta en gastos, fuera del plan.</value></data>
+  <data name="Tx_ClassHint_Extraordinary" xml:space="preserve"><value>No planificado pero prescindible — cuenta en gastos, fuera del plan, y puede esperar un reembolso.</value></data>
   <data name="Tx_ClassHint_Unplanned" xml:space="preserve"><value>No planificado e inevitable — cuenta en gastos y puede esperar un reembolso.</value></data>
   <data name="Tx_ClassHint_Inflow" xml:space="preserve"><value>Dinero que entra — se suma al ingreso del mes, no a los gastos.</value></data>
   <data name="Tx_ClassHint_Envelope" xml:space="preserve"><value>Un aporte al ahorro — queda fuera de los gastos y requiere cuenta bancaria.</value></data>

@@ -230,7 +230,8 @@ Money movement, captured in both currencies at a frozen rate.
 - indexes: (`tenant_id`, `month_id`), (`tenant_id`, `transaction_date`)
 
 ### Refund
-An expected refund **derived** from an `unplanned_essential` transaction; only `status` is edited directly.
+An expected refund **derived** from an `unplanned_essential` or `extraordinary` (discretionary) transaction — never a
+`budgeted` one (ADR-V025); only `status` is edited directly.
 - `id`, `tenant_id`, `month_id` (FK → Month, cascade), `transaction_id` (FK → Transaction, cascade, **unique**)
 - `payee`, `transaction_date`, `percentage`, `amount_crc`, `amount_usd`
 - `status` — `pending` | `received`
@@ -520,8 +521,8 @@ donor test suite (`Core.Tests`).
 | **Month income plan** (INCOME-1) | At month creation, one row per active income line whose member (if any) is still in the household: `planned_amount = amount ×` (weekly → `week_count`; biweekly → the pay days that fall in [first week's start, last week's end], day 31 clamped to the month's last day; monthly → 1), 2 dp. `amount` starts equal and stays editable. | `IncomeSnapshot` |
 | **Month income** | Σ each income row converted at the day's rate by the income direction rule (USD at buy, CRC at sell) + Σ inflow transactions' frozen amounts. | `IncomeCalculator` |
 | **Income by member** (INCOME-2) | The same pairs cut by `member_user_id`: one slice per current member, one for rows with no member ("household"), one for rows whose member left, one for inflows; empty slices dropped; the slices sum to the month income. Computed per request, never stored. | `IncomeByMember` |
-| **Refund** | Exists ⇔ its `unplanned_essential` transaction was flagged with a percentage. `amount_* = percentage × transaction.amount_*` (inherits the frozen rate). Re-derived on transaction edit; removed when the flag or the transaction goes. | `TransactionService.SyncRefundAsync` |
-| **Refund realization** | `status = received` ⇔ a linked `inflow` transaction exists (same amounts/rate, the source's bank, `source = refund_realization`). Flipping is a conditional update; the inflow is created/removed symmetrically. | `TransactionService.ApplyRefundStatusAsync` |
+| **Refund** | Exists ⇔ its `unplanned_essential` or `extraordinary` transaction was flagged with a percentage (ADR-V025; the flag on any other class is a 400). `amount_* = percentage × transaction.amount_*` (inherits the frozen rate). Re-derived on transaction edit; removed when the flag or the transaction goes. | `TransactionHandler.SyncRefundAsync` |
+| **Refund realization** | `status = received` ⇔ a linked `inflow` transaction exists (same amounts/rate, the source's bank, `source = refund_realization`). Flipping is a conditional update; the inflow is created/removed symmetrically. | `RefundHandler.SetStatusAsync` |
 | **Envelope contribution** | A transaction of class `envelope_contribution` requires an `envelope_id` and `payment_method = bank_account`. Contributed-this-month = sum of such transactions per envelope; remaining = annual target − contributed. | `TransactionService`, `DashboardSummaryService` |
 | **Dashboard summary** | Income (the month's income rows + inflows), expense summary (card/account/total/remainder), budgeted-vs-actual per expense line + "other spending", weekly totals, unplanned subtotal, refunds, envelope reminders (by cadence and week count), bank × payment-method cells, balance figures — every one a CRC/USD pair. Actuals use frozen rates; projections use the resolved live rate. | `DashboardSummaryService.Calculate` |
 | **Catalog uniqueness** | Names unique per household, case-insensitively; a clash with an inactive row is a reactivation offer, not an error. `is_active = false` ≠ deleted — inactive names still render on history. | catalog handlers |
@@ -540,10 +541,10 @@ stateDiagram-v2
     Exists --> [*] : last transaction deleted - month + weeks deleted
 ```
 
-### Refund — ADR-V007
+### Refund — ADR-V007, ADR-V025
 ```mermaid
 stateDiagram-v2
-    [*] --> pending : unplanned_essential transaction flagged with a percentage
+    [*] --> pending : unplanned_essential or extraordinary transaction flagged with a percentage
     pending --> pending : source transaction edited - amounts re-derived
     pending --> received : status flip (conditional update) - derived inflow created
     received --> pending : status flip back - inflow removed

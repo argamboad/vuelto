@@ -18,6 +18,12 @@ public static class TransactionClasses
     public const string Inflow = "inflow";
     public const string EnvelopeContribution = "envelope_contribution";
 
+    /// <summary>
+    /// The classes that may expect a refund (ADR-V025): unplanned essentials and discretionary spend — not budgeted,
+    /// because you don't budget for money you expect back. Mirrors <c>TransactionTypes.CanCarryRefund</c>.
+    /// </summary>
+    public static bool CanCarryRefund(string? txClass) => txClass is UnplannedEssential or Extraordinary;
+
     /// <summary>The resource key naming a class, or null when the value is not one of the five.</summary>
     public static string? LabelKey(string? txClass) => txClass switch
     {

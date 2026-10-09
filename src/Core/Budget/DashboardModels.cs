@@ -57,4 +57,6 @@ public record DashboardSummary(
     IReadOnlyList<CategorySpendSummary> OtherSpending,
     IReadOnlyList<BankMethodBreakdown> BankMethodBreakdown,
     IReadOnlyList<MethodBreakdown> MethodBreakdown,
-    IReadOnlyList<CardSpendEntry> ByCard);
+    IReadOnlyList<CardSpendEntry> ByCard,
+    MoneyPair UnplannedRefunds,       // ADR-V025: the pending refunds split by their transaction's class —
+    MoneyPair DiscretionaryRefunds);  // each tile's "refundable" is its own (RefundsTotal stays the sum)

@@ -202,7 +202,7 @@ public sealed class TransactionHandler(
 
     /// <summary>
     /// LEDGER-3: keeps the transaction's expected refund in step (staged, not saved). A percentage on an
-    /// unplanned-essential row creates or re-derives the refund (amounts = % × the frozen amounts) —
+    /// unplanned-essential or discretionary row (ADR-V025) creates or re-derives the refund (amounts = % × the frozen amounts) —
     /// and a realized refund's inflow tracks the re-derived amounts, keeping its own month and date.
     /// Any other class, or no percentage, removes an existing refund together with its realized inflow.
     /// Returns the refund now attached to the transaction (or null) and the realized inflow it removed (or
@@ -212,7 +212,7 @@ public sealed class TransactionHandler(
     {
         var percentage = v.RefundPercentage;
         var existing = await refunds.Query().FirstOrDefaultAsync(x => x.TransactionId == tx.Id, cancellationToken);
-        var applies = tx.TransactionType == TransactionTypes.UnplannedEssential && percentage is > 0;
+        var applies = TransactionTypes.CanCarryRefund(tx.TransactionType) && percentage is > 0;
 
         if (!applies)
         {
@@ -281,6 +281,10 @@ public sealed class TransactionHandler(
         if (PaymentMethods.Normalize(paymentMethod) is not { } method) return (null, Invalid("payment_method must be credit_card or bank_account"));
         if (bankId is not { } bank) return (null, Invalid("bank_id is required (every transaction names its money source)"));
         if (categoryId is not { } category) return (null, Invalid("category_id is required"));
+        // ADR-V025: a refund rides on an unplanned essential or discretionary spend. Anywhere else the flag is refused
+        // (fail closed — it used to be silently ignored, and a refund the household asked for must never quietly vanish).
+        if (refundExpected && !TransactionTypes.CanCarryRefund(t))
+            return (null, Invalid($"refund_expected is only valid for {string.Join(" or ", TransactionTypes.RefundClasses.Order())} transactions"));
         if (refundExpected && refundPercentage is null or <= 0 or > 100) return (null, Invalid("refund_percentage must be between 0 and 100 when refund_expected is set"));
 
         var isContribution = t == TransactionTypes.EnvelopeContribution;
@@ -294,8 +298,7 @@ public sealed class TransactionHandler(
         if (isContribution && !await envelopes.Query().AnyAsync(e => e.Id == envelopeId && e.IsActive, cancellationToken)) return (null, Invalid("unknown or inactive envelope"));
         if (cardId is { } card && !await cards.Query().AnyAsync(c => c.Id == card && c.IsActive, cancellationToken)) return (null, Invalid("unknown or inactive card")); // CARDS-1: optional, but real when given
 
-        // The refund flag only means something on an unplanned essential (donor US-012); elsewhere it is ignored, never an error.
-        var pct = refundExpected && t == TransactionTypes.UnplannedEssential ? refundPercentage : null;
+        var pct = refundExpected ? refundPercentage : null;
                 // The refund's notes ride along only with a refund (LEDGER-4 rules: trimmed, blank is null, 250 chars).
         // "Sent" is remembered before blank collapses to null: null in the request means "leave alone", blank means "clear".
         var setNotes = refundNotes is not null;

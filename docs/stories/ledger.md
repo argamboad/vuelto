@@ -253,3 +253,34 @@ Scenario: An insurance claim, and a loan to a son
   When I clear them
   Then blank stores null, not an empty string
 ```
+
+### LEDGER-5 — A discretionary purchase can expect a refund *(owner request, 2026-10-09 · #201)* ✅
+
+**As** a household member, **I want** to expect a refund on a discretionary purchase too, **so that** money I'll get
+back on something I chose to buy is tracked like an insurance refund is.
+
+**Context / notes:** ADR-V025. The refund expectation is an **attribute** of a transaction, not a sixth class: the
+class says which part of the plan the money came from, a refund says some of it comes back, and a discretionary
+purchase you'll be reimbursed for is still discretionary spend. It rides on `unplanned_essential` and
+`extraordinary` only — not `budgeted` ("why would I budget something I expect a refund for?"). The flag on any other
+class is now a **400** `invalid_request` (it used to be silently ignored — fail closed). The dashboard summary splits
+the pending refunds by the transaction's class (`unplanned_refunds`, `discretionary_refunds`; `refunds_total` stays
+the sum), so the Reports page and the PDF give each tile its own "refundable" figure.
+
+```gherkin
+Scenario: A refund on a discretionary purchase
+  Given a discretionary purchase of ₡50,000
+  When I tick "refund expected" and enter 30 %
+  Then a pending refund of ₡15,000 is listed under the month's refunds
+  And the Discretionary tile on Reports says "₡15,000 refundable", the Unplanned tile does not
+
+Scenario: Not on budgeted spending
+  Given a budgeted purchase
+  Then the form offers no refund fields
+  And an API call flagging it is refused with 400 invalid_request, and nothing is written
+
+Scenario: Moving between the two classes keeps the refund
+  Given an unplanned essential expecting 50 %
+  When I change it to discretionary
+  Then the refund stays, re-derived as before
+```

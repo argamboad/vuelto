@@ -98,7 +98,9 @@ public record DashboardSummaryResponse(
     [property: JsonPropertyName("envelope_reminders")] IReadOnlyList<EnvelopeReminderResponse> EnvelopeReminders,
     [property: JsonPropertyName("bank_method_breakdown")] IReadOnlyList<BankMethodBreakdownResponse> BankMethodBreakdown,
     [property: JsonPropertyName("method_breakdown")] IReadOnlyList<MethodBreakdownResponse> MethodBreakdown,
-    [property: JsonPropertyName("by_card")] IReadOnlyList<CardSpendResponse> ByCard)
+    [property: JsonPropertyName("by_card")] IReadOnlyList<CardSpendResponse> ByCard,
+    [property: JsonPropertyName("unplanned_refunds")] MoneyPairResponse UnplannedRefunds,         // ADR-V025: refunds_total split by
+    [property: JsonPropertyName("discretionary_refunds")] MoneyPairResponse DiscretionaryRefunds) // the transaction's class (pending only)
 {
     public static DashboardSummaryResponse From(DashboardSummary s) => new(
         s.Income.Rows.Select(r => new IncomeLineSummaryResponse(r.Id, r.Label, r.MemberUserId, r.Currency, r.Amount, r.PlannedAmount, MoneyPairResponse.From(r.Pair))).ToList(),
@@ -116,7 +118,8 @@ public record DashboardSummaryResponse(
         s.EnvelopeReminders.Select(e => new EnvelopeReminderResponse(e.Name, MoneyPairResponse.From(e.AnnualTarget), MoneyPairResponse.From(e.ContributedThisMonth), MoneyPairResponse.From(e.Remaining), e.Cadence)).ToList(),
         s.BankMethodBreakdown.Select(b => new BankMethodBreakdownResponse(b.BankId, b.BankName, b.PaymentMethod, MoneyPairResponse.From(b.Actual))).ToList(),
         s.MethodBreakdown.Select(m => new MethodBreakdownResponse(m.PaymentMethod, MoneyPairResponse.From(m.Budget), MoneyPairResponse.From(m.Actual))).ToList(),
-        s.ByCard.Select(c => new CardSpendResponse(c.CardId, c.CardName, new MoneyPairResponse(c.TotalCrc, c.TotalUsd), c.Count, c.CardKind)).ToList());
+        s.ByCard.Select(c => new CardSpendResponse(c.CardId, c.CardName, new MoneyPairResponse(c.TotalCrc, c.TotalUsd), c.Count, c.CardKind)).ToList(),
+        MoneyPairResponse.From(s.UnplannedRefunds), MoneyPairResponse.From(s.DiscretionaryRefunds));
 }
 
 /// <summary>The month header the dashboard shows; the full month (with income) lives on <c>GET /api/months/{id}</c>.</summary>

@@ -26,7 +26,7 @@ public sealed record ReportPdfOptions(string Display, string ChartCurrency, bool
 
 /// <summary>
 /// Everything the page shows for the period: the category analysis (the same response the page reads), the months
-/// trend and the month's pending refunds (single month only), and the CSV export's rows when the appendix is wanted.
+/// trend and the month's pending refunds by class (single month only), and the CSV export's rows when the appendix is wanted.
 /// </summary>
 public sealed record ReportPdfInput(
     string HouseholdName,
@@ -34,9 +34,10 @@ public sealed record ReportPdfInput(
     CategoryAnalysisResponse Analysis,
     ReportPdfMonth? Month,
     MonthsTrendResponse? Trend,
-    MoneyPair? PendingRefunds,
+    MoneyPair? UnplannedRefunds,                // pending refunds on unplanned essentials — that tile's "refundable"
     IReadOnlyList<TransactionExportRow>? Appendix,
-    ReportPdfOptions Options);
+    ReportPdfOptions Options,
+    MoneyPair? DiscretionaryRefunds = null);    // ADR-V025: the discretionary tile's own "refundable"
 
 public sealed record ReportPdfModel(
     CultureInfo Culture,

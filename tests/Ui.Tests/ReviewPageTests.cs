@@ -70,8 +70,8 @@ public class ReviewPageTests : ComponentTestBase
         var cut = Render<Review>();
         cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("[data-testid='review-voucher']").Count));
 
-        // Suggested as extraordinary: no refund controls. Switch to Unplanned: the toggle appears, then the percentage + preview.
-        Assert.Null(Card(cut, 0).QuerySelector("[data-testid='review-refund-expected']"));
+        // Suggested as extraordinary: the refund toggle is already there (ADR-V025). Switch to Unplanned: it stays, then the percentage + preview.
+        Assert.NotNull(Card(cut, 0).QuerySelector("[data-testid='review-refund-expected']"));
         Card(cut, 0).QuerySelector("[data-testid='review-class-option'][data-value='unplanned_essential']")!.Change(true);
         Assert.Null(Card(cut, 0).QuerySelector("[data-testid='review-refund-pct']"));
         Card(cut, 0).QuerySelector("[data-testid='review-refund-expected']")!.Change(true);
@@ -103,6 +103,8 @@ public class ReviewPageTests : ComponentTestBase
         Card(cut, 0).QuerySelector("[data-testid='review-class-option'][data-value='unplanned_essential']")!.Change(true);
         Card(cut, 0).QuerySelector("[data-testid='review-refund-expected']")!.Change(true);
         Card(cut, 0).QuerySelector("[data-testid='review-refund-pct']")!.Change("30");
+        Card(cut, 0).QuerySelector("[data-testid='review-class-option'][data-value='extraordinary']")!.Change(true); // discretionary keeps them (ADR-V025)
+        Assert.NotNull(Card(cut, 0).QuerySelector("[data-testid='review-refund-expected']"));
         Card(cut, 0).QuerySelector("[data-testid='review-class-option'][data-value='budgeted']")!.Change(true); // changed their mind: the controls hide
         Assert.Null(Card(cut, 0).QuerySelector("[data-testid='review-refund-expected']"));
 

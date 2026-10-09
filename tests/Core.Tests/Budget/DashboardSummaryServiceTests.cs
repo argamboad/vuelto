@@ -113,6 +113,28 @@ public class DashboardSummaryServiceTests
     }
 
     [Fact]
+    public void Refunds_PendingSplitsByTheSourceTransactionsClass()
+    {
+        // ADR-V025: a discretionary purchase can carry a refund too, so each tile's "refundable" is its own class's.
+        var unplanned = Tx(GroceriesCat, 40_000m, 80m, "unplanned_essential", new DateOnly(2026, 6, 3));
+        var discretionary = Tx(DiningCat, 20_000m, 40m, "extraordinary", new DateOnly(2026, 6, 4));
+        var refunds = new List<Refund>
+        {
+            WithSource(RefundExpected(10_000m, 20m, "pending"), unplanned),
+            WithSource(RefundExpected(4_000m, 8m, "received"), unplanned),   // already income — never refundable
+            WithSource(RefundExpected(6_000m, 12m, "pending"), discretionary),
+        };
+
+        var summary = With(transactions: [unplanned, discretionary], refunds: refunds);
+
+        Assert.Equal((16_000m, 32m), (summary.RefundsTotal.Crc, summary.RefundsTotal.Usd));
+        Assert.Equal((10_000m, 20m), (summary.UnplannedRefunds.Crc, summary.UnplannedRefunds.Usd));
+        Assert.Equal((6_000m, 12m), (summary.DiscretionaryRefunds.Crc, summary.DiscretionaryRefunds.Usd));
+    }
+
+    private static Refund WithSource(Refund r, Transaction t) { r.TransactionId = t.Id; return r; }
+
+    [Fact]
     public void Refunds_NeverTouchBalanceOrExpenses()
     {
         var baseline = Calculate();

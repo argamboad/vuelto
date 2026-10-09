@@ -1704,7 +1704,7 @@ they enter the URL, which is the allowlist rationale in `ArchitectureTests`. No 
 lazy one-hour cache already bounds quota, and a job would spend ~720 of the 1,500 monthly requests
 warming a cache nobody may read.
 
-**ADR-V007 — Five transaction classes; payment method and a required bank live on the transaction; category required; refunds are derived from unplanned essentials and realize as inflows; envelopes are transactional. (2026-09-02; from donor ADR-0009, 0010, 0014, 0018, 0019, 0020)**
+**ADR-V007 — Five transaction classes; payment method and a required bank live on the transaction; category required; refunds are derived from unplanned essentials and realize as inflows; envelopes are transactional. (2026-09-02; from donor ADR-0009, 0010, 0014, 0018, 0019, 0020; *amended by ADR-V025: discretionary spend may carry a refund too*)**
 Classes: `budgeted`, `extraordinary` (label "Discretionary"), `unplanned_essential` (label
 "Unplanned"), `inflow` (money in, folded into income), `envelope_contribution` (requires an
 envelope and `bank_account`; carved out of expenses/balance). The first three count as expenses.
@@ -2127,6 +2127,20 @@ unverified) and a new tier in ADR-V006's chain. **Trade-off:** the staged rate i
 (EMAIL-7); it is never later than confirm, so nothing gets worse. *Amends:* ADR-V006 (a voucher's rate is resolved at
 staging, not at confirm) and ADR-V010 (confirm still books only through `TransactionService.CreateAsync` — now with a
 rate). Migration `AddPendingVoucherStagedRate` adds three nullable columns and drops nothing.
+
+**ADR-V025 — A refund expectation is an attribute of unplanned and discretionary spending, not a class of its own. (2026-10-09; owner decision, LEDGER-5, #201)**
+
+The owner asked for refunds on discretionary spending and whether "expecting a refund" should be a new class.
+**Decision:** no sixth class. The class answers *which part of the plan this money came out of*; a refund answers *will
+some of it come back* — a discretionary purchase you will be reimbursed for is still discretionary spend, and a new
+class would force a choice between two true things and touch every per-class cut (the dashboard waterfall, the weekly
+cuts, reports, the PDF, the CSV, budget-line backing). A refund now rides on `unplanned_essential` **and**
+`extraordinary`; **not** on `budgeted` (the owner: you don't budget for money you expect back), and never on money
+in or set aside (`TransactionTypes.RefundClasses`). The flag on another class is a **400** `invalid_request` — it was
+silently ignored, and a refund the household asked for must never quietly vanish. The dashboard summary splits the
+pending refunds by the transaction's class (`unplanned_refunds`, `discretionary_refunds`), so each Reports/PDF tile
+shows its own "refundable" figure; `refunds_total` stays their sum. *Amends:* ADR-V007 (refunds were derived from
+unplanned essentials only). No schema change.
 
 **ADR-025 — (number reserved; never adopted) CI runner selection is variable-driven with a hosted fallback (LOCALCI-1). (drafted 2026-09-08)**
 *Stub.* A platform draft (it lives in the perezosoft-platform repo, `docs/stories/localci.md`) that was never

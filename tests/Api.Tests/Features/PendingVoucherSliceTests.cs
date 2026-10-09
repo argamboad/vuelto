@@ -282,16 +282,29 @@ public class PendingVoucherSliceTests(PostgresFixture fixture) : PostgresTestBas
     }
 
     [Fact]
-    public async Task Confirm_RefundFlagOnAnotherClass_IsIgnored_NoRefund()
+    public async Task Confirm_RefundFlagOnBudgeted_Is400_TheDraftStaysPending()
+    {
+        // ADR-V025: budgeted spending cannot carry a refund — refused, never silently dropped.
+        var c = await ContextAsync();
+        var draft = await DraftAsync(c);
+
+        var (_, error) = await c.Handler.ConfirmAsync(draft.Id, new(c.CategoryId, "budgeted", RefundExpected: true, RefundPercentage: 30m), default);
+
+        Assert.Equal("invalid_request", error!.Error);
+        Assert.Equal(0, await c.Db.Refunds.CountAsync());
+        Assert.Equal(PendingVoucherStatuses.Pending, (await ReloadAsync(c, draft.Id)).Status);
+    }
+
+    [Fact]
+    public async Task Confirm_AsDiscretionaryWithAPercentage_SpawnsThePendingRefund()
     {
         var c = await ContextAsync();
         var draft = await DraftAsync(c);
 
-        var (confirmed, error) = await c.Handler.ConfirmAsync(draft.Id, new(c.CategoryId, "budgeted", RefundExpected: true, RefundPercentage: 30m), default);
+        var (confirmed, error) = await c.Handler.ConfirmAsync(draft.Id, new(c.CategoryId, "extraordinary", RefundExpected: true, RefundPercentage: 30m), default);
 
         Assert.Null(error);
-        Assert.NotNull(confirmed);
-        Assert.Equal(0, await c.Db.Refunds.CountAsync());
+        Assert.Equal(confirmed!.TransactionId, (await c.Db.Refunds.SingleAsync()).TransactionId);
     }
 
     [Fact]
