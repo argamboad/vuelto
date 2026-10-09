@@ -31,6 +31,8 @@
     <GenerateLocalPorts>true</GenerateLocalPorts> gets an internal `LocalPorts` class generated from them before it
     compiles, so a dev fallback in code names LocalPorts.WebHttpsUrl, never a number. The file lands in obj/ and is
     rewritten only when the properties change; LocalPortsTests holds every other site to the same props.
+    It runs before XamlPreCompile too (#379): WinUI's markup compiler, on the MAUI Windows target, is a Csc pass of its
+    own that comes before CoreCompile.
   -->
   <Import Project="$(MSBuildThisFileDirectory)local-ports.props" />
 
@@ -43,7 +45,7 @@
     <Content Include="$(MSBuildThisFileDirectory)platform-stamp.json" Link="platform-stamp.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
-  <Target Name="GenerateLocalPorts" BeforeTargets="BeforeCompile;CoreCompile" Condition="'$(GenerateLocalPorts)' == 'true'">
+  <Target Name="GenerateLocalPorts" BeforeTargets="BeforeCompile;CoreCompile;XamlPreCompile" Condition="'$(GenerateLocalPorts)' == 'true'">
     <PropertyGroup>
       <_LocalPortsFile>$(IntermediateOutputPath)LocalPorts.g.cs</_LocalPortsFile>
       <!-- In the project's own namespace: an internal class of the same name in a referenced assembly (InternalsVisibleTo)

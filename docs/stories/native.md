@@ -590,7 +590,9 @@ the WinUI `FileSavePicker` (parented to the app's window — an unpackaged app m
 the server's filename suggested and its extension the only file type; Cancel saves nothing. The same launcher serves
 the CSV export, the report PDF and the data export. Building it surfaced a pre-existing break: the Windows target
 failed with CS0103 `LocalPorts` because WinUI's `XamlPreCompile` compiles before the platform's `GenerateLocalPorts`
-runs; `Vuelto.Maui.csproj` now runs that target first (the root fix is perezosoft-platform#379, in its `Directory.Build.props`).
+runs. A stopgap in `Vuelto.Maui.csproj` ran that target first until the platform fixed the root cause
+(perezosoft-platform#379: `GenerateLocalPorts` also runs before `XamlPreCompile`, held by `LocalPortsTests`), ported
+in #214.
 Verified by building the Windows and Android targets; the dialog itself is a desktop QA step (QA-DSK-10) — the CI
 Windows leg runs only on request (*Run workflow → devices*, billed).
 
