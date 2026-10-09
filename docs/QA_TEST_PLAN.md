@@ -833,6 +833,26 @@ And signing in on a fresh browser profile renders dark as part of the sign-in
    check). Auto is stored per user too: a second browser showing Dark returns to the OS scheme
    on its next sign-in/reload.
 
+### QA-SET-10 — Cards fold to their heading and stay folded on this device 🟢 (Web + Android)
+**Gherkin**
+```gherkin
+Given I am on Settings
+Then every card (Preferences, Budget, Catalog, Email, Merchant suggestions, Notifications, Two-factor, Danger zone) has a fold button at the right of its heading
+When I fold Catalog and Danger zone and reload
+Then they are still folded, and only their headings show
+When I unfold Catalog
+Then its links are back
+And the same holds for the Reports cards (pace and every chart), the Household's Members, Invitations and Data cards, and the Dashboard's Fixed, Variable and "Where it went" panels
+And the fold button is reachable with Tab, toggled with Enter or Space, and announces "Collapse <card>" / "Expand <card>"
+```
+**Walkthrough:** **Settings** → **Expected:** a small chevron at the right of each card heading. Click **Catalog**'s
+→ **Expected:** only the heading remains, the chevron turns. Fold **Danger zone** too → reload → **Expected:** both
+still folded, the others open. Tab to a chevron → **Space** → **Expected:** it folds; a screen reader announces the
+button as "Collapse Catalog" (expanded) / "Expand Catalog" (collapsed). **Reports** (chart view) → fold **Spend by
+bank** and the pace → reload → **Expected:** still folded. **Household** → fold **Members** → reload → still folded.
+**Dashboard** → fold **Where it went** → its switch stays visible in the heading, the table is gone; reload → still
+folded. On the phone app the same, and a fold on the phone does not fold the web (it is a device preference).
+
 ### QA-MFA-01 — Enable two-factor (authenticator TOTP) 🟠 (Web) ⚙️ Automated in CI
 **Precondition:** signed in; an authenticator app (Google Authenticator, 1Password, Authy, …) to hand.
 **Gherkin**
@@ -4075,6 +4095,7 @@ Record one row per executed case. Build = API/web commit SHA (`git rev-parse --s
 | QA-SET-06 | Web | | | | | |
 | QA-SET-07 | Web | | | | | |
 | QA-SET-08 | Web | | | | | |
+| QA-SET-10 | Web + Android | | | | | |
 | QA-MFA-01 | Web | | | | | |
 | QA-MFA-02 | Web | | | | | |
 | QA-MFA-03 | Web | | | | | |
@@ -4976,4 +4997,5 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   from Settings to the Budget page (#203): QA-BUD-01, QA-INC-01 and every "Settings → Manage income" step now read
   "Budget → Edit income". New **QA-CAT-08**, a half-hidden card number asked about once and remembered (#210).
   QA-DSK-10 and the CSV/PDF download steps: Windows saves through a Save As dialog, not the share flyout (#204).
-  221 → 223 cases.
+  New **QA-SET-10**, cards that fold and stay folded on the device (#205).
+  221 → 224 cases.

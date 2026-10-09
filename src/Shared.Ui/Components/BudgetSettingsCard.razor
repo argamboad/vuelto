@@ -8,53 +8,59 @@
    (INCOME-1, ADR-V023); the hint says the week should start on the payday for a weekly-paid household. *@
 <div class="card shadow-sm mt-4">
     <div class="card-body">
-        <h2 class="h6 fw-bold mb-1">@Localizer["BudgetSettings_Title"]</h2>
-        <p class="small text-muted mb-3">@Localizer["BudgetSettings_Subtitle"]</p>
+        <CollapsibleCard Key="settings.budget" Label="@Localizer["BudgetSettings_Title"].Value">
+            <Head>
+                <h2 class="h6 fw-bold mb-1">@Localizer["BudgetSettings_Title"]</h2>
+            </Head>
+            <ChildContent>
+                <p class="small text-muted mb-3">@Localizer["BudgetSettings_Subtitle"]</p>
 
-        @if (!string.IsNullOrEmpty(_error))
-        {
-            <div class="alert alert-danger py-2" data-testid="budget-error">@_error</div>
-        }
-        @if (_saved)
-        {
-            <div class="alert alert-success py-2" data-testid="budget-saved">@Localizer["BudgetSettings_Saved"]</div>
-        }
+                @if (!string.IsNullOrEmpty(_error))
+                {
+                    <div class="alert alert-danger py-2" data-testid="budget-error">@_error</div>
+                }
+                @if (_saved)
+                {
+                    <div class="alert alert-success py-2" data-testid="budget-saved">@Localizer["BudgetSettings_Saved"]</div>
+                }
 
-        @if (_loading)
-        {
-            <div class="text-muted"><span class="spinner-border spinner-border-sm me-2"></span>@Localizer["Common_Loading"]</div>
-        }
-        else
-        {
-            <div class="row g-3">
-                <div class="col-12 col-sm-6">
-                    <label class="form-label small fw-medium mb-1" for="budget-weekday">@Localizer["BudgetSettings_WeekStartDay"]</label>
-                    <select class="form-select" id="budget-weekday" data-testid="budget-weekday" disabled="@_busy" @bind="_weekday">
-                        @for (var d = 0; d <= 6; d++)
-                        {
-                            <option value="@d">@DayName(d)</option>
-                        }
-                    </select>
-                    <div class="form-text" data-testid="budget-weekday-hint">@Localizer["BudgetSettings_WeekStartHint"]</div>
-                </div>
-                <div class="col-12 col-sm-6">
-                    <label class="form-label small fw-medium mb-1" for="budget-anchor">@Localizer["BudgetSettings_MonthAnchor"]</label>
-                    <select class="form-select" id="budget-anchor" data-testid="budget-anchor" disabled="@_busy" @bind="_anchor">
-                        <option value="last_weekday_prev">@Localizer["BudgetSettings_Anchor_LastWeekdayPrev", DayName(_weekday)]</option>
-                        <option value="first_weekday_current">@Localizer["BudgetSettings_Anchor_FirstWeekdayCurrent", DayName(_weekday)]</option>
-                        <option value="first_of_month">@Localizer["BudgetSettings_Anchor_FirstOfMonth"]</option>
-                    </select>
-                    <div class="form-text">@Localizer["BudgetSettings_MonthAnchorHint"]</div>
-                </div>
-            </div>
-            <p class="small text-muted mt-2 mb-3">@Localizer["BudgetSettings_ChangeNote"]</p>
+                @if (_loading)
+                {
+                    <div class="text-muted"><span class="spinner-border spinner-border-sm me-2"></span>@Localizer["Common_Loading"]</div>
+                }
+                else
+                {
+                    <div class="row g-3">
+                        <div class="col-12 col-sm-6">
+                            <label class="form-label small fw-medium mb-1" for="budget-weekday">@Localizer["BudgetSettings_WeekStartDay"]</label>
+                            <select class="form-select" id="budget-weekday" data-testid="budget-weekday" disabled="@_busy" @bind="_weekday">
+                                @for (var d = 0; d <= 6; d++)
+                                {
+                                    <option value="@d">@DayName(d)</option>
+                                }
+                            </select>
+                            <div class="form-text" data-testid="budget-weekday-hint">@Localizer["BudgetSettings_WeekStartHint"]</div>
+                        </div>
+                        <div class="col-12 col-sm-6">
+                            <label class="form-label small fw-medium mb-1" for="budget-anchor">@Localizer["BudgetSettings_MonthAnchor"]</label>
+                            <select class="form-select" id="budget-anchor" data-testid="budget-anchor" disabled="@_busy" @bind="_anchor">
+                                <option value="last_weekday_prev">@Localizer["BudgetSettings_Anchor_LastWeekdayPrev", DayName(_weekday)]</option>
+                                <option value="first_weekday_current">@Localizer["BudgetSettings_Anchor_FirstWeekdayCurrent", DayName(_weekday)]</option>
+                                <option value="first_of_month">@Localizer["BudgetSettings_Anchor_FirstOfMonth"]</option>
+                            </select>
+                            <div class="form-text">@Localizer["BudgetSettings_MonthAnchorHint"]</div>
+                        </div>
+                    </div>
+                    <p class="small text-muted mt-2 mb-3">@Localizer["BudgetSettings_ChangeNote"]</p>
 
 
-            <button class="btn btn-primary" data-testid="budget-save" disabled="@_busy" @onclick="Save">
-                @if (_busy) { <span class="spinner-border spinner-border-sm me-2"></span> }
-                @Localizer["BudgetSettings_Save"]
-            </button>
-        }
+                    <button class="btn btn-primary" data-testid="budget-save" disabled="@_busy" @onclick="Save">
+                        @if (_busy) { <span class="spinner-border spinner-border-sm me-2"></span> }
+                        @Localizer["BudgetSettings_Save"]
+                    </button>
+                }
+            </ChildContent>
+        </CollapsibleCard>
     </div>
 </div>
 

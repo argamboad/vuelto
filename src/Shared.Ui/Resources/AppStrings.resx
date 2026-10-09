@@ -916,4 +916,6 @@
   <data name="Reports_PdfColumnsHint" xml:space="preserve"><value>Date and payee always print.</value></data>
   <data name="Reports_PdfColRate" xml:space="preserve"><value>Exchange rate</value></data>
   <data name="Reports_PdfColSource" xml:space="preserve"><value>Source</value></data>
+  <data name="Card_Collapse" xml:space="preserve"><value>Collapse {0}</value></data>
+  <data name="Card_Expand" xml:space="preserve"><value>Expand {0}</value></data>
 </root>

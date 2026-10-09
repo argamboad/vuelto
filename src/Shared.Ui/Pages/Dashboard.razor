@@ -151,17 +151,17 @@
 
                 @* ---------------------------------------------------------------- the two line lists *@
                 <div class="col-12 col-lg-6">
-                    <BudgetLineList TestId="dash-fixed" Title="@Localizer["Budget_Fixed"]" Rows="LineRows(s.FixedExpenses)"
+                    <BudgetLineList TestId="dash-fixed" CollapseKey="dashboard.fixed" Title="@Localizer["Budget_Fixed"]" Rows="LineRows(s.FixedExpenses)"
                                     Summary="@ListSummary(s.FixedExpenses)" SummaryOver="@ListOver(s.FixedExpenses)" />
                 </div>
                 <div class="col-12 col-lg-6">
-                    <BudgetLineList TestId="dash-variable" Title="@Localizer["Budget_Variable"]" Rows="LineRows(s.VariableExpenses)"
+                    <BudgetLineList TestId="dash-variable" CollapseKey="dashboard.variable" Title="@Localizer["Budget_Variable"]" Rows="LineRows(s.VariableExpenses)"
                                     Summary="@ListSummary(s.VariableExpenses)" SummaryOver="@ListOver(s.VariableExpenses)" />
                 </div>
 
                 @* ---------------------------------------------------------------- one panel, four cuts *@
                 <div class="col-12">
-                    <BreakdownPanel TestId="dash-breakdown" Title="@Localizer["Dash_WhereItWent"]"
+                    <BreakdownPanel TestId="dash-breakdown" CollapseKey="dashboard.breakdown" Title="@Localizer["Dash_WhereItWent"]"
                                     Options="BreakdownOptions()" Value="@_breakdown" ValueChanged="@(v => _breakdown = v)">
                         @switch (_breakdown)
                         {

@@ -8,105 +8,111 @@
 @* ── Two-factor authentication (authenticator TOTP — MFA-1, ADR-012) ── *@
 <div class="card shadow-sm mt-4">
     <div class="card-body">
-        <div class="d-flex align-items-center justify-content-between mb-2">
-            <h2 class="h6 fw-bold mb-0">@Localizer["Mfa_Title"]</h2>
-            @if (_state == State.On)
-            {
-                <StatusChip Tone="good" TestId="mfa-status-on">@Localizer["Mfa_On"]</StatusChip>
-            }
-            else if (_state != State.Loading)
-            {
-                <StatusChip>@Localizer["Mfa_Off"]</StatusChip>
-            }
-        </div>
-        <p class="small text-muted mb-3">@Localizer["Mfa_Subtitle"]</p>
-
-        @if (!string.IsNullOrEmpty(_error))
-        {
-            <div class="alert alert-danger py-2">@_error</div>
-        }
-
-        @if (_state == State.Loading)
-        {
-            <div class="text-muted"><span class="spinner-border spinner-border-sm me-2"></span>@Localizer["Common_Loading"]</div>
-        }
-        else if (_state == State.Off)
-        {
-            <button class="btn btn-outline-primary" data-testid="mfa-enable" disabled="@_busy" @onclick="BeginEnroll">
-                @if (_busy) { <span class="spinner-border spinner-border-sm me-2"></span> }
-                @Localizer["Mfa_Enable"]
-            </button>
-        }
-        else if (_state == State.Enrolling)
-        {
-            <ol class="small ps-3 mb-3">
-                <li>@Localizer["Mfa_Step1"]</li>
-                <li>@Localizer["Mfa_Step2"]</li>
-            </ol>
-
-            <div class="d-flex flex-wrap gap-4 align-items-start mb-3">
-                <div id="mfa-qr" class="border rounded p-2 bg-white" style="width:168px;height:168px"></div>
-                <div>
-                    <div class="small text-muted mb-1">@Localizer["Mfa_ManualKey"]</div>
-                    <code class="user-select-all d-inline-block mb-3" style="word-break:break-all" data-testid="mfa-secret">@_secret</code>
-                    <div class="mb-2" style="max-width:220px">
-                        <label class="form-label small fw-medium">@Localizer["Mfa_EnterCode"]</label>
-                        <input type="text" inputmode="numeric" maxlength="6" data-testid="mfa-confirm-code"
-                               class="form-control text-center" style="letter-spacing:.3rem"
-                               placeholder="------" @bind="_code" @bind:event="oninput"
-                               @onkeydown="OnConfirmKeyDown" disabled="@_busy" />
-                    </div>
-                </div>
-            </div>
-
-            <div class="d-flex gap-2">
-                <button class="btn btn-primary" data-testid="mfa-verify" disabled="@_busy" @onclick="ConfirmEnroll">
-                    @if (_busy) { <span class="spinner-border spinner-border-sm me-2"></span> }
-                    @Localizer["Mfa_Verify"]
-                </button>
-                <button class="btn btn-link" disabled="@_busy" @onclick="Cancel">@Localizer["Common_Cancel"]</button>
-            </div>
-        }
-        else if (_state == State.ShowRecovery)
-        {
-            <div class="alert alert-success py-2">@Localizer["Mfa_EnabledNow"]</div>
-            <p class="small mb-2">@Localizer["Mfa_RecoveryIntro"]</p>
-            <div class="border rounded p-3 mb-3 bg-body-tertiary">
-                <div class="row row-cols-2 g-1 font-monospace small">
-                    @foreach (var rc in _recoveryCodes)
+        <CollapsibleCard Key="settings.mfa" Label="@Localizer["Mfa_Title"].Value">
+            <Head>
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <h2 class="h6 fw-bold mb-0">@Localizer["Mfa_Title"]</h2>
+                    @if (_state == State.On)
                     {
-                        <div class="col user-select-all">@rc</div>
+                        <StatusChip Tone="good" TestId="mfa-status-on">@Localizer["Mfa_On"]</StatusChip>
+                    }
+                    else if (_state != State.Loading)
+                    {
+                        <StatusChip>@Localizer["Mfa_Off"]</StatusChip>
                     }
                 </div>
-            </div>
-            <button class="btn btn-primary" data-testid="mfa-saved-codes" @onclick="FinishRecovery">@Localizer["Mfa_SavedCodes"]</button>
-        }
-        else if (_state == State.On)
-        {
-            @if (!_disabling)
-            {
-                <button class="btn btn-outline-danger" disabled="@_busy" @onclick="() => _disabling = true">
-                    @Localizer["Mfa_Disable"]
-                </button>
-            }
-            else
-            {
-                <div style="max-width:260px">
-                    <label class="form-label small fw-medium">@Localizer["Mfa_DisablePrompt"]</label>
-                    <input type="text" inputmode="text" maxlength="14"
-                           class="form-control mb-2" placeholder="------"
-                           @bind="_code" @bind:event="oninput"
-                           @onkeydown="OnDisableKeyDown" disabled="@_busy" />
+            </Head>
+            <ChildContent>
+                <p class="small text-muted mb-3">@Localizer["Mfa_Subtitle"]</p>
+
+                @if (!string.IsNullOrEmpty(_error))
+                {
+                    <div class="alert alert-danger py-2">@_error</div>
+                }
+
+                @if (_state == State.Loading)
+                {
+                    <div class="text-muted"><span class="spinner-border spinner-border-sm me-2"></span>@Localizer["Common_Loading"]</div>
+                }
+                else if (_state == State.Off)
+                {
+                    <button class="btn btn-outline-primary" data-testid="mfa-enable" disabled="@_busy" @onclick="BeginEnroll">
+                        @if (_busy) { <span class="spinner-border spinner-border-sm me-2"></span> }
+                        @Localizer["Mfa_Enable"]
+                    </button>
+                }
+                else if (_state == State.Enrolling)
+                {
+                    <ol class="small ps-3 mb-3">
+                        <li>@Localizer["Mfa_Step1"]</li>
+                        <li>@Localizer["Mfa_Step2"]</li>
+                    </ol>
+
+                    <div class="d-flex flex-wrap gap-4 align-items-start mb-3">
+                        <div id="mfa-qr" class="border rounded p-2 bg-white" style="width:168px;height:168px"></div>
+                        <div>
+                            <div class="small text-muted mb-1">@Localizer["Mfa_ManualKey"]</div>
+                            <code class="user-select-all d-inline-block mb-3" style="word-break:break-all" data-testid="mfa-secret">@_secret</code>
+                            <div class="mb-2" style="max-width:220px">
+                                <label class="form-label small fw-medium">@Localizer["Mfa_EnterCode"]</label>
+                                <input type="text" inputmode="numeric" maxlength="6" data-testid="mfa-confirm-code"
+                                       class="form-control text-center" style="letter-spacing:.3rem"
+                                       placeholder="------" @bind="_code" @bind:event="oninput"
+                                       @onkeydown="OnConfirmKeyDown" disabled="@_busy" />
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="d-flex gap-2">
-                        <button class="btn btn-danger" disabled="@_busy" @onclick="Disable">
+                        <button class="btn btn-primary" data-testid="mfa-verify" disabled="@_busy" @onclick="ConfirmEnroll">
                             @if (_busy) { <span class="spinner-border spinner-border-sm me-2"></span> }
-                            @Localizer["Mfa_ConfirmDisable"]
+                            @Localizer["Mfa_Verify"]
                         </button>
                         <button class="btn btn-link" disabled="@_busy" @onclick="Cancel">@Localizer["Common_Cancel"]</button>
                     </div>
-                </div>
-            }
-        }
+                }
+                else if (_state == State.ShowRecovery)
+                {
+                    <div class="alert alert-success py-2">@Localizer["Mfa_EnabledNow"]</div>
+                    <p class="small mb-2">@Localizer["Mfa_RecoveryIntro"]</p>
+                    <div class="border rounded p-3 mb-3 bg-body-tertiary">
+                        <div class="row row-cols-2 g-1 font-monospace small">
+                            @foreach (var rc in _recoveryCodes)
+                            {
+                                <div class="col user-select-all">@rc</div>
+                            }
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" data-testid="mfa-saved-codes" @onclick="FinishRecovery">@Localizer["Mfa_SavedCodes"]</button>
+                }
+                else if (_state == State.On)
+                {
+                    @if (!_disabling)
+                    {
+                        <button class="btn btn-outline-danger" disabled="@_busy" @onclick="() => _disabling = true">
+                            @Localizer["Mfa_Disable"]
+                        </button>
+                    }
+                    else
+                    {
+                        <div style="max-width:260px">
+                            <label class="form-label small fw-medium">@Localizer["Mfa_DisablePrompt"]</label>
+                            <input type="text" inputmode="text" maxlength="14"
+                                   class="form-control mb-2" placeholder="------"
+                                   @bind="_code" @bind:event="oninput"
+                                   @onkeydown="OnDisableKeyDown" disabled="@_busy" />
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-danger" disabled="@_busy" @onclick="Disable">
+                                    @if (_busy) { <span class="spinner-border spinner-border-sm me-2"></span> }
+                                    @Localizer["Mfa_ConfirmDisable"]
+                                </button>
+                                <button class="btn btn-link" disabled="@_busy" @onclick="Cancel">@Localizer["Common_Cancel"]</button>
+                            </div>
+                        </div>
+                    }
+                }
+            </ChildContent>
+        </CollapsibleCard>
     </div>
 </div>
 

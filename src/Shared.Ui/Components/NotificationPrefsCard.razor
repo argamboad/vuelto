@@ -6,33 +6,39 @@
 @* Per-user notification delivery preferences (NOTIFY-2, ADR-013). *@
 <div class="card shadow-sm mt-4">
     <div class="card-body">
-        <h2 class="h6 fw-bold mb-2">@Localizer["NotifPrefs_Title"]</h2>
-        <p class="small text-muted mb-3">@Localizer["NotifPrefs_Subtitle"]</p>
+        <CollapsibleCard Key="settings.notifications" Label="@Localizer["NotifPrefs_Title"].Value">
+            <Head>
+                <h2 class="h6 fw-bold mb-2">@Localizer["NotifPrefs_Title"]</h2>
+            </Head>
+            <ChildContent>
+                <p class="small text-muted mb-3">@Localizer["NotifPrefs_Subtitle"]</p>
 
-        @if (!string.IsNullOrEmpty(_error))
-        {
-            <div class="alert alert-danger py-2">@_error</div>
-        }
+                @if (!string.IsNullOrEmpty(_error))
+                {
+                    <div class="alert alert-danger py-2">@_error</div>
+                }
 
-        @if (_loading)
-        {
-            <div class="text-muted"><span class="spinner-border spinner-border-sm me-2"></span>@Localizer["Common_Loading"]</div>
-        }
-        else
-        {
-            <div class="form-check form-switch mb-2">
-                <input class="form-check-input" type="checkbox" id="notif-inapp"
-                       data-testid="notif-prefs-inapp" checked="@_inApp" disabled="@_busy"
-                       @onchange="e => Save(inApp: (bool)e.Value!, email: _email)" />
-                <label class="form-check-label" for="notif-inapp">@Localizer["NotifPrefs_InApp"]</label>
-            </div>
-            <div class="form-check form-switch">
-                <input class="form-check-input" type="checkbox" id="notif-email"
-                       data-testid="notif-prefs-email" checked="@_email" disabled="@_busy"
-                       @onchange="e => Save(inApp: _inApp, email: (bool)e.Value!)" />
-                <label class="form-check-label" for="notif-email">@Localizer["NotifPrefs_Email"]</label>
-            </div>
-        }
+                @if (_loading)
+                {
+                    <div class="text-muted"><span class="spinner-border spinner-border-sm me-2"></span>@Localizer["Common_Loading"]</div>
+                }
+                else
+                {
+                    <div class="form-check form-switch mb-2">
+                        <input class="form-check-input" type="checkbox" id="notif-inapp"
+                               data-testid="notif-prefs-inapp" checked="@_inApp" disabled="@_busy"
+                               @onchange="e => Save(inApp: (bool)e.Value!, email: _email)" />
+                        <label class="form-check-label" for="notif-inapp">@Localizer["NotifPrefs_InApp"]</label>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="notif-email"
+                               data-testid="notif-prefs-email" checked="@_email" disabled="@_busy"
+                               @onchange="e => Save(inApp: _inApp, email: (bool)e.Value!)" />
+                        <label class="form-check-label" for="notif-email">@Localizer["NotifPrefs_Email"]</label>
+                    </div>
+                }
+            </ChildContent>
+        </CollapsibleCard>
     </div>
 </div>
 

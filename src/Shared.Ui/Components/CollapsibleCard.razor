@@ -1,0 +1,56 @@
+@using Microsoft.JSInterop
+@inject IJSRuntime JS
+@inject IStringLocalizer<AppStrings> Localizer
+
+@* #205 · a card that folds to its heading, and stays folded on this device. It draws no chrome of its own — the page
+   keeps its card element (and so its scoped styles); this renders the heading row with a disclosure button and the
+   body, hidden while collapsed. The button is a real <button aria-expanded aria-controls> named after the card, so a
+   keyboard and a screen reader get it for free. While collapsed an optional one-line summary stands in for the body.
+   The state lives in the appUi device prefs under "collapse.<Key>"; no storage means everything opens expanded. *@
+<div class="ccard" data-collapsed="@(_collapsed ? "true" : null)" data-key="@Key">
+    <div class="ccard-head">
+        <div class="ccard-head-main">@Head</div>
+        @if (_collapsed && !string.IsNullOrWhiteSpace(Summary))
+        {
+            <span class="ccard-summary">@Summary</span>
+        }
+        <button type="button" class="ccard-toggle" aria-expanded="@(_collapsed ? "false" : "true")" aria-controls="@_bodyId"
+                aria-label="@(_collapsed ? Localizer["Card_Expand", Label ?? ""] : Localizer["Card_Collapse", Label ?? ""])" @onclick="ToggleAsync">
+            <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
+        </button>
+    </div>
+    <div class="ccard-body" id="@_bodyId" hidden="@_collapsed">@ChildContent</div>
+</div>
+
+@code {
+    /// <summary>What the device remembers the state under — <c>page.card</c>, unique per card.</summary>
+    [Parameter, EditorRequired] public string Key { get; set; } = "";
+
+    /// <summary>The card's own heading (its h2, and anything that sits beside it).</summary>
+    [Parameter] public RenderFragment? Head { get; set; }
+
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Names the card in the button's accessible label ("Collapse Preferences").</summary>
+    [Parameter] public string? Label { get; set; }
+
+    /// <summary>Shown beside the heading while collapsed, in place of the body.</summary>
+    [Parameter] public string? Summary { get; set; }
+
+    private bool _collapsed;
+    private readonly string _bodyId = $"ccard-{Guid.NewGuid():N}";
+    private string PrefKey => $"collapse.{Key}";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { _collapsed = await JS.InvokeAsync<string?>("appUi.getPref", PrefKey) == "1"; }
+        catch { _collapsed = false; } // no storage (or prerender): expanded
+    }
+
+    private async Task ToggleAsync()
+    {
+        _collapsed = !_collapsed;
+        try { await JS.InvokeVoidAsync("appUi.setPref", PrefKey, _collapsed ? "1" : "0"); }
+        catch { /* preference only */ }
+    }
+}

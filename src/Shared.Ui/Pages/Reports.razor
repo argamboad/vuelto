@@ -104,19 +104,25 @@
             var plan = _report.BudgetTotal is null ? 0m : PaceSide(_report.BudgetTotal.Crc, _report.BudgetTotal.Usd);
             var points = PacePoints();
             <section class="rep-card rep-pace" data-testid="rep-pace-card">
-                <header class="rep-card-head">
-                    <h2>@Localizer["Reports_Pace"]</h2>
-                    @if (_report.BudgetTotal is not null)
-                    {
-                        <span class="rep-pace-summary" data-testid="rep-pace-caption">@Localizer["Reports_PaceCaption", ElapsedPercent(_report.Period.From, _report.Period.To), plan > 0 ? Math.Round(PaceSpend() / plan * 100m) : 0m]</span>
-                    }
-                </header>
-                <LineChart TestId="rep-pace-chart" Height="170" Currency="@PaceCurrency" Title="@Localizer["Reports_Pace"].Value" Points="points" Plan="plan"
-                           From="_report.Period.From" To="_report.Period.To" Today="Today" />
-                @if (_report.BudgetTotal is null)
-                {
-                    <p class="rep-card-note" data-testid="rep-pace-norate">@Localizer["Reports_PaceNoRate"]</p>
-                }
+                <CollapsibleCard Key="reports.pace" Label="@Localizer["Reports_Pace"].Value">
+                    <Head>
+                        <header class="rep-card-head">
+                            <h2>@Localizer["Reports_Pace"]</h2>
+                            @if (_report.BudgetTotal is not null)
+                            {
+                                <span class="rep-pace-summary" data-testid="rep-pace-caption">@Localizer["Reports_PaceCaption", ElapsedPercent(_report.Period.From, _report.Period.To), plan > 0 ? Math.Round(PaceSpend() / plan * 100m) : 0m]</span>
+                            }
+                        </header>
+                    </Head>
+                    <ChildContent>
+                        <LineChart TestId="rep-pace-chart" Height="170" Currency="@PaceCurrency" Title="@Localizer["Reports_Pace"].Value" Points="points" Plan="plan"
+                                   From="_report.Period.From" To="_report.Period.To" Today="Today" />
+                        @if (_report.BudgetTotal is null)
+                        {
+                            <p class="rep-card-note" data-testid="rep-pace-norate">@Localizer["Reports_PaceNoRate"]</p>
+                        }
+                    </ChildContent>
+                </CollapsibleCard>
             </section>
         }
 
@@ -148,8 +154,14 @@
             <div class="row g-3">
                 <div class="@(_report.SingleMonth ? "col-12 col-lg-4" : "col-12")">
                     <div class="rep-card h-100">
-                        <h2 class="rep-card-title">@Localizer["Reports_ClassSplit"]</h2>
-                        <DonutChart TestId="rep-donut" Currency="@_chartCurrency" Title="@Localizer["Reports_ClassSplit"].Value" Slices="ClassSlices()" />
+                        <CollapsibleCard Key="reports.class" Label="@Localizer["Reports_ClassSplit"].Value">
+                            <Head>
+                                <h2 class="rep-card-title">@Localizer["Reports_ClassSplit"]</h2>
+                            </Head>
+                            <ChildContent>
+                                <DonutChart TestId="rep-donut" Currency="@_chartCurrency" Title="@Localizer["Reports_ClassSplit"].Value" Slices="ClassSlices()" />
+                            </ChildContent>
+                        </CollapsibleCard>
                     </div>
                 </div>
                 @if (_report.SingleMonth)
@@ -159,40 +171,52 @@
                        Both are per month, so the cards exist only in month mode; no rate today → no figures → say so. *@
                     <div class="col-12 col-lg-4">
                         <div class="rep-card h-100" data-testid="rep-income-card">
-                            <h2 class="rep-card-title">@Localizer["Reports_IncomeSplit"]</h2>
-                            @if (_report.Income is null)
-                            {
-                                <p class="rep-card-note" data-testid="rep-income-norate">@Localizer["Reports_IncomeNoRate"]</p>
-                            }
-                            else
-                            {
-                                var income = ChartSide(_report.Income.Crc, _report.Income.Usd);
-                                var over = Spend() - income;
-                                <DonutChart TestId="rep-income-donut" Currency="@_chartCurrency" Title="@Localizer["Reports_IncomeSplit"].Value" Slices="IncomeSlices(income)" CenterText="@Amount0(income)" />
-                                @if (over > 0)
-                                {
-                                    <div class="rep-over" data-testid="rep-income-over">@Localizer["Reports_OverBy", Amount(over)]</div>
-                                }
-                            }
+                            <CollapsibleCard Key="reports.income" Label="@Localizer["Reports_IncomeSplit"].Value">
+                                <Head>
+                                    <h2 class="rep-card-title">@Localizer["Reports_IncomeSplit"]</h2>
+                                </Head>
+                                <ChildContent>
+                                    @if (_report.Income is null)
+                                    {
+                                        <p class="rep-card-note" data-testid="rep-income-norate">@Localizer["Reports_IncomeNoRate"]</p>
+                                    }
+                                    else
+                                    {
+                                        var income = ChartSide(_report.Income.Crc, _report.Income.Usd);
+                                        var over = Spend() - income;
+                                        <DonutChart TestId="rep-income-donut" Currency="@_chartCurrency" Title="@Localizer["Reports_IncomeSplit"].Value" Slices="IncomeSlices(income)" CenterText="@Amount0(income)" />
+                                        @if (over > 0)
+                                        {
+                                            <div class="rep-over" data-testid="rep-income-over">@Localizer["Reports_OverBy", Amount(over)]</div>
+                                        }
+                                    }
+                                </ChildContent>
+                            </CollapsibleCard>
                         </div>
                     </div>
                     <div class="col-12 col-lg-4">
                         <div class="rep-card h-100" data-testid="rep-budget-card">
-                            <h2 class="rep-card-title">@Localizer["Reports_BudgetSplit"]</h2>
-                            @if (_report.Income is null || _report.BudgetTotal is null)
-                            {
-                                <p class="rep-card-note" data-testid="rep-budget-norate">@Localizer["Reports_IncomeNoRate"]</p>
-                            }
-                            else
-                            {
-                                var income = ChartSide(_report.Income.Crc, _report.Income.Usd);
-                                var planned = ChartSide(_report.BudgetTotal.Crc, _report.BudgetTotal.Usd);
-                                <DonutChart TestId="rep-budget-donut" Currency="@_chartCurrency" Title="@Localizer["Reports_BudgetSplit"].Value" Slices="BudgetSlices(income, planned)" CenterText="@Amount0(income)" />
-                                @if (planned > income)
-                                {
-                                    <div class="rep-over" data-testid="rep-budget-over">@Localizer["Reports_BudgetOverBy", Amount(planned - income)]</div>
-                                }
-                            }
+                            <CollapsibleCard Key="reports.budget" Label="@Localizer["Reports_BudgetSplit"].Value">
+                                <Head>
+                                    <h2 class="rep-card-title">@Localizer["Reports_BudgetSplit"]</h2>
+                                </Head>
+                                <ChildContent>
+                                    @if (_report.Income is null || _report.BudgetTotal is null)
+                                    {
+                                        <p class="rep-card-note" data-testid="rep-budget-norate">@Localizer["Reports_IncomeNoRate"]</p>
+                                    }
+                                    else
+                                    {
+                                        var income = ChartSide(_report.Income.Crc, _report.Income.Usd);
+                                        var planned = ChartSide(_report.BudgetTotal.Crc, _report.BudgetTotal.Usd);
+                                        <DonutChart TestId="rep-budget-donut" Currency="@_chartCurrency" Title="@Localizer["Reports_BudgetSplit"].Value" Slices="BudgetSlices(income, planned)" CenterText="@Amount0(income)" />
+                                        @if (planned > income)
+                                        {
+                                            <div class="rep-over" data-testid="rep-budget-over">@Localizer["Reports_BudgetOverBy", Amount(planned - income)]</div>
+                                        }
+                                    }
+                                </ChildContent>
+                            </CollapsibleCard>
                         </div>
                     </div>
                     @* Month by month (REPORTS-4): spend on an income track per month, red when a month overspent. *@
@@ -200,13 +224,19 @@
                     {
                         <div class="col-12">
                             <div class="rep-card" data-testid="rep-trend-card">
-                                <h2 class="rep-card-title">@Localizer["Reports_Trend"]</h2>
-                                <BarChart TestId="rep-trend-chart" Currency="@_chartCurrency" Title="@Localizer["Reports_Trend"].Value" Items="TrendBars()"
-                                          ActualLabel="@Localizer["Reports_TrendSpend"].Value" BudgetLabel="@Localizer["Reports_TrendIncome"].Value" OverLabel="@Localizer["Reports_TrendOver"].Value" />
-                                @if (!_trend.RateAvailable)
-                                {
-                                    <p class="rep-card-note" data-testid="rep-trend-norate">@Localizer["Reports_TrendNoRate"]</p>
-                                }
+                                <CollapsibleCard Key="reports.trend" Label="@Localizer["Reports_Trend"].Value">
+                                    <Head>
+                                        <h2 class="rep-card-title">@Localizer["Reports_Trend"]</h2>
+                                    </Head>
+                                    <ChildContent>
+                                        <BarChart TestId="rep-trend-chart" Currency="@_chartCurrency" Title="@Localizer["Reports_Trend"].Value" Items="TrendBars()"
+                                                  ActualLabel="@Localizer["Reports_TrendSpend"].Value" BudgetLabel="@Localizer["Reports_TrendIncome"].Value" OverLabel="@Localizer["Reports_TrendOver"].Value" />
+                                        @if (!_trend.RateAvailable)
+                                        {
+                                            <p class="rep-card-note" data-testid="rep-trend-norate">@Localizer["Reports_TrendNoRate"]</p>
+                                        }
+                                    </ChildContent>
+                                </CollapsibleCard>
                             </div>
                         </div>
                     }
@@ -214,41 +244,59 @@
                 @* Where the money leaves from (REPORTS-4): by bank, and card vs account — stored amounts, so any period. *@
                 <div class="col-12 col-lg-6">
                     <div class="rep-card h-100">
-                        <h2 class="rep-card-title">@Localizer["Reports_ByBank"]</h2>
-                        <DonutChart TestId="rep-bank-donut" Currency="@_chartCurrency" Title="@Localizer["Reports_ByBank"].Value" Slices="BankSlices()" />
+                        <CollapsibleCard Key="reports.bank" Label="@Localizer["Reports_ByBank"].Value">
+                            <Head>
+                                <h2 class="rep-card-title">@Localizer["Reports_ByBank"]</h2>
+                            </Head>
+                            <ChildContent>
+                                <DonutChart TestId="rep-bank-donut" Currency="@_chartCurrency" Title="@Localizer["Reports_ByBank"].Value" Slices="BankSlices()" />
+                            </ChildContent>
+                        </CollapsibleCard>
                     </div>
                 </div>
                 @if (_report.ByCard is { } byCard && byCard.Any(c => c.Key != "none"))
                 {
                     <div class="col-12 col-lg-6">
                         <div class="rep-card h-100">
-                            <h2 class="rep-card-title">@Localizer["Reports_ByCard"]</h2>
-                            <DonutChart TestId="rep-card-donut" Currency="@_chartCurrency" Title="@Localizer["Reports_ByCard"].Value" Slices="CardSlices()" />
+                            <CollapsibleCard Key="reports.card" Label="@Localizer["Reports_ByCard"].Value">
+                                <Head>
+                                    <h2 class="rep-card-title">@Localizer["Reports_ByCard"]</h2>
+                                </Head>
+                                <ChildContent>
+                                    <DonutChart TestId="rep-card-donut" Currency="@_chartCurrency" Title="@Localizer["Reports_ByCard"].Value" Slices="CardSlices()" />
+                                </ChildContent>
+                            </CollapsibleCard>
                         </div>
                     </div>
                 }
                 <div class="col-12">
                     <div class="rep-card">
-                        <h2 class="rep-card-title">@Localizer["Reports_ByMethod"]</h2>
-                        <div class="row g-3">
-                            <div class="col-12 col-lg-5">
-                                <DonutChart TestId="rep-method-donut" Currency="@_chartCurrency" Title="@Localizer["Reports_ByMethod"].Value" Slices="MethodSlices()" />
-                            </div>
-                            @if (_report.BudgetByMethod is { Count: > 0 })
-                            {
-                                <div class="col-12 col-lg-7">
-                                    <h3 class="rep-card-subtitle">@Localizer["Reports_MethodBudget"]</h3>
-                                    <BarChart TestId="rep-method-bars" Currency="@_chartCurrency" Title="@Localizer["Reports_MethodBudget"].Value" Items="MethodBars()"
-                                              ActualLabel="@Localizer["Reports_TrendSpend"].Value" BudgetLabel="@Localizer["Chart_Budget"].Value" />
-                                    <ul class="rep-captions">
-                                        @foreach (var m in MethodBars())
-                                        {
-                                            <li data-testid="rep-method-caption">@m.Label: @Localizer["Reports_MethodCaption", Amount(m.Budget ?? 0), Amount(m.Value)]</li>
-                                        }
-                                    </ul>
+                        <CollapsibleCard Key="reports.method" Label="@Localizer["Reports_ByMethod"].Value">
+                            <Head>
+                                <h2 class="rep-card-title">@Localizer["Reports_ByMethod"]</h2>
+                            </Head>
+                            <ChildContent>
+                                <div class="row g-3">
+                                    <div class="col-12 col-lg-5">
+                                        <DonutChart TestId="rep-method-donut" Currency="@_chartCurrency" Title="@Localizer["Reports_ByMethod"].Value" Slices="MethodSlices()" />
+                                    </div>
+                                    @if (_report.BudgetByMethod is { Count: > 0 })
+                                    {
+                                        <div class="col-12 col-lg-7">
+                                            <h3 class="rep-card-subtitle">@Localizer["Reports_MethodBudget"]</h3>
+                                            <BarChart TestId="rep-method-bars" Currency="@_chartCurrency" Title="@Localizer["Reports_MethodBudget"].Value" Items="MethodBars()"
+                                                      ActualLabel="@Localizer["Reports_TrendSpend"].Value" BudgetLabel="@Localizer["Chart_Budget"].Value" />
+                                            <ul class="rep-captions">
+                                                @foreach (var m in MethodBars())
+                                                {
+                                                    <li data-testid="rep-method-caption">@m.Label: @Localizer["Reports_MethodCaption", Amount(m.Budget ?? 0), Amount(m.Value)]</li>
+                                                }
+                                            </ul>
+                                        </div>
+                                    }
                                 </div>
-                            }
-                        </div>
+                            </ChildContent>
+                        </CollapsibleCard>
                     </div>
                 </div>
                 @* The class bars: the same rows as the table, as pictures. *@

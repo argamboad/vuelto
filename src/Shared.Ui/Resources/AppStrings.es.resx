@@ -916,4 +916,6 @@
   <data name="Reports_PdfColumnsHint" xml:space="preserve"><value>La fecha y el comercio siempre se imprimen.</value></data>
   <data name="Reports_PdfColRate" xml:space="preserve"><value>Tipo de cambio</value></data>
   <data name="Reports_PdfColSource" xml:space="preserve"><value>Origen</value></data>
+  <data name="Card_Collapse" xml:space="preserve"><value>Contraer {0}</value></data>
+  <data name="Card_Expand" xml:space="preserve"><value>Expandir {0}</value></data>
 </root>

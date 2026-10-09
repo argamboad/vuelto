@@ -21,3 +21,23 @@ remediation push where the epic-with-story cadence was (wrongly) skipped as "jus
 APIs". The WoW rule stands: *every* epic gets its story file **before** implementation — a UI wave
 included. E2E follow-ups for these surfaces were planned and delivered as the separate `E2E` epic
 (`docs/stories/e2e.md`).
+
+### UI-5 — Cards fold to their heading, and stay folded *(owner request, 2026-10-09 · #205)* ✅
+
+**As** a household member, **I want** to fold the cards I don't need on busy screens, **so that** the ones I use are
+within reach — and **I want** them to stay folded next time.
+
+**Context / notes:** one RCL component, `CollapsibleCard` — no chrome of its own (the page keeps its card element and
+scoped styles); it renders the heading row with a `<button aria-expanded aria-controls>` named "Collapse/Expand
+<card>" and the body, `hidden` while folded, with an optional one-line summary in its place. State per device in the
+`appUi` prefs under `collapse.<page>.<card>`; no storage → everything opens. Used on Settings (all eight cards),
+Reports (pace + every chart card), Household (Members, Invitations, Data) and the Dashboard (Fixed, Variable, "Where
+it went" — `BudgetLineList` / `BreakdownPanel` take a `CollapseKey`). The KPI tiles, the verdict and the waterfall
+stay open: they are the page's answer, not detail.
+
+```gherkin
+Scenario: Fold and come back
+  Given I fold Catalog on Settings
+  When I reload
+  Then Catalog is still folded and the other cards are open
+```

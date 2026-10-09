@@ -51,58 +51,64 @@
         @* ── Members ── *@
         <div class="card shadow-sm mb-3">
             <div class="card-body">
-                <h2 class="h6 fw-bold mb-3">@Localizer["Household_Members"]</h2>
-                <ul class="list-group list-group-flush">
-                    @foreach (var m in _household.Members)
-                    {
-                        <li class="list-group-item d-flex align-items-center justify-content-between px-0" data-testid="member-row">
-                            <div>
-                                <div class="fw-medium">@(string.IsNullOrWhiteSpace(m.DisplayName) ? m.Email : m.DisplayName)</div>
-                                @if (!string.IsNullOrWhiteSpace(m.DisplayName))
-                                {
-                                    <div class="small text-muted">@m.Email</div>
-                                }
-                            </div>
-                            <div class="d-flex align-items-center gap-2">
-                                @if (m.Role == "owner")
-                                {
-                                    <StatusChip Tone="plan" TestId="member-role" data-role="owner">@Localizer["Household_RoleOwner"]</StatusChip>
-                                }
-                                else if (m.Role == "admin")
-                                {
-                                    <StatusChip Tone="info" TestId="member-role" data-role="admin">@Localizer["Household_RoleAdmin"]</StatusChip>
-                                }
-                                else
-                                {
-                                    <StatusChip TestId="member-role" data-role="member">@Localizer["Household_RoleMember"]</StatusChip>
-                                }
-                                @* Actions target everyone but the owner, and never self. Roles are owner-only
-                                   (ManageRoles); remove is owner+admin (ManageMembers). *@
-                                @if (m.UserId != _myUserId && m.Role != "owner")
-                                {
-                                    @if (CanManageRoles)
-                                    {
-                                        @if (m.Role == "admin")
+                <CollapsibleCard Key="household.members" Label="@Localizer["Household_Members"].Value">
+                    <Head>
+                        <h2 class="h6 fw-bold mb-3">@Localizer["Household_Members"]</h2>
+                    </Head>
+                    <ChildContent>
+                        <ul class="list-group list-group-flush">
+                            @foreach (var m in _household.Members)
+                            {
+                                <li class="list-group-item d-flex align-items-center justify-content-between px-0" data-testid="member-row">
+                                    <div>
+                                        <div class="fw-medium">@(string.IsNullOrWhiteSpace(m.DisplayName) ? m.Email : m.DisplayName)</div>
+                                        @if (!string.IsNullOrWhiteSpace(m.DisplayName))
                                         {
-                                            <button class="btn btn-outline-secondary btn-sm" disabled="@_busy" data-testid="member-demote"
-                                                    @onclick="() => Demote(m)">@Localizer["Household_MakeMember"]</button>
+                                            <div class="small text-muted">@m.Email</div>
+                                        }
+                                    </div>
+                                    <div class="d-flex align-items-center gap-2">
+                                        @if (m.Role == "owner")
+                                        {
+                                            <StatusChip Tone="plan" TestId="member-role" data-role="owner">@Localizer["Household_RoleOwner"]</StatusChip>
+                                        }
+                                        else if (m.Role == "admin")
+                                        {
+                                            <StatusChip Tone="info" TestId="member-role" data-role="admin">@Localizer["Household_RoleAdmin"]</StatusChip>
                                         }
                                         else
                                         {
-                                            <button class="btn btn-outline-secondary btn-sm" disabled="@_busy" data-testid="member-promote"
-                                                    @onclick="() => Promote(m)">@Localizer["Household_MakeAdmin"]</button>
+                                            <StatusChip TestId="member-role" data-role="member">@Localizer["Household_RoleMember"]</StatusChip>
                                         }
-                                    }
-                                    @if (CanManageMembers)
-                                    {
-                                        <button class="btn btn-outline-danger btn-sm" disabled="@_busy" data-testid="member-remove"
-                                                @onclick="() => RemoveMember(m)">@Localizer["Household_Remove"]</button>
-                                    }
-                                }
-                            </div>
-                        </li>
-                    }
-                </ul>
+                                        @* Actions target everyone but the owner, and never self. Roles are owner-only
+                                           (ManageRoles); remove is owner+admin (ManageMembers). *@
+                                        @if (m.UserId != _myUserId && m.Role != "owner")
+                                        {
+                                            @if (CanManageRoles)
+                                            {
+                                                @if (m.Role == "admin")
+                                                {
+                                                    <button class="btn btn-outline-secondary btn-sm" disabled="@_busy" data-testid="member-demote"
+                                                            @onclick="() => Demote(m)">@Localizer["Household_MakeMember"]</button>
+                                                }
+                                                else
+                                                {
+                                                    <button class="btn btn-outline-secondary btn-sm" disabled="@_busy" data-testid="member-promote"
+                                                            @onclick="() => Promote(m)">@Localizer["Household_MakeAdmin"]</button>
+                                                }
+                                            }
+                                            @if (CanManageMembers)
+                                            {
+                                                <button class="btn btn-outline-danger btn-sm" disabled="@_busy" data-testid="member-remove"
+                                                        @onclick="() => RemoveMember(m)">@Localizer["Household_Remove"]</button>
+                                            }
+                                        }
+                                    </div>
+                                </li>
+                            }
+                        </ul>
+                    </ChildContent>
+                </CollapsibleCard>
             </div>
         </div>
 
@@ -111,50 +117,56 @@
         {
             <div class="card shadow-sm mb-3">
                 <div class="card-body">
-                    <h2 class="h6 fw-bold mb-3">@Localizer["Household_Invitations"]</h2>
-                    <div class="d-flex gap-2 flex-wrap mb-3">
-                        <input class="form-control" style="max-width:320px" type="email" data-testid="invite-email"
-                               placeholder="email@example.com" @bind="_inviteEmail" />
-                        <button class="btn btn-outline-primary" disabled="@(_busy || string.IsNullOrWhiteSpace(_inviteEmail))"
-                                data-testid="invite-send" @onclick="SendInvite">@Localizer["Household_Invite"]</button>
-                    </div>
-
-                    @if (_revealedToken is not null)
-                    {
-                        <div class="alert alert-success py-2">
-                            <div class="fw-medium mb-1">@Localizer["Household_InviteTokenFor", _revealedEmail ?? ""]</div>
-                            <div class="d-flex align-items-center gap-2">
-                                <code class="text-break" data-testid="invite-token">@_revealedToken</code>
-                                <button class="btn btn-outline-secondary btn-sm" @onclick="() => CopyToken(_revealedToken)">@Localizer["Household_Copy"]</button>
+                    <CollapsibleCard Key="household.invitations" Label="@Localizer["Household_Invitations"].Value">
+                        <Head>
+                            <h2 class="h6 fw-bold mb-3">@Localizer["Household_Invitations"]</h2>
+                        </Head>
+                        <ChildContent>
+                            <div class="d-flex gap-2 flex-wrap mb-3">
+                                <input class="form-control" style="max-width:320px" type="email" data-testid="invite-email"
+                                       placeholder="email@example.com" @bind="_inviteEmail" />
+                                <button class="btn btn-outline-primary" disabled="@(_busy || string.IsNullOrWhiteSpace(_inviteEmail))"
+                                        data-testid="invite-send" @onclick="SendInvite">@Localizer["Household_Invite"]</button>
                             </div>
-                            <div class="small text-muted mt-1">@Localizer["Household_EmailedJoinLink"]</div>
-                        </div>
-                    }
 
-                    @if (_pending.Count == 0)
-                    {
-                        <p class="text-muted small mb-0">@Localizer["Household_NoPending"]</p>
-                    }
-                    else
-                    {
-                        <ul class="list-group list-group-flush">
-                            @foreach (var inv in _pending)
+                            @if (_revealedToken is not null)
                             {
-                                <li class="list-group-item d-flex align-items-center justify-content-between px-0" data-testid="pending-invite-row">
-                                    <div>
-                                        <div class="fw-medium">@inv.InvitedEmail</div>
-                                        <div class="small text-muted">@Localizer["Household_Expires", inv.ExpiresAt.ToLocalTime().ToString("d")]</div>
+                                <div class="alert alert-success py-2">
+                                    <div class="fw-medium mb-1">@Localizer["Household_InviteTokenFor", _revealedEmail ?? ""]</div>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <code class="text-break" data-testid="invite-token">@_revealedToken</code>
+                                        <button class="btn btn-outline-secondary btn-sm" @onclick="() => CopyToken(_revealedToken)">@Localizer["Household_Copy"]</button>
                                     </div>
-                                    <div class="d-flex gap-2">
-                                        <button class="btn btn-outline-secondary btn-sm" disabled="@_busy" data-testid="invite-regenerate"
-                                                @onclick="() => RegenerateInvite(inv)">@Localizer["Household_Regenerate"]</button>
-                                        <button class="btn btn-outline-danger btn-sm" disabled="@_busy" data-testid="invite-revoke"
-                                                @onclick="() => RevokeInvite(inv)">@Localizer["Household_Revoke"]</button>
-                                    </div>
-                                </li>
+                                    <div class="small text-muted mt-1">@Localizer["Household_EmailedJoinLink"]</div>
+                                </div>
                             }
-                        </ul>
-                    }
+
+                            @if (_pending.Count == 0)
+                            {
+                                <p class="text-muted small mb-0">@Localizer["Household_NoPending"]</p>
+                            }
+                            else
+                            {
+                                <ul class="list-group list-group-flush">
+                                    @foreach (var inv in _pending)
+                                    {
+                                        <li class="list-group-item d-flex align-items-center justify-content-between px-0" data-testid="pending-invite-row">
+                                            <div>
+                                                <div class="fw-medium">@inv.InvitedEmail</div>
+                                                <div class="small text-muted">@Localizer["Household_Expires", inv.ExpiresAt.ToLocalTime().ToString("d")]</div>
+                                            </div>
+                                            <div class="d-flex gap-2">
+                                                <button class="btn btn-outline-secondary btn-sm" disabled="@_busy" data-testid="invite-regenerate"
+                                                        @onclick="() => RegenerateInvite(inv)">@Localizer["Household_Regenerate"]</button>
+                                                <button class="btn btn-outline-danger btn-sm" disabled="@_busy" data-testid="invite-revoke"
+                                                        @onclick="() => RevokeInvite(inv)">@Localizer["Household_Revoke"]</button>
+                                            </div>
+                                        </li>
+                                    }
+                                </ul>
+                            }
+                        </ChildContent>
+                    </CollapsibleCard>
                 </div>
             </div>
         }
@@ -164,23 +176,29 @@
         {
             <div class="card shadow-sm mb-3">
                 <div class="card-body">
-                    <h2 class="h6 fw-bold mb-2">@Localizer["Household_DataTitle"]</h2>
-                    <p class="small text-muted mb-2">@Localizer["Household_DataSubtitle"]</p>
-                    <button class="btn btn-outline-secondary" disabled="@_busy" data-testid="export-data" @onclick="ExportData">
-                        @if (_busy && _exporting)
-                        {
-                            <span class="spinner-border spinner-border-sm me-2"></span>
-                        }
-                        @Localizer["Household_ExportData"]
-                    </button>
-                    @if (_exportUrl is not null)
-                    {
-                        <div class="alert alert-success py-2 mt-3 mb-0 d-flex align-items-center gap-2">
-                            <span>@Localizer["Household_ExportReady"]</span>
-                            <button class="btn btn-link p-0 align-baseline" data-testid="export-download"
-                                    @onclick="DownloadExport">@Localizer["Household_ExportDownload"]</button>
-                        </div>
-                    }
+                    <CollapsibleCard Key="household.data" Label="@Localizer["Household_DataTitle"].Value">
+                        <Head>
+                            <h2 class="h6 fw-bold mb-2">@Localizer["Household_DataTitle"]</h2>
+                        </Head>
+                        <ChildContent>
+                            <p class="small text-muted mb-2">@Localizer["Household_DataSubtitle"]</p>
+                            <button class="btn btn-outline-secondary" disabled="@_busy" data-testid="export-data" @onclick="ExportData">
+                                @if (_busy && _exporting)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-2"></span>
+                                }
+                                @Localizer["Household_ExportData"]
+                            </button>
+                            @if (_exportUrl is not null)
+                            {
+                                <div class="alert alert-success py-2 mt-3 mb-0 d-flex align-items-center gap-2">
+                                    <span>@Localizer["Household_ExportReady"]</span>
+                                    <button class="btn btn-link p-0 align-baseline" data-testid="export-download"
+                                            @onclick="DownloadExport">@Localizer["Household_ExportDownload"]</button>
+                                </div>
+                            }
+                        </ChildContent>
+                    </CollapsibleCard>
                 </div>
             </div>
         }
