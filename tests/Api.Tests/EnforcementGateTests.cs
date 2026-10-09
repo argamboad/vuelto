@@ -582,6 +582,66 @@ public class EnforcementGateTests
     }
 
     [Fact]
+    public void NoPulledImage_ComesFromDockerHub() // 2026-10-09: GitHub's runners hit Docker Hub's anonymous pull limit
+    {
+        // A hosted runner pulls anonymously, and Docker Hub caps anonymous pulls per IP — shared by every job on that
+        // runner pool. On 2026-10-09 `docker pull postgres:17.11` answered `toomanyrequests` three times and the e2e
+        // job died before checkout, with nothing in the change to blame. Every image a job PULLS therefore names a
+        // registry that does not rate-limit it: Postgres from Amazon's mirror of the official images
+        // (public.ecr.aws/docker/library), Mailpit from its own GitHub registry, MinIO from our copy on ghcr.io.
+        // A Docker Hub reference is one with no registry host: `postgres:17.11`, `axllent/mailpit:v1`. Dockerfile
+        // stages (mcr.microsoft.com, and their own stage names) and `docker run` of the image the job just built
+        // are not pulls from a registry, so only the three pulled surfaces are read.
+        var root = RepoRoot();
+        var offenders = new List<string>();
+
+        var image = new Regex(@"(?m)^\s*image:\s*([^\s#]+)");
+        foreach (Match m in image.Matches(File.ReadAllText(Path.Combine(root, ".github", "workflows", "ci.yml"))))
+            Check(m.Groups[1].Value, "ci.yml services");
+        var compose = Path.Combine(root, "docker-compose.yml");
+        if (File.Exists(compose))
+            foreach (Match m in image.Matches(File.ReadAllText(compose)))
+                Check(m.Groups[1].Value, "docker-compose.yml");
+        var builder = new Regex(@"new\s+\w*Builder\s*\(\s*""([^""]+)""");
+        foreach (var file in Directory.EnumerateFiles(Path.Combine(root, "tests"), "*.cs", SearchOption.AllDirectories))
+        {
+            if (file.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}")
+                || file.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}")
+                || Path.GetFileName(file) == $"{nameof(EnforcementGateTests)}.cs") continue; // this file's comments name the shape
+            foreach (Match m in builder.Matches(File.ReadAllText(file)))
+                Check(m.Groups[1].Value, Path.GetFileName(file));
+        }
+
+        Assert.True(offenders.Count == 0,
+            "Pull every image from a registry that does not rate-limit anonymous pulls — public.ecr.aws/docker/library/… "
+            + $"for an official image, the project's own registry otherwise: {string.Join(", ", offenders)}");
+
+        // A Dockerfile `# syntax=docker/dockerfile:…` line makes BuildKit fetch its frontend from Docker Hub before the
+        // first FROM — the docker-build job died on Docker Hub's 504 that way (jigger-jot, 2026-10-09). The frontend
+        // built into the runner's Docker reads this Dockerfile as it is, so there is no syntax line to pull.
+        Assert.DoesNotMatch(@"(?im)^\s*#\s*syntax\s*=", File.ReadAllText(Path.Combine(root, "Dockerfile")));
+
+        // Testcontainers' own Ryuk reaper is a Docker Hub image too; CI turns it off (a runner is thrown away anyway).
+        var ci = File.ReadAllText(Path.Combine(root, ".github", "workflows", "ci.yml"));
+        Assert.Matches(@"TESTCONTAINERS_RYUK_DISABLED:\s*""true""", ci);
+
+        // And the mirror has a limit of its own: sixty fixtures pulling at once answered `toomanyrequests: Rate
+        // exceeded` (2026-10-09). The job pulls each test image once, before the tests, so the fixtures find it
+        // locally; the images named here are the ones the fixtures use.
+        foreach (var pulled in new[] { "public.ecr.aws/docker/library/postgres:17.11", "ghcr.io/argamboad/minio:RELEASE.2025-09-07T16-13-09Z" })
+            Assert.Contains(pulled, ci.Split("- name: Test (Core + Api + Ui)")[0]);
+
+        void Check(string reference, string where)
+        {
+            if (reference.Contains('$') || reference.Contains('{')) return;
+            var first = reference.Split('/')[0];
+            var namesARegistry = reference.Contains('/') && (first.Contains('.') || first.Contains(':') || first == "localhost");
+            if (!namesARegistry || first is "docker.io" or "index.docker.io" or "registry-1.docker.io")
+                offenders.Add($"{where}: '{reference}' comes from Docker Hub");
+        }
+    }
+
+    [Fact]
     public void ImagePinGate_SeesAllFourSurfaces_AndRefusesABareMajor() // v4 T16: the gate's own reach, held
     {
         // The gate above reads the live files, so a passing run cannot show that it looks at every surface.

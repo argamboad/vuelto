@@ -4,7 +4,7 @@
     "platform commit this repo is synced to. PlatformOwnershipTests compares this repo against it. Do not edit by hand."
   ],
   "platform": "argamboad/perezosoft-platform",
-  "commit": "fbd2e1fb46799e634af70b06af274c7ff9c9ba6c",
+  "commit": "7914da6fc9bd0c8101fc0a517b6453324f935488",
   "files": [
     {
       "path": ".config/dotnet-tools.json",
@@ -49,7 +49,7 @@
     {
       "path": ".github/workflows/ci.yml",
       "class": "adapts",
-      "hash": "98d81dff3b415d78ed153a4b86327d57312eca6d9e09a94d26ef40edb9b75047"
+      "hash": "511d73796ff4d9f1b2adffb02474b1a7dbc8ec51abcd563cbcc9d23a09281a22"
     },
     {
       "path": ".github/workflows/postman-sync.yml",
@@ -94,7 +94,7 @@
     {
       "path": "docker-compose.yml",
       "class": "adapts",
-      "hash": "d2a4c0e3074fbd74a62ef508947f63d97de3626eeb9dc35a2f731cf88f903297"
+      "hash": "e948648230b131f9f891b26fad25bc457ae5a95d68edb0c7f9744612da93745d"
     },
     {
       "path": "docker/db/provision-rls-runtime-role.sql",
@@ -104,7 +104,7 @@
     {
       "path": "Dockerfile",
       "class": "adapts",
-      "hash": "4270eab1d1bf8793cc0d7068d66770d7d78328ac311e71bb1297c45da5d2ed84"
+      "hash": "75b3560f5800e117c53400482cf7f065bdb10d6c26f83009fdc541866621f7f7"
     },
     {
       "path": "docs/ARCHITECTURE.md",
@@ -4124,7 +4124,7 @@
     {
       "path": "tests/Api.Tests/EnforcementGateTests.cs",
       "class": "platform",
-      "hash": "1aefcc407e04220343a25c5ac6f1e264f73ce84b17bf380d3d726ffdabfe1312"
+      "hash": "a0f7906d7df9e12effc9b21503adc927077677858542edbacc1242d7f11cb96b"
     },
     {
       "path": "tests/Api.Tests/EnterTenantScopingTests.cs",
@@ -4229,12 +4229,12 @@
     {
       "path": "tests/Api.Tests/Infrastructure/IntegrationTestFactory.cs",
       "class": "platform",
-      "hash": "5159d0bdf03235ad0bb3a09e63422846efae2d924fca6573344b81d6e07da686"
+      "hash": "8b4f1d45f4411d4491ccf68d57e5213ae26dfbe5dc1e5ff2f3cfd1e3c9e19986"
     },
     {
       "path": "tests/Api.Tests/Infrastructure/PostgresFixture.cs",
       "class": "platform",
-      "hash": "85bbd805147c7e619835b23432a91156e3aecf3924ff42d80a2d3c2aa070f460"
+      "hash": "34298fffbb40cd3331c659f7968c03711ff4126360d4c4a3dbe696fd106020b4"
     },
     {
       "path": "tests/Api.Tests/Infrastructure/PostgresTestBase.cs",
@@ -4349,7 +4349,7 @@
     {
       "path": "tests/Api.Tests/LocalPortsTests.cs",
       "class": "platform",
-      "hash": "bf5a2f0f3d781e3870686fe02db50c877b90b42f78d443d03fc561d178a726b1"
+      "hash": "6da4b92eec5df398ddb52c61a49084a1725811322e2ad76771d238c0b3fa92a3"
     },
     {
       "path": "tests/Api.Tests/Mfa/MfaChallengeServiceTests.cs",
@@ -4374,7 +4374,7 @@
     {
       "path": "tests/Api.Tests/MigrationsTests.cs",
       "class": "platform",
-      "hash": "1ad57e800dab7ec295871b86474912c1e85cd8703bff3e2f2b4812f0e90f6803"
+      "hash": "f4dc763c170a2c9699a42c692e2b259a1b962cc06d2a6c2e539de3ca747802b4"
     },
     {
       "path": "tests/Api.Tests/NativeAuthCodeServiceTests.cs",
@@ -4564,7 +4564,7 @@
     {
       "path": "tests/Api.Tests/Rls/RlsMigrationGateBitesTests.cs",
       "class": "platform",
-      "hash": "ac4ed23995202fc64cc3d013deda25468b83240c3ceb7f3f6e82980ab8ab996c"
+      "hash": "9d5a19cbb284a92b84c803df5ec300fbc6a0181f4e6122ba72320a3cd95edf41"
     },
     {
       "path": "tests/Api.Tests/Rls/RlsMigrationGateTests.cs",
@@ -5659,12 +5659,12 @@
     {
       "path": "tests/Ui.Tests/Infrastructure/ComponentTestBase.cs",
       "class": "adapts",
-      "hash": "0a998396b3b19208aa6c2c1e2f9a8a2f96709c19023ba77f9e62dd23ae44dfbc"
+      "hash": "7972d33509966b7607c0e908f65511da941f0e77c35ca442deb2f68f8704d7b9"
     },
     {
       "path": "tests/Ui.Tests/Infrastructure/Fakes.cs",
       "class": "adapts",
-      "hash": "67357ec508a0dd6aa1f7940eb2b0915629da3ae50551e6620a32b26140d9a8ee"
+      "hash": "b4446e38e8c271e39aa3a84c16ede46e0257314175b89023bc4e76867b0628d3"
     },
     {
       "path": "tests/Ui.Tests/Infrastructure/TestHttpHandler.cs",
@@ -5749,7 +5749,7 @@
     {
       "path": "tests/Ui.Tests/SessionKeepAliveTests.cs",
       "class": "adapts",
-      "hash": "955a75c30639be6ed83985d8a96fa0c9b65b3c365d7dd78016d3cd9cbd68de1c"
+      "hash": "b36b4b2160da97346921d9e36e223351f821c5e7e2359670101d1f9eb0820188"
     },
     {
       "path": "tests/Ui.Tests/SignupRefusedCopyTests.cs",

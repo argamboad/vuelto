@@ -33,7 +33,7 @@ public abstract class ComponentTestBase : BunitContext
     /// and its <c>serverClockOffset</c> is the clock-skew seam (v4 T32, R126): a token minted 3 minutes ahead is
     /// what a phone 3 minutes slow receives.
     /// </summary>
-    protected FakeTimeProvider Time { get; } = new(DateTimeOffset.UtcNow);
+    protected TestClock Time { get; } = new(DateTimeOffset.UtcNow);
 
     protected ComponentTestBase()
     {

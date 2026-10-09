@@ -2,7 +2,7 @@ name: vuelto
 
 services:
   db:
-    image: postgres:17.11
+    image: public.ecr.aws/docker/library/postgres:17.11
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${DB_NAME:-dev_db}
@@ -23,7 +23,7 @@ services:
       start_period: 10s
 
   mail:
-    image: axllent/mailpit:v1.30.4 # pinned, not :latest — matches the CI mail trap (v3 DEP-9)
+    image: ghcr.io/axllent/mailpit:v1.30.4 # pinned, not :latest — matches the CI mail trap (v3 DEP-9)
     restart: unless-stopped
     ports:
       - "${MAIL_SMTP_PORT:-1026}:1025"

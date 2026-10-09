@@ -80,11 +80,30 @@ jobs:
           dotnet build src/Web/Vuelto.Web.csproj -c Release --no-restore
           dotnet build tests/E2E.Tests/Vuelto.E2E.Tests.csproj -c Release --no-restore
 
+      # The test images, pulled ONCE before the tests. Every Testcontainers fixture (some sixty test classes,
+      # in parallel) asks Docker for its image; when the image is not there yet each ask is a registry pull,
+      # and on 2026-10-09 Amazon's mirror answered the burst with `toomanyrequests: Rate exceeded` and the
+      # Api tests failed by the dozen. Pulled here, the fixtures find the image locally and no registry is
+      # asked. Three attempts, so a registry hiccup does not fail the job before a test has run.
+      - name: Pull the test images once
+        run: |
+          for image in public.ecr.aws/docker/library/postgres:17.11 ghcr.io/argamboad/minio:RELEASE.2025-09-07T16-13-09Z; do
+            for attempt in 1 2 3; do
+              docker pull --quiet "$image" && break
+              [ "$attempt" = 3 ] && { echo "::error::could not pull $image"; exit 1; }
+              sleep 20
+            done
+          done
+
       # Unit + integration tests. Api.Tests includes the architecture invariants (B9-1) and the
       # migration-drift guard (B6-2); both spin up Postgres via Testcontainers (Docker is
       # available on ubuntu-latest). E2E.Tests need the full running stack and aren't run here.
       # --no-restore: the locked-mode restore already ran.
       - name: Test (Core + Api + Ui)
+        env:
+          # Testcontainers' Ryuk reaper is a Docker Hub image, and a hosted runner pulls anonymously into Docker
+          # Hub's rate limit. It only cleans up containers a crashed run leaves behind; this runner is thrown away.
+          TESTCONTAINERS_RYUK_DISABLED: "true"
         run: |
           dotnet test tests/Core.Tests/Vuelto.Core.Tests.csproj -c Release --no-restore
           dotnet test tests/Api.Tests/Vuelto.Api.Tests.csproj -c Release --no-restore
@@ -834,7 +853,7 @@ jobs:
     timeout-minutes: 45
     services:
       db:
-        image: postgres:17.11
+        image: public.ecr.aws/docker/library/postgres:17.11  # Amazon's mirror of the official image: Docker Hub rate-limits anonymous pulls
         env:
           POSTGRES_DB: smoke
           POSTGRES_USER: smoke
@@ -843,7 +862,7 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U smoke -d smoke" --health-interval 5s --health-timeout 5s --health-retries 15
       mail:
-        image: axllent/mailpit:v1.30.4 # pinned, not :latest — reproducible mail trap (v3 DEP-9); keep == the Windows-leg MailpitVersion
+        image: ghcr.io/axllent/mailpit:v1.30.4 # from Mailpit's own registry, not Docker Hub (anonymous pull limit); pinned, not :latest — reproducible mail trap (v3 DEP-9); keep == the Windows-leg MailpitVersion
         ports: ["1026:1025", "8026:8025"]
     steps:
       - uses: actions/checkout@v5
@@ -1008,7 +1027,7 @@ jobs:
     timeout-minutes: 40
     services:
       db:
-        image: postgres:17.11
+        image: public.ecr.aws/docker/library/postgres:17.11  # Amazon's mirror of the official image: Docker Hub rate-limits anonymous pulls
         env:
           POSTGRES_DB: e2e
           POSTGRES_USER: e2e
@@ -1017,7 +1036,7 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U e2e -d e2e" --health-interval 5s --health-timeout 5s --health-retries 15
       mail:
-        image: axllent/mailpit:v1.30.4 # pinned, not :latest — reproducible mail trap (v3 DEP-9); keep == the Windows-leg MailpitVersion
+        image: ghcr.io/axllent/mailpit:v1.30.4 # from Mailpit's own registry, not Docker Hub (anonymous pull limit); pinned, not :latest — reproducible mail trap (v3 DEP-9); keep == the Windows-leg MailpitVersion
         ports: ["1026:1025", "8026:8025"]
     steps:
       - uses: actions/checkout@v5

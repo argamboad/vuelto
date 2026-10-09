@@ -1,5 +1,3 @@
-# syntax=docker/dockerfile:1
-#
 # Production image (DEPLOY-2, ADR-017). Single container that serves BOTH the ASP.NET Core API and the
 # Blazor WASM client — single-origin (see DEPLOY-1). Mirrors CI: restore/build only Api + Web (which pull
 # in Core/Infrastructure/Shared.Ui via ProjectReference); Maui is never built here.
