@@ -2178,7 +2178,7 @@ Given the month above, with at least one transaction naming a card and one categ
 When I open Dashboard
 Then ONE "Where it went" panel replaces the separate week, bank and card cards, with a segmented switch reading By week | By bank | By card | Unbudgeted
 And the switch is a real radio group: it is reachable by keyboard and announces its position
-And By week opens first, with Budgeted, Discretionary and Unplanned columns per week (#211); each cut ends in a Total row, and switching between them refetches nothing
+And By week opens first, with Budgeted, Discretionary and Unplanned columns per week (#211) and a Total column adding the three (on a phone, under the week's dates); each cut ends in a Total row, and switching between them refetches nothing
 And By bank opens on a two-row "Planned vs spent, by payment method" summary — Card and Bank account, budgeted against actual, red when over — above a table of actual spend per bank and method with its Total; there is no budgeted column per bank, because a budget line names no bank
 And Unbudgeted lists the categories with spend and no budget line — the old "Other spending" card — grouped by class with a subtotal per group: Discretionary, then Unplanned, then "Marked budgeted, no line" only when a purchase classed Budgeted sits in a category no line covers; a category whose money came in two classes appears once per group with that group's share
 And By card lists each card's alias with its kind and transaction count beneath, its spend, and its share of the month — "No card" last
@@ -2189,7 +2189,8 @@ Then that strip is absent entirely, and the page is one section shorter
 ```
 **Walkthrough:** **Dashboard** → scroll to **Where it went** → **Expected:** one panel, the switch on
 **By week**, its columns **Budgeted**, **Discretionary** and **Unplanned** — the unplanned lunch's ₡10,000.00 in its
-week's Unplanned cell and in the Unplanned total. Tab to the switch and use the arrow keys → **Expected:** it moves between the four options
+week's Unplanned cell and in the Unplanned total; the **Total** column adds a week's three cells, and its bottom cell is the
+month's whole spend. Tab to the switch and use the arrow keys → **Expected:** it moves between the four options
 like a radio group. Click through **By bank**, **By card**, **Unbudgeted** → **Expected:** each renders
 its own table with a **Total**, nothing scrolls sideways, and no money pair breaks across two lines (check
 in **Both**, the widest). **By bank:** first a two-row summary, **Credit card** and **Bank account**, each

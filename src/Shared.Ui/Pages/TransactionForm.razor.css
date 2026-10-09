@@ -38,7 +38,8 @@
     margin-top: 9px;
 }
 
-.tx-refund .form-label {
+.tx-refund .form-label,
+.tx-refund ::deep .refund-amount > .form-label { /* the refund amount's label lives in its component — same small label */
     display: block;
     margin-bottom: 3px;
     font-size: 11px;

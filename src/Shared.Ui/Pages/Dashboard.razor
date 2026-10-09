@@ -392,24 +392,35 @@
     {
         <div class="table-responsive">
             <table class="table table-sm dash-table">
-                <thead><tr><th>@Localizer["Dash_Week"]</th><th class="text-end">@Localizer["Tx_Budgeted"]</th><th class="text-end">@Localizer["Tx_Extraordinary"]</th><th class="text-end">@Localizer["Tx_Unplanned"]</th></tr></thead>
+                <thead><tr><th>@Localizer["Dash_Week"]</th><th class="text-end">@Localizer["Tx_Budgeted"]</th><th class="text-end">@Localizer["Tx_Extraordinary"]</th><th class="text-end">@Localizer["Tx_Unplanned"]</th><th class="text-end dash-week-sum">@Localizer["Dash_Total"]</th></tr></thead>
                 <tbody>
                     @foreach (var w in s.WeeklyBudgeted)
                     {
                         var extra = s.WeeklyExtraordinary.FirstOrDefault(x => x.WeekNumber == w.WeekNumber);
                         var unplanned = s.WeeklyUnplanned?.FirstOrDefault(x => x.WeekNumber == w.WeekNumber); // #211
+                        // The week's whole spend — the three classes added (owner, 2026-10-09).
+                        var weekTotal = Sum([w.Total, extra?.Total ?? new MoneyDto(0, 0), unplanned?.Total ?? new MoneyDto(0, 0)]);
                         <tr data-testid="dash-week-row">
-                            <td>@Localizer["Month_Week", w.WeekNumber] <span class="dash-meta">@w.StartDate.ToString("d", CultureInfo.CurrentCulture) – @w.EndDate.ToString("d", CultureInfo.CurrentCulture)</span></td>
+                            <td>
+                                @Localizer["Month_Week", w.WeekNumber] <span class="dash-meta">@w.StartDate.ToString("d", CultureInfo.CurrentCulture) – @w.EndDate.ToString("d", CultureInfo.CurrentCulture)</span>
+                                @* On a phone the Total column folds in here — five money columns don't fit 375 pixels. *@
+                                <span class="dash-week-sum-sub"><span class="dash-week-sum-label">@Localizer["Dash_Total"]</span>@Pair(weekTotal)</span>
+                            </td>
                             <td class="text-end">@Pair(w.Total)</td>
                             <td class="text-end">@Pair(extra?.Total ?? new MoneyDto(0, 0))</td>
                             <td class="text-end">@Pair(unplanned?.Total ?? new MoneyDto(0, 0))</td>
+                            <td class="text-end fw-semibold dash-week-sum" data-testid="dash-week-sum">@Pair(weekTotal)</td>
                         </tr>
                     }
                     <tr class="fw-semibold" data-testid="dash-week-total">
-                        <td>@Localizer["Dash_Total"]</td>
+                        <td>
+                            @Localizer["Dash_Total"]
+                            <span class="dash-week-sum-sub">@Pair(Sum([.. s.WeeklyBudgeted.Select(w => w.Total), .. s.WeeklyExtraordinary.Select(w => w.Total), .. (s.WeeklyUnplanned ?? []).Select(w => w.Total)]))</span>
+                        </td>
                         <td class="text-end">@Pair(Sum(s.WeeklyBudgeted.Select(w => w.Total)))</td>
                         <td class="text-end">@Pair(Sum(s.WeeklyExtraordinary.Select(w => w.Total)))</td>
                         <td class="text-end">@Pair(Sum((s.WeeklyUnplanned ?? []).Select(w => w.Total)))</td>
+                        <td class="text-end dash-week-sum">@Pair(Sum([.. s.WeeklyBudgeted.Select(w => w.Total), .. s.WeeklyExtraordinary.Select(w => w.Total), .. (s.WeeklyUnplanned ?? []).Select(w => w.Total)]))</td>
                     </tr>
                 </tbody>
             </table>
