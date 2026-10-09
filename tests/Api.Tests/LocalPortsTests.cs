@@ -146,7 +146,7 @@ public class LocalPortsTests
         foreach (var (file, hostNetworking) in new[] { (".github/workflows/ci.yml", false) })
         {
             var ci = Read(file);
-            var services = Regex.Matches(ci, @"image: axllent/mailpit[^\n]*\n\s*ports: (\[[^\]]*\])");
+            var services = Regex.Matches(ci, @"image: ghcr\.io/axllent/mailpit[^\n]*\n\s*ports: (\[[^\]]*\])");
             if (services.Count == 0) failures.Add($"{file}: no Mailpit service with a ports: line");
             foreach (Match m in services)
                 if (m.Groups[1].Value != $"[\"{block.Smtp}:1025\", \"{block.MailUi}:8025\"]")

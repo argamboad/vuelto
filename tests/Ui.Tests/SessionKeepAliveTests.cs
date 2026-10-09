@@ -708,8 +708,12 @@ public class SessionKeepAliveTests : ComponentTestBase
 
         // The renewal ran while the phone was in a pocket with no signal, and its retry hasn't come round.
         Http.OnUnreachable(HttpMethod.Post, RefreshPath);
+        var armed = Time.ArmedCount;
         Time.Advance(TimeSpan.FromMinutes(59) + TimeSpan.FromSeconds(1));
-        await WaitUntil(() => Refreshes == 2);
+        // Wait for that renewal to SETTLE, not just to be sent (#381): a refresh in flight is shared, so a resume that
+        // lands while the failure is still being handled joins it instead of making its own attempt — right for the
+        // app, and on a loaded runner exactly what made this test time out. Settled = its retry is armed.
+        await WaitUntil(() => Refreshes == 2 && Time.ArmedSince(armed).Contains(AuthService.RenewRetryDelay));
         Time.Advance(TimeSpan.FromSeconds(20));
 
         StubRefresh("Renewed");

@@ -39,7 +39,7 @@ public sealed class TestCurrentTenant : ICurrentTenant, ITenantContext
 /// </summary>
 public sealed class PostgresFixture : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:17.11")
+    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("public.ecr.aws/docker/library/postgres:17.11")
         .Build();
 
     public string ConnectionString => _container.GetConnectionString();
