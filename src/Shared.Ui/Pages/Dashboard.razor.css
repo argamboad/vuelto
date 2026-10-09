@@ -250,8 +250,8 @@
 
     .dash-table th,
     .dash-table td {
-        padding-left: .25rem;
-        padding-right: .25rem;
+        padding-left: .2rem;
+        padding-right: .2rem;
     }
 
     .dash-table thead th {
@@ -272,5 +272,38 @@
         display: block;
         color: var(--ink-2);
         font-size: .75rem;
+    }
+}
+
+/* The week's whole spend: a column on a wide screen, a line under the week's dates on a phone. */
+.dash-week-sum-sub {
+    display: none;
+}
+
+@media (max-width: 575.98px) {
+    .dash-table .dash-week-sum {
+        display: none;
+    }
+
+    /* ₡ over $ (the Pair rules above), a step smaller than the cells, so the week column stays as wide as its dates. */
+    .dash-week-sum-sub {
+        display: block;
+        margin-top: 3px;
+        font-size: .6875rem;
+        font-weight: 600;
+        line-height: 1.25;
+    }
+
+    .dash-week-sum-label {
+        display: block;
+        font-size: .5625rem;
+        font-weight: 500;
+        letter-spacing: .04em;
+        text-transform: uppercase;
+        color: var(--ink-3);
+    }
+
+    .dash-week-sum-sub .dash-pair-alt {
+        font-size: .625rem;
     }
 }

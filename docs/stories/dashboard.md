@@ -176,7 +176,9 @@ Discretionary, **so that** I can see which week the surprises landed in.
 
 **Context / notes:** `DashboardSummaryService` already builds a per-week total for any class; the summary gains
 `weekly_unplanned` (unplanned essentials at their frozen amounts, both currencies) and the week table a third money
-column plus its total. The column adds up to the month's `unplanned_essential_total`.
+column plus its total. The column adds up to the month's `unplanned_essential_total`. *Follow-up (owner, 2026-10-09):* a
+**Total** column adds each week's three classes, and the Total row's cell is the month's whole spend; on a phone it rides
+under the week's dates, stacked ₡ over $.
 
 ```gherkin
 Scenario: Surprises by week

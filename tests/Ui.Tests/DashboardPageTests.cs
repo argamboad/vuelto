@@ -223,6 +223,12 @@ public class DashboardPageTests : ComponentTestBase
         Assert.Contains("Tx_Unplanned", cut.Find("[data-testid='dash-breakdown'] thead").TextContent);
         Assert.Contains("₡10,000.00", cut.FindAll("[data-testid='dash-week-row']")[1].QuerySelectorAll("td")[3].TextContent);
         Assert.Contains("₡10,000.00", weekTotal[3].TextContent);
+
+        // Owner, 2026-10-09: each week's whole spend — the three classes added — and the month's in the Total row.
+        Assert.Contains("Dash_Total", cut.Find("[data-testid='dash-breakdown'] thead").TextContent);
+        Assert.Contains("₡310,000.00", cut.FindAll("[data-testid='dash-week-sum']")[1].TextContent); // 300,000 + 0 + 10,000
+        Assert.Contains("₡0.00", cut.FindAll("[data-testid='dash-week-sum']")[0].TextContent);
+        Assert.Contains("₡310,000.00", weekTotal[4].TextContent);
     }
 
     [Fact]
