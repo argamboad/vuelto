@@ -105,6 +105,13 @@ public class BudgetPageTests : ComponentTestBase
 
         cut.WaitForAssertion(() => Assert.Equal("$813.00", cut.Find("[data-testid='budget-planned']").TextContent.Trim()));
         Assert.Contains("₡300,000.00", cut.Find("[data-testid='exp-row-budget']").TextContent); // a line stays in its own currency
+
+        // #207: switched right here, the header follows; the lines keep their own currency.
+        cut.Find("[data-testid='budget-cur-crc']").Click();
+        cut.WaitForAssertion(() => Assert.StartsWith("₡", cut.Find("[data-testid='budget-planned']").TextContent.Trim()));
+        Assert.Contains("₡300,000.00", cut.Find("[data-testid='exp-row-budget']").TextContent);
+        Assert.NotNull(cut.Find("[data-testid='budget-cur-usd']"));
+        Assert.NotNull(cut.Find("[data-testid='budget-cur-both']"));
     }
 
     // ---------------------------------------------------------------- rows

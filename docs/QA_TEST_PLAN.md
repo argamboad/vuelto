@@ -2088,6 +2088,8 @@ Then the dashboard and Reports open in $ without touching the switch
 When I set it to Both there
 Then this browser shows Both on its next load
 And GET /api/display-settings returns { display_currency: "both", is_default: false }
+When I pick ₡ on a month page, the Months list or the Budget page instead
+Then that page switches at once, and the dashboard opens in ₡ too
 ```
 **Walkthrough:** on the **Dashboard**, set **Show in** to **$**. Via Postman (**23 · Display settings → Get
 display settings**) → **Expected:** 200 with `display_currency` = `USD`, `is_default` = `false`. Open the
@@ -2095,6 +2097,10 @@ app in a private window (same account, sign in) → **Expected:** the dashboard 
 (table view) too. Set **Both** there; reload the first window → **Expected:** Both. Postman **Update
 display settings — invalid (400)** → **Expected:** 400 `invalid_request`; **Reset display settings to
 both** → 200. (The impersonation refusal and the account-erasure wipe are covered by `Api.Tests`.)
+**The switch where you are (#207):** open a month → **Show in** sits in its header → pick **₡** → **Expected:** the
+ledger, the refunds, their totals and the **Other income** line switch at once (income rows keep their own currency).
+Open **Dashboard** → **Expected:** ₡ there too. Same on **Months** (each card's figures) and **Budget** (the
+commitment header converts at today's rate; every line keeps its own currency).
 
 ### QA-DASH-04 — One verdict, the pace, and the four-step month 🟠 (Web)
 **Gherkin**
@@ -4932,4 +4938,5 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   discretionary purchase (#201) and a refund typed as ₡ or % and stored as its amount (#202); QA-LED-06 the
   received / pending totals (#206) and the lock on a received refund (#202); QA-LED-08 no longer expects a purchase
   edit to re-derive a refund; new **QA-LED-09**, the cross-month Refunds page (#208). QA-DASH-05: the week cut's
-  Unplanned column (#211). 221 → 222 cases.
+  Unplanned column (#211). QA-DASH-03: the Show in switch on the month page, Months and Budget (#207). 221 → 222
+  cases.

@@ -381,6 +381,8 @@ public class LedgerPagesTests : ComponentTestBase
 
         cut.WaitForElement("[data-testid='month-income-other']");
         Assert.Contains("₡50,000.00 · $100.00", cut.Find("[data-testid='month-income-other']").TextContent); // the two inflows, frozen amounts
+        cut.Find("[data-testid='month-cur-usd']").Click(); // #207: it follows the page's ₡ · $ · both like every other pair
+        cut.WaitForAssertion(() => Assert.DoesNotContain("₡", cut.Find("[data-testid='month-income-other']").TextContent));
         Assert.Contains("Month_OtherIncomeShow[2]", cut.Find("[data-testid='month-income-other-show']").TextContent);
         Assert.Equal(3, cut.FindAll("[data-testid='month-tx-row']").Count);
 

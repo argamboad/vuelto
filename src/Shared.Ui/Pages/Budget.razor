@@ -22,7 +22,11 @@
             <h1>@Localizer["Budget_Title"]</h1>
             <p class="budget-subtitle">@Localizer["Budget_Subtitle"]</p>
         </div>
-        <button type="button" class="btn btn-primary" data-testid="budget-add" disabled="@(_loading || _dialog is not null)" @onclick="OpenNew">+ @Localizer["Budget_AddLine"]</button>
+        <div class="budget-head-actions">
+            @* #207: the totals convert at today's rate in the chosen currency; each line keeps its own currency. *@
+            <CurrencySwitch Value="@_display" ValueChanged="SetDisplayAsync" TestId="budget-cur" Label="@Localizer["Reports_ShowIn"].Value" />
+            <button type="button" class="btn btn-primary" data-testid="budget-add" disabled="@(_loading || _dialog is not null)" @onclick="OpenNew">+ @Localizer["Budget_AddLine"]</button>
+        </div>
     </div>
 
     @if (_notice is not null)
@@ -69,6 +73,12 @@
     private decimal? _rate;
     private List<IncomeLineDto>? _incomes;
     private string _display = MoneyDisplay.Both;
+
+    private async Task SetDisplayAsync(string display)
+    {
+        _display = display;
+        await Display.SaveAsync(display); // device + account (DASH-2), so the dashboard and reports follow
+    }
     private DialogState? _dialog;
 
     private sealed record DialogState(string Kind, ExpenseLine? Editing);

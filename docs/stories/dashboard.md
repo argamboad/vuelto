@@ -184,3 +184,21 @@ Scenario: Surprises by week
   When I open the dashboard on "By week"
   Then the Unplanned column reads ₡20,000.00 and ₡56,000.00, and its total ₡76,000.00
 ```
+
+### DASH-4 — Choose ₡ · $ · both where you are *(owner request, 2026-10-09 · #207)* ✅
+
+**As** a household member, **I want** the "Show in" switch on the month page (and the Months list and Budget), **so
+that** I don't have to go to the dashboard and back to change the currency.
+
+**Context / notes:** the same `CurrencySwitch` the dashboard and Reports use, writing through `DisplayCurrencyStore`
+(device + account copy, DASH-2 / ADR-V020), per page like those two — not a global header control. The month page's
+"Other income" line now follows the preference too; income rows and budget lines keep their own currency, as they
+always have.
+
+```gherkin
+Scenario: Switch on the month page
+  Given the preference is Both
+  When I pick $ on a month page
+  Then its amounts show dollars only at once
+  And the dashboard opens in $ afterwards
+```

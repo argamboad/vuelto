@@ -45,6 +45,8 @@
                 </div>
             </div>
             <div class="month-head-buttons">
+                @* #207: ₡ · $ · both right here — the same device + account preference the dashboard and reports use (DASH-2). *@
+                <CurrencySwitch Value="@_display" ValueChanged="SetDisplayAsync" TestId="month-cur" Label="@Localizer["Reports_ShowIn"].Value" />
                 <button class="btn btn-outline-secondary" data-testid="month-export" @onclick="ExportCsvAsync" disabled="@_exporting">@(_exporting ? Localizer["Reports_Exporting"] : Localizer["Reports_ExportCsv"])</button>
                 <a class="btn btn-primary" href="/transactions/new">@Localizer["Months_NewTransaction"]</a>
             </div>
@@ -104,7 +106,7 @@
             {
                 <div class="income-other" data-testid="month-income-other">
                     <span class="income-other-label">@Localizer["Month_OtherIncome"]:</span>
-                    <span class="income-other-amount">₡@inflows.Sum(t => t.AmountCrc).ToString("N2", CultureInfo.CurrentCulture) · $@inflows.Sum(t => t.AmountUsd).ToString("N2", CultureInfo.CurrentCulture)</span>
+                    <span class="income-other-amount">@MoneyDisplay.Format(inflows.Sum(t => t.AmountCrc), inflows.Sum(t => t.AmountUsd), _display)</span>
                     <button type="button" class="btn btn-link btn-sm p-0 align-baseline" data-testid="month-income-other-show" @onclick="() => _fClass = TransactionClasses.Inflow">@Localizer["Month_OtherIncomeShow", inflows.Count]</button>
                 </div>
             }
@@ -373,6 +375,13 @@
     private Guid? _loadedId;
 
     private string _display = MoneyDisplay.Both;
+
+    /// <summary>#207: the page's own switch — saved to the device and the account, so the dashboard and reports follow.</summary>
+    private async Task SetDisplayAsync(string display)
+    {
+        _display = display;
+        await Display.SaveAsync(display);
+    }
     private bool _filtersOpen;
 
     protected override async Task OnInitializedAsync()

@@ -21,7 +21,10 @@
             <h1>@Localizer["Months_Title"]</h1>
             <p class="months-subtitle">@Localizer["Months_Subtitle"]</p>
         </div>
-        <a class="btn btn-primary" href="/transactions/new">@Localizer["Months_NewTransaction"]</a>
+        <div class="months-head-actions">
+            <CurrencySwitch Value="@_display" ValueChanged="SetDisplayAsync" TestId="months-cur" Label="@Localizer["Reports_ShowIn"].Value" />
+            <a class="btn btn-primary" href="/transactions/new">@Localizer["Months_NewTransaction"]</a>
+        </div>
     </div>
 
     @if (_error is not null)
@@ -58,6 +61,13 @@
     private string? _error;
     private List<MonthDto> _months = new();
     private string _display = MoneyDisplay.Both;
+
+    /// <summary>#207: ₡ · $ · both on the months list too — the same preference everywhere (DASH-2).</summary>
+    private async Task SetDisplayAsync(string display)
+    {
+        _display = display;
+        await Display.SaveAsync(display);
+    }
 
     /// <summary>Present once the month's summary answered — null when no figures could be computed (no rate resolves).</summary>
     private readonly Dictionary<Guid, MonthCardFigures?> _figures = new();

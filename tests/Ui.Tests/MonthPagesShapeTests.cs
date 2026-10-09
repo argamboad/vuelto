@@ -123,6 +123,12 @@ public class MonthPagesShapeTests : ComponentTestBase
         var cut = Render<Months>();
         cut.WaitForAssertion(() => Assert.Contains("Months_Spent[$2,971.60]", cut.Find("[data-testid='month-card-spent']").TextContent));
         Assert.Equal("+$434.40", cut.Find("[data-testid='month-card-result']").TextContent.Trim());
+
+        // #207: and it can be switched right here.
+        Assert.Equal("true", cut.Find("[data-testid='months-cur-usd']").GetAttribute("aria-pressed"));
+        cut.Find("[data-testid='months-cur-crc']").Click();
+        cut.WaitForAssertion(() => Assert.StartsWith("+₡", cut.Find("[data-testid='month-card-result']").TextContent.Trim()));
+        Assert.NotNull(cut.Find("[data-testid='months-cur-both']"));
     }
 
     // ---------------------------------------------------------------- Month detail
@@ -223,6 +229,28 @@ public class MonthPagesShapeTests : ComponentTestBase
         var cut = Render<MonthDetail>(p => p.Add(x => x.Id, Guid.Parse(CurrentId)));
         cut.WaitForAssertion(() => Assert.Equal("$12.50", cut.Find("[data-testid='month-tx-amount-primary']").TextContent));
         Assert.Empty(cut.FindAll("[data-testid='month-tx-amount-secondary']")); // one side asked for, one side shown
+    }
+
+    [Fact]
+    public async Task MonthDetail_ChoosesTheCurrencyRightThere_AndSavesItForEveryPage()
+    {
+        // #207: no trip to the dashboard and back — the month page has the same ₡ · $ · both switch.
+        await SignInAsync();
+        Http.On(HttpMethod.Put, "/api/display-settings", """{"display_currency":"USD"}""");
+        StubMonth(TwoRows);
+
+        var cut = Render<MonthDetail>(p => p.Add(x => x.Id, Guid.Parse(CurrentId)));
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("[data-testid='month-tx-amount-secondary']"))); // both, by default
+        Assert.Equal("true", cut.Find("[data-testid='month-cur-both']").GetAttribute("aria-pressed"));
+
+        cut.Find("[data-testid='month-cur-usd']").Click();
+        cut.WaitForAssertion(() => Assert.Equal("$12.50", cut.Find("[data-testid='month-tx-amount-primary']").TextContent));
+        Assert.Empty(cut.FindAll("[data-testid='month-tx-amount-secondary']"));
+        Assert.Single(Http.Requests, r => r.Method == HttpMethod.Put && r.RequestUri!.AbsolutePath == "/api/display-settings"); // the account copy
+        Assert.Contains(JSInterop.Invocations, i => i.Identifier == "appUi.setPref");                                            // and the device's
+
+        cut.Find("[data-testid='month-cur-crc']").Click();
+        cut.WaitForAssertion(() => Assert.Equal("₡6,750.00", cut.Find("[data-testid='month-tx-amount-primary']").TextContent));
     }
 
     [Fact]
