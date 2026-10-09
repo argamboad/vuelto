@@ -30,12 +30,12 @@ public class RefundEndpointTests(IntegrationTestFactory factory)
         var created = await client.PostAsJsonAsync("/api/transactions", new
         {
             payee = "Hospital", bank_id = bank.Id, original_amount = 50_000m, currency = "CRC", transaction_date = "2026-06-05",
-            category_id = category.Id, transaction_type = "unplanned_essential", exchange_rate = 500m, refund_expected = true, refund_percentage = 50m,
+            category_id = category.Id, transaction_type = "unplanned_essential", exchange_rate = 500m, refund_expected = true, refund_amount = 25_000m,
         });
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         var tx = (await created.Content.ReadFromJsonAsync<TxDto>())!;
         Assert.True(tx.RefundExpected);
-        Assert.Equal(50m, tx.RefundPercentage);
+        Assert.Equal((25_000m, "pending"), (tx.RefundAmount, tx.RefundStatus));
 
         var refunds = (await client.GetFromJsonAsync<List<RefundDto>>($"/api/months/{tx.MonthId}/refunds"))!;
         var refund = Assert.Single(refunds);
@@ -49,6 +49,11 @@ public class RefundEndpointTests(IntegrationTestFactory factory)
 
         var rows = (await client.GetFromJsonAsync<List<RowDto>>($"/api/months/{tx.MonthId}/transactions"))!;
         Assert.Contains(rows, r => r.Source == "refund_realization" && r.TransactionType == "inflow" && r.AmountCrc == 25_000m);
+
+        // #202: a received refund is locked — its purchase can't be deleted until the refund is marked pending again.
+        var locked = await client.DeleteAsync($"/api/transactions/{tx.Id}");
+        Assert.Equal(HttpStatusCode.Conflict, locked.StatusCode);
+        Assert.Equal("refund_status_conflict", (await locked.Content.ReadFromJsonAsync<ErrorDto>())!.Error);
 
         var derivedEdit = await client.DeleteAsync($"/api/transactions/{flipped.InflowTransactionId}");
         Assert.Equal(HttpStatusCode.BadRequest, derivedEdit.StatusCode);
@@ -81,7 +86,8 @@ public class RefundEndpointTests(IntegrationTestFactory factory)
         [property: JsonPropertyName("id")] Guid Id,
         [property: JsonPropertyName("month_id")] Guid MonthId,
         [property: JsonPropertyName("refund_expected")] bool RefundExpected,
-        [property: JsonPropertyName("refund_percentage")] decimal? RefundPercentage);
+        [property: JsonPropertyName("refund_amount")] decimal? RefundAmount,
+        [property: JsonPropertyName("refund_status")] string? RefundStatus);
     private sealed record RefundDto(
         [property: JsonPropertyName("id")] Guid Id,
         [property: JsonPropertyName("amount_crc")] decimal AmountCrc,

@@ -2142,6 +2142,27 @@ pending refunds by the transaction's class (`unplanned_refunds`, `discretionary_
 shows its own "refundable" figure; `refunds_total` stays their sum. *Amends:* ADR-V007 (refunds were derived from
 unplanned essentials only). No schema change.
 
+**ADR-V026 — A refund is stored as its amount; a percentage is only a way to type it. A received refund is locked. (2026-10-09; owner decision, LEDGER-6, #202)**
+
+The owner asked for refunds as a percentage **or** a fixed amount, then settled the shape: *"the amount is what should
+be stored, the percentage if used should be only used in the moment to calculate the amount."* **Decision:** the API
+takes `refund_amount` in the transaction's own currency (`0 < amount ≤ original_amount`, 2 dp); the other currency is
+derived at the transaction's frozen rate with the same `CurrencyMath.DeriveAmounts` the purchase uses, so a full
+refund matches it to the cent (golden rule 1). The form offers a ₡ | % toggle; in % mode it computes the amount from
+the purchase (and follows the purchase while you're still in % mode), and an edit opens on the stored amount with the
+share it comes to as a hint — correcting "by percentage" later is the form computing a new amount from the purchase's
+current amount. A transaction amount edit **no longer rescales** a refund; a purchase below its refund is a 400.
+`Refunds.Percentage` becomes nullable and is no longer written (an edit nulls it); a percentage on screen is computed
+from the amounts (`RefundResponse.percentage`). **Received refunds are locked** (owner, 2026-10-09 — this is new:
+before, an edit silently re-derived a received refund and rewrote its booked inflow, and a class change deleted both):
+changing its amount, clearing the flag, moving the purchase to a class that can't carry it, or deleting the purchase is
+`409 refund_status_conflict` until it is put back to pending — which stays allowed and removes the inflow (owner-
+confirmed: the way to fix a mistake). Edits that don't touch the refund still save; the inflow is never rewritten.
+*Data:* migration `RefundPercentageOptional` only relaxes the column (every existing refund keeps its amounts and
+percentage — nothing is recomputed); its `Down` refills an emptied percentage from the amounts against the purchase.
+Dropping the column is a later, owner-gated step. *Amends:* ADR-V007 (amounts = percentage × the transaction) and
+LEDGER-3 (a realized refund's inflow tracked the re-derived amounts).
+
 **ADR-025 — (number reserved; never adopted) CI runner selection is variable-driven with a hosted fallback (LOCALCI-1). (drafted 2026-09-08)**
 *Stub.* A platform draft (it lives in the perezosoft-platform repo, `docs/stories/localci.md`) that was never
 adopted: ADR-028 replaced the design before it was built, and ADR-030 retired self-hosted CI. The number

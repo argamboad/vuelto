@@ -261,11 +261,11 @@
                                             <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" focusable="false"><path d="M2 1.5h8.5L14 5v9.5H2z" opacity=".3"/><path d="M4 7h8v1.2H4zm0 2.6h8v1.2H4zm0 2.6h5v1.2H4z"/></svg>
                                         </span>
                                     }
-                                    <span class="tx-sub" aria-hidden="true">@r.Percentage.ToString("N0", CultureInfo.CurrentCulture)%</span>
+                                    <span class="tx-sub" aria-hidden="true">@RefundShare(r.Percentage)</span>
                                     @* On a phone the status column goes too; the pill sits under the payee. *@
                                     <span class="tx-sub-chip" aria-hidden="true"><span class="status-pill" data-tone="@(r.Status == "received" ? "good" : "warn")">@RefundStatusText(r)</span></span>
                                 </td>
-                                <td class="text-end col-md">@r.Percentage.ToString("N0", CultureInfo.CurrentCulture)%</td>
+                                <td class="text-end col-md">@RefundShare(r.Percentage)</td>
                                 <td class="text-end"><Money Crc="r.AmountCrc" Usd="r.AmountUsd" Display="@_display" Size="row" TestId="refund-amount" /></td>
                                 <td class="col-status">
                                     @* Pending needs attention (amber); received is done (green). The received day is the day the money
@@ -318,6 +318,9 @@
 </div>
 
 @code {
+    /// <summary>The share a refund is of its purchase — computed by the API from the amounts (ADR-V026), shown as a hint only.</summary>
+    private static string RefundShare(decimal? pct) => pct is { } p ? p.ToString("0.#", CultureInfo.CurrentCulture) + "%" : "";
+
     [Parameter] public Guid Id { get; set; }
 
     private bool _loading = true;
@@ -618,7 +621,7 @@
         [property: JsonPropertyName("id")] Guid Id,
         [property: JsonPropertyName("payee")] string Payee,
         [property: JsonPropertyName("transaction_date")] DateOnly TransactionDate,
-        [property: JsonPropertyName("percentage")] decimal Percentage,
+        [property: JsonPropertyName("percentage")] decimal? Percentage, // computed by the API from the amounts (ADR-V026)
         [property: JsonPropertyName("amount_crc")] decimal AmountCrc,
         [property: JsonPropertyName("amount_usd")] decimal AmountUsd,
         [property: JsonPropertyName("status")] string Status,

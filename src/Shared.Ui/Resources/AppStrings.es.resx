@@ -491,7 +491,11 @@
   <data name="Tx_RefundExpected" xml:space="preserve"><value>Se espera reembolso</value></data>
   <data name="Tx_RefundPercent" xml:space="preserve"><value>Porcentaje que se espera de vuelta</value></data>
   <data name="Tx_RefundPreview" xml:space="preserve"><value>Se espera de vuelta: {0}</value></data>
-  <data name="Tx_Validation_Refund" xml:space="preserve"><value>Ingresa un porcentaje de reembolso entre 0 y 100.</value></data>
+  <data name="Tx_RefundAmount" xml:space="preserve"><value>Monto que se espera de vuelta</value></data>
+  <data name="Tx_RefundMode" xml:space="preserve"><value>Ingresar el reembolso como</value></data>
+  <data name="Tx_RefundShare" xml:space="preserve"><value>{0} % de {1}</value></data>
+  <data name="Tx_RefundLocked" xml:space="preserve"><value>Ya se recibió: vuelve a marcarlo pendiente en la página del mes para cambiarlo.</value></data>
+  <data name="Tx_Validation_Refund" xml:space="preserve"><value>Ingresa el reembolso que esperas: mayor que cero y no más que el monto.</value></data>
   <data name="Month_Refunds" xml:space="preserve"><value>Reembolsos esperados</value></data>
   <data name="Month_NoRefunds" xml:space="preserve"><value>No se esperan reembolsos este mes.</value></data>
   <data name="Refund_NotesHint" xml:space="preserve"><value>Opcional: número de caso, quién lo debe, cuándo esperás que vuelva</value></data>

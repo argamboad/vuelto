@@ -31,7 +31,7 @@ public sealed record CreateTransactionCommand(
     decimal? ExchangeRate = null,
     Guid? EnvelopeId = null,
     bool RefundExpected = false,
-    decimal? RefundPercentage = null,
+    decimal? RefundAmount = null, // in the transaction's own currency (#202: the amount is stored, a % is only how a form computes it)
     string Source = TransactionSources.Manual,
     Guid? CardId = null,
     string? Notes = null,

@@ -73,10 +73,11 @@ public class ReviewPageTests : ComponentTestBase
         // Suggested as extraordinary: the refund toggle is already there (ADR-V025). Switch to Unplanned: it stays, then the percentage + preview.
         Assert.NotNull(Card(cut, 0).QuerySelector("[data-testid='review-refund-expected']"));
         Card(cut, 0).QuerySelector("[data-testid='review-class-option'][data-value='unplanned_essential']")!.Change(true);
-        Assert.Null(Card(cut, 0).QuerySelector("[data-testid='review-refund-pct']"));
+        Assert.Null(Card(cut, 0).QuerySelector("[data-testid='review-refund-amount']"));
         Card(cut, 0).QuerySelector("[data-testid='review-refund-expected']")!.Change(true);
+        Card(cut, 0).QuerySelector("[data-testid='review-refund-mode'][data-value='percent']")!.Change(true);
         Card(cut, 0).QuerySelector("[data-testid='review-refund-pct']")!.Change("30");
-        Assert.Contains("Tx_RefundPreview[2,286.00 CRC]", Card(cut, 0).QuerySelector("[data-testid='review-refund-preview']")!.TextContent); // 30 % of the voucher's ₡7,620
+        Assert.Contains("Tx_RefundPreview[₡2,286.00]", Card(cut, 0).QuerySelector("[data-testid='review-refund-hint']")!.TextContent); // 30 % of the voucher's ₡7,620
         // The same refund notes the manual form asks for (owner, 2026-09-14): why you expect it back, case number and all.
         Assert.DoesNotContain("review-refund-case", Card(cut, 0).QuerySelectorAll("[data-testid]").Select(e => e.GetAttribute("data-testid")));
         Card(cut, 0).QuerySelector("textarea[data-testid='review-refund-notes']")!.Input("CASE-7, lent to Diego");
@@ -86,7 +87,7 @@ public class ReviewPageTests : ComponentTestBase
         cut.WaitForAssertion(() => Assert.Contains("Review_Confirmed", cut.Find("[data-testid='review-notice']").TextContent));
         var body = await Assert.Single(Http.Requests, r => r.Method == HttpMethod.Post && r.RequestUri!.AbsolutePath.StartsWith("/api/pending-vouchers")).Content!.ReadAsStringAsync();
         Assert.Contains("\"refund_expected\":true", body);
-        Assert.Contains("\"refund_percentage\":30", body);
+        Assert.Contains("\"refund_amount\":2286", body); // the amount, never the percentage (#202)
         Assert.DoesNotContain("refund_case_number", body);
         Assert.Contains("\"refund_notes\":\"CASE-7, lent to Diego\"", body);
     }
@@ -102,7 +103,7 @@ public class ReviewPageTests : ComponentTestBase
         cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("[data-testid='review-voucher']").Count));
         Card(cut, 0).QuerySelector("[data-testid='review-class-option'][data-value='unplanned_essential']")!.Change(true);
         Card(cut, 0).QuerySelector("[data-testid='review-refund-expected']")!.Change(true);
-        Card(cut, 0).QuerySelector("[data-testid='review-refund-pct']")!.Change("30");
+        Card(cut, 0).QuerySelector("[data-testid='review-refund-amount']")!.Change("2000");
         Card(cut, 0).QuerySelector("[data-testid='review-class-option'][data-value='extraordinary']")!.Change(true); // discretionary keeps them (ADR-V025)
         Assert.NotNull(Card(cut, 0).QuerySelector("[data-testid='review-refund-expected']"));
         Card(cut, 0).QuerySelector("[data-testid='review-class-option'][data-value='budgeted']")!.Change(true); // changed their mind: the controls hide
@@ -113,7 +114,7 @@ public class ReviewPageTests : ComponentTestBase
         cut.WaitForAssertion(() => Assert.Contains("Review_Confirmed", cut.Find("[data-testid='review-notice']").TextContent));
         var body = await Assert.Single(Http.Requests, r => r.Method == HttpMethod.Post && r.RequestUri!.AbsolutePath.StartsWith("/api/pending-vouchers")).Content!.ReadAsStringAsync();
         Assert.Contains("\"refund_expected\":false", body);
-        Assert.Contains("\"refund_percentage\":null", body);
+        Assert.Contains("\"refund_amount\":null", body);
     }
 
     [Fact]

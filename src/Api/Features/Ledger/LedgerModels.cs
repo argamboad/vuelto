@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Vuelto.Core.Budget;
 using Vuelto.Core.Entities;
 
 namespace Vuelto.Api.Features.Ledger;
@@ -83,7 +84,8 @@ public record CreateTransactionRequest(
     [property: JsonPropertyName("exchange_rate")] decimal? ExchangeRate,
     [property: JsonPropertyName("envelope_id")] Guid? EnvelopeId,
     [property: JsonPropertyName("refund_expected")] bool RefundExpected = false,
-    [property: JsonPropertyName("refund_percentage")] decimal? RefundPercentage = null,
+    // In the transaction's own currency, 0 < amount ≤ original_amount (ADR-V026: a % is only how the form computes it).
+    [property: JsonPropertyName("refund_amount")] decimal? RefundAmount = null,
     [property: JsonPropertyName("card_id")] Guid? CardId = null,
     [property: JsonPropertyName("notes")] string? Notes = null,
     // The refund's notes (LEDGER-4), taken at entry (2026-09-14): only mean something with a refund; blank clears.
@@ -100,7 +102,7 @@ public record UpdateTransactionRequest(
     [property: JsonPropertyName("transaction_type")] string? TransactionType,
     [property: JsonPropertyName("envelope_id")] Guid? EnvelopeId,
     [property: JsonPropertyName("refund_expected")] bool RefundExpected = false,
-    [property: JsonPropertyName("refund_percentage")] decimal? RefundPercentage = null,
+    [property: JsonPropertyName("refund_amount")] decimal? RefundAmount = null,
     [property: JsonPropertyName("card_id")] Guid? CardId = null,
     [property: JsonPropertyName("notes")] string? Notes = null,
     // null = leave the refund's notes alone, blank = clear them (the edit form always sends them while a refund is on).
@@ -123,15 +125,21 @@ public record TransactionResponse(
     [property: JsonPropertyName("source")] string Source,
     [property: JsonPropertyName("envelope_id")] Guid? EnvelopeId,
     [property: JsonPropertyName("refund_expected")] bool RefundExpected,
-    [property: JsonPropertyName("refund_percentage")] decimal? RefundPercentage,
+    [property: JsonPropertyName("refund_amount")] decimal? RefundAmount,
     [property: JsonPropertyName("card_id")] Guid? CardId = null,
     [property: JsonPropertyName("notes")] string? Notes = null,
-    [property: JsonPropertyName("refund_notes")] string? RefundNotes = null)
+    [property: JsonPropertyName("refund_notes")] string? RefundNotes = null,
+    // pending | received | null — a received refund is locked until it is marked pending again (ADR-V026)
+    [property: JsonPropertyName("refund_status")] string? RefundStatus = null)
 {
     public static TransactionResponse From(Transaction t, Refund? refund) => new(
         t.Id, t.MonthId, t.Payee, t.BankId, t.PaymentMethod, t.OriginalAmount, t.Currency, t.TransactionDate,
         t.CategoryId, t.AmountCrc, t.AmountUsd, t.ExchangeRateUsed, t.TransactionType, t.Source, t.EnvelopeId,
-        refund is not null, refund?.Percentage, t.CardId, t.Notes, refund?.Notes);
+        refund is not null, refund is null ? null : RefundAmountIn(t.Currency, refund), t.CardId, t.Notes, refund?.Notes, refund?.Status);
+
+    /// <summary>A refund's amount on the side of the transaction's own currency — the side it was entered in.</summary>
+    public static decimal RefundAmountIn(string currency, Refund refund) =>
+        currency == Currencies.Usd ? refund.AmountUsd : refund.AmountCrc;
 }
 
 /// <summary>A month's expected refund (LEDGER-3): derived from its transaction; only <c>status</c> is edited directly.</summary>
@@ -141,7 +149,8 @@ public record RefundResponse(
     [property: JsonPropertyName("transaction_id")] Guid TransactionId,
     [property: JsonPropertyName("payee")] string Payee,
     [property: JsonPropertyName("transaction_date")] DateOnly TransactionDate,
-    [property: JsonPropertyName("percentage")] decimal Percentage,
+    // Computed from the amounts and the transaction's, never read from storage (ADR-V026); null when the transaction is unknown.
+    [property: JsonPropertyName("percentage")] decimal? Percentage,
     [property: JsonPropertyName("amount_crc")] decimal AmountCrc,
     [property: JsonPropertyName("amount_usd")] decimal AmountUsd,
     [property: JsonPropertyName("status")] string Status,
@@ -151,8 +160,17 @@ public record RefundResponse(
     [property: JsonPropertyName("notes")] string? Notes = null)
 {
     /// <param name="inflowMonthId">The month the realized inflow lives in (ADR-V017) — null when pending or unknown to the caller.</param>
-    public static RefundResponse From(Refund r, Guid? inflowMonthId = null) =>
-        new(r.Id, r.MonthId, r.TransactionId, r.Payee, r.TransactionDate, r.Percentage, r.AmountCrc, r.AmountUsd, r.Status, r.InflowTransactionId, r.ReceivedDate, inflowMonthId, r.Notes);
+    /// <param name="source">The refund's transaction, for the computed percentage (null leaves it null).</param>
+    public static RefundResponse From(Refund r, Guid? inflowMonthId = null, Transaction? source = null) =>
+        new(r.Id, r.MonthId, r.TransactionId, r.Payee, r.TransactionDate, PercentageOf(r, source), r.AmountCrc, r.AmountUsd, r.Status, r.InflowTransactionId, r.ReceivedDate, inflowMonthId, r.Notes);
+
+    /// <summary>How much of the purchase comes back, on the side it was entered in — for display only (ADR-V026).</summary>
+    public static decimal? PercentageOf(Refund r, Transaction? source)
+    {
+        if (source is null) return null;
+        var whole = source.Currency == Currencies.Usd ? source.AmountUsd : source.AmountCrc;
+        return whole > 0 ? CurrencyMath.Round2(TransactionResponse.RefundAmountIn(source.Currency, r) * 100m / whole) : null;
+    }
 }
 
 /// <summary><c>received_date</c> (only read for <c>received</c>) dates the inflow and picks its month; unset = today (ADR-V017).</summary>

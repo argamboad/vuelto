@@ -126,7 +126,7 @@ stored.
 > conventions applied: UUIDv7 ids, `DateTimeOffset` timestamps, **PascalCase** table/column names
 > in EF (the snake_case below is prose), `ITenantScoped` on every household-owned table, and one
 > `ITenantDataContributor` per slice. Money columns are `NUMERIC(12,2)`; the per-transaction rate
-> `NUMERIC(10,4)`; the refund percentage `NUMERIC(5,2)` (ADR-V004). Dates that are calendar days
+> `NUMERIC(10,4)`; the legacy refund percentage `NUMERIC(5,2)` (ADR-V004; nullable and no longer written, ADR-V026). Dates that are calendar days
 > (`transaction_date`, week bounds) are `date` (`DateOnly`), not timestamps.
 >
 > All entities below implement `ITenantScoped` **except `EmailConnection` and `UserDisplaySettings`** (user-keyed — see them).
@@ -233,7 +233,10 @@ Money movement, captured in both currencies at a frozen rate.
 An expected refund **derived** from an `unplanned_essential` or `extraordinary` (discretionary) transaction — never a
 `budgeted` one (ADR-V025); only `status` is edited directly.
 - `id`, `tenant_id`, `month_id` (FK → Month, cascade), `transaction_id` (FK → Transaction, cascade, **unique**)
-- `payee`, `transaction_date`, `percentage`, `amount_crc`, `amount_usd`
+- `payee`, `transaction_date`, `amount_crc`, `amount_usd` — **the refund is its amount** (ADR-V026): entered in the
+  transaction's currency, the other side at the transaction's frozen rate
+- `percentage` (nullable, **legacy — no longer written**, `RefundPercentageOptional`): refunds created before 2026-10-09
+  keep the percentage they were entered with; any percentage shown is computed from the amounts. Dropped later, owner-gated
 - `status` — `pending` | `received`
 - `inflow_transaction_id` (FK → Transaction, nullable, set-null) — the realized inflow, present ⇔ `received`
 - `notes` (≤ 250) — the household's own field (LEDGER-4): why this refund is expected, case number and all
@@ -521,7 +524,7 @@ donor test suite (`Core.Tests`).
 | **Month income plan** (INCOME-1) | At month creation, one row per active income line whose member (if any) is still in the household: `planned_amount = amount ×` (weekly → `week_count`; biweekly → the pay days that fall in [first week's start, last week's end], day 31 clamped to the month's last day; monthly → 1), 2 dp. `amount` starts equal and stays editable. | `IncomeSnapshot` |
 | **Month income** | Σ each income row converted at the day's rate by the income direction rule (USD at buy, CRC at sell) + Σ inflow transactions' frozen amounts. | `IncomeCalculator` |
 | **Income by member** (INCOME-2) | The same pairs cut by `member_user_id`: one slice per current member, one for rows with no member ("household"), one for rows whose member left, one for inflows; empty slices dropped; the slices sum to the month income. Computed per request, never stored. | `IncomeByMember` |
-| **Refund** | Exists ⇔ its `unplanned_essential` or `extraordinary` transaction was flagged with a percentage (ADR-V025; the flag on any other class is a 400). `amount_* = percentage × transaction.amount_*` (inherits the frozen rate). Re-derived on transaction edit; removed when the flag or the transaction goes. | `TransactionHandler.SyncRefundAsync` |
+| **Refund** | Exists ⇔ its `unplanned_essential` or `extraordinary` transaction was flagged with an amount (ADR-V025; the flag on any other class is a 400). `0 < amount ≤ transaction.original_amount`, in the transaction's currency; the other side at the frozen rate (ADR-V026). Rewritten on transaction edit while `pending`; **locked once `received`** — changing its amount, clearing it, a class that can't carry it or deleting the purchase is 409 `refund_status_conflict` until it is put back to pending. | `TransactionHandler.SyncRefundAsync` / `LockedRefundAsync` |
 | **Refund realization** | `status = received` ⇔ a linked `inflow` transaction exists (same amounts/rate, the source's bank, `source = refund_realization`). Flipping is a conditional update; the inflow is created/removed symmetrically. | `RefundHandler.SetStatusAsync` |
 | **Envelope contribution** | A transaction of class `envelope_contribution` requires an `envelope_id` and `payment_method = bank_account`. Contributed-this-month = sum of such transactions per envelope; remaining = annual target − contributed. | `TransactionService`, `DashboardSummaryService` |
 | **Dashboard summary** | Income (the month's income rows + inflows), expense summary (card/account/total/remainder), budgeted-vs-actual per expense line + "other spending", weekly totals, unplanned subtotal, refunds, envelope reminders (by cadence and week count), bank × payment-method cells, balance figures — every one a CRC/USD pair. Actuals use frozen rates; projections use the resolved live rate. | `DashboardSummaryService.Calculate` |
@@ -541,15 +544,15 @@ stateDiagram-v2
     Exists --> [*] : last transaction deleted - month + weeks deleted
 ```
 
-### Refund — ADR-V007, ADR-V025
+### Refund — ADR-V007, ADR-V025, ADR-V026
 ```mermaid
 stateDiagram-v2
-    [*] --> pending : unplanned_essential or extraordinary transaction flagged with a percentage
-    pending --> pending : source transaction edited - amounts re-derived
+    [*] --> pending : unplanned_essential or extraordinary transaction flagged with an amount
+    pending --> pending : source transaction edited - amounts rewritten
     pending --> received : status flip (conditional update) - derived inflow created
     received --> pending : status flip back - inflow removed
     pending --> [*] : flag removed or transaction deleted
-    received --> [*] : transaction deleted (inflow removed too)
+    received --> received : purchase edited without touching the refund (anything else - 409, ADR-V026)
 ```
 
 ### PendingVoucher — ADR-V010

@@ -1,0 +1,107 @@
+@using System.Globalization
+@inject IStringLocalizer<AppStrings> Localizer
+
+@* #202 (ADR-V026) · a refund is stored as an AMOUNT in the purchase's currency; a percentage is only a way to type it.
+   The toggle picks how you enter it, and only the amount ever leaves this component: in % mode the amount is computed
+   from the purchase as you type, and follows the purchase if its amount changes while you are still in % mode. An edit
+   opens in amount mode on the stored figure, with the share it comes to as a hint — switch to % to correct it that way.
+   A received refund is locked (Disabled + LockedNote): its inflow is booked, so it changes only after "back to pending". *@
+<div class="refund-amount" data-testid="@TestId">
+    <div class="refund-amount-head">
+        <label class="form-label" for="@($"{TestId}-{(_percent ? "pct" : "amount")}")">@(_percent ? Localizer["Tx_RefundPercent"] : Localizer["Tx_RefundAmount"])</label>
+        <fieldset class="btn-group btn-group-sm refund-amount-mode" disabled="@Disabled">
+            <legend class="visually-hidden">@Localizer["Tx_RefundMode"]</legend>
+            <input type="radio" class="btn-check" name="@_name" id="@($"{_name}-amount")" checked="@(!_percent)"
+                   data-testid="@($"{TestId}-mode")" data-value="amount" @onchange="() => SetMode(false)" />
+            <label class="btn btn-outline-secondary" for="@($"{_name}-amount")">@Symbol</label>
+            <input type="radio" class="btn-check" name="@_name" id="@($"{_name}-pct")" checked="@_percent"
+                   data-testid="@($"{TestId}-mode")" data-value="percent" @onchange="() => SetMode(true)" />
+            <label class="btn btn-outline-secondary" for="@($"{_name}-pct")">%</label>
+        </fieldset>
+    </div>
+    @if (_percent)
+    {
+        <input class="form-control @InputClass" type="number" step="0.01" min="0" max="100" id="@($"{TestId}-pct")"
+               data-testid="@($"{TestId}-pct")" disabled="@Disabled" value="@_pct" @onchange="OnPercent" />
+    }
+    else
+    {
+        <input class="form-control @InputClass" type="number" step="0.01" min="0" max="@Purchase" id="@($"{TestId}-amount")"
+               data-testid="@($"{TestId}-amount")" disabled="@Disabled" value="@Value" @onchange="OnAmount" />
+    }
+    @if (Disabled && LockedNote is not null)
+    {
+        <p class="@HintClass" data-testid="@($"{TestId}-hint")">@LockedNote</p>
+    }
+    else if (Hint() is { } hint)
+    {
+        <p class="@HintClass" data-testid="@($"{TestId}-hint")">@hint</p>
+    }
+</div>
+
+@code {
+    /// <summary>The refund, in the purchase's currency — the only thing this component reports.</summary>
+    [Parameter] public decimal? Value { get; set; }
+    [Parameter] public EventCallback<decimal?> ValueChanged { get; set; }
+
+    /// <summary>The purchase's amount and currency — what a percentage is a share of.</summary>
+    [Parameter] public decimal? Purchase { get; set; }
+    [Parameter] public string? Currency { get; set; }
+
+    [Parameter] public bool Disabled { get; set; }
+    /// <summary>Shown instead of the hint while disabled — why it can't be changed (a received refund).</summary>
+    [Parameter] public string? LockedNote { get; set; }
+
+    [Parameter] public string InputClass { get; set; } = "";
+    [Parameter] public string HintClass { get; set; } = "tx-hint";
+    [Parameter] public string TestId { get; set; } = "refund";
+
+    private bool _percent;
+    private decimal? _pct;
+    private decimal? _lastPurchase;
+    private readonly string _name = $"refund-{Guid.NewGuid():N}";
+
+    private string Symbol => Currency == "USD" ? "$" : "₡";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // In % mode the amount follows the purchase: a corrected purchase amount re-computes the refund it implies.
+        if (_percent && _pct is > 0 && Purchase != _lastPurchase && Computed(_pct) is { } amount && amount != Value)
+        {
+            _lastPurchase = Purchase;
+            await ValueChanged.InvokeAsync(amount);
+        }
+        _lastPurchase = Purchase;
+    }
+
+    private decimal? Computed(decimal? pct) =>
+        pct is > 0 && Purchase is > 0 ? Math.Round(Purchase.Value * pct.Value / 100m, 2, MidpointRounding.AwayFromZero) : null;
+
+    private decimal? Share(decimal? amount) =>
+        amount is > 0 && Purchase is > 0 ? Math.Round(amount.Value * 100m / Purchase.Value, 2, MidpointRounding.AwayFromZero) : null;
+
+    private void SetMode(bool percent)
+    {
+        if (percent == _percent) return;
+        _percent = percent;
+        if (percent) _pct = Share(Value); // carry the figure across, so switching never loses what was typed
+    }
+
+    private Task OnPercent(ChangeEventArgs e)
+    {
+        _pct = decimal.TryParse(e.Value?.ToString(), NumberStyles.Any, CultureInfo.InvariantCulture, out var p) ? p : null;
+        return ValueChanged.InvokeAsync(Computed(_pct));
+    }
+
+    private Task OnAmount(ChangeEventArgs e) =>
+        ValueChanged.InvokeAsync(decimal.TryParse(e.Value?.ToString(), NumberStyles.Any, CultureInfo.InvariantCulture, out var v) ? v : null);
+
+    private string? Hint()
+    {
+        if (Purchase is not > 0 || string.IsNullOrEmpty(Currency)) return null;
+        var purchase = $"{Symbol}{Purchase.Value.ToString("N2", CultureInfo.CurrentCulture)}";
+        if (_percent)
+            return Computed(_pct) is { } amount ? Localizer["Tx_RefundPreview", $"{Symbol}{amount.ToString("N2", CultureInfo.CurrentCulture)}"].Value : null;
+        return Share(Value) is { } share ? Localizer["Tx_RefundShare", share.ToString("0.##", CultureInfo.CurrentCulture), purchase].Value : null;
+    }
+}

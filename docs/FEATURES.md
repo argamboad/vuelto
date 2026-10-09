@@ -233,8 +233,9 @@ Flow:
    **bank (required)**, payment method (`credit_card` default | `bank_account`), **class**:
    `budgeted` | `extraordinary` (UI: "Discretionary") | `unplanned_essential` (UI: "Unplanned")
    | `inflow` | `envelope_contribution`; optional rate override.
-2. For `unplanned_essential` or `extraordinary` (discretionary), an optional **refund expected %** spawns a derived
-   `Refund` (§11). Not on `budgeted` (ADR-V025) — the flag on any other class is a 400.
+2. For `unplanned_essential` or `extraordinary` (discretionary), an optional **expected refund** spawns a derived
+   `Refund` (§11). Not on `budgeted` (ADR-V025) — the flag on any other class is a 400. The refund is entered as an **amount** or a **%**
+   of the purchase, and stored as the amount (ADR-V026).
    For `envelope_contribution`, an **envelope is required** and the method must be `bank_account`.
 3. `POST /api/transactions` validates, resolves the rate, resolves/creates the month (§9), derives
    `amount_crc`/`amount_usd`, **freezes** `exchange_rate_used`, saves with `source = manual`.
@@ -251,9 +252,15 @@ resolved category/bank names.
 **Goal:** track money you expect back from an unplanned essential, and book it when it lands.
 
 Flow:
-1. A `Refund` is **derived** from its transaction: `percentage × amounts` at the frozen rate,
-   status `pending`. It is created/re-derived/removed by the transaction's create/update/delete —
-   never edited directly except its status.
+1. A `Refund` belongs to its transaction: an **amount** in the transaction's currency (typed directly, or as a % the
+   form turns into the amount — only the amount is stored, ADR-V026), the other currency at the frozen rate, status
+   `pending`. It is created/rewritten/removed by the transaction's create/update/delete — never edited directly except
+   its status and notes. A bigger purchase does not grow it; a purchase below its refund is a 400. Editing it later by
+   percentage is the same: the form computes a new amount from the purchase's current amount.
+1a. Once **received** it is **locked** (owner, 2026-10-09): changing its amount, switching it off, moving the purchase
+   to a class that can't carry it or deleting the purchase is 409 `refund_status_conflict` — put it back to pending on
+   the month page (which removes the inflow), correct it, mark it received again. Edits that don't touch the refund
+   still save, and the booked inflow is never rewritten.
 2. `GET /api/months/{id}/refunds` lists the month's refunds; `PUT /api/refunds/{id}` flips
    `pending → received` with a `received_date` (default today, never before the purchase), which
    **auto-creates a derived `inflow` transaction** (same amounts and rate, the source transaction's

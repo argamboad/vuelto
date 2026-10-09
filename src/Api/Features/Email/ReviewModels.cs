@@ -66,9 +66,10 @@ public record ConfirmVoucherRequest(
     [property: JsonPropertyName("currency")] string? Currency = null,
     [property: JsonPropertyName("transaction_date")] DateOnly? TransactionDate = null,
     [property: JsonPropertyName("remember_merchant")] bool RememberMerchant = false,
-    // LEDGER-3 on the queue: same rules as manual entry — only means something on an unplanned essential, needs 0 < p ≤ 100.
+    // LEDGER-3 on the queue: same rules as manual entry — an unplanned or discretionary class (ADR-V025), and an amount
+    // in the booked currency, 0 < amount ≤ the purchase (ADR-V026).
     [property: JsonPropertyName("refund_expected")] bool RefundExpected = false,
-    [property: JsonPropertyName("refund_percentage")] decimal? RefundPercentage = null,
+    [property: JsonPropertyName("refund_amount")] decimal? RefundAmount = null,
     // The reason, recorded while the voucher is in front of you — the ledger's optional 250-character note.
     [property: JsonPropertyName("notes")] string? Notes = null,
     // The refund's notes (LEDGER-4), same as the manual form (2026-09-14).

@@ -264,18 +264,19 @@ public class PendingVoucherSliceTests(PostgresFixture fixture) : PostgresTestBas
         var draft = await DraftAsync(c);
 
         // The manual form's rules, through the same ledger create: an invalid percentage is refused and nothing is written.
-        Assert.Equal("invalid_request", (await c.Handler.ConfirmAsync(draft.Id, new(c.CategoryId, "unplanned_essential", RefundExpected: true, RefundPercentage: 150m), default)).Error!.Error);
+        Assert.Equal("invalid_request", (await c.Handler.ConfirmAsync(draft.Id, new(c.CategoryId, "unplanned_essential", RefundExpected: true, RefundAmount: 9_000m), default)).Error!.Error);
         Assert.Equal("invalid_request", (await c.Handler.ConfirmAsync(draft.Id, new(c.CategoryId, "unplanned_essential", RefundExpected: true), default)).Error!.Error);
         Assert.Equal(0, await c.Db.Transactions.CountAsync());
         Assert.Equal(PendingVoucherStatuses.Pending, (await ReloadAsync(c, draft.Id)).Status);
 
-        var (confirmed, error) = await c.Handler.ConfirmAsync(draft.Id, new(c.CategoryId, "unplanned_essential", RefundExpected: true, RefundPercentage: 30m, RefundNotes: "CASE-7 · lent to Diego"), default);
+        var (confirmed, error) = await c.Handler.ConfirmAsync(draft.Id, new(c.CategoryId, "unplanned_essential", RefundExpected: true, RefundAmount: 2_286m, RefundNotes: "CASE-7 · lent to Diego"), default);
 
         Assert.Null(error);
         var tx = await c.Db.Transactions.SingleAsync();
         var refund = await c.Db.Refunds.SingleAsync();
-        // 30 % of ₡7,620 / $15.24 at the frozen rate, pending, in the voucher's month, bound to the booked transaction.
-        Assert.Equal((tx.Id, tx.MonthId, 30m, 2_286m, 4.57m, RefundStatuses.Pending, "TACO BELL PLAZA REAL C"),
+        // ₡2,286 (what 30 % of ₡7,620 comes to — the form's arithmetic, #202) and its dollars at the frozen rate, pending,
+        // in the voucher's month, bound to the booked transaction; no percentage is stored.
+        Assert.Equal((tx.Id, tx.MonthId, (decimal?)null, 2_286m, 4.57m, RefundStatuses.Pending, "TACO BELL PLAZA REAL C"),
             (refund.TransactionId, refund.MonthId, refund.Percentage, refund.AmountCrc, refund.AmountUsd, refund.Status, refund.Payee));
         Assert.Equal("CASE-7 · lent to Diego", refund.Notes); // the queue asks for the same refund notes the form does
         Assert.Equal((PendingVoucherStatuses.Confirmed, confirmed!.TransactionId), ((await ReloadAsync(c, draft.Id)).Status, tx.Id));
@@ -288,7 +289,7 @@ public class PendingVoucherSliceTests(PostgresFixture fixture) : PostgresTestBas
         var c = await ContextAsync();
         var draft = await DraftAsync(c);
 
-        var (_, error) = await c.Handler.ConfirmAsync(draft.Id, new(c.CategoryId, "budgeted", RefundExpected: true, RefundPercentage: 30m), default);
+        var (_, error) = await c.Handler.ConfirmAsync(draft.Id, new(c.CategoryId, "budgeted", RefundExpected: true, RefundAmount: 2_286m), default);
 
         Assert.Equal("invalid_request", error!.Error);
         Assert.Equal(0, await c.Db.Refunds.CountAsync());
@@ -301,7 +302,7 @@ public class PendingVoucherSliceTests(PostgresFixture fixture) : PostgresTestBas
         var c = await ContextAsync();
         var draft = await DraftAsync(c);
 
-        var (confirmed, error) = await c.Handler.ConfirmAsync(draft.Id, new(c.CategoryId, "extraordinary", RefundExpected: true, RefundPercentage: 30m), default);
+        var (confirmed, error) = await c.Handler.ConfirmAsync(draft.Id, new(c.CategoryId, "extraordinary", RefundExpected: true, RefundAmount: 2_286m), default);
 
         Assert.Null(error);
         Assert.Equal(confirmed!.TransactionId, (await c.Db.Refunds.SingleAsync()).TransactionId);

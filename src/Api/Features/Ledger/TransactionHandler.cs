@@ -12,9 +12,8 @@ namespace Vuelto.Api.Features.Ledger;
 /// or stage the month → derive both amounts → freeze the rate → sync the expected refund → one
 /// <c>SaveChanges</c>. Everything is checked <em>before</em> anything is staged, so a rejected request
 /// never leaves an empty month. Update re-derives amounts from the frozen rate, re-resolves the month
-/// on a date change (the emptied source month goes away) and re-derives / removes the refund — a
-/// realized refund's inflow follows the re-derived amounts. Delete removes the row, its refund, the
-/// refund's realized inflow, and any month left empty. Derived rows (<c>source != manual</c>) are
+/// on a date change (the emptied source month goes away) and rewrites / removes a pending refund — a
+/// received one is locked (ADR-V026). Delete removes the row, its pending refund and any month left empty. Derived rows (<c>source != manual</c>) are
 /// read-only here.
 /// </summary>
 public sealed class TransactionHandler(
@@ -32,11 +31,11 @@ public sealed class TransactionHandler(
 {
     private const int MaxAttempts = 2; // one retry: a lost month-creation race finds the winner's month next time
 
-    private sealed record Valid(string Payee, Guid BankId, string PaymentMethod, decimal Amount, string Currency, DateOnly Date, Guid CategoryId, string Type, Guid? EnvelopeId, decimal? RefundPercentage, Guid? CardId, string? Notes, string? RefundNotes, bool SetRefundNotes);
+    private sealed record Valid(string Payee, Guid BankId, string PaymentMethod, decimal Amount, string Currency, DateOnly Date, Guid CategoryId, string Type, Guid? EnvelopeId, decimal? RefundAmount, Guid? CardId, string? Notes, string? RefundNotes, bool SetRefundNotes);
 
     /// <summary>The manual create (LEDGER-2): <c>source = manual</c>.</summary>
     public Task<(TransactionResponse? Transaction, ErrorResponse? Error)> CreateAsync(CreateTransactionRequest r, CancellationToken cancellationToken) =>
-        CreateAsync(new CreateTransactionCommand(r.Payee, r.BankId, r.PaymentMethod, r.OriginalAmount, r.Currency, r.TransactionDate, r.CategoryId, r.TransactionType, r.ExchangeRate, r.EnvelopeId, r.RefundExpected, r.RefundPercentage, CardId: r.CardId, Notes: r.Notes, RefundNotes: r.RefundNotes), cancellationToken);
+        CreateAsync(new CreateTransactionCommand(r.Payee, r.BankId, r.PaymentMethod, r.OriginalAmount, r.Currency, r.TransactionDate, r.CategoryId, r.TransactionType, r.ExchangeRate, r.EnvelopeId, r.RefundExpected, r.RefundAmount, CardId: r.CardId, Notes: r.Notes, RefundNotes: r.RefundNotes), cancellationToken);
 
     /// <summary>
     /// The Core contract (ADR-V010): the same create for another slice's caller — the review queue books a
@@ -53,7 +52,7 @@ public sealed class TransactionHandler(
     private async Task<(TransactionResponse? Transaction, ErrorResponse? Error)> CreateAsync(CreateTransactionCommand r, CancellationToken cancellationToken)
     {
         if (tenant.TenantId is not { } tenantId) return (null, NoTenant());
-        var (v, invalid) = await ValidateAsync(r.Payee, r.BankId, r.PaymentMethod, r.OriginalAmount, r.Currency, r.TransactionDate, r.CategoryId, r.TransactionType, r.EnvelopeId, r.RefundExpected, r.RefundPercentage, r.CardId, r.Notes, r.RefundNotes, cancellationToken);
+        var (v, invalid) = await ValidateAsync(r.Payee, r.BankId, r.PaymentMethod, r.OriginalAmount, r.Currency, r.TransactionDate, r.CategoryId, r.TransactionType, r.EnvelopeId, r.RefundExpected, r.RefundAmount, r.CardId, r.Notes, r.RefundNotes, cancellationToken);
         if (invalid is not null) return (null, invalid);
         if (r.ExchangeRate is <= 0) return (null, Invalid("exchange_rate must be positive"));
 
@@ -100,12 +99,13 @@ public sealed class TransactionHandler(
     public async Task<(TransactionResponse? Transaction, ErrorResponse? Error)> UpdateAsync(Guid id, UpdateTransactionRequest r, CancellationToken cancellationToken)
     {
         if (tenant.TenantId is not { } tenantId) return (null, NoTenant());
-        var (v, invalid) = await ValidateAsync(r.Payee, r.BankId, r.PaymentMethod, r.OriginalAmount, r.Currency, r.TransactionDate, r.CategoryId, r.TransactionType, r.EnvelopeId, r.RefundExpected, r.RefundPercentage, r.CardId, r.Notes, r.RefundNotes, cancellationToken);
+        var (v, invalid) = await ValidateAsync(r.Payee, r.BankId, r.PaymentMethod, r.OriginalAmount, r.Currency, r.TransactionDate, r.CategoryId, r.TransactionType, r.EnvelopeId, r.RefundExpected, r.RefundAmount, r.CardId, r.Notes, r.RefundNotes, cancellationToken);
         if (invalid is not null) return (null, invalid);
 
         var tx = await transactions.Query().FirstOrDefaultAsync(t => t.Id == id, cancellationToken);
         if (tx is null) return (null, NotFound());
         if (!TransactionSources.IsEditable(tx.Source)) return (null, Derived());
+        if (await LockedRefundAsync(tx, v, cancellationToken) is { } locked) return (null, locked);
 
         // The rate is frozen (ADR-V006): amounts re-derive from it, never from a fresh quote.
         var (amountCrc, amountUsd) = CurrencyMath.DeriveAmounts(v!.Amount, v.Currency, tx.ExchangeRateUsed);
@@ -156,12 +156,32 @@ public sealed class TransactionHandler(
         return TransactionResponse.From(tx, refund);
     }
 
-    /// <summary>Hard delete (no soft delete for money movement). Takes the refund, its realized inflow, and any month left empty along.</summary>
+    /// <summary>
+    /// ADR-V026 (owner, 2026-10-09): a <c>received</c> refund is locked — its inflow is booked. Changing its amount, switching
+    /// it off, moving the purchase to a class that cannot carry it, or deleting the purchase (<paramref name="v"/> null) is
+    /// a 409 until the refund is marked pending again; anything else on the purchase still saves. Checked before any change
+    /// is staged, so a refusal leaves nothing behind.
+    /// </summary>
+    private async Task<ErrorResponse?> LockedRefundAsync(Transaction tx, Valid? v, CancellationToken cancellationToken)
+    {
+        var refund = await refunds.Query().FirstOrDefaultAsync(x => x.TransactionId == tx.Id, cancellationToken);
+        if (refund is null || refund.Status != RefundStatuses.Received) return null;
+        var touched = v is null
+            || v.RefundAmount is not { } amount
+            || !TransactionTypes.CanCarryRefund(v.Type)
+            || CurrencyMath.DeriveAmounts(amount, v.Currency, tx.ExchangeRateUsed) != (refund.AmountCrc, refund.AmountUsd);
+        return touched
+            ? new ErrorResponse("refund_status_conflict", "This refund was already received — mark it pending on the month page before changing or removing it")
+            : null;
+    }
+
+    /// <summary>Hard delete (no soft delete for money movement). Takes a pending refund and any month left empty along; a received refund blocks it (ADR-V026).</summary>
     public async Task<ErrorResponse?> DeleteAsync(Guid id, CancellationToken cancellationToken)
     {
         var tx = await transactions.Query().FirstOrDefaultAsync(t => t.Id == id, cancellationToken);
         if (tx is null) return NotFound();
         if (!TransactionSources.IsEditable(tx.Source)) return Derived();
+        if (await LockedRefundAsync(tx, null, cancellationToken) is { } locked) return locked;
 
         var leaving = new List<Guid> { tx.Id };
         var touchedMonths = new HashSet<Guid> { tx.MonthId };
@@ -202,17 +222,18 @@ public sealed class TransactionHandler(
 
     /// <summary>
     /// LEDGER-3: keeps the transaction's expected refund in step (staged, not saved). A percentage on an
-    /// unplanned-essential or discretionary row (ADR-V025) creates or re-derives the refund (amounts = % × the frozen amounts) —
-    /// and a realized refund's inflow tracks the re-derived amounts, keeping its own month and date.
+    /// unplanned-essential or discretionary row (ADR-V025) creates or rewrites the refund from its amount (the purchase's
+    /// currency, the other side at the frozen rate — ADR-V026). A received refund only reaches here unchanged (it is locked),
+    /// so its realized inflow is never rewritten.
     /// Any other class, or no percentage, removes an existing refund together with its realized inflow.
     /// Returns the refund now attached to the transaction (or null) and the realized inflow it removed (or
     /// null) — the caller owns the month cleanup, because only it knows which rows are leaving which month.
     /// </summary>
     private async Task<(Refund? Refund, Transaction? RemovedInflow)> SyncRefundAsync(Transaction tx, Valid v, DateTimeOffset now, CancellationToken cancellationToken)
     {
-        var percentage = v.RefundPercentage;
+        var refundAmount = v.RefundAmount;
         var existing = await refunds.Query().FirstOrDefaultAsync(x => x.TransactionId == tx.Id, cancellationToken);
-        var applies = TransactionTypes.CanCarryRefund(tx.TransactionType) && percentage is > 0;
+        var applies = TransactionTypes.CanCarryRefund(tx.TransactionType) && refundAmount is > 0;
 
         if (!applies)
         {
@@ -222,16 +243,16 @@ public sealed class TransactionHandler(
             return (null, inflow);
         }
 
-        var pct = percentage!.Value;
-        var amountCrc = CurrencyMath.Round2(tx.AmountCrc * pct / 100m);
-        var amountUsd = CurrencyMath.Round2(tx.AmountUsd * pct / 100m);
+        // The amount is in the purchase's currency; the other side follows at its frozen rate (ADR-V006/V026) — the same
+        // derivation as the purchase's own, so a full refund matches it to the cent.
+        var (amountCrc, amountUsd) = CurrencyMath.DeriveAmounts(refundAmount!.Value, tx.Currency, tx.ExchangeRateUsed);
 
         if (existing is null)
         {
             var refund = new Refund
             {
                 TenantId = tx.TenantId, MonthId = tx.MonthId, TransactionId = tx.Id, Payee = tx.Payee, TransactionDate = tx.TransactionDate,
-                Percentage = pct, AmountCrc = amountCrc, AmountUsd = amountUsd, Status = RefundStatuses.Pending, CreatedAt = now, UpdatedAt = now,
+                AmountCrc = amountCrc, AmountUsd = amountUsd, Status = RefundStatuses.Pending, CreatedAt = now, UpdatedAt = now,
                 Notes = v.RefundNotes, // LEDGER-4's notes, taken at entry (2026-09-14); Case No. stays the month page's
             };
             await refunds.AddAsync(refund, cancellationToken);
@@ -239,18 +260,13 @@ public sealed class TransactionHandler(
         }
 
         existing.MonthId = tx.MonthId; existing.Payee = tx.Payee; existing.TransactionDate = tx.TransactionDate;
-        existing.Percentage = pct; existing.AmountCrc = amountCrc; existing.AmountUsd = amountUsd; existing.UpdatedAt = now;
+        existing.Percentage = null; // legacy, no longer written (ADR-V026)
+        existing.AmountCrc = amountCrc; existing.AmountUsd = amountUsd; existing.UpdatedAt = now;
         // LEDGER-4: the household's notes are replaced only when the request carries them — the edit form sends
         // them back (blank clears, as on the details endpoint); a caller that omits them leaves them alone.
         if (v.SetRefundNotes) existing.Notes = v.RefundNotes;
         refunds.Update(existing);
-
-        if (existing.InflowTransactionId is { } inflowId
-            && await transactions.Query().FirstOrDefaultAsync(t => t.Id == inflowId, cancellationToken) is { } realized)
-        {
-            realized.OriginalAmount = amountCrc; realized.AmountCrc = amountCrc; realized.AmountUsd = amountUsd; realized.UpdatedAt = now; // stored in CRC
-            transactions.Update(realized);
-        }
+        // A received refund's amounts can't have changed here (LockedRefundAsync refused that), so its inflow is never rewritten.
         return (existing, null);
     }
 
@@ -268,7 +284,7 @@ public sealed class TransactionHandler(
     /// <summary>Field rules shared by create and update (donor US-006/007/012 + ADR-V007), then the catalog references (must exist in the household and be active).</summary>
     private async Task<(Valid? Valid, ErrorResponse? Error)> ValidateAsync(
         string? payee, Guid? bankId, string? paymentMethod, decimal amount, string? currency, DateOnly? date,
-        Guid? categoryId, string? type, Guid? envelopeId, bool refundExpected, decimal? refundPercentage, Guid? cardId, string? notes, string? refundNotes, CancellationToken cancellationToken)
+        Guid? categoryId, string? type, Guid? envelopeId, bool refundExpected, decimal? refundAmount, Guid? cardId, string? notes, string? refundNotes, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(payee)) return (null, Invalid("payee is required"));
         if (payee.Trim().Length > 200) return (null, Invalid("payee must be 200 characters or fewer"));
@@ -285,7 +301,9 @@ public sealed class TransactionHandler(
         // (fail closed — it used to be silently ignored, and a refund the household asked for must never quietly vanish).
         if (refundExpected && !TransactionTypes.CanCarryRefund(t))
             return (null, Invalid($"refund_expected is only valid for {string.Join(" or ", TransactionTypes.RefundClasses.Order())} transactions"));
-        if (refundExpected && refundPercentage is null or <= 0 or > 100) return (null, Invalid("refund_percentage must be between 0 and 100 when refund_expected is set"));
+        // ADR-V026: the refund is an amount in the purchase's own currency, never more than the purchase.
+        if (refundExpected && refundAmount is null or <= 0) return (null, Invalid("refund_amount must be greater than zero when refund_expected is set"));
+        if (refundExpected && CurrencyMath.Round2(refundAmount!.Value) > CurrencyMath.Round2(amount)) return (null, Invalid("refund_amount cannot be more than original_amount"));
 
         var isContribution = t == TransactionTypes.EnvelopeContribution;
         if (isContribution && envelopeId is null) return (null, Invalid("envelope_id is required for envelope_contribution transactions"));
@@ -298,13 +316,13 @@ public sealed class TransactionHandler(
         if (isContribution && !await envelopes.Query().AnyAsync(e => e.Id == envelopeId && e.IsActive, cancellationToken)) return (null, Invalid("unknown or inactive envelope"));
         if (cardId is { } card && !await cards.Query().AnyAsync(c => c.Id == card && c.IsActive, cancellationToken)) return (null, Invalid("unknown or inactive card")); // CARDS-1: optional, but real when given
 
-        var pct = refundExpected ? refundPercentage : null;
+        var refund = refundExpected ? CurrencyMath.Round2(refundAmount!.Value) : (decimal?)null;
                 // The refund's notes ride along only with a refund (LEDGER-4 rules: trimmed, blank is null, 250 chars).
         // "Sent" is remembered before blank collapses to null: null in the request means "leave alone", blank means "clear".
         var setNotes = refundNotes is not null;
         refundNotes = string.IsNullOrWhiteSpace(refundNotes) ? null : refundNotes.Trim();
         if (refundNotes?.Length > Refund.NotesMaxLength) return (null, Invalid($"refund_notes must be {Refund.NotesMaxLength} characters or fewer"));
-        return (new Valid(payee.Trim(), bank, method, amount, cur, d, category, t, isContribution ? envelopeId : null, pct, cardId, note, refundNotes, setNotes), null);
+        return (new Valid(payee.Trim(), bank, method, amount, cur, d, category, t, isContribution ? envelopeId : null, refund, cardId, note, refundNotes, setNotes), null);
     }
 
     private static ErrorResponse Invalid(string message) => new("invalid_request", message);

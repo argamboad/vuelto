@@ -491,7 +491,11 @@
   <data name="Tx_RefundExpected" xml:space="preserve"><value>Refund expected</value></data>
   <data name="Tx_RefundPercent" xml:space="preserve"><value>Percentage expected back</value></data>
   <data name="Tx_RefundPreview" xml:space="preserve"><value>Expected back: {0}</value></data>
-  <data name="Tx_Validation_Refund" xml:space="preserve"><value>Enter a refund percentage between 0 and 100.</value></data>
+  <data name="Tx_RefundAmount" xml:space="preserve"><value>Amount expected back</value></data>
+  <data name="Tx_RefundMode" xml:space="preserve"><value>Enter the refund as</value></data>
+  <data name="Tx_RefundShare" xml:space="preserve"><value>{0} % of {1}</value></data>
+  <data name="Tx_RefundLocked" xml:space="preserve"><value>Already received — mark it back to pending on the month page to change it.</value></data>
+  <data name="Tx_Validation_Refund" xml:space="preserve"><value>Enter the refund you expect: more than zero, and no more than the amount.</value></data>
   <data name="Month_Refunds" xml:space="preserve"><value>Expected refunds</value></data>
   <data name="Month_NoRefunds" xml:space="preserve"><value>No refunds expected this month.</value></data>
   <data name="Refund_NotesHint" xml:space="preserve"><value>Optional — case number, who owes it, when you expect it back</value></data>

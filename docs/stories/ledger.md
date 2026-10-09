@@ -284,3 +284,44 @@ Scenario: Moving between the two classes keeps the refund
   When I change it to discretionary
   Then the refund stays, re-derived as before
 ```
+
+### LEDGER-6 — A refund is an amount, typed directly or as a percentage; a received one is locked *(owner request, 2026-10-09 · #202)* ✅
+
+**As** a household member, **I want** to enter an expected refund as a fixed amount or as a percentage, **so that** a
+"₡12,000 back from the insurer" and a "half of it back" are both quick to type — and **I want** a refund I already
+received to stay put, **so that** an edit can't quietly rewrite money that's already booked.
+
+**Context / notes:** ADR-V026. The amount is stored (in the purchase's currency; the other side at the frozen rate); a
+percentage is only how the form computes it — `refund_amount` replaces `refund_percentage` on `POST/PUT
+/api/transactions` and on the voucher confirm, and `refund_status` rides on the transaction response. A purchase
+amount edit keeps the refund's amount (a purchase below it is a 400). `Refunds.Percentage` is nullable and no longer
+written (`RefundPercentageOptional`, expand-only); the refunds list computes the share. A **received** refund is locked:
+amount change, switching it off, an incompatible class or deleting the purchase → 409 `refund_status_conflict`; put it
+back to pending first (that path stays, owner-confirmed).
+
+```gherkin
+Scenario: A fixed refund
+  Given a purchase of ₡80,000
+  When I tick "refund expected", keep "₡" and type 12000
+  Then the refund is ₡12,000 and the hint says "15 % of ₡80,000"
+
+Scenario: A refund typed as a percentage is stored as its amount
+  Given a purchase of ₡50,000
+  When I switch to "%" and type 30
+  Then the hint says "Expected back: ₡15,000.00" and ₡15,000 is what is saved
+
+Scenario: Correcting it by percentage later
+  Given that refund of ₡15,000 on a purchase now of ₡60,000
+  When I edit the transaction
+  Then the refund opens on ₡15,000 ("25 % of ₡60,000")
+  When I switch to "%" and type 20
+  Then ₡12,000 is saved
+
+Scenario: A received refund is locked
+  Given a refund marked received
+  When I edit its purchase
+  Then the refund switch and amount are disabled, saying to mark it back to pending first
+  And deleting the purchase is refused with 409 refund_status_conflict
+  When I put the refund back to pending on the month page, correct it and mark it received again
+  Then the booked income follows the new amount
+```

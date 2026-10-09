@@ -98,7 +98,7 @@
                         @if (TransactionClasses.CanCarryRefund(v.Form.TransactionClass))
                         {
                             @* Same as the manual form: an unplanned essential can carry an expected refund (LEDGER-3), and the block
-                               takes the same shape — the switch, then the percentage beside a wide Refund notes box, real labels. *@
+                               takes the same shape — the switch, then the amount (or %) beside a wide Refund notes box, real labels. *@
                             <div class="draft-field draft-field-wide">
                                 <div class="form-check form-switch">
                                     <input class="form-check-input" type="checkbox" id="review-refund-@v.Id" data-testid="review-refund-expected" @bind="v.Form.RefundExpected" />
@@ -107,14 +107,9 @@
                                 @if (v.Form.RefundExpected)
                                 {
                                     <div class="draft-refund">
-                                        <div>
-                                            <label class="form-label" for="review-refund-pct-@v.Id">@Localizer["Tx_RefundPercent"]</label>
-                                            <input type="number" step="0.01" min="0" max="100" class="form-control form-control-sm" id="review-refund-pct-@v.Id" data-testid="review-refund-pct" @bind="v.Form.RefundPercentage" />
-                                            @if (RefundPreview(v) is { } preview)
-                                            {
-                                                <div class="draft-hint" data-testid="review-refund-preview">@Localizer["Tx_RefundPreview", preview]</div>
-                                            }
-                                        </div>
+                                        @* #202: an amount in the booked currency, typed directly or as a % of the purchase (ADR-V026). *@
+                                        <RefundAmountInput TestId="review-refund" @bind-Value="v.Form.RefundAmount" Purchase="@BookedAmount(v)" Currency="@BookedCurrency(v)"
+                                                           InputClass="form-control-sm" HintClass="draft-hint" />
                                         <div>
                                             <label class="form-label" for="review-refund-notes-@v.Id">@Localizer["Tx_RefundNotes"]</label>
                                             <textarea class="form-control form-control-sm" id="review-refund-notes-@v.Id" rows="1" maxlength="250" data-testid="review-refund-notes"
@@ -243,7 +238,7 @@
                 currency = v.Missing("Amount") || v.Missing("Currency") ? v.Form.Currency : null,
                 transaction_date = v.Missing("Date") ? v.Form.Date : null,
                 refund_expected = TransactionClasses.CanCarryRefund(v.Form.TransactionClass) && v.Form.RefundExpected,
-                refund_percentage = TransactionClasses.CanCarryRefund(v.Form.TransactionClass) && v.Form.RefundExpected ? v.Form.RefundPercentage : null,
+                refund_amount = TransactionClasses.CanCarryRefund(v.Form.TransactionClass) && v.Form.RefundExpected ? v.Form.RefundAmount : null,
                 refund_notes = TransactionClasses.CanCarryRefund(v.Form.TransactionClass) && v.Form.RefundExpected && !string.IsNullOrWhiteSpace(v.Form.RefundNotes) ? v.Form.RefundNotes.Trim() : null,
             };
             var res = await Http.PostAsJsonAsync($"/api/pending-vouchers/{v.Id}/confirm", body);
@@ -433,15 +428,9 @@
         ? (v.Currency == "USD" ? "$" : "₡") + a.ToString("N2", CultureInfo.CurrentCulture)
         : "—";
 
-    /// <summary>"Expected back: …" from the amount the confirm will send — the voucher's own, or the typed one where the parser left a blank.</summary>
-    private static string? RefundPreview(VoucherDto v)
-    {
-        var editable = v.Missing("Amount") || v.Missing("Currency");
-        var amount = editable ? v.Form.Amount : v.Amount;
-        var currency = editable ? v.Form.Currency : v.Currency;
-        if (amount is not > 0 || v.Form.RefundPercentage is not > 0 || string.IsNullOrEmpty(currency)) return null;
-        return $"{(amount.Value * v.Form.RefundPercentage.Value / 100m).ToString("N2", CultureInfo.CurrentCulture)} {currency}";
-    }
+    /// <summary>The amount and currency the confirm will book — the voucher's own, or the typed ones where the parser left a blank.</summary>
+    private static decimal? BookedAmount(VoucherDto v) => v.Missing("Amount") || v.Missing("Currency") ? v.Form.Amount : v.Amount;
+    private static string? BookedCurrency(VoucherDto v) => v.Missing("Amount") || v.Missing("Currency") ? v.Form.Currency : v.Currency;
 
     /// <summary>Sync every inbox, then reload the queue and the header badge. A dead inbox is reported, never fatal.</summary>
     private async Task SyncAllAsync()
@@ -473,7 +462,7 @@
         public bool RememberMerchant { get; set; }
         public string? Notes { get; set; }
         public bool RefundExpected { get; set; }
-        public decimal? RefundPercentage { get; set; }
+        public decimal? RefundAmount { get; set; }
         public string? RefundNotes { get; set; }
         public string? Payee { get; set; }
         public decimal? Amount { get; set; }

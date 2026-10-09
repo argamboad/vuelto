@@ -1736,11 +1736,13 @@ Months → Update month income — invalid (400)**) → `invalid_request`. With 
 ```gherkin
 Given I am on New transaction
 When I pick class Unplanned
-Then a "Refund expected" switch appears; switching it on shows the percentage beside a "Refund notes" box that spans the row like the transaction's own Notes
-When I enter "Hospital", 50000 CRC, 30 %, "CASE-7 · lent to Diego", and Save
+Then a "Refund expected" switch appears; switching it on shows the amount expected back (a ₡ | % toggle beside its label) beside a "Refund notes" box that spans the row like the transaction's own Notes
+When I enter "Hospital", 50000 CRC, switch the refund to % and type 30, "CASE-7 · lent to Diego", and Save
 Then the month page lists an expected refund: Hospital · 30% · ₡15,000.00 · $<30> · Pending, with the note behind its icon
 When I Edit the transaction to 80000 and Save
-Then the refund reads ₡24,000.00 (30 % of 80,000)
+Then the refund still reads ₡15,000.00 (an amount: a bigger purchase doesn't grow it) at 19 %
+When I Edit it, switch the refund to % and type 30, and Save
+Then the refund reads ₡24,000.00
 When I Edit it again, switch Refund expected off and Save
 Then the refund is gone
 When I pick class Discretionary
@@ -1748,19 +1750,20 @@ Then the "Refund expected" switch is there too; for Budgeted it is not
 ```
 **Walkthrough:** **New transaction** → **Class** "Unplanned" → **Expected:** the **Refund expected**
 switch appears. Pick **Discretionary** → **Expected:** it is still there (ADR-V025); pick **Budgeted**, **Income** or
-**Savings** → **Expected:** it is gone. Back to **Unplanned**. Switch it on → **Expected:** the percentage
-field with **Refund notes** beside it — a one-row box at the percentage's height (drag it taller) spanning the rest of the row, with a 0/250 counter
+**Savings** → **Expected:** it is gone. Back to **Unplanned**. Switch it on → **Expected:** the **Amount expected back** field with a **₡ | %** toggle beside its label, and **Refund notes** beside it — a one-row box at the percentage's height (drag it taller) spanning the rest of the row, with a 0/250 counter
 like the transaction's own Notes and a placeholder reading "Optional — case number, who owes it, when you expect
-it back"; no separate Case No.; with `50000` and `30` the hint reads "Expected back: 15,000.00 CRC". Type
+it back"; no separate Case No.; with `50000`, the toggle on **%** and `30` the hint reads "Expected back: ₡15,000.00"; back on
+**₡** the field holds `15000` and the hint reads "30 % of ₡50,000.00". Type
 `CASE-7 · lent to Diego`, fill the rest and **Save** → **Expected:** the month page's **Refunds** table shows
 Hospital · 30% · ₡15,000.00 stacked over $30 · an amber **Pending** pill and a note icon whose hover text is
 "CASE-7 · lent to Diego", with a **Mark received** button (its accessible name says "Mark Hospital received").
 **Edit the transaction** → **Expected:** the refund notes prefilled; clear them and **Save** → **Expected:**
 the note icon is gone. **Edit** → amount `80000` → **Save** →
-**Expected:** the refund row reads ₡24,000.00. **Edit** → switch off → **Save** → **Expected:** "No
+**Expected:** the refund row still reads ₡15,000.00, now at 19 %. **Edit** → the refund opens on `15000` → toggle **%**, type
+`30` → **Save** → **Expected:** ₡24,000.00. **Edit** → switch off → **Save** → **Expected:** "No
 refunds expected this month." Via Postman (**16 · Transactions → Create transaction**) with
-`refund_expected: true, refund_percentage: 150` → **Expected:** 400 `invalid_request` naming
-`refund_percentage`; with `transaction_type: "budgeted", refund_expected: true, refund_percentage: 30` →
+`refund_expected: true, refund_amount: 60000` on a 50000 purchase → **Expected:** 400 `invalid_request` naming
+`refund_amount`; with `transaction_type: "budgeted", refund_expected: true, refund_amount: 15000` →
 **Expected:** 400 `invalid_request` naming `refund_expected`, and nothing is created.
 
 ### QA-LED-06 — Marking a refund received books an inflow; reverting removes it 🟠 (Web / API)
@@ -1777,6 +1780,9 @@ Then the inflow row disappears and the pill is Pending again
 When I pick a date in the NEXT month and click Mark received
 Then the pill reads "Received <date>" with a "booked in another month — view" link, this month's table has NO inflow row, and the linked month (created if needed) holds it
 When I click Back to pending → the inflow is gone, and that month with it if it was otherwise empty
+When the refund is Received and I Edit its purchase
+Then the refund switch and amount are disabled with "Already received — mark it back to pending on the month page to change it."
+And deleting the purchase is refused with 409 refund_status_conflict, and nothing changes
 ```
 **Walkthrough:** on the month page, the pending row shows **Received on** (today) next to **Mark
 received**; the date input's minimum is the purchase date. **Mark received** → **Expected:** "Refund
@@ -1794,6 +1800,11 @@ this month's transactions table has no inflow; the link opens the next month (au
 not exist) with the inflow row dated as picked. Postman **Update refund status** with `received_date`
 before the purchase → **Expected:** 400 `invalid_request`. **Back to pending** → **Expected:** the
 inflow is gone and the next month too if it held nothing else.
+**Locked once received (ADR-V026):** **Mark received** again, then **Edit** its purchase → **Expected:** the **Refund
+expected** switch and the amount are greyed out with "Already received — mark it back to pending on the month page to
+change it."; change the purchase's notes and **Save** → **Expected:** saved, the inflow unchanged. Postman **Delete
+transaction** on the purchase → **Expected:** 409 `refund_status_conflict`, the purchase, refund and inflow all still
+there. **Back to pending** → **Edit** → the refund is editable again.
 
 ---
 
@@ -2470,9 +2481,9 @@ them in flips the panel to the booking sentence and enables Confirm without the 
 a name, **Create** → **Expected:** selected on this card and offered on every other card — tick **Remember this merchant**,
 **Confirm** → **Expected:** the green notice, the card gone, the badge gone; **Months → that month** lists
 the transaction (source `email`); **Settings → Manage suggestions** has the new rule. On another draft pick
-class **Unplanned** → **Expected:** a **Refund expected** switch; turn it on, type `30` → **Expected:**
-"Expected back: <30 % of the amount>"; **Confirm** → **Expected:** the month's **Expected refunds** table has
-the pending refund (Postman **Confirm pending voucher** with `refund_percentage: 150` → 400 `invalid_request`,
+class **Unplanned** → **Expected:** a **Refund expected** switch; turn it on, toggle **%**, type `30` → **Expected:**
+"Expected back: <30 % of the amount>" (the amount is what is sent); **Confirm** → **Expected:** the month's **Expected refunds** table has
+the pending refund (Postman **Confirm pending voucher** with a `refund_amount` above the voucher's amount → 400 `invalid_request`,
 draft still pending). Postman
 (**Confirm pending voucher** with the same `{{pendingVoucherId}}`) → **Expected:** 409 `not_pending`;
 **Months → transactions** still shows one row for it. Stage a second draft → **Review → Discard** →
@@ -3837,7 +3848,7 @@ Then every web gate runs, and only when all pass the Render hook fires and the v
 | Envelopes (app ENV-1) | ENV-01..02 | `GET/POST /api/envelopes`, `PUT /api/envelopes/{id}` (400 `invalid_request`; 409 `envelope_exists` / `envelope_exists_inactive` + `existing_id` + `existing_name`; uniform 404) |
 | Income lines + month income rows + income by member (app INCOME-1/2 · ADR-V023) | INC-01..04 (04: `Core.Tests` `IncomeByMemberTests`, `Api.Tests` `ReportSliceTests` / `ReportPdfModelBuilderTests` / `ReportPdfRendererTests`, `Ui.Tests` `ReportsPageTests`) (01–02 ⚙️ E2E `IncomeJourneyTests`) + `Core.Tests` (`IncomeSnapshotTests`, `IncomeCalculatorTests`) + `Api.Tests` (`IncomeSliceTests`, `IncomeEndpointTests`, `IncomeMigrationTests` on real Postgres, `ArchitectureTests.LegacyIncomeColumns_AreReadOrWrittenByNothing`) + `Ui.Tests` (`IncomesPageTests`, `LedgerPagesTests`) | `GET/POST /api/incomes`, `PUT /api/incomes/{id}`, `PUT /api/incomes/order` (400 `invalid_request`; 409 `income_exists` / `income_exists_inactive` + `existing_id` + `existing_name`; uniform 404); `GET /api/months/{id}` → `income_rows`; `PUT /api/months/{id}/income` `{rows:[…]}`; `tools/check-income-parity.sql` |
 | Months & transactions (app LEDGER-1/2) | LED-01..04 + `Api.Tests` (`LedgerSliceTests`) | `GET /api/months`, `GET /api/months/resolve?date=`, `GET /api/months/{id}`, `PUT /api/months/{id}/income`, `GET /api/months/{id}/transactions`; `POST /api/transactions`, `GET/PUT/DELETE /api/transactions/{id}` (400 `invalid_request` / `exchange_rate_unavailable` / `derived_transaction`; uniform 404) |
-| Expected refunds & realization (app LEDGER-3) | LED-05..06 + `Api.Tests` (`RefundSliceTests`, incl. the two-context concurrency proof) | `refund_expected` / `refund_percentage` on `POST/PUT /api/transactions`; `GET /api/months/{id}/refunds`; `PUT /api/refunds/{id}` (200; 400 `invalid_request`; 404; 409 `refund_status_conflict`) |
+| Expected refunds & realization (app LEDGER-3) | LED-05..06 + `Api.Tests` (`RefundSliceTests`, incl. the two-context concurrency proof) | `refund_expected` / `refund_amount` on `POST/PUT /api/transactions` (409 `refund_status_conflict` on a received refund's purchase — ADR-V026); `GET /api/months/{id}/refunds`; `PUT /api/refunds/{id}` (200; 400 `invalid_request`; 404; 409 `refund_status_conflict`) |
 | Budget lines: fixed + variable (app EXPENSES-1) | EXP-01..03 | `GET/POST /api/expenses/{fixed\|variable}`, `PUT …/{id}`, `PUT …/order` (400 `invalid_request`; 409 `expense_exists` / `expense_exists_inactive` + `existing_id` + `existing_name`; uniform 404) |
 | Dashboard (app DASH-1) | DASH-01..02 + `Core.Tests` (`DashboardSummaryServiceTests`, 45 donor cases) + `Api.Tests` (`DashboardSliceTests`) | `GET /api/months/{id}/summary` (200 `{month, exchange_rate, rate_source, rate_as_of, rate_unavailable, summary}`; 401 anonymous; uniform 404) |
 | Reports: category analysis + CSV export + PDF + email + appendix columns (app REPORTS-1/2/7/8/9) | REP-01..02, REP-05..07 + `Core.Tests` (`CategoryAnalysisCalculatorTests`, `TransactionCsvWriterTests`) + `Api.Tests` (`ReportSliceTests`, `ReportPdfChartsTests`, `ReportPdfModelBuilderTests`, `ReportPdfSliceTests`) + E2E `ReportPdfJourneyTests` | `GET /api/reports/category-analysis`, `POST /api/reports/transactions/export`, `POST /api/reports/pdf`, `POST /api/reports/pdf/email` (`month_id` \| `from`+`to`; 400 `period_required` / `period_ambiguous` / `period_incomplete` / `period_invalid`; uniform 404; export → signed `download_url` served by `GET /api/files/{token}`) |

@@ -117,8 +117,8 @@ public sealed class PendingVoucherHandler(
             CategoryId: categoryId,
             TransactionType: cls,
             ExchangeRate: StagedRate(voucher, currency), // EMAIL-8: the rate when it arrived; null → today's, like manual entry (ADR-V006)
-            RefundExpected: r.RefundExpected, // the ledger validates the percentage and spawns the refund (LEDGER-3)
-            RefundPercentage: r.RefundPercentage,
+            RefundExpected: r.RefundExpected, // the ledger validates the amount and spawns the refund (LEDGER-3)
+            RefundAmount: r.RefundAmount,
             Source: TransactionSources.Email,
             Notes: r.Notes,
             RefundNotes: r.RefundNotes);

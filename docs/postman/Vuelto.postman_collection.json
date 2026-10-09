@@ -3558,7 +3558,7 @@
     },
     {
       "name": "16 · Transactions",
-      "description": "LEDGER-2 (app slice P5a, ADR-V006/V007): money movement in both currencies at a frozen rate. Optional card_id (CARDS-1, an active card of the household; 400 otherwise) on create and update; the response and the month list carry card_id / card_name. POST validates everything, settles the rate (manual exchange_rate override wins, else the live → cache → last-transaction chain; nothing → 400 exchange_rate_unavailable), resolves or creates the month from transaction_date, derives amount_crc/amount_usd and freezes exchange_rate_used. PUT re-derives from the frozen rate (never sends a rate) and re-resolves the month on a date change; DELETE is hard and removes an emptied month. Rows with source != manual are read-only (400 derived_transaction). Uniform 404 for another household's id. Run 12 · Catalog first so {{categoryId}} and a bank exist. LEDGER-3: an unplanned_essential or (LEDGER-5, ADR-V025) an extraordinary transaction may carry refund_expected + refund_percentage (0 < p ≤ 100) — a derived Refund (percentage × the frozen amounts) is created/re-derived/removed with the transaction; the flag on any other class (budgeted, inflow, envelope_contribution) is 400 invalid_request. refund_notes (2026-09-14) rides along with the refund: on PUT, null = leave alone, blank = clear.",
+      "description": "LEDGER-2 (app slice P5a, ADR-V006/V007): money movement in both currencies at a frozen rate. Optional card_id (CARDS-1, an active card of the household; 400 otherwise) on create and update; the response and the month list carry card_id / card_name. POST validates everything, settles the rate (manual exchange_rate override wins, else the live → cache → last-transaction chain; nothing → 400 exchange_rate_unavailable), resolves or creates the month from transaction_date, derives amount_crc/amount_usd and freezes exchange_rate_used. PUT re-derives from the frozen rate (never sends a rate) and re-resolves the month on a date change; DELETE is hard and removes an emptied month. Rows with source != manual are read-only (400 derived_transaction). Uniform 404 for another household's id. Run 12 · Catalog first so {{categoryId}} and a bank exist. LEDGER-3: an unplanned_essential or (LEDGER-5, ADR-V025) an extraordinary transaction may carry refund_expected + refund_amount (ADR-V026: in the transaction's own currency, 0 < amount ≤ original_amount; the other currency follows at the frozen rate — a percentage is only how the form computes it) — the Refund is created/rewritten/removed with the transaction; a RECEIVED refund is locked: changing its amount, clearing the flag, moving to a class that can't carry it, or DELETE of the purchase is 409 refund_status_conflict until it is marked pending again; the flag on any other class (budgeted, inflow, envelope_contribution) is 400 invalid_request. refund_notes (2026-09-14) rides along with the refund: on PUT, null = leave alone, blank = clear.",
       "item": [
         {
           "name": "Create transaction",
@@ -3574,7 +3574,7 @@
                 "transactions"
               ]
             },
-            "description": "201 with the row (amounts derived, rate frozen, source manual, month_id of the resolved-or-created month). Replace bank_id with an id from 12 · Catalog → List banks. Captures {{transactionId}} and {{monthId}}. Set transaction_type unplanned_essential or extraordinary + refund_expected true + refund_percentage (e.g. 30) to spawn an expected refund (see 17 · Refunds; on any other class the flag is 400 invalid_request); the response echoes refund_expected / refund_percentage. With a refund, optional refund_notes (250 characters) lands on the derived Refund (the LEDGER-4 note, taken at entry): on PUT, null leaves it alone, blank clears; the response echoes it. Optional notes (≤ 250 characters, trimmed; blank = null; longer = 400 invalid_request) — the row's \"why\", shown as an icon on the month page.",
+            "description": "201 with the row (amounts derived, rate frozen, source manual, month_id of the resolved-or-created month). Replace bank_id with an id from 12 · Catalog → List banks. Captures {{transactionId}} and {{monthId}}. Set transaction_type unplanned_essential or extraordinary + refund_expected true + refund_amount (e.g. 15000 — in the transaction's currency, ≤ original_amount) to spawn an expected refund (see 17 · Refunds; on any other class the flag is 400 invalid_request); the response echoes refund_expected / refund_amount / refund_status. With a refund, optional refund_notes (250 characters) lands on the derived Refund (the LEDGER-4 note, taken at entry): on PUT, null leaves it alone, blank clears; the response echoes it. Optional notes (≤ 250 characters, trimmed; blank = null; longer = 400 invalid_request) — the row's \"why\", shown as an icon on the month page.",
             "header": [
               {
                 "key": "Content-Type",
@@ -3583,7 +3583,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"payee\": \"AutoMercado\",\n  \"bank_id\": \"{{bankId}}\",\n  \"payment_method\": \"credit_card\",\n  \"original_amount\": 50000,\n  \"currency\": \"CRC\",\n  \"transaction_date\": \"2026-07-10\",\n  \"category_id\": \"{{categoryId}}\",\n  \"transaction_type\": \"budgeted\",\n  \"exchange_rate\": 500,\n  \"refund_expected\": false,\n  \"refund_percentage\": null,\n  \"notes\": \"Weekly shop — stocking up before the trip\"\n}"
+              "raw": "{\n  \"payee\": \"AutoMercado\",\n  \"bank_id\": \"{{bankId}}\",\n  \"payment_method\": \"credit_card\",\n  \"original_amount\": 50000,\n  \"currency\": \"CRC\",\n  \"transaction_date\": \"2026-07-10\",\n  \"category_id\": \"{{categoryId}}\",\n  \"transaction_type\": \"budgeted\",\n  \"exchange_rate\": 500,\n  \"refund_expected\": false,\n  \"refund_amount\": null,\n  \"notes\": \"Weekly shop — stocking up before the trip\"\n}"
             }
           },
           "event": [
@@ -3683,7 +3683,7 @@
                 "{{transactionId}}"
               ]
             },
-            "description": "200 with the row; amounts re-derived from the FROZEN exchange_rate_used (a rate in the body is ignored — there is no field). A changed transaction_date re-resolves the month (creating the target, deleting the emptied source). 400 derived_transaction for a non-manual row; 404 for another household's id. Set transaction_type unplanned_essential or extraordinary + refund_expected true + refund_percentage (e.g. 30) to spawn an expected refund (see 17 · Refunds; on any other class the flag is 400 invalid_request); the response echoes refund_expected / refund_percentage. With a refund, optional refund_notes (250 characters) lands on the derived Refund (the LEDGER-4 note, taken at entry): on PUT, null leaves it alone, blank clears; the response echoes it. Optional notes (≤ 250 characters, trimmed; blank = null; longer = 400 invalid_request) — the row's \"why\", shown as an icon on the month page.",
+            "description": "200 with the row; amounts re-derived from the FROZEN exchange_rate_used (a rate in the body is ignored — there is no field). A changed transaction_date re-resolves the month (creating the target, deleting the emptied source). 400 derived_transaction for a non-manual row; 404 for another household's id. Set transaction_type unplanned_essential or extraordinary + refund_expected true + refund_amount (e.g. 15000 — in the transaction's currency, ≤ original_amount) to spawn an expected refund (see 17 · Refunds; on any other class the flag is 400 invalid_request); the response echoes refund_expected / refund_amount / refund_status. With a refund, optional refund_notes (250 characters) lands on the derived Refund (the LEDGER-4 note, taken at entry): on PUT, null leaves it alone, blank clears; the response echoes it. Optional notes (≤ 250 characters, trimmed; blank = null; longer = 400 invalid_request) — the row's \"why\", shown as an icon on the month page.",
             "header": [
               {
                 "key": "Content-Type",
@@ -3692,7 +3692,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"payee\": \"AutoMercado\",\n  \"bank_id\": \"{{bankId}}\",\n  \"payment_method\": \"credit_card\",\n  \"original_amount\": 100000,\n  \"currency\": \"CRC\",\n  \"transaction_date\": \"2026-07-10\",\n  \"category_id\": \"{{categoryId}}\",\n  \"transaction_type\": \"budgeted\",\n  \"refund_expected\": false,\n  \"refund_percentage\": null,\n  \"notes\": \"Weekly shop — stocking up before the trip\"\n}"
+              "raw": "{\n  \"payee\": \"AutoMercado\",\n  \"bank_id\": \"{{bankId}}\",\n  \"payment_method\": \"credit_card\",\n  \"original_amount\": 100000,\n  \"currency\": \"CRC\",\n  \"transaction_date\": \"2026-07-10\",\n  \"category_id\": \"{{categoryId}}\",\n  \"transaction_type\": \"budgeted\",\n  \"refund_expected\": false,\n  \"refund_amount\": null,\n  \"notes\": \"Weekly shop — stocking up before the trip\"\n}"
             }
           },
           "event": [
@@ -3741,7 +3741,7 @@
     },
     {
       "name": "17 · Refunds",
-      "description": "LEDGER-3 (app slice P5b, ADR-V007/V014, ADR-V025): expected refunds derived from unplanned_essential or extraordinary transactions flagged refund_expected + refund_percentage (see 16 · Transactions). Amounts = percentage × the frozen amounts; the refund follows every edit and dies with its transaction. The ONLY directly editable field is status: received books a derived inflow transaction (same amounts, the source's frozen rate/bank/category, source refund_realization) and links it; pending removes the inflow. The flip is a conditional update — concurrent flips book exactly one inflow (loser: 409 refund_status_conflict). Uniform 404 for another household's id.",
+      "description": "LEDGER-3 (app slice P5b, ADR-V007/V014, ADR-V025): expected refunds derived from unplanned_essential or extraordinary transactions flagged refund_expected + refund_amount (see 16 · Transactions; ADR-V026 — the amount is stored, the other currency at the frozen rate; percentage in the response is computed from the amounts against the purchase, never stored). A pending refund follows every edit and dies with its transaction; a received one is locked (409 refund_status_conflict on the purchase's PUT/DELETE) until it is put back to pending. The ONLY directly editable field is status: received books a derived inflow transaction (same amounts, the source's frozen rate/bank/category, source refund_realization) and links it; pending removes the inflow. The flip is a conditional update — concurrent flips book exactly one inflow (loser: 409 refund_status_conflict). Uniform 404 for another household's id.",
       "item": [
         {
           "name": "List month refunds",
@@ -5310,7 +5310,7 @@
                 "confirm"
               ]
             },
-            "description": "200 { transaction_id, month_id, amount_crc, amount_usd, remembered } — books the transaction (source = email) through the ordinary create and flips the draft — linking the card the voucher printed (card_number + card_brand), created as BRAND-1234 on first sight (CARDS-1). category_id + transaction_class (budgeted|extraordinary|unplanned_essential) are required; payee / bank_id / payment_method / original_amount / currency / transaction_date override the parsed values (the UI opens only the blanks); remember_merchant creates a merchant rule (never overwrites); refund_expected + refund_percentage (0 < p ≤ 100) spawn the expected refund exactly like manual entry — on unplanned_essential or extraordinary; on budgeted the flag is 400 invalid_request (ADR-V025). 400 invalid_request (incl. a bad percentage) / exchange_rate_unavailable (nothing written, draft stays pending); 409 not_pending (already confirmed/discarded, or lost a concurrent confirm — its transaction rolled back); 404 unknown/foreign. Optional notes (≤ 250 characters) land on the booked transaction.",
+            "description": "200 { transaction_id, month_id, amount_crc, amount_usd, remembered } — books the transaction (source = email) through the ordinary create and flips the draft — linking the card the voucher printed (card_number + card_brand), created as BRAND-1234 on first sight (CARDS-1). category_id + transaction_class (budgeted|extraordinary|unplanned_essential) are required; payee / bank_id / payment_method / original_amount / currency / transaction_date override the parsed values (the UI opens only the blanks); remember_merchant creates a merchant rule (never overwrites); refund_expected + refund_amount (in the booked currency, 0 < amount ≤ the purchase — ADR-V026) spawn the expected refund exactly like manual entry — on unplanned_essential or extraordinary; on budgeted the flag is 400 invalid_request (ADR-V025). 400 invalid_request (incl. a bad refund_amount) / exchange_rate_unavailable (nothing written, draft stays pending); 409 not_pending (already confirmed/discarded, or lost a concurrent confirm — its transaction rolled back); 404 unknown/foreign. Optional notes (≤ 250 characters) land on the booked transaction.",
             "header": [
               {
                 "key": "Content-Type",
@@ -5319,7 +5319,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"category_id\": \"{{categoryId}}\",\n  \"transaction_class\": \"budgeted\",\n  \"remember_merchant\": true,\n  \"refund_expected\": false,\n  \"refund_percentage\": null,\n  \"notes\": \"Team lunch, split later\"\n}"
+              "raw": "{\n  \"category_id\": \"{{categoryId}}\",\n  \"transaction_class\": \"budgeted\",\n  \"remember_merchant\": true,\n  \"refund_expected\": false,\n  \"refund_amount\": null,\n  \"notes\": \"Team lunch, split later\"\n}"
             }
           },
           "event": [
