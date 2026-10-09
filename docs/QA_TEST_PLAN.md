@@ -2209,7 +2209,7 @@ When I POST the export with month_id of another household
 Then 404
 ```
 **Walkthrough:** **Reports** → **Export CSV** → **Expected:** the green notice with the row count and the
-browser download (on Android/Windows: the OS share sheet). Open the file → **Expected:** the header line
+browser download (on Android: the OS share sheet; on Windows: a Save As dialog, #204). Open the file → **Expected:** the header line
 exactly as above; one line per transaction incl. the inflow (the export is the whole period, not just
 spending); `exchange_rate_used` with four decimals; payees containing commas/quotes are quoted. **Months**
 → June → **Export CSV** → **Expected:** the same download and the notice under the header. Via Postman
@@ -2271,7 +2271,7 @@ Given the June data above, in month mode, with "Show in" on both sides and the c
 When I press PDF beside Export CSV
 Then a dialog offers "Include the transactions" (ticked) and says the amounts, charts and language it will use
 When I press Download
-Then a file "report-<first day>_<last day>.pdf" downloads (Android/Windows: the share sheet opens) and the page shows "PDF ready"
+Then a file "report-<first day>_<last day>.pdf" downloads (Android: the share sheet opens; Windows: a Save As dialog) and the page shows "PDF ready"
 And the PDF opens with the household, "June 2026", the period, the generated time and the buy/sell rate used
 And it has the four tiles with the same figures as the screen, the pace chart, the donuts, month by month, the method bars and the three category tables with the same budgets and red/green
 And its last pages are landscape and list every row the CSV export lists for June, in the same order, with readable class, method and source labels
@@ -2286,7 +2286,7 @@ Then there is no pace, no income or budget card and no month by month, and the t
 ```
 **Walkthrough:** **Reports** (month mode) → press **PDF** → **Expected:** the dialog with the
 transactions box ticked and three lines: amounts "₡ and $", charts "₡", language "English". Press
-**Download** → **Expected:** a file `report-2026-05-28_2026-06-24.pdf` (on Android/Windows the share sheet)
+**Download** → **Expected:** a file `report-2026-05-28_2026-06-24.pdf` (on Android the share sheet, on Windows a Save As dialog)
 and "PDF ready" on the page. Open it → **Expected:** the ¿Y el vuelto? lockup and the household on every
 page; page 1 with "Spending report", "June 2026", the period and "Exchange rate: buy … · sell … per $1";
 the four tiles matching the screen (a pair prints ₡ on one line and $ under it); the pace card; then the
@@ -2698,12 +2698,16 @@ Then it launches in Spanish
 Given I am the owner, signed in on desktop
 When I request the data export and click Download
 Then the file is offered through the platform share/save UI, not a dead WebView navigation
+And on Windows that is a Save As dialog starting in Downloads, not the share flyout (#204); Cancel saves nothing
 ```
 **Walkthrough**
 1. **Household** → **Data** → **Export my data** → wait for the ready alert → **Download**.
-2. **Expected:** the **Windows share flyout** opens with the JSON bundle staged (server-named
-   `…-<id>.json`); the app page is not navigated away. Save it and open — valid JSON, no secrets
-   (spot-check: no token hashes).
+2. **Expected:** a **Save As** dialog opens in **Downloads** with the server's name (`…-<id>.json`) and the
+   JSON file type (#204 — no longer the share flyout); the app page is not navigated away. Save it and open —
+   valid JSON, no secrets (spot-check: no token hashes).
+3. **Reports → Export CSV** and **Reports → PDF → Download** → **Expected:** the same Save As dialog, the type
+   CSV / PDF; pick another folder → the file lands there. Run one again and **Cancel** → **Expected:** nothing is
+   saved and no error shows.
 
 ### QA-DSK-11 — Billing: checkout leaves, summary refreshes on return 🟠 (Desktop)
 **Gherkin**
@@ -4971,4 +4975,5 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   Unplanned column (#211). QA-DASH-03: the Show in switch on the month page, Months and Budget (#207). Income moved
   from Settings to the Budget page (#203): QA-BUD-01, QA-INC-01 and every "Settings → Manage income" step now read
   "Budget → Edit income". New **QA-CAT-08**, a half-hidden card number asked about once and remembered (#210).
+  QA-DSK-10 and the CSV/PDF download steps: Windows saves through a Save As dialog, not the share flyout (#204).
   221 → 223 cases.

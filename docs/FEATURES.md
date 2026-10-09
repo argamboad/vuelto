@@ -369,7 +369,7 @@ Flow:
 2. **Download** calls `POST /api/reports/pdf` with the shown period (`month_id` or `from`+`to`), the
    "show in" side, the chart currency, the appendix choice, the app language and the device date. The API
    renders the PDF (QuestPDF) and returns the CSV's 15-minute signed link; the launcher downloads it
-   (native shells: the share sheet).
+   (native shells: the share sheet on a phone and the Mac, a Save As dialog on Windows — #204).
 
 Notes: the PDF is built from the same figures the page reads — tiles, pace, the donuts, month by month, the
 method bars, the income by member table (INCOME-2), the category tables — plus a landscape appendix of exactly the CSV export's rows. No rate

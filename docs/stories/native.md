@@ -579,3 +579,28 @@ don't automate (7) before the app is verified working (6); distribution (8–11)
   other native-only features are **beyond parity** and explicitly out of scope here (own future epics).
 - **Web-first still holds** — new features land + prove on web first (golden rule 5); this epic keeps
   native *caught up*, it doesn't invert the order.
+
+### NATIVE-12 — Windows saves a download through Save As *(owner request, 2026-10-09 · #204)* ✅
+
+**As** someone using the Windows app, **I want** a PDF or CSV download to ask where to save it, **so that** it lands in
+the folder I choose instead of a share flyout made for phones.
+
+**Context / notes:** `ShareFileDownloadLauncher` keeps the share sheet on Android, iOS and the Mac; on Windows it opens
+the WinUI `FileSavePicker` (parented to the app's window — an unpackaged app must pass its HWND), starting in Downloads,
+the server's filename suggested and its extension the only file type; Cancel saves nothing. The same launcher serves
+the CSV export, the report PDF and the data export. Building it surfaced a pre-existing break: the Windows target
+failed with CS0103 `LocalPorts` because WinUI's `XamlPreCompile` compiles before the platform's `GenerateLocalPorts`
+runs; `Vuelto.Maui.csproj` now runs that target first (the root fix is perezosoft-platform#379, in its `Directory.Build.props`).
+Verified by building the Windows and Android targets; the dialog itself is a desktop QA step (QA-DSK-10) — the CI
+Windows leg runs only on request (*Run workflow → devices*, billed).
+
+```gherkin
+Scenario: Save a report PDF on Windows
+  Given the Windows app on Reports
+  When I download the PDF
+  Then a Save As dialog opens in Downloads, suggesting report-<from>_<to>.pdf
+  When I pick a folder and save
+  Then the PDF is there
+  When I download again and cancel
+  Then nothing is saved and no error shows
+```
