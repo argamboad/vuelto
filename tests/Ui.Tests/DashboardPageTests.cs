@@ -61,6 +61,7 @@ public class DashboardPageTests : ComponentTestBase
     {
         // Spent 21% of income with 60% of the month gone, and a forecast still in the black.
         var onTrack = await DashboardAsync(MidMonth);
+        Assert.Equal("/refunds", onTrack.Find("[data-testid='dash-refunds-link']").GetAttribute("href")); // #208: refunds are expected this month
         Assert.Equal("Dash_Verdict_OnTrack", onTrack.Find("[data-testid='dash-verdict-state']").TextContent.Trim());
         Assert.Equal("good", onTrack.Find("[data-testid='dash-verdict']").GetAttribute("data-tone"));
 

@@ -502,6 +502,25 @@
   <data name="Refund_TotalReceived" xml:space="preserve"><value>Received</value></data>
   <data name="Refund_TotalPending" xml:space="preserve"><value>Pending</value></data>
   <data name="Refund_TotalExpected" xml:space="preserve"><value>of</value></data>
+  <data name="Refunds_Title" xml:space="preserve"><value>Refunds</value></data>
+  <data name="Refunds_Subtitle" xml:space="preserve"><value>Everything you expect back, across months — the oldest still out first.</value></data>
+  <data name="Refunds_Status" xml:space="preserve"><value>Show</value></data>
+  <data name="Refunds_All" xml:space="preserve"><value>All</value></data>
+  <data name="Refunds_PayeeHint" xml:space="preserve"><value>Search a payee</value></data>
+  <data name="Refunds_GroupBy" xml:space="preserve"><value>Group by</value></data>
+  <data name="Refunds_GroupNone" xml:space="preserve"><value>None</value></data>
+  <data name="Refunds_Month" xml:space="preserve"><value>Month</value></data>
+  <data name="Refunds_None" xml:space="preserve"><value>No refunds match.</value></data>
+  <data name="Refunds_Truncated" xml:space="preserve"><value>Showing the first {0} — narrow the filter to see the rest. The totals cover them all.</value></data>
+  <data name="Refunds_Select" xml:space="preserve"><value>Select</value></data>
+  <data name="Refunds_SelectFor" xml:space="preserve"><value>Select {0}</value></data>
+  <data name="Refunds_Selected" xml:space="preserve"><value>{0} selected</value></data>
+  <data name="Refunds_MarkSelected" xml:space="preserve"><value>Mark them received</value></data>
+  <data name="Refunds_MarkedReceived" xml:space="preserve"><value>{0} refund(s) marked received.</value></data>
+  <data name="Refunds_MarkedSome" xml:space="preserve"><value>{0} marked received; these stayed pending: {1}.</value></data>
+  <data name="Refunds_PendingFor" xml:space="preserve"><value>pending {0} days</value></data>
+  <data name="Refunds_LoadError" xml:space="preserve"><value>Couldn't load the refunds. Try again.</value></data>
+  <data name="Refunds_SeeAll" xml:space="preserve"><value>See all refunds</value></data>
   <data name="Refund_Pending" xml:space="preserve"><value>Pending</value></data>
   <data name="Refund_Received" xml:space="preserve"><value>Received</value></data>
   <data name="Refund_MarkReceived" xml:space="preserve"><value>Mark received</value></data>

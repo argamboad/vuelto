@@ -270,6 +270,13 @@ Flow:
    its purchase's month, showing the received date and linking the inflow's month. Flipping back
    removes the inflow (and its month if emptied).
 
+3. **The Refunds page** (`/refunds`, #208) — every refund across months, linked from a month's refunds ("See all
+   refunds") and from the dashboard's forecast step. `GET /api/refunds?status=&payee=&from=&to=` lists them oldest
+   purchase first with their month and "pending N days", plus the totals of every match. The page filters by status
+   (Pending by default), payee and purchase dates; groups by payee, status or month with each group's received and
+   pending; and marks several pending refunds received at once on one date — each through its own guarded flip and
+   inflow. The status and grouping are remembered on the device.
+
 Notes: refunds are informational — never in expenses or balance; the realized inflow is what
 counts as income. The flip is a conditional update: concurrent flips create **exactly one** inflow
 (the loser gets 409 `refund_status_conflict`).

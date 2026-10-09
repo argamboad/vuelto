@@ -45,6 +45,56 @@ public sealed class RefundHandler(
     private Task<Transaction?> SourceAsync(Refund refund, CancellationToken cancellationToken) =>
         transactions.Query().FirstOrDefaultAsync(t => t.Id == refund.TransactionId, cancellationToken);
 
+    /// <summary>The most rows the cross-month list returns; a household past it narrows the filter (the totals still cover all).</summary>
+    public const int ListCap = 1000;
+
+    /// <summary>
+    /// #208: every refund of the household across months, oldest purchase first (the ones to chase lead), filtered by
+    /// status, payee fragment and purchase-date range, with the purchase's budget month, the days a pending refund has
+    /// been out, and the totals of everything that matched. Tenant-scoped through <c>Query()</c>.
+    /// </summary>
+    public async Task<(RefundListResponse? List, ErrorResponse? Error)> ListAsync(RefundQuery query, CancellationToken cancellationToken)
+    {
+        string? status = null;
+        if (!string.IsNullOrWhiteSpace(query.Status) && (status = RefundStatuses.Normalize(query.Status)) is null)
+            return (null, new ErrorResponse("invalid_request", "status must be pending or received"));
+        if (query.From is { } from && query.To is { } to && from > to)
+            return (null, new ErrorResponse("invalid_request", "from must be on or before to"));
+
+        var q = refunds.Query();
+        if (status is not null) q = q.Where(r => r.Status == status);
+        if (!string.IsNullOrWhiteSpace(query.Payee))
+        {
+            var fragment = "%" + query.Payee.Trim().Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_") + "%";
+            q = q.Where(r => EF.Functions.ILike(r.Payee, fragment));
+        }
+        if (query.From is { } f) q = q.Where(r => r.TransactionDate >= f);
+        if (query.To is { } t) q = q.Where(r => r.TransactionDate <= t);
+
+        var all = await q.OrderBy(r => r.TransactionDate).ThenBy(r => r.CreatedAt).ToListAsync(cancellationToken);
+        var rows = all.Take(ListCap).ToList();
+
+        var inflowMonths = await InflowMonthsAsync(rows, cancellationToken);
+        var sourceIds = rows.Select(r => r.TransactionId).ToList();
+        var sources = await transactions.Query().Where(x => sourceIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, cancellationToken);
+        var monthIds = rows.Select(r => r.MonthId).Distinct().ToList();
+        var monthsById = await months.QueryMonths().Where(m => monthIds.Contains(m.Id))
+            .Select(m => new { m.Id, m.Year, m.MonthNumber }).ToDictionaryAsync(m => m.Id, cancellationToken);
+        var today = DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime);
+
+        var items = rows.Select(r =>
+        {
+            var month = monthsById.GetValueOrDefault(r.MonthId);
+            return RefundResponse.From(r, r.InflowTransactionId is { } i ? inflowMonths.GetValueOrDefault(i) : null, sources.GetValueOrDefault(r.TransactionId)) with
+            {
+                MonthYear = month?.Year,
+                MonthNumber = month?.MonthNumber,
+                PendingDays = r.Status == RefundStatuses.Pending ? Math.Max(0, today.DayNumber - r.TransactionDate.DayNumber) : null,
+            };
+        }).ToList();
+        return (new RefundListResponse(items, RefundTotalsResponse.From(RefundTotals.Calculate(all)), all.Count > ListCap), null);
+    }
+
     /// <summary>Where each realized inflow lives — a received refund may be booked in a later month (ADR-V017).</summary>
     private async Task<Dictionary<Guid, Guid?>> InflowMonthsAsync(IEnumerable<Refund> rows, CancellationToken cancellationToken)
     {

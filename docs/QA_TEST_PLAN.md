@@ -1858,8 +1858,8 @@ Postman (**22 · Review queue → Clear the review queue**) with `confirm: false
 Given an unplanned essential expecting a 50% refund
 When I open the month page and Edit the refund
 Then I can set Refund notes (case number and all — there is no separate Case No. field or column since 2026-09-14), and blank clears them (the transaction form asks for the same notes at entry — QA-LED-05)
-When I change the transaction's amount
-Then the refund's ₡/$ re-derive and the notes survive
+When I change the refund's amount in the transaction form
+Then the refund's ₡/$ change and the notes survive
 When I untick "refund expected" on the transaction
 Then the refund row is gone, and with it the notes
 And PUT /api/refunds/{id}/details with 251-character notes is 400; an unknown id is 404
@@ -1868,10 +1868,39 @@ And PUT /api/refunds/{id}/details with 251-character notes is 400; an unknown id
 refunds** → **Expected:** a row with no note icon and no Case No. column. **Edit** → **Refund notes**
 `CASE-2026-4471, lent to Diego` → **Save** → **Expected:** a note icon beside the payee whose hover text is the
 note (on a phone the % column hides and the payee's sub-line reads "50%"). **Edit the transaction** → double the
-amount → **Save** → month page → **Expected:** the refund's amounts doubled, the note untouched. **Edit the
+refund's amount → **Save** → month page → **Expected:** the refund's amounts doubled, the note untouched. **Edit the
 refund** → clear it → **Save** → **Expected:** no icon. **Edit the transaction** → untick refund expected →
 **Save** → **Expected:** the refund row is gone. Via Postman (**17 · Refunds → Set refund notes**) with
 251-character `notes` → **Expected:** 400 naming `notes`.
+
+### QA-LED-09 — Every refund across months: filter, group, and mark several received at once 🟠 (Web / API)
+**Gherkin**
+```gherkin
+Given refunds in two months — one received, two pending
+When I open Refunds (from a month's "See all refunds", or the dashboard's link under the forecast)
+Then the pending ones are listed oldest purchase first, each with its month and "pending N days"
+And the header reads Received · Pending · of expected for what is listed
+When I pick All, type part of a payee, or set a From / To date
+Then the list and the totals follow; Group by Payee / Status / Month shows one group each with its received and pending
+When I tick two pending refunds, set the received date and click "Mark them received"
+Then each books its own inflow on that day, the list reloads, and a refund that could not be marked is named
+When I come back later
+Then the page opens on the status and grouping I left it on
+```
+**Walkthrough:** with refunds in June (one **received**) and July (one **pending**) and a second pending one in June,
+open a month → **Expected refunds** → **See all refunds** → **Expected:** the **Refunds** page on **Pending**: the two
+pending ones, June's first, each with its month (a link to that month) and "pending N days"; the header shows
+**Received** ₡0.00 · **Pending** <their sum> · **of** <the same>. **All** → **Expected:** the received one too, the
+totals now include it. Type part of a payee in **Payee** (any case) → **Expected:** only matching rows. **From**
+the first of July → **Expected:** only July's. Clear the filters, **Group by → Payee** → **Expected:** one header
+per payee (case ignored) with its received and pending; **Month** → one per month, in order; **Status** → Pending
+then Received. Tick both pending refunds → **Expected:** a bar "2 selected" with a **Received on** date and **Mark
+them received**; set a date → click → **Expected:** "2 refund(s) marked received.", both now Received; each month
+page shows its inflow on that date. Repeat with a received date *before* one purchase → **Expected:** "1 marked
+received; these stayed pending: <payee>." Reload the page → **Expected:** it opens on the status and grouping you
+left. Postman **17 · Refunds → List all refunds** with `status=maybe` → **Expected:** 400 `invalid_request`; from a
+second household → **Expected:** none of the first household's refunds. The dashboard shows **See all refunds**
+under the forecast only when refunds are expected.
 
 ## 10i. Web — Budget lines: fixed & variable (app slice EXPENSES-1) 🟠
 
@@ -3850,7 +3879,7 @@ Then every web gate runs, and only when all pass the Render hook fires and the v
 | Envelopes (app ENV-1) | ENV-01..02 | `GET/POST /api/envelopes`, `PUT /api/envelopes/{id}` (400 `invalid_request`; 409 `envelope_exists` / `envelope_exists_inactive` + `existing_id` + `existing_name`; uniform 404) |
 | Income lines + month income rows + income by member (app INCOME-1/2 · ADR-V023) | INC-01..04 (04: `Core.Tests` `IncomeByMemberTests`, `Api.Tests` `ReportSliceTests` / `ReportPdfModelBuilderTests` / `ReportPdfRendererTests`, `Ui.Tests` `ReportsPageTests`) (01–02 ⚙️ E2E `IncomeJourneyTests`) + `Core.Tests` (`IncomeSnapshotTests`, `IncomeCalculatorTests`) + `Api.Tests` (`IncomeSliceTests`, `IncomeEndpointTests`, `IncomeMigrationTests` on real Postgres, `ArchitectureTests.LegacyIncomeColumns_AreReadOrWrittenByNothing`) + `Ui.Tests` (`IncomesPageTests`, `LedgerPagesTests`) | `GET/POST /api/incomes`, `PUT /api/incomes/{id}`, `PUT /api/incomes/order` (400 `invalid_request`; 409 `income_exists` / `income_exists_inactive` + `existing_id` + `existing_name`; uniform 404); `GET /api/months/{id}` → `income_rows`; `PUT /api/months/{id}/income` `{rows:[…]}`; `tools/check-income-parity.sql` |
 | Months & transactions (app LEDGER-1/2) | LED-01..04 + `Api.Tests` (`LedgerSliceTests`) | `GET /api/months`, `GET /api/months/resolve?date=`, `GET /api/months/{id}`, `PUT /api/months/{id}/income`, `GET /api/months/{id}/transactions`; `POST /api/transactions`, `GET/PUT/DELETE /api/transactions/{id}` (400 `invalid_request` / `exchange_rate_unavailable` / `derived_transaction`; uniform 404) |
-| Expected refunds & realization (app LEDGER-3) | LED-05..06 + `Api.Tests` (`RefundSliceTests`, incl. the two-context concurrency proof) | `refund_expected` / `refund_amount` on `POST/PUT /api/transactions` (409 `refund_status_conflict` on a received refund's purchase — ADR-V026); `GET /api/months/{id}/refunds`; `PUT /api/refunds/{id}` (200; 400 `invalid_request`; 404; 409 `refund_status_conflict`) |
+| Expected refunds & realization (app LEDGER-3, LEDGER-5..8) | LED-05..06, LED-08..09 + `Api.Tests` (`RefundSliceTests`, incl. the two-context concurrency proof) | `refund_expected` / `refund_amount` on `POST/PUT /api/transactions` (409 `refund_status_conflict` on a received refund's purchase — ADR-V026); `GET /api/months/{id}/refunds` (`{ refunds, totals }`); `GET /api/refunds` (400 on a bad status/range); `PUT /api/refunds/{id}` (200; 400 `invalid_request`; 404; 409 `refund_status_conflict`) |
 | Budget lines: fixed + variable (app EXPENSES-1) | EXP-01..03 | `GET/POST /api/expenses/{fixed\|variable}`, `PUT …/{id}`, `PUT …/order` (400 `invalid_request`; 409 `expense_exists` / `expense_exists_inactive` + `existing_id` + `existing_name`; uniform 404) |
 | Dashboard (app DASH-1) | DASH-01..02 + `Core.Tests` (`DashboardSummaryServiceTests`, 45 donor cases) + `Api.Tests` (`DashboardSliceTests`) | `GET /api/months/{id}/summary` (200 `{month, exchange_rate, rate_source, rate_as_of, rate_unavailable, summary}`; 401 anonymous; uniform 404) |
 | Reports: category analysis + CSV export + PDF + email + appendix columns (app REPORTS-1/2/7/8/9) | REP-01..02, REP-05..07 + `Core.Tests` (`CategoryAnalysisCalculatorTests`, `TransactionCsvWriterTests`) + `Api.Tests` (`ReportSliceTests`, `ReportPdfChartsTests`, `ReportPdfModelBuilderTests`, `ReportPdfSliceTests`) + E2E `ReportPdfJourneyTests` | `GET /api/reports/category-analysis`, `POST /api/reports/transactions/export`, `POST /api/reports/pdf`, `POST /api/reports/pdf/email` (`month_id` \| `from`+`to`; 400 `period_required` / `period_ambiguous` / `period_incomplete` / `period_invalid`; uniform 404; export → signed `download_url` served by `GET /api/files/{token}`) |
@@ -4054,6 +4083,7 @@ Record one row per executed case. Build = API/web commit SHA (`git rev-parse --s
 | QA-LED-06 | Web/API | | | | | |
 | QA-LED-07 | Web/API | | | | | |
 | QA-LED-08 | Web/API | | | | | |
+| QA-LED-09 | Web/API | | | | | |
 | QA-EMAIL-07 | Web/API | | | | | |
 | QA-EXP-01 | Web/API | | | | | |
 | QA-EXP-02 | Web/API | | | | | |
@@ -4897,3 +4927,7 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   platform these were first recorded Blocked while the findings were open; every remediation had landed here
   before the cases did, so they arrive unseeded. QA-ADV-15 now counts seats relative to the cap (T47).
   204 → 221 cases.
+- **Updated 2026-10-09 (owner feedback, milestone "Owner feedback · 2026-10")** — refunds: QA-LED-05 covers a
+  discretionary purchase (#201) and a refund typed as ₡ or % and stored as its amount (#202); QA-LED-06 the
+  received / pending totals (#206) and the lock on a received refund (#202); QA-LED-08 no longer expects a purchase
+  edit to re-derive a refund; new **QA-LED-09**, the cross-month Refunds page (#208). 221 → 222 cases.

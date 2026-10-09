@@ -157,7 +157,11 @@ public record RefundResponse(
     [property: JsonPropertyName("inflow_transaction_id")] Guid? InflowTransactionId,
     [property: JsonPropertyName("received_date")] DateOnly? ReceivedDate = null,
     [property: JsonPropertyName("inflow_month_id")] Guid? InflowMonthId = null,
-    [property: JsonPropertyName("notes")] string? Notes = null)
+    [property: JsonPropertyName("notes")] string? Notes = null,
+    // #208, on the cross-month list only: the purchase's budget month, and how long a pending refund has been out.
+    [property: JsonPropertyName("month_year")] int? MonthYear = null,
+    [property: JsonPropertyName("month_number")] int? MonthNumber = null,
+    [property: JsonPropertyName("pending_days")] int? PendingDays = null)
 {
     /// <param name="inflowMonthId">The month the realized inflow lives in (ADR-V017) — null when pending or unknown to the caller.</param>
     /// <param name="source">The refund's transaction, for the computed percentage (null leaves it null).</param>
@@ -176,7 +180,15 @@ public record RefundResponse(
 /// <summary>#206: a list of refunds with what it adds up to — received, still pending, and expected (their sum).</summary>
 public record RefundListResponse(
     [property: JsonPropertyName("refunds")] IReadOnlyList<RefundResponse> Refunds,
-    [property: JsonPropertyName("totals")] RefundTotalsResponse Totals);
+    [property: JsonPropertyName("totals")] RefundTotalsResponse Totals,
+    // #208: true when the cross-month list stopped at its cap — narrow the filter (the totals still cover every match).
+    [property: JsonPropertyName("truncated")] bool Truncated = false);
+
+/// <summary>
+/// #208: which refunds <c>GET /api/refunds</c> returns — <c>status</c> pending | received (absent = both), a payee
+/// fragment (case-insensitive, trimmed), and an inclusive purchase-date range.
+/// </summary>
+public record RefundQuery(string? Status = null, string? Payee = null, DateOnly? From = null, DateOnly? To = null);
 
 public record RefundTotalsResponse(
     [property: JsonPropertyName("pending")] MoneyPairDto Pending,

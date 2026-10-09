@@ -60,6 +60,12 @@ public class RefundEndpointTests(IntegrationTestFactory factory)
         Assert.Equal(HttpStatusCode.BadRequest, derivedEdit.StatusCode);
         Assert.Equal("derived_transaction", (await derivedEdit.Content.ReadFromJsonAsync<ErrorDto>())!.Error);
 
+        // #208: the cross-month list, with its filters on the query string.
+        var all = await client.GetAsync("/api/refunds?status=received&payee=hosp");
+        Assert.Equal(HttpStatusCode.OK, all.StatusCode);
+        Assert.Single((await all.Content.ReadFromJsonAsync<RefundListDto>())!.Refunds);
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync("/api/refunds?status=maybe")).StatusCode);
+
         var invalid = await client.PutAsJsonAsync($"/api/refunds/{refund.Id}", new { status = "maybe" });
         Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
 

@@ -228,6 +228,7 @@
         <section class="month-card ledger">
             <div class="ledger-head">
                 <h2>@Localizer["Month_Refunds"] <span class="count-pill">@_refunds.Count</span></h2>
+                <a class="refunds-all" href="/refunds" data-testid="month-refunds-all">@Localizer["Refunds_SeeAll"]</a>
                 @if (_refundTotals is { } totals && _refunds.Count > 0)
                 {
                     @* #206: what came in and what is still out, in the display currency; expected is their sum. *@

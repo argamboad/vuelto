@@ -427,3 +427,9 @@
 .refund-totals-expected {
     opacity: .8;
 }
+
+/* #208: the way to every refund, across months. */
+.refunds-all {
+    font-size: .8125rem;
+    margin-left: auto;
+}

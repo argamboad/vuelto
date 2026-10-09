@@ -3744,6 +3744,60 @@
       "description": "LEDGER-3 (app slice P5b, ADR-V007/V014, ADR-V025): expected refunds derived from unplanned_essential or extraordinary transactions flagged refund_expected + refund_amount (see 16 · Transactions; ADR-V026 — the amount is stored, the other currency at the frozen rate; percentage in the response is computed from the amounts against the purchase, never stored). A pending refund follows every edit and dies with its transaction; a received one is locked (409 refund_status_conflict on the purchase's PUT/DELETE) until it is put back to pending. The ONLY directly editable field is status: received books a derived inflow transaction (same amounts, the source's frozen rate/bank/category, source refund_realization) and links it; pending removes the inflow. The flip is a conditional update — concurrent flips book exactly one inflow (loser: 409 refund_status_conflict). Uniform 404 for another household's id.",
       "item": [
         {
+          "name": "List all refunds",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/refunds?status=pending",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "refunds"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "pending",
+                  "description": "pending | received; omit for both. Anything else → 400 invalid_request."
+                },
+                {
+                  "key": "payee",
+                  "value": "",
+                  "description": "A payee fragment — case-insensitive, trimmed, contains.",
+                  "disabled": true
+                },
+                {
+                  "key": "from",
+                  "value": "2026-01-01",
+                  "description": "Purchase date on or after (yyyy-MM-dd).",
+                  "disabled": true
+                },
+                {
+                  "key": "to",
+                  "value": "2026-12-31",
+                  "description": "Purchase date on or before (yyyy-MM-dd); before from → 400 invalid_request.",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "#208: every refund of the household across months, oldest purchase first. 200 { refunds[], totals, truncated } — each refund as in List month refunds plus month_year / month_number (its purchase's budget month) and pending_days (days since the purchase, pending only); totals = { pending, received, expected } over EVERY match; truncated = true when the list stopped at 1000 rows (narrow the filter). Any household member. 400 invalid_request for a bad status or a backwards range."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"refunds + totals\", () => { const b = pm.response.json(); pm.expect(b).to.have.property('refunds'); pm.expect(b).to.have.property('totals'); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
           "name": "List month refunds",
           "request": {
             "method": "GET",

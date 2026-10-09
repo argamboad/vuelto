@@ -88,6 +88,7 @@ public class RefundPagesTests : ComponentTestBase
         Assert.Contains("6,170.00", cut.Find("[data-testid='month-refund-received']").TextContent);
         Assert.Contains("15,000.00", cut.Find("[data-testid='month-refund-pending']").TextContent);
         Assert.Contains("21,170.00", cut.Find("[data-testid='month-refund-expected']").TextContent);
+        Assert.Equal("/refunds", cut.Find("[data-testid='month-refunds-all']").GetAttribute("href")); // #208
     }
 
     [Fact]

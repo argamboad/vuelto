@@ -117,6 +117,11 @@
                     {
                         <p class="dash-overplan" data-testid="dash-wf-overplan">@Localizer["Dash_WfOverPlan"]</p>
                     }
+                    @if (s.RefundsTotal.Crc != 0 || s.RefundsTotal.Usd != 0)
+                    {
+                        @* #208: the refundable figure on the forecast step leads to the refunds themselves. *@
+                        <p class="dash-refunds-link"><a href="/refunds" data-testid="dash-refunds-link">@Localizer["Refunds_SeeAll"]</a></p>
+                    }
                 </div>
 
                 @* ---------------------------------------------------------------- envelopes, only when due

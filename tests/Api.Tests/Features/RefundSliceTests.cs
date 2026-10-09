@@ -594,6 +594,70 @@ public class RefundSliceTests(PostgresFixture fixture) : PostgresTestBase(fixtur
         Assert.Null(await c.Refunds.ListForMonthAsync(Guid.CreateVersion7(), default));
     }
 
+    // ---- #208: every refund of the household, across months ----
+
+    private async Task<Ctx> TwoMonthsOfRefundsAsync()
+    {
+        // Hospital, June 5, ₡25,000 — received; Pharmacy, July 10, ₡10,000 — pending. The clock reads September 3.
+        var c = await ContextAsync();
+        await c.Transactions.CreateAsync(Unplanned(c, refund: true, refundAmount: 25_000m), default);
+        await c.Refunds.SetStatusAsync((await TheRefund(c)).Id, new("received", Jun20), default);
+        await c.Transactions.CreateAsync(Unplanned(c, refund: true, refundAmount: 10_000m, amount: 40_000m, type: "extraordinary")
+            with { Payee = "Farmacia Fischel", TransactionDate = new DateOnly(2026, 7, 10) }, default);
+        c.Db.ChangeTracker.Clear();
+        return c;
+    }
+
+    [Fact]
+    public async Task List_AcrossMonths_OldestFirst_WithTheirMonth_PendingDays_AndTotals()
+    {
+        var c = await TwoMonthsOfRefundsAsync();
+
+        var (list, error) = await c.Refunds.ListAsync(new RefundQuery(), default);
+
+        Assert.Null(error);
+        Assert.Equal(["Hospital", "Farmacia Fischel"], list!.Refunds.Select(r => r.Payee));
+        var (hospital, pharmacy) = (list.Refunds[0], list.Refunds[1]);
+        Assert.Equal(((int?)2026, (int?)6, (int?)null), (hospital.MonthYear, hospital.MonthNumber, hospital.PendingDays)); // received: not aging
+        Assert.Equal(((int?)2026, (int?)7, (int?)55), (pharmacy.MonthYear, pharmacy.MonthNumber, pharmacy.PendingDays)); // July 10 → September 3
+        Assert.Equal((10_000m, 25_000m, 35_000m), (list.Totals.Pending.Crc, list.Totals.Received.Crc, list.Totals.Expected.Crc));
+        Assert.False(list.Truncated);
+    }
+
+    [Fact]
+    public async Task List_FiltersByStatus_Payee_AndDates()
+    {
+        var c = await TwoMonthsOfRefundsAsync();
+        async Task<string[]> Payees(RefundQuery q) => (await c.Refunds.ListAsync(q, default)).List!.Refunds.Select(r => r.Payee).ToArray();
+
+        Assert.Equal(["Farmacia Fischel"], await Payees(new RefundQuery(Status: "pending")));
+        Assert.Equal(["Hospital"], await Payees(new RefundQuery(Status: "RECEIVED")));
+        Assert.Equal(["Hospital"], await Payees(new RefundQuery(Payee: "  hosp ")));          // case-insensitive, trimmed, contains
+        Assert.Equal(["Farmacia Fischel"], await Payees(new RefundQuery(From: new DateOnly(2026, 7, 1))));
+        Assert.Equal(["Hospital"], await Payees(new RefundQuery(To: new DateOnly(2026, 6, 30))));
+        Assert.Empty(await Payees(new RefundQuery(Payee: "nobody")));
+
+        // The totals follow the filter.
+        var pending = (await c.Refunds.ListAsync(new RefundQuery(Status: "pending"), default)).List!;
+        Assert.Equal((10_000m, 0m), (pending.Totals.Pending.Crc, pending.Totals.Received.Crc));
+    }
+
+    [Fact]
+    public async Task List_RefusesABadStatus_OrABackwardsRange()
+    {
+        var c = await ContextAsync();
+        Assert.Equal("invalid_request", (await c.Refunds.ListAsync(new RefundQuery(Status: "maybe"), default)).Error!.Error);
+        Assert.Equal("invalid_request", (await c.Refunds.ListAsync(new RefundQuery(From: new DateOnly(2026, 7, 1), To: new DateOnly(2026, 6, 1)), default)).Error!.Error);
+    }
+
+    [Fact]
+    public async Task List_IsTheCallersHouseholdOnly()
+    {
+        await TwoMonthsOfRefundsAsync();
+        var b = await ContextAsync();
+        Assert.Empty((await b.Refunds.ListAsync(new RefundQuery(), default)).List!.Refunds);
+    }
+
     [Fact]
     public async Task Refunds_AreInvisibleAndUnflippable_AcrossTenants()
     {

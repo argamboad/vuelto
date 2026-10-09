@@ -502,6 +502,25 @@
   <data name="Refund_TotalReceived" xml:space="preserve"><value>Recibido</value></data>
   <data name="Refund_TotalPending" xml:space="preserve"><value>Pendiente</value></data>
   <data name="Refund_TotalExpected" xml:space="preserve"><value>de</value></data>
+  <data name="Refunds_Title" xml:space="preserve"><value>Reembolsos</value></data>
+  <data name="Refunds_Subtitle" xml:space="preserve"><value>Todo lo que esperas que vuelva, de todos los meses: primero lo pendiente más antiguo.</value></data>
+  <data name="Refunds_Status" xml:space="preserve"><value>Mostrar</value></data>
+  <data name="Refunds_All" xml:space="preserve"><value>Todos</value></data>
+  <data name="Refunds_PayeeHint" xml:space="preserve"><value>Buscar un comercio</value></data>
+  <data name="Refunds_GroupBy" xml:space="preserve"><value>Agrupar por</value></data>
+  <data name="Refunds_GroupNone" xml:space="preserve"><value>Nada</value></data>
+  <data name="Refunds_Month" xml:space="preserve"><value>Mes</value></data>
+  <data name="Refunds_None" xml:space="preserve"><value>Ningún reembolso coincide.</value></data>
+  <data name="Refunds_Truncated" xml:space="preserve"><value>Se muestran los primeros {0}: filtra más para ver el resto. Los totales los incluyen todos.</value></data>
+  <data name="Refunds_Select" xml:space="preserve"><value>Seleccionar</value></data>
+  <data name="Refunds_SelectFor" xml:space="preserve"><value>Seleccionar {0}</value></data>
+  <data name="Refunds_Selected" xml:space="preserve"><value>{0} seleccionados</value></data>
+  <data name="Refunds_MarkSelected" xml:space="preserve"><value>Marcarlos recibidos</value></data>
+  <data name="Refunds_MarkedReceived" xml:space="preserve"><value>{0} reembolso(s) marcados como recibidos.</value></data>
+  <data name="Refunds_MarkedSome" xml:space="preserve"><value>{0} marcados como recibidos; estos siguen pendientes: {1}.</value></data>
+  <data name="Refunds_PendingFor" xml:space="preserve"><value>pendiente hace {0} días</value></data>
+  <data name="Refunds_LoadError" xml:space="preserve"><value>No se pudieron cargar los reembolsos. Intenta de nuevo.</value></data>
+  <data name="Refunds_SeeAll" xml:space="preserve"><value>Ver todos los reembolsos</value></data>
   <data name="Refund_Pending" xml:space="preserve"><value>Pendiente</value></data>
   <data name="Refund_Received" xml:space="preserve"><value>Recibido</value></data>
   <data name="Refund_MarkReceived" xml:space="preserve"><value>Marcar recibido</value></data>

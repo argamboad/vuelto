@@ -56,6 +56,13 @@ public static class LedgerEndpoints
 
         var refundsGroup = app.MapTenantFeatureGroup("/api/refunds");
 
+        // #208: every refund of the household across months — filters on the query string, totals included.
+        refundsGroup.MapGet("/", async (string? status, string? payee, DateOnly? from, DateOnly? to, RefundHandler handler, CancellationToken ct) =>
+        {
+            var (list, error) = await handler.ListAsync(new RefundQuery(status, payee, from, to), ct);
+            return error is not null ? ToResult(error) : Results.Ok(list);
+        });
+
         refundsGroup.MapPut("/{id:guid}", async (Guid id, UpdateRefundStatusRequest request, RefundHandler handler, CancellationToken ct) =>
         {
             var (refund, error) = await handler.SetStatusAsync(id, request, ct);

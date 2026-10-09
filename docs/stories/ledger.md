@@ -341,3 +341,33 @@ Scenario: A month with one refund in, one out
   When I open the month
   Then the refunds header reads Received ₡6,170.00 · Pending ₡15,000.00 · of ₡21,170.00
 ```
+
+### LEDGER-8 — Every refund across months, filtered, grouped, and marked received together *(owner request, 2026-10-09 · #208)* ✅
+
+**As** a household member, **I want** one place with every refund I'm owed — filterable by payee and status, groupable,
+with how long each has been out — **so that** I know what to chase and can tick off a deposit that paid several at once.
+
+**Context / notes:** `GET /api/refunds?status=&payee=&from=&to=` (Ledger slice, tenant-scoped through `Query()`):
+oldest purchase first, each with its budget month and `pending_days`, the totals (`RefundTotals`) over every match,
+`truncated` past 1000 rows instead of paging — grouping and subtotals happen on the page, and a household's refunds
+are few. `/refunds` page: status chips (Pending default · Received · All), payee search, From / To, Group by (none ·
+payee · status · month) with per-group received / pending, multi-select + one received date → one guarded
+`PUT /api/refunds/{id}` per refund (ADR-V007/V014: each books its own inflow; failures are named, the rest land).
+Status and grouping persist per device (`appUi` prefs `refunds.status`, `refunds.group`). Linked from the month
+page's refunds header and under the dashboard's forecast step.
+
+```gherkin
+Scenario: What's still out, oldest first
+  Given a pending refund from June and one from July
+  When I open Refunds
+  Then June's comes first, with "pending 90 days"
+
+Scenario: One deposit paid two refunds
+  Given two pending refunds
+  When I tick both, set the received date to September 1 and click "Mark them received"
+  Then both are received on September 1, each with its own income row in that month
+
+Scenario: Group by payee
+  When I group by payee
+  Then "Hospital" and "hospital" are one group showing its received and its pending
+```
