@@ -861,6 +861,9 @@
   <data name="Dash_WfRefundsExpected" xml:space="preserve"><value>Reembolsos esperados</value></data>
   <data name="Dash_RefundsNote" xml:space="preserve"><value>no cuentan hasta que entren como ingreso</value></data>
   <data name="Dash_BudgetedNoLine" xml:space="preserve"><value>Marcado como presupuestado, sin línea</value></data>
+  <data name="Budget_IncomeTypical" xml:space="preserve"><value>Un mes típico: {0}</value></data>
+  <data name="Budget_IncomeEdit" xml:space="preserve"><value>Editar ingresos</value></data>
+  <data name="Income_BackToBudget" xml:space="preserve"><value>Volver al presupuesto</value></data>
   <data name="Income_Title" xml:space="preserve"><value>Ingresos</value></data>
   <data name="Income_Subtitle" xml:space="preserve"><value>Quién gana qué, cada cuánto se paga y cuánto por pago. Cada mes nuevo empieza con estos; la página del mes corrige un mes puntual. Lo comparte todo el hogar.</value></data>
   <data name="Income_New" xml:space="preserve"><value>Nuevo ingreso</value></data>
@@ -894,7 +897,6 @@
   <data name="Income_MoveUp" xml:space="preserve"><value>Subir</value></data>
   <data name="Income_MoveDown" xml:space="preserve"><value>Bajar</value></data>
   <data name="BudgetSettings_WeekStartHint" xml:space="preserve"><value>Si te pagan cada semana, elige el día en que llega el dinero: decide si un mes tiene 4 o 5 pagos.</value></data>
-  <data name="BudgetSettings_IncomeMoved" xml:space="preserve"><value>Los ingresos ahora tienen su propia página.</value></data>
   <data name="Month_IncomeEmpty" xml:space="preserve"><value>Este mes no tiene ingresos registrados.</value></data>
   <data name="Month_IncomeLabel" xml:space="preserve"><value>Nombre del ingreso</value></data>
   <data name="Month_IncomePlanned" xml:space="preserve"><value>Planeado {0}</value></data>

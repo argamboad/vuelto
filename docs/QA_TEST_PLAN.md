@@ -1228,12 +1228,12 @@ And cancelling at the provider returns me to /billing/cancel — the same page w
 Given I am signed in to a household that has never saved budget settings
 When I open /settings
 Then the Budget card shows Thursday and "Last Thursday of the previous month"
-And a hint says a weekly-paid household should start the week on its payday, with a link to the income page
+And a hint says a weekly-paid household should start the week on its payday (income itself lives on the Budget page — #203)
 ```
 **Walkthrough:** sign in with a fresh account (QA-ONB-01), open **Settings**. **Expected:** a
 **Budget** card between Preferences and Notifications: *Week starts on* = Thursday with the payday hint beneath it,
-*Month begins* = "Last Thursday of the previous month", no income fields — "Income now has its own page." with a
-**Manage income** link (INCOME-1). Nothing has been saved (`GET /api/budget-settings` returns `is_default: true`
+*Month begins* = "Last Thursday of the previous month", no income fields and no income link (income is on the
+**Budget** page since #203). Nothing has been saved (`GET /api/budget-settings` returns `is_default: true`
 and no income fields).
 
 ### QA-BUD-02 — Save the household's budget structure and see it persist 🟠 (Web)
@@ -1510,8 +1510,9 @@ And a PUT to an envelope id from another household returns 404
 ### QA-INC-01 — Add, order, deactivate and reactivate income lines; the catalog rules hold ⚙️ Automated in CI 🟠 (Web / API)
 **Gherkin**
 ```gherkin
-Given I am on Settings in a fresh household
-When I click Manage income
+Given I am on Budget in a fresh household
+Then its Income card says there is no income yet
+When I click Edit income
 Then I see the empty-state message
 When I add "My salary", mine, Weekly, $500 and Create
 And I add "Son salary", the household, Twice a month (15th and Last day), ₡300,000
@@ -1523,8 +1524,12 @@ Then it shows Inactive and has no up/down buttons
 When I add "my SALARY", Weekly, $550
 Then I am offered Reactivate, and clicking it restores "My salary" (stored spelling) as active, weekly, with $550 — the typed details win
 And an amount of 0, or the same pay day twice, is refused before any request
+When I go back to the budget
+Then its Income card, above the fixed and variable lines, lists the active lines in their own currencies with "A typical month"
+And Settings has no income link any more
 ```
-**Walkthrough:** **Settings → Catalog → Manage income** → **Expected:** "No income yet…". **New income** → name
+**Walkthrough:** **Budget** → **Expected:** an **Income** card above the fixed and variable lines saying "No income
+yet…" → **Edit income** → **Expected:** "No income yet…". **New income** → name
 `My salary`, **Whose income** = yourself, **Paid** = Weekly, `500`, **USD** → the hint under the form says a month
 counts one payment per week and points to the week start → **Create** → **Expected:** "Created." and the row
 (`$500.00`, your name · Fixed · Weekly). **New income** → `Son salary`, **Whose income** = "The household", **Paid** =
@@ -1560,10 +1565,10 @@ after saving, **Reports → Chart → Income by member** counts it under **your*
 adds it).
 Leave a name blank → **Save income** → "Every income needs a name." and no request; fill it → **Save income** →
 **Expected:** "Income updated."; reload → the three rows as saved. **Dashboard** → the Income step's total is the
-three rows at today's rate. **Settings → Manage income** → **Edit** Son salary → set **Whose income** to yourself →
+three rows at today's rate. **Budget → Edit income** → **Edit** Son salary → set **Whose income** to yourself →
 **Save** → back on September → **Expected:** Son salary's row unchanged in name and amount, and **Reports → Chart →
-Income by member** now counts it under your name (the member follows the line; the amounts never do). **Settings →
-Manage income** → **Expected:** My salary still $550.00 weekly. Remove
+Income by member** now counts it under your name (the member follows the line; the amounts never do). **Budget →
+Edit income** → **Expected:** My salary still $550.00 weekly. Remove
 **Sold the bike** (×) → **Save income** → gone after reload. With Tuesday weeks (**Settings → Budget**, *Week starts
 on* Tuesday) a transaction in a month not yet created gets five weeks and five weekly payments (Sep 2026 would be
 Aug 25 – Sep 28 — use a later empty month on a household that already has September). Via Postman (**15 · Months →
@@ -1585,7 +1590,7 @@ Point a local API at the branch → it migrates on start. Run:
 ```sh
 psql "$BRANCH_URL" -f tools/check-income-parity.sql
 ```
-**Expected:** `(0 rows)`. Open **Settings → Manage income** → **Expected:** "Primary income" / "Secondary income" with
+**Expected:** `(0 rows)`. Open **Budget → Edit income** → **Expected:** "Primary income" / "Secondary income" with
 the pay period the old figures implied; a pair that fit no period shows a **Check this** badge (hover: why), which
 clears on the first save. Open three past months and their dashboards → **Expected:** the same income totals as
 production before the deploy. Repeat the parity query on staging right after the deploy, **before anyone edits a
@@ -1660,7 +1665,7 @@ Then I land on July 2026: five week chips (W1 · Jun 25 … W5 · Jul 23), incom
 And the transactions table sorts by Date, Payee, Category, Paid with or Class when I click the header (click again to flip; ▲/▼ marks the active one)
 And the filters above it narrow the rows by payee search, category, bank, card, class and date range, with "Showing n of m" and a Clear button; on a phone the search stays and the rest fold behind a Filters button
 ```
-**Walkthrough:** **Settings → Manage income** → add `Salary` $750 weekly and `Rent` ₡312,500 monthly. **Dashboard →
+**Walkthrough:** **Budget → Edit income** → add `Salary` $750 weekly and `Rent` ₡312,500 monthly. **Dashboard →
 New transaction** (or nav **Months → New transaction**): fill the fields; beside **Category** click
 **+ New**, type `Viajes`, **Create** → **Expected:** the inline form closes and **Viajes** is selected
 (Enter also creates, Esc cancels; a blank name → "A name is required."; a name matching an inactive
@@ -4542,7 +4547,7 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   member** donut in the chart view, and in the PDF the same donut plus a table with shares and a total. New
   **QA-INC-04**; Postman's category-analysis description names the field. **Case count 202 → 203.**
 - **Updated 2026-09-16** — **Income lines (INCOME-1, ADR-V023; owner decision).** Income is no longer two 4-week /
-  5-week defaults on the budget settings: **Settings → Manage income** keeps a list of lines (whose, currency,
+  5-week defaults on the budget settings: **Budget → Edit income** keeps a list of lines (whose, currency,
   fixed/variable, weekly / twice a month / monthly, amount per payment), and each new month starts with one editable
   income row per line, derived by its pay period; a month can add a one-off or drop a row. The migration copied every
   household's defaults into lines and every month's two incomes verbatim into rows (`tools/check-income-parity.sql`
@@ -4938,5 +4943,6 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   discretionary purchase (#201) and a refund typed as ₡ or % and stored as its amount (#202); QA-LED-06 the
   received / pending totals (#206) and the lock on a received refund (#202); QA-LED-08 no longer expects a purchase
   edit to re-derive a refund; new **QA-LED-09**, the cross-month Refunds page (#208). QA-DASH-05: the week cut's
-  Unplanned column (#211). QA-DASH-03: the Show in switch on the month page, Months and Budget (#207). 221 → 222
-  cases.
+  Unplanned column (#211). QA-DASH-03: the Show in switch on the month page, Months and Budget (#207). Income moved
+  from Settings to the Budget page (#203): QA-BUD-01, QA-INC-01 and every "Settings → Manage income" step now read
+  "Budget → Edit income". 221 → 222 cases.

@@ -29,3 +29,54 @@
     align-items: center;
     gap: 8px 12px;
 }
+
+/* #203: income above the lines it pays for — a short list, its typical month, and the way to edit it. */
+.budget-income {
+    margin-bottom: 16px;
+}
+
+.budget-income-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 12px;
+}
+
+.budget-income-head h2 {
+    margin-right: auto;
+}
+
+.budget-income-total {
+    color: var(--ink-2);
+    font-size: .875rem;
+}
+
+.budget-income-list {
+    list-style: none;
+    margin: 10px 0 0;
+    padding: 0;
+}
+
+.budget-income-list li {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 4px 16px;
+    align-items: baseline;
+    padding: 6px 0;
+    border-top: 1px solid var(--rail);
+}
+
+.budget-income-name {
+    overflow-wrap: anywhere;
+}
+
+.budget-income-period {
+    color: var(--ink-2);
+    font-size: .8125rem;
+}
+
+.budget-income-amount {
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    white-space: nowrap;
+}

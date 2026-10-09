@@ -861,6 +861,9 @@
   <data name="Dash_WfRefundsExpected" xml:space="preserve"><value>Expected refunds</value></data>
   <data name="Dash_RefundsNote" xml:space="preserve"><value>not counted until they land as income</value></data>
   <data name="Dash_BudgetedNoLine" xml:space="preserve"><value>Marked budgeted, no line</value></data>
+  <data name="Budget_IncomeTypical" xml:space="preserve"><value>A typical month: {0}</value></data>
+  <data name="Budget_IncomeEdit" xml:space="preserve"><value>Edit income</value></data>
+  <data name="Income_BackToBudget" xml:space="preserve"><value>Back to the budget</value></data>
   <data name="Income_Title" xml:space="preserve"><value>Income</value></data>
   <data name="Income_Subtitle" xml:space="preserve"><value>Who earns what, how often it is paid and how much per payment. Every new month starts with these; the month page corrects a single month. Shared by everyone in the household.</value></data>
   <data name="Income_New" xml:space="preserve"><value>New income</value></data>
@@ -894,7 +897,6 @@
   <data name="Income_MoveUp" xml:space="preserve"><value>Move up</value></data>
   <data name="Income_MoveDown" xml:space="preserve"><value>Move down</value></data>
   <data name="BudgetSettings_WeekStartHint" xml:space="preserve"><value>If you are paid weekly, pick the day the money arrives: it decides whether a month has 4 or 5 paydays.</value></data>
-  <data name="BudgetSettings_IncomeMoved" xml:space="preserve"><value>Income now has its own page.</value></data>
   <data name="Month_IncomeEmpty" xml:space="preserve"><value>No income recorded for this month.</value></data>
   <data name="Month_IncomeLabel" xml:space="preserve"><value>Income name</value></data>
   <data name="Month_IncomePlanned" xml:space="preserve"><value>Planned {0}</value></data>

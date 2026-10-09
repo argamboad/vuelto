@@ -68,6 +68,7 @@ public class IncomesPageTests : ComponentTestBase
         var cut = await RenderSignedIn("[]");
 
         Assert.Contains("Income_Empty", cut.WaitForElement("[data-testid='inc-empty']").TextContent);
+        Assert.Equal("/budget", cut.Find("[data-testid='inc-back']").GetAttribute("href")); // #203: income lives with the budget
     }
 
     [Fact]

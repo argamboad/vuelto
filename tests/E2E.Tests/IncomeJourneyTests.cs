@@ -3,7 +3,7 @@ using Microsoft.Playwright;
 namespace Vuelto.E2E.Tests;
 
 /// <summary>
-/// INCOME-1 journey. A member reaches the income page from Settings, adds their weekly salary as their own and a
+/// INCOME-1 journey. A member reaches the income page from the Budget page (#203), adds their weekly salary as their own and a
 /// son's salary paid twice a month, sees both listed with who earns them and how often, moves the second to the top,
 /// and deactivates the first; a second line under the first one's name then offers to reactivate it. Then the first
 /// transaction of September 2026 creates the month, which starts with one income row per line, derived by its pay
@@ -19,8 +19,8 @@ public class IncomeJourneyTests : E2ETestBase
     public async Task Member_Keeps_The_Households_Income_Lines()
     {
         await SignInAsync(Page, UniqueEmail("income"));
-        await BlazorBoot.GotoAsync(Page, "/settings");
-        await Page.GetByTestId("catalog-link-incomes").ClickAsync();
+        await BlazorBoot.GotoAsync(Page, "/budget");
+        await Page.GetByTestId("budget-income-edit").ClickAsync(); // #203: income lives with the budget
         await Expect(Page.GetByTestId("inc-empty")).ToBeVisibleAsync(Slow);
 
         // A weekly salary, the signed-in member's own (the first member in the picker).

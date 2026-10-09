@@ -49,6 +49,39 @@
                              FixedText="@BudgetMoney.Format(_fixed, _rate, _display)" VariableText="@BudgetMoney.Format(_variable, _rate, _display)"
                              Income="@TypicalIncome()" IncomeText="@(TypicalIncome() is { } i ? BudgetMoney.Amount(i, _display) : "")" HasRate="@(_rate is not null)" />
 
+        @* #203 (owner, 2026-10-09): income belongs with the budget — what comes in, above what it pays for. The lines are
+           edited on /incomes (the same page as before, now reached from here rather than from Settings); each shows its
+           own currency and pay period, and the card's figure is a typical four-week month of them at today's rate. *@
+        <section class="budget-income card" data-testid="budget-income-card">
+            <div class="card-body">
+                <div class="budget-income-head">
+                    <h2 class="h6 fw-bold mb-0">@Localizer["Income_Title"]</h2>
+                    @if (TypicalIncome() is { } typical)
+                    {
+                        <span class="budget-income-total" data-testid="budget-income-total">@Localizer["Budget_IncomeTypical", BudgetMoney.Amount(typical, _display)]</span>
+                    }
+                    <a class="btn btn-outline-primary btn-sm" href="/incomes" data-testid="budget-income-edit">@Localizer["Budget_IncomeEdit"]</a>
+                </div>
+                @if (_incomes is not { Count: > 0 } lines)
+                {
+                    <p class="text-muted small mb-0 mt-2" data-testid="budget-income-empty">@Localizer["Income_Empty"]</p>
+                }
+                else
+                {
+                    <ul class="budget-income-list">
+                        @foreach (var l in lines)
+                        {
+                            <li data-testid="budget-income-row">
+                                <span class="budget-income-name">@l.Name</span>
+                                <span class="budget-income-period">@PeriodLabel(l.PayPeriod)</span>
+                                <span class="budget-income-amount">@MoneyDisplay.Native(l.Currency == MoneyDisplay.Usd ? 0 : l.Amount, l.Currency == MoneyDisplay.Usd ? l.Amount : 0, l.Currency)</span>
+                            </li>
+                        }
+                    </ul>
+                }
+            </div>
+        </section>
+
         <ExpenseLinesSection @ref="_fixedSection" Kind="fixed" TestId="exp-fixed" TitleKey="Budget_Fixed" HintKey="Budget_FixedHint" Categories="_categories"
                              Rate="_rate" Display="@_display" OnEdit="OpenEdit" OnItemsChanged="items => _fixed = items" />
         <ExpenseLinesSection @ref="_variableSection" Kind="variable" TestId="exp-variable" TitleKey="Budget_Variable" HintKey="Budget_VariableHint" Categories="_categories"
@@ -131,7 +164,15 @@
     }
 
     private sealed record RateDto([property: JsonPropertyName("rate")] decimal? Rate);
+    private string PeriodLabel(string period) => period switch
+    {
+        "weekly" => Localizer["Income_PeriodWeekly"],
+        "biweekly" => Localizer["Income_PeriodBiweekly"],
+        _ => Localizer["Income_PeriodMonthly"],
+    };
+
     private sealed record IncomeLineDto(
+        [property: JsonPropertyName("name")] string Name,
         [property: JsonPropertyName("currency")] string Currency,
         [property: JsonPropertyName("pay_period")] string PayPeriod,
         [property: JsonPropertyName("amount")] decimal Amount);

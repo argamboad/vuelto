@@ -49,7 +49,6 @@
             </div>
             <p class="small text-muted mt-2 mb-3">@Localizer["BudgetSettings_ChangeNote"]</p>
 
-            <p class="small mb-3" data-testid="budget-income-link">@Localizer["BudgetSettings_IncomeMoved"] <a href="/incomes">@Localizer["Income_SettingsLink"]</a></p>
 
             <button class="btn btn-primary" data-testid="budget-save" disabled="@_busy" @onclick="Save">
                 @if (_busy) { <span class="spinner-border spinner-border-sm me-2"></span> }

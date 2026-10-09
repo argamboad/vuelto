@@ -25,10 +25,10 @@ public class BudgetSettingsCardTests : ComponentTestBase
             Assert.Equal("1", cut.Find("[data-testid='budget-weekday']").GetAttribute("value"));
             Assert.Equal("first_of_month", cut.Find("[data-testid='budget-anchor']").GetAttribute("value"));
         });
-        // No income fields any more: a hint about the payday and a link to the income page instead.
+        // No income fields, and since #203 no way to income from here either — it lives with the budget.
         Assert.Empty(cut.FindAll("input[type='number']"));
         Assert.Contains("BudgetSettings_WeekStartHint", cut.Find("[data-testid='budget-weekday-hint']").TextContent);
-        Assert.Equal("/incomes", cut.Find("[data-testid='budget-income-link'] a").GetAttribute("href"));
+        Assert.Empty(cut.FindAll("a[href='/incomes']"));
         // The anchor options are labelled with the selected weekday's name (Monday for 1).
         Assert.Contains("Monday", cut.Find("[data-testid='budget-anchor']").TextContent);
     }

@@ -170,7 +170,8 @@ Notes:
 **Goal:** list every income once — whose it is and how it is paid — so each month starts with the right plan.
 
 Flow:
-1. On Settings → **Manage income** (`/incomes`), a member adds a line: a name, whose income it is (a member, or the
+1. On **Budget → Edit income** (`/incomes`; the Budget page lists the lines in an Income card above the fixed and
+   variable lines — #203), a member adds a line: a name, whose income it is (a member, or the
    household), the currency, **fixed** or **variable** (an estimate), how often it is paid (**weekly**, **twice a
    month** on two days — 15th and the last day by default — or **monthly**) and the amount per payment.
 2. Lines are ordered (up/down), deactivated rather than deleted, and a new line under an inactive line's name offers
