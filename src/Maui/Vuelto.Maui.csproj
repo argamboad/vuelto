@@ -129,11 +129,4 @@
          HTTPS-only network config — lives in ONE file under ONE condition (v4 T50). -->
     <Import Project="ReleaseGuards.targets" />
 
-    <!-- The Windows target compiles twice: WinUI's XamlPreCompile runs a Csc pass before CoreCompile, and the platform's
-         GenerateLocalPorts (Directory.Build.props) only hooks BeforeCompile;CoreCompile, so that first pass never saw
-         LocalPorts and the Windows build failed with CS0103 (found 2026-10-09 while building #204). Generating it first
-         here keeps the platform file untouched; the root fix is upstream (perezosoft-platform#379) — drop this on that port. -->
-    <Target Name="LocalPortsBeforeXamlPreCompile" BeforeTargets="XamlPreCompile" DependsOnTargets="GenerateLocalPorts"
-            Condition="'$(GenerateLocalPorts)' == 'true'" />
-
 </Project>

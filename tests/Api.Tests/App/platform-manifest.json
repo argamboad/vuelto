@@ -4,7 +4,7 @@
     "platform commit this repo is synced to. PlatformOwnershipTests compares this repo against it. Do not edit by hand."
   ],
   "platform": "argamboad/perezosoft-platform",
-  "commit": "b462c7bf0c75dbc7c577433fdf76416629050220",
+  "commit": "fbd2e1fb46799e634af70b06af274c7ff9c9ba6c",
   "files": [
     {
       "path": ".config/dotnet-tools.json",
@@ -84,7 +84,7 @@
     {
       "path": "Directory.Build.props",
       "class": "platform",
-      "hash": "0572c236fc51618ec448f71c5ef21f0e2e3fe0bfc10e2702822e875485827a29"
+      "hash": "7fca032863169609cf61d661251a82dd44c107813459c32795f413d31f291195"
     },
     {
       "path": "Directory.Packages.props",
@@ -4349,7 +4349,7 @@
     {
       "path": "tests/Api.Tests/LocalPortsTests.cs",
       "class": "platform",
-      "hash": "31f3b36166bf427529fab28898b8b8fe6d74c1e7e51609f36e75c500b29d2628"
+      "hash": "bf5a2f0f3d781e3870686fe02db50c877b90b42f78d443d03fc561d178a726b1"
     },
     {
       "path": "tests/Api.Tests/Mfa/MfaChallengeServiceTests.cs",

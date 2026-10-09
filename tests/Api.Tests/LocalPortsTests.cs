@@ -180,6 +180,20 @@ public class LocalPortsTests
         Assert.Equal(LocalPorts.MailUiUrl, $"http://localhost:{block.MailUi}");
     }
 
+    [Fact]
+    public void TheGeneration_RunsBeforeEveryCompilePass()
+    {
+        // #379: the MAUI Windows target runs WinUI's XamlPreCompile - its own Csc pass - before CoreCompile, so a
+        // target hooked only to the compile left that first pass without LocalPorts.g.cs (CS0103 in MauiProgram).
+        // Pull requests build no Windows leg, so this is the check that holds the hook.
+        var target = XDocument.Load(Full("Directory.Build.props")).Descendants("Target")
+            .Single(t => (string?)t.Attribute("Name") == "GenerateLocalPorts");
+        var before = ((string?)target.Attribute("BeforeTargets") ?? "").Split(';', StringSplitOptions.TrimEntries);
+        Assert.Contains("BeforeCompile", before);
+        Assert.Contains("CoreCompile", before);
+        Assert.Contains("XamlPreCompile", before);
+    }
+
     // --- the block ---
 
     // The machine's shared Aspire Dashboard (tools/telemetry.ps1): OTLP and its UI are one container for every repo.
