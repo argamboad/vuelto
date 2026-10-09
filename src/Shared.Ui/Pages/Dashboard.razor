@@ -375,21 +375,24 @@
     private RenderFragment WeekView(SummaryDto s) => __builder =>
     {
         <table class="table table-sm">
-            <thead><tr><th>@Localizer["Dash_Week"]</th><th class="text-end">@Localizer["Tx_Budgeted"]</th><th class="text-end">@Localizer["Tx_Extraordinary"]</th></tr></thead>
+            <thead><tr><th>@Localizer["Dash_Week"]</th><th class="text-end">@Localizer["Tx_Budgeted"]</th><th class="text-end">@Localizer["Tx_Extraordinary"]</th><th class="text-end">@Localizer["Tx_Unplanned"]</th></tr></thead>
             <tbody>
                 @foreach (var w in s.WeeklyBudgeted)
                 {
                     var extra = s.WeeklyExtraordinary.FirstOrDefault(x => x.WeekNumber == w.WeekNumber);
+                    var unplanned = s.WeeklyUnplanned?.FirstOrDefault(x => x.WeekNumber == w.WeekNumber); // #211
                     <tr data-testid="dash-week-row">
                         <td>@Localizer["Month_Week", w.WeekNumber] <span class="dash-meta">@w.StartDate.ToString("d", CultureInfo.CurrentCulture) – @w.EndDate.ToString("d", CultureInfo.CurrentCulture)</span></td>
                         <td class="text-end text-nowrap">@Show(w.Total)</td>
                         <td class="text-end text-nowrap">@Show(extra?.Total ?? new MoneyDto(0, 0))</td>
+                        <td class="text-end text-nowrap">@Show(unplanned?.Total ?? new MoneyDto(0, 0))</td>
                     </tr>
                 }
                 <tr class="fw-semibold" data-testid="dash-week-total">
                     <td>@Localizer["Dash_Total"]</td>
                     <td class="text-end text-nowrap">@Show(Sum(s.WeeklyBudgeted.Select(w => w.Total)))</td>
                     <td class="text-end text-nowrap">@Show(Sum(s.WeeklyExtraordinary.Select(w => w.Total)))</td>
+                    <td class="text-end text-nowrap">@Show(Sum((s.WeeklyUnplanned ?? []).Select(w => w.Total)))</td>
                 </tr>
             </tbody>
         </table>
@@ -625,7 +628,8 @@
         [property: JsonPropertyName("envelope_reminders")] List<EnvelopeDto> EnvelopeReminders,
         [property: JsonPropertyName("bank_method_breakdown")] List<BankDto> BankMethodBreakdown,
         [property: JsonPropertyName("by_card")] List<CardSpendDto>? ByCard = null,
-        [property: JsonPropertyName("method_breakdown")] List<MethodDto>? MethodBreakdown = null);
+        [property: JsonPropertyName("method_breakdown")] List<MethodDto>? MethodBreakdown = null,
+        [property: JsonPropertyName("weekly_unplanned")] List<WeekDto>? WeeklyUnplanned = null); // #211
     private sealed record CardSpendDto([property: JsonPropertyName("card_id")] Guid? CardId, [property: JsonPropertyName("card_name")] string CardName, [property: JsonPropertyName("actual")] MoneyDto Actual, [property: JsonPropertyName("count")] int Count, [property: JsonPropertyName("kind")] string? Kind = null);
     private sealed record DashMonthDto([property: JsonPropertyName("id")] Guid Id, [property: JsonPropertyName("year")] int Year, [property: JsonPropertyName("month_number")] int MonthNumber, [property: JsonPropertyName("week_count")] int WeekCount, [property: JsonPropertyName("week1_start_date")] DateOnly Week1StartDate, [property: JsonPropertyName("last_day")] DateOnly LastDay);
     private sealed record DashDto(

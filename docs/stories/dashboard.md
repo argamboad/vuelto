@@ -168,3 +168,19 @@ Scenario: The month page points at them
   When I click the link
   Then the transactions table shows only the inflow rows
 ```
+
+### DASH-3 — The week cut shows unplanned spending too *(owner request, 2026-10-09 · #211)* ✅
+
+**As** a household member, **I want** "Where it went → By week" to show an **Unplanned** column beside Budgeted and
+Discretionary, **so that** I can see which week the surprises landed in.
+
+**Context / notes:** `DashboardSummaryService` already builds a per-week total for any class; the summary gains
+`weekly_unplanned` (unplanned essentials at their frozen amounts, both currencies) and the week table a third money
+column plus its total. The column adds up to the month's `unplanned_essential_total`.
+
+```gherkin
+Scenario: Surprises by week
+  Given an unplanned ₡20,000 in week 1 and ₡56,000 across week 2
+  When I open the dashboard on "By week"
+  Then the Unplanned column reads ₡20,000.00 and ₡56,000.00, and its total ₡76,000.00
+```

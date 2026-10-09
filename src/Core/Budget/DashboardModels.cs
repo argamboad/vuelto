@@ -59,4 +59,5 @@ public record DashboardSummary(
     IReadOnlyList<MethodBreakdown> MethodBreakdown,
     IReadOnlyList<CardSpendEntry> ByCard,
     MoneyPair UnplannedRefunds,       // ADR-V025: the pending refunds split by their transaction's class —
-    MoneyPair DiscretionaryRefunds);  // each tile's "refundable" is its own (RefundsTotal stays the sum)
+    MoneyPair DiscretionaryRefunds,   // each tile's "refundable" is its own (RefundsTotal stays the sum)
+    IReadOnlyList<WeeklyTotal> WeeklyUnplanned); // #211: unplanned essentials per week, beside budgeted and discretionary

@@ -329,7 +329,7 @@ Flow:
 2. Sections: **income** (the month's income rows, inflows folded in, total); **expense summary**
    (card total, account total, grand total, remainder); **fixed** and **variable** tables
    (budgeted vs actual per line + "other spending"); **weekly breakdowns** (budgeted and
-   extraordinary, per week with date ranges); **unplanned** slice with subtotal; **refunds**;
+   extraordinary and (#211) unplanned, per week with date ranges); **unplanned** slice with subtotal; **refunds**;
    **envelopes** reminder; **by payment method** (budgeted vs actual, Card / Bank account) and
    **by bank × method** (actuals only — a budget line names no bank, 2026-09-14); **balance** (current, remainder for debts, pending budgeted,
    actual remainder). Each figure is a CRC/USD pair.

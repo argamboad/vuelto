@@ -67,7 +67,8 @@ public sealed class DashboardSummaryService : IDashboardSummaryService
             CalculateMethodBreakdown(activeFixed, activeVariable, transactions, rate),
             CardSpend.Calculate(transactions, cardLabels), // CARDS-2: the month's spend by card, "no card" last
             PendingOf(TransactionTypes.UnplannedEssential),
-            PendingOf(TransactionTypes.Extraordinary));
+            PendingOf(TransactionTypes.Extraordinary),
+            CalculateWeeklyTotals(weeks, transactions, TransactionTypes.UnplannedEssential));
     }
 
     // Income (the month's income rows at the passed-in rate + inflows' frozen amounts) is the shared

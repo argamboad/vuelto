@@ -260,6 +260,25 @@ public class DashboardSummaryServiceTests
     }
 
     [Fact]
+    public void WeeklyUnplanned_OneRowPerWeek_OnlyUnplannedEssentials()
+    {
+        // #211: the third column of "Where it went → By week", beside budgeted and discretionary.
+        var summary = With(transactions:
+        [
+            .. GetTransactions(),
+            Tx(GroceriesCat, 20_000m, 40m, "unplanned_essential", new DateOnly(2026, 6, 3)),   // week 1
+            Tx(DiningCat, 55_000m, 110m, "unplanned_essential", new DateOnly(2026, 6, 9)),     // week 2
+            Tx(DiningCat, 1_000m, 2m, "unplanned_essential", new DateOnly(2026, 6, 10)),       // week 2
+        ]);
+
+        var weekly = summary.WeeklyUnplanned;
+        Assert.Equal([1, 2, 3, 4], weekly.Select(w => w.WeekNumber));
+        Assert.Equal([20_000m, 56_000m, 0m, 0m], weekly.Select(w => w.Total.Crc));
+        Assert.Equal(112m, weekly[1].Total.Usd);
+        Assert.Equal(summary.UnplannedEssentialTotal.Crc, weekly.Sum(w => w.Total.Crc)); // adds up to the month's unplanned
+    }
+
+    [Fact]
     public void WeeklyBudgeted_OneRowPerWeekWithDateRanges()
     {
         var weekly = Calculate().WeeklyBudgeted;
