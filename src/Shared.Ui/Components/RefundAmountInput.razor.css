@@ -1,17 +1,91 @@
-/* The label and the ₡|% toggle share one line above the input, so the toggle reads as "how you type this field". */
-.refund-amount-head {
-    display: flex;
+/* One field, the Amount field's way (AmountField.razor.css): the border and fill sit on the GROUP, the input and the
+   ₡ | % toggle inside it are borderless, and focus is drawn on the group — so the toggle reads as part of the number. */
+.refund-group {
+    flex-wrap: nowrap;
     align-items: center;
-    justify-content: space-between;
-    gap: .5rem;
+    border: 1px solid var(--bs-border-color);
+    border-radius: var(--bs-border-radius);
+    background: var(--bs-body-bg);
 }
 
-.refund-amount-head .form-label {
-    margin-bottom: .25rem;
+.refund-group:focus-within {
+    border-color: var(--bs-primary);
+    box-shadow: 0 0 0 .25rem rgba(var(--bs-primary-rgb), .25);
 }
 
-.refund-amount-mode {
+.refund-group[data-disabled] {
+    background: var(--bs-secondary-bg);
+}
+
+.refund-input {
     border: 0;
-    padding: 0;
-    margin: 0 0 .25rem;
+    background: transparent;
+    box-shadow: none;
+    font-variant-numeric: tabular-nums;
+}
+
+.refund-input:focus {
+    box-shadow: none;
+}
+
+.refund-toggle {
+    display: flex;
+    gap: 2px;
+    align-items: center;
+    margin: 3px 3px 3px 0;
+    padding: 2px;
+    border: 0;
+    min-width: 0;
+    border-radius: var(--bs-border-radius);
+    background: var(--rail);
+}
+
+.refund-toggle legend {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+}
+
+.refund-toggle label {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    min-height: 26px;
+    margin: 0;
+    border-radius: calc(var(--bs-border-radius) - 2px);
+    font-size: 13px;
+    font-weight: var(--w-control);
+    color: var(--ink-3);
+    cursor: pointer;
+}
+
+.refund-toggle label[data-selected="true"] {
+    background: var(--card-bg);
+    color: var(--ink);
+}
+
+.refund-toggle input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    margin: 0;
+    pointer-events: none;
+}
+
+.refund-toggle label:has(input:focus-visible) {
+    outline: 2px solid var(--bs-primary);
+    outline-offset: 1px;
+}
+
+.refund-toggle:disabled label {
+    cursor: default;
+    opacity: .6;
+}
+
+@media (max-width: 767.98px) {
+    .refund-toggle label { min-width: 40px; min-height: 32px; }
 }

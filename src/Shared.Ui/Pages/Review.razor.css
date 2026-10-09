@@ -56,7 +56,8 @@
     min-width: 0;
 }
 
-.draft-field .form-label {
+.draft-field .form-label,
+.draft-field ::deep .refund-amount > .form-label { /* the refund amount's label lives in its component */
     display: block;
     margin-bottom: 3px;
     font-size: 11px;

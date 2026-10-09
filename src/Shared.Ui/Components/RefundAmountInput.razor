@@ -7,28 +7,32 @@
    opens in amount mode on the stored figure, with the share it comes to as a hint — switch to % to correct it that way.
    A received refund is locked (Disabled + LockedNote): its inflow is booked, so it changes only after "back to pending". *@
 <div class="refund-amount" data-testid="@TestId">
-    <div class="refund-amount-head">
-        <label class="form-label" for="@($"{TestId}-{(_percent ? "pct" : "amount")}")">@(_percent ? Localizer["Tx_RefundPercent"] : Localizer["Tx_RefundAmount"])</label>
-        <fieldset class="btn-group btn-group-sm refund-amount-mode" disabled="@Disabled">
-            <legend class="visually-hidden">@Localizer["Tx_RefundMode"]</legend>
-            <input type="radio" class="btn-check" name="@_name" id="@($"{_name}-amount")" checked="@(!_percent)"
-                   data-testid="@($"{TestId}-mode")" data-value="amount" @onchange="() => SetMode(false)" />
-            <label class="btn btn-outline-secondary" for="@($"{_name}-amount")">@Symbol</label>
-            <input type="radio" class="btn-check" name="@_name" id="@($"{_name}-pct")" checked="@_percent"
-                   data-testid="@($"{TestId}-mode")" data-value="percent" @onchange="() => SetMode(true)" />
-            <label class="btn btn-outline-secondary" for="@($"{_name}-pct")">%</label>
+    <label class="form-label" for="@($"{TestId}-{(_percent ? "pct" : "amount")}")">@(_percent ? Localizer["Tx_RefundPercent"] : Localizer["Tx_RefundAmount"])</label>
+    @* One field, like the Amount above it: the ₡ | % toggle lives INSIDE the input's border, so the label keeps one line
+       and the box lines up with the refund notes beside it. *@
+    <div class="input-group refund-group" data-disabled="@(Disabled ? "true" : null)">
+        @if (_percent)
+        {
+            <input class="form-control refund-input @InputClass" type="number" step="0.01" min="0" max="100" id="@($"{TestId}-pct")"
+                   data-testid="@($"{TestId}-pct")" disabled="@Disabled" value="@_pct" placeholder="0" @onchange="OnPercent" />
+        }
+        else
+        {
+            <input class="form-control refund-input @InputClass" type="number" step="0.01" min="0" max="@Purchase" id="@($"{TestId}-amount")"
+                   data-testid="@($"{TestId}-amount")" disabled="@Disabled" value="@Value" placeholder="0.00" @onchange="OnAmount" />
+        }
+        <fieldset class="refund-toggle" disabled="@Disabled">
+            <legend>@Localizer["Tx_RefundMode"]</legend>
+            <label data-selected="@(!_percent ? "true" : null)">
+                <input type="radio" name="@_name" checked="@(!_percent)" data-testid="@($"{TestId}-mode")" data-value="amount" @onchange="() => SetMode(false)" />
+                <span>@Symbol</span>
+            </label>
+            <label data-selected="@(_percent ? "true" : null)">
+                <input type="radio" name="@_name" checked="@_percent" data-testid="@($"{TestId}-mode")" data-value="percent" @onchange="() => SetMode(true)" />
+                <span>%</span>
+            </label>
         </fieldset>
     </div>
-    @if (_percent)
-    {
-        <input class="form-control @InputClass" type="number" step="0.01" min="0" max="100" id="@($"{TestId}-pct")"
-               data-testid="@($"{TestId}-pct")" disabled="@Disabled" value="@_pct" @onchange="OnPercent" />
-    }
-    else
-    {
-        <input class="form-control @InputClass" type="number" step="0.01" min="0" max="@Purchase" id="@($"{TestId}-amount")"
-               data-testid="@($"{TestId}-amount")" disabled="@Disabled" value="@Value" @onchange="OnAmount" />
-    }
     @if (Disabled && LockedNote is not null)
     {
         <p class="@HintClass" data-testid="@($"{TestId}-hint")">@LockedNote</p>
