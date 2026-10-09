@@ -4,7 +4,7 @@
     "platform commit this repo is synced to. PlatformOwnershipTests compares this repo against it. Do not edit by hand."
   ],
   "platform": "argamboad/perezosoft-platform",
-  "commit": "7914da6fc9bd0c8101fc0a517b6453324f935488",
+  "commit": "9c1aac626e5c11bef57951f3ee9ecf95c0d29268",
   "files": [
     {
       "path": ".config/dotnet-tools.json",
@@ -2804,7 +2804,7 @@
     {
       "path": "src/Maui/Auth/LoopbackOAuthInitiator.cs",
       "class": "adapts",
-      "hash": "bf2322c3bf658fb9aa8145f90cd41cec572d1e634e55c350ae9967d1b2d2b7a0"
+      "hash": "a95a04ad3c6ab82167739758e7bfe0aa127b6ed5fde58a26601467ffe13eec25"
     },
     {
       "path": "src/Maui/Auth/PreferencesOAuthResumeStore.cs",
@@ -2819,7 +2819,7 @@
     {
       "path": "src/Maui/Auth/WebAuthenticatorOAuthInitiator.cs",
       "class": "adapts",
-      "hash": "39edf040a0a509cd04b3fdc4778421fa2a685afcf71193bea89e3f5f2ef4420c"
+      "hash": "7364304173095fe8f1e94c3c872f33ea55ebfdc2ef74dedd1370c4ff03e97388"
     },
     {
       "path": "src/Maui/MainPage.xaml",
@@ -2999,7 +2999,7 @@
     {
       "path": "src/Maui/ShareFileDownloadLauncher.cs",
       "class": "adapts",
-      "hash": "e17d8f506239a615fee3c348ca5a06886f4d4211f5da71ef59058454fc7ae730"
+      "hash": "a963ea8022898f4c640aefcd0876de4c586907e691c9964f958679e7f23d2531"
     },
     {
       "path": "src/Maui/wwwroot/index.html",
@@ -3264,7 +3264,7 @@
     {
       "path": "src/Shared.Ui/Auth/AuthService.cs",
       "class": "adapts",
-      "hash": "dc93fae374cfbfed347c3a941c20b934cfbe9ac31e97dea441a3bb4b0fa81251"
+      "hash": "6fc55fd8c40d8fad75d57a3bb738aaddf686c97a6bb59a43b2101e8f4c41d077"
     },
     {
       "path": "src/Shared.Ui/Auth/AuthWireModels.cs",
@@ -3284,7 +3284,7 @@
     {
       "path": "src/Shared.Ui/Auth/IOAuthInitiator.cs",
       "class": "adapts",
-      "hash": "b4d39011d7565cb23e9d8818f6d9246ae9a1849cf818e2b0b0808dd6d3940f65"
+      "hash": "c36219d81f3a93fe0d7c1bfc28277d2ecb33f3bd16509bc3fc5281538cd48e82"
     },
     {
       "path": "src/Shared.Ui/Auth/IOAuthResumeStore.cs",
@@ -3299,7 +3299,7 @@
     {
       "path": "src/Shared.Ui/Auth/NativeSignIn.cs",
       "class": "adapts",
-      "hash": "f3a1064ac41e9a0248470b1a6cf67d292bc33cbd18d75fe3569c77549212f95b"
+      "hash": "ee9204036a5dba64ffbd40afce2bf9e200674dc34468b5a74d66bad00c5232dd"
     },
     {
       "path": "src/Shared.Ui/Auth/OAuthResumeResult.cs",
@@ -4414,7 +4414,7 @@
     {
       "path": "tests/Api.Tests/OAuthResumeTests.cs",
       "class": "platform",
-      "hash": "e7a3606d8c8edb4e1fd890ef61240fceed7fa073fe32e066a86ae1a1ab26832a"
+      "hash": "53c47886065d0320dda2ff951308b38da6cbcbdd21a289bf69e298ba4174d808"
     },
     {
       "path": "tests/Api.Tests/Observability/DatabaseHealthCheckTests.cs",
@@ -5489,7 +5489,7 @@
     {
       "path": "tests/E2E.Tests/Mailpit.cs",
       "class": "adapts",
-      "hash": "848eb5d46ad87c85f06da073c2a8b6c5238dac2b5f34fecf9d36b46f4180449e"
+      "hash": "4cc36f1fe134eafb40fe0991e01f44cdadc80858293c87c641b6e7f258028604"
     },
     {
       "path": "tests/E2E.Tests/MembershipLifecycleTests.cs",
@@ -5609,7 +5609,7 @@
     {
       "path": "tests/js-logic/smoke.test.js",
       "class": "adapts",
-      "hash": "93d4125f4e3aa31e70a5d42f3dbf5898152a4d188dfa40e071f1392e4d5e65e6"
+      "hash": "067a4911062c89682e0c8f30d6f53de599b1d137225556919a46061244cb245d"
     },
     {
       "path": "tests/js-logic/theme.test.js",
@@ -5629,7 +5629,7 @@
     {
       "path": "tests/native-smoke-android/smoke.js",
       "class": "adapts",
-      "hash": "cc19dbcdcbb1052d0c288161795cb9734e3aeb8c1129c01291eb95ca3e2ffa00"
+      "hash": "fd9208b993b092d5d1a16a5d74884382f3080f764f00414512d568fee4386425"
     },
     {
       "path": "tests/Ui.Tests/AdminConsoleGateUiTests.cs",
@@ -5669,7 +5669,7 @@
     {
       "path": "tests/Ui.Tests/Infrastructure/TestHttpHandler.cs",
       "class": "adapts",
-      "hash": "315d2add3bbf7d04b1097b5396db94099f020593b4827419225888ee7777e3bc"
+      "hash": "0045e4134715e6531fe2063bb544f26a42b346d9f609d5f4f7531787bb8ad947"
     },
     {
       "path": "tests/Ui.Tests/Infrastructure/TestJwt.cs",

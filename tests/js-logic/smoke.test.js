@@ -6,10 +6,6 @@ const path = require('node:path');
 // drives a device when run directly, so loading it here needs neither playwright-core nor an emulator.
 const smoke = require(path.join(__dirname, '..', 'native-smoke-android', 'smoke.js'));
 
-function fakeDevice() {
-  const shell = [];
-  return { shell, device: { shell: async command => { shell.push(command); } } };
-}
 
 /** A page whose in-app navigation works, or fails at the step named. */
 function fakePage({ menuVisible = true, failAt = null } = {}) {
@@ -35,33 +31,27 @@ function captureLog(fn) {
   return fn().finally(() => { console.log = original; }).then(result => ({ result, lines }));
 }
 
-test('boot: a first-attempt failure force-stops, relaunches and tries once more', async () => {
-  const { device, shell } = fakeDevice();
-  const attempts = [];
-  const boot = async (_, attempt) => { attempts.push(attempt); if (attempt === 1) throw new Error('attach race'); return { page: 'p', emailBox: 'e' }; };
-
-  const booted = await smoke.bootWithOneRelaunch(device, boot, 0);
-
-  assert.deepEqual(attempts, [1, 2]);
-  assert.equal(shell.length, 2);
-  assert.match(shell[0], /^am force-stop /);
-  assert.match(shell[1], /^monkey -p .* android\.intent\.category\.LAUNCHER 1$/);
-  assert.deepEqual(booted, { page: 'p', emailBox: 'e' });
+// The WHOLE journey is retried once, and only for the shapes a replaced WebView takes. These hold that policy.
+test('retry: the journey is tried twice, never more', () => {
+  assert.equal(smoke.ATTEMPTS, 2);
 });
 
-test('boot: a clean first attempt does not relaunch', async () => {
-  const { device, shell } = fakeDevice();
-  await smoke.bootWithOneRelaunch(device, async () => ({ page: 'p' }), 0);
-  assert.equal(shell.length, 0);
+test('retry: the shapes a replaced WebView takes are retried', () => {
+  for (const message of [
+    'page.fill: Target page, context or browser has been closed',
+    'Protocol error: Target closed',
+    'page.evaluate: Execution context was destroyed, most likely because of a navigation',
+    'androidDevice.shell: Device is closed',
+    "locator.fill: Timeout 30000ms exceeded. Call log: - waiting for getByTestId('login-email')",
+  ]) assert.equal(smoke.looksLikeWebViewReplaced(message), true, message);
 });
 
-test('boot: failing BOTH attempts is the real crash and fails the run', async () => {
-  const { device } = fakeDevice();
-  const attempts = [];
-  await assert.rejects(
-    smoke.bootWithOneRelaunch(device, async (_, attempt) => { attempts.push(attempt); throw new Error(`crash ${attempt}`); }, 0),
-    /crash 2/);
-  assert.deepEqual(attempts, [1, 2]); // exactly one retry, never a loop
+test('retry: an app fault after boot is not mistaken for a replaced WebView', () => {
+  for (const message of [
+    'expected 1 roster row for a fresh owner, saw 0',
+    'no OTP email arrived within 60000 ms',
+    "locator.click: Timeout 60000ms exceeded. Call log: - waiting for getByTestId('login-verify-otp')",
+  ]) assert.equal(smoke.looksLikeWebViewReplaced(message), false, message);
 });
 
 test('household: a visible user menu is opened and the link clicked, with no warning', async () => {

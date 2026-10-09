@@ -5,7 +5,7 @@ namespace Vuelto.Maui;
 /// <summary>
 /// Native implementation (NATIVE-3): a WebView can't perform a browser download, so fetch the signed URL and hand
 /// the bytes to the OS. On a phone (Android, iOS) and on the Mac that is the share sheet — the platform's own
-/// save/share affordance. On Windows it is a <b>Save As</b> dialog starting in Downloads (#204, owner 2026-10-09: a
+/// save/share affordance. On Windows it is a <b>Save As</b> dialog starting in Downloads (vuelto #204, owner 2026-10-09: a
 /// desktop saves a file into a folder; the share flyout made a PDF feel like a phone's), and cancelling it saves
 /// nothing. Filename comes from the API's Content-Disposition (server-controlled), sanitized to a basename so a
 /// header can never path-escape the cache directory or steer the dialog.

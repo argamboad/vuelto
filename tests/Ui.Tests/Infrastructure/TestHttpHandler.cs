@@ -15,6 +15,13 @@ public sealed partial class TestHttpHandler : HttpMessageHandler // the app's ha
     /// <summary>Every request the components made, in order — assert against these.</summary>
     public List<HttpRequestMessage> Requests { get; } = [];
 
+    /// <summary>
+    /// The body of each request, at the same index as <see cref="Requests"/>. Captured on the way
+    /// through rather than read back later: HttpClient disposes the request message once the send
+    /// completes, so by the time a test looks, the content is gone.
+    /// </summary>
+    public List<string> Bodies { get; } = [];
+
     private readonly Dictionary<string, TaskCompletionSource<HttpResponseMessage>> _gated = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>>> _slow = new(StringComparer.OrdinalIgnoreCase);
 
@@ -28,6 +35,31 @@ public sealed partial class TestHttpHandler : HttpMessageHandler // the app's ha
         {
             Content = new StringContent(json, Encoding.UTF8, "application/json"),
         };
+        return this;
+    }
+
+    /// <summary>
+    /// Stub "METHOD /path" with a body chosen per request — for one path asked two different questions,
+    /// told apart by the query (an app's list and the count behind it).
+    /// </summary>
+    public TestHttpHandler On(HttpMethod method, string path, Func<HttpRequestMessage, string> json)
+    {
+        _gated.Remove(Key(method, path));
+        _routes[Key(method, path)] = request => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(json(request), Encoding.UTF8, "application/json"),
+        };
+        return this;
+    }
+
+    /// <summary>
+    /// Stub "METHOD /path" to fail the way an unreachable server does — no response at all (DNS, no signal,
+    /// a connection dropped while the host cold-starts): the client sees an <see cref="HttpRequestException"/>.
+    /// </summary>
+    public TestHttpHandler OnUnreachable(HttpMethod method, string path)
+    {
+        _gated.Remove(Key(method, path));
+        _routes[Key(method, path)] = _ => throw new HttpRequestException("No such host is known.");
         return this;
     }
 
@@ -46,17 +78,6 @@ public sealed partial class TestHttpHandler : HttpMessageHandler // the app's ha
             Content = new StringContent(jsons[Math.Min(Interlocked.Increment(ref next) - 1, jsons.Length - 1)],
                 Encoding.UTF8, "application/json"),
         };
-        return this;
-    }
-
-    /// <summary>
-    /// Stub "METHOD /path" to fail the way an unreachable server does — no response at all (DNS, no signal,
-    /// a connection dropped while the host cold-starts): the client sees an <see cref="HttpRequestException"/>.
-    /// </summary>
-    public TestHttpHandler OnUnreachable(HttpMethod method, string path)
-    {
-        _gated.Remove(Key(method, path));
-        _routes[Key(method, path)] = _ => throw new HttpRequestException("No such host is known.");
         return this;
     }
 
@@ -141,6 +162,7 @@ public sealed partial class TestHttpHandler : HttpMessageHandler // the app's ha
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         Requests.Add(request);
+        Bodies.Add(request.Content?.ReadAsStringAsync(cancellationToken).GetAwaiter().GetResult() ?? "");
         var key = Key(request.Method, request.RequestUri?.AbsolutePath ?? "/");
         if (_gated.TryGetValue(key, out var gate))
             return gate.Task.WaitAsync(cancellationToken); // a caller's own timeout cancels the wait, as a real handler would
