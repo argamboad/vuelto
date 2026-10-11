@@ -4,7 +4,7 @@
     "platform commit this repo is synced to. PlatformOwnershipTests compares this repo against it. Do not edit by hand."
   ],
   "platform": "argamboad/perezosoft-platform",
-  "commit": "9c1aac626e5c11bef57951f3ee9ecf95c0d29268",
+  "commit": "4541929ed5e996f283ff6b893687ed4aee0f8ada",
   "files": [
     {
       "path": ".config/dotnet-tools.json",
@@ -514,7 +514,7 @@
     {
       "path": "docs/check_qa_artifacts.py",
       "class": "platform",
-      "hash": "ddb82b530c52576d542d2d62237c2b4ad4d3b3d1411d4ed7b1e20f0f09899708"
+      "hash": "ffa5077c11a477cb8f1ddb2874bf8c304c9336d4b11dec8b002d43e4e640c064"
     },
     {
       "path": "docs/DATA_MODEL.md",
@@ -609,17 +609,17 @@
     {
       "path": "docs/QA_RUN_LOG.pdf",
       "class": "adapts",
-      "hash": "ca070002584226825d4d0be4cb3875508db693d840b9443c02d788c268744fae"
+      "hash": "2ec22dc12b86ac9e6446ad5a88d2b05fb362618d1dbf288f31e2098750cb9512"
     },
     {
       "path": "docs/QA_TEST_GUIDE.pdf",
       "class": "adapts",
-      "hash": "c72cb9e6636222854031b93d3db2dfdebc9059b17e50d2fa6652e79c51c4ead2"
+      "hash": "688dc6133af2487e25d079aa72c3fbae648b2391e16923837c255675640940c2"
     },
     {
       "path": "docs/QA_TEST_PLAN.md",
       "class": "adapts",
-      "hash": "b6466afd3dc16321f0bea9e48d9dab6d76baf5296bb10988ce62e5ba83f10945"
+      "hash": "b92fbb55f6c38a882cdba2b1854b3d6611bc92b1aa276c9bacdd0b9d22344bd1"
     },
     {
       "path": "docs/qa-runs/2026-08-run-log.md",
