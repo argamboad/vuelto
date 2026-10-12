@@ -1,9 +1,9 @@
 using Microsoft.EntityFrameworkCore;
-using Perezosoft.Core.Entities;
-using Perezosoft.Core.Repositories;
-using Perezosoft.Infrastructure.Persistence;
+using Vuelto.Core.Entities;
+using Vuelto.Core.Repositories;
+using Vuelto.Infrastructure.Persistence;
 
-namespace Perezosoft.Infrastructure.Repositories;
+namespace Vuelto.Infrastructure.Repositories;
 
 /// <summary>EF Core implementation of <see cref="ITenantRepository"/>.</summary>
 public class TenantRepository(AppDbContext db) : ITenantRepository
@@ -78,14 +78,6 @@ public class TenantRepository(AppDbContext db) : ITenantRepository
             .Where(m => m.TenantId == tenantId && m.UserId == targetUserId)
             .ExecuteUpdateAsync(s => s.SetProperty(m => m.Role, TenantRoles.Owner), cancellationToken);
         return true;
-    }
-
-    public async Task DeleteTenantAsync(Guid tenantId, CancellationToken cancellationToken = default)
-    {
-        var tenant = await db.Tenants.FirstOrDefaultAsync(t => t.Id == tenantId, cancellationToken);
-        if (tenant == null) return;
-        db.Tenants.Remove(tenant);
-        await db.SaveChangesAsync(cancellationToken);
     }
 
     public async Task<List<TenantMemberDetail>> GetMemberDetailsAsync(Guid tenantId, CancellationToken cancellationToken = default) =>

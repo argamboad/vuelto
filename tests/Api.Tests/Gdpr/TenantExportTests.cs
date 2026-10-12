@@ -2,17 +2,17 @@ using System.Security.Claims;
 using System.Text;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Perezosoft.Api.Controllers;
-using Perezosoft.Api.Models;
-using Perezosoft.Api.Services;
-using Perezosoft.Api.Tests.Infrastructure;
-using Perezosoft.Core.Abstractions;
-using Perezosoft.Core.Entities;
-using Perezosoft.Infrastructure.Audit;
-using Perezosoft.Infrastructure.Persistence;
-using Perezosoft.Infrastructure.Repositories;
+using Vuelto.Api.Controllers;
+using Vuelto.Api.Models;
+using Vuelto.Api.Services;
+using Vuelto.Api.Tests.Infrastructure;
+using Vuelto.Core.Abstractions;
+using Vuelto.Core.Entities;
+using Vuelto.Infrastructure.Audit;
+using Vuelto.Infrastructure.Persistence;
+using Vuelto.Infrastructure.Repositories;
 
-namespace Perezosoft.Api.Tests.Gdpr;
+namespace Vuelto.Api.Tests.Gdpr;
 
 /// <summary>
 /// GDPR-1 (ADR-011): a tenant data export assembles core (tenant/members/invitations) + every

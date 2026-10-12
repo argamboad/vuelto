@@ -1,14 +1,14 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
-using Perezosoft.Api.Services;
-using Perezosoft.Api.Tests.Infrastructure;
-using Perezosoft.Core.Billing;
-using Perezosoft.Core.Entities;
-using Perezosoft.Infrastructure.Billing;
-using Perezosoft.Infrastructure.Outbox;
-using Perezosoft.Infrastructure.Repositories;
+using Vuelto.Api.Services;
+using Vuelto.Api.Tests.Infrastructure;
+using Vuelto.Core.Billing;
+using Vuelto.Core.Entities;
+using Vuelto.Infrastructure.Billing;
+using Vuelto.Infrastructure.Outbox;
+using Vuelto.Infrastructure.Repositories;
 
-namespace Perezosoft.Api.Tests.Billing;
+namespace Vuelto.Api.Tests.Billing;
 
 /// <summary>
 /// Drives BILLING-7 (ADR-006 point 6): billing participates in tenant dissolve. The
@@ -103,7 +103,7 @@ public class BillingDissolveTests(PostgresFixture fixture) : PostgresTestBase(fi
 
     // --- helpers ---
 
-    private static BillingDataContributor Build(Perezosoft.Infrastructure.Persistence.AppDbContext db) =>
+    private static BillingDataContributor Build(Vuelto.Infrastructure.Persistence.AppDbContext db) =>
         new(new EfRepository<Subscription>(db), new EfOutbox(db, TimeProvider.System));
 
     private async Task SeedSubscriptionAsync(Guid tenant, string? stripeSubscriptionId)

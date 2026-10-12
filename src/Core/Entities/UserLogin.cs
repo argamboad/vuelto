@@ -1,4 +1,4 @@
-namespace Perezosoft.Core.Entities;
+namespace Vuelto.Core.Entities;
 
 /// <summary>
 /// An OAuth provider identity linked to a user account. A user can have

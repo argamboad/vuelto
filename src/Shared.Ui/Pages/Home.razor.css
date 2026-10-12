@@ -10,7 +10,7 @@
 .welcome-card {
     width: 100%;
     max-width: 520px;
-    border-radius: 14px;
+    border-radius: var(--radius-card);
     border: 1px solid var(--app-border, #E0E7EF);
 }
 

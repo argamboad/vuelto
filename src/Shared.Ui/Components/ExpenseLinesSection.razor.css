@@ -1,0 +1,202 @@
+/* SKIN-9 · a list of grid rows. The grid is the custom part; the chip and the handle are the only decoration. */
+.lines {
+    margin-bottom: var(--card-gap);
+    border: 1px solid var(--app-border);
+    border-radius: var(--radius-card);
+    background: var(--card-bg);
+}
+
+.lines-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 9px;
+    padding: 11px var(--card-pad-x);
+    border-bottom: 1px solid var(--hair);
+    background: var(--zebra);
+    border-radius: var(--radius-card) var(--radius-card) 0 0;
+}
+
+.lines-head h2 {
+    margin: 0;
+    font-size: 12px;
+    font-weight: var(--w-display);
+    color: var(--ink);
+}
+
+.lines-hint {
+    margin-left: 7px;
+    font-size: 10px;
+    font-weight: var(--w-body);
+    color: var(--ink-3);
+}
+
+.lines-total {
+    font-size: 12px;
+    font-weight: var(--w-display);
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+    white-space: nowrap;
+}
+
+.lines-empty {
+    margin: 0;
+    padding: 15px var(--card-pad-x);
+    font-size: 12px;
+    color: var(--ink-3);
+}
+
+.lines-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+/* handle · name · amount · category · paid with · edit */
+.line {
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1fr) auto minmax(0, 9em) auto auto;
+    align-items: center;
+    gap: 0 13px;
+    padding: 8px var(--card-pad-x) 8px 9px;
+    border-bottom: 1px solid var(--hair);
+    font-size: 12px;
+    font-weight: var(--w-body);
+    color: var(--ink);
+}
+
+.line:last-child { border-bottom: 0; }
+.line:hover { background: var(--zebra); }
+
+/* Inactive: the ink drops and the name is struck through — not a grey background, which would read as disabled UI. */
+.line[data-inactive="true"] { color: var(--ink-3); }
+.line[data-inactive="true"] .line-name { text-decoration: line-through; }
+
+.line-handle-cell { position: relative; }
+
+.line-handle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 0;
+    border-radius: var(--bs-border-radius-sm);
+    background: none;
+    color: var(--ink-3);
+    font-size: 14px;
+    cursor: grab;
+}
+
+.line-handle:hover,
+.line-handle[aria-expanded="true"] { background: var(--rail); color: var(--ink); }
+
+.line[draggable="true"] { cursor: default; }
+
+/* The move menu: the keyboard path, and the only path on a touch screen. */
+.move-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    z-index: 210;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 180px;
+    padding: 7px;
+    border: 1px solid var(--app-border);
+    border-radius: var(--bs-border-radius-lg);
+    background: var(--card-bg);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .14);
+}
+
+.move-item {
+    padding: 5px 9px;
+    border: 0;
+    border-radius: var(--bs-border-radius-sm);
+    background: none;
+    text-align: left;
+    font-size: 12px;
+    font-weight: var(--w-control);
+    color: var(--ink);
+}
+
+.move-item:hover:not(:disabled) { background: var(--rail); }
+.move-item:disabled { color: var(--ink-3); }
+
+.move-to {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 7px;
+    padding: 5px 9px 3px;
+    font-size: 12px;
+    font-weight: var(--w-control);
+    color: var(--ink);
+}
+
+.move-to .form-select { width: auto; }
+
+.move-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+}
+
+.line-name-cell { min-width: 0; }
+
+.line-name { font-weight: var(--w-control); }
+
+.line-status {
+    margin-left: 7px;
+    font-size: 10px;
+    font-weight: var(--w-control);
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--ink-3);
+}
+
+.line-sub {
+    display: none;
+    font-size: 11px;
+    color: var(--ink-3);
+}
+
+.line-amount {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.line-category {
+    font-size: 11px;
+    color: var(--ink-2);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.line-chip {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: var(--bs-border-radius-pill);
+    background: var(--rail);
+    color: var(--ink-2);
+    font-size: 10px;
+    font-weight: var(--w-control);
+    white-space: nowrap;
+}
+
+.line-edit { padding: 0; font-size: 12px; font-weight: var(--w-control); }
+
+/* md: the paid-with chip goes; below md the category goes too and the sub-line carries both. */
+@media (max-width: 991.98px) {
+    .line { grid-template-columns: 28px minmax(0, 1fr) auto minmax(0, 9em) auto; }
+    .line-paid { display: none; }
+}
+
+@media (max-width: 767.98px) {
+    .line { grid-template-columns: 28px minmax(0, 1fr) auto auto; }
+    .line-category { display: none; }
+    .line-sub { display: block; }
+}

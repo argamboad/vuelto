@@ -1,0 +1,309 @@
+/* SKIN-5. Custom CSS only for what Bootstrap has no shape for; the grid, cards and alerts stay Bootstrap. */
+
+/* The review banner is amber because it NEEDS ATTENTION — never because anything is over budget. */
+.dash-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 11px;
+    margin-bottom: 15px;
+    padding: 9px 15px;
+    border-radius: var(--radius-bar);
+    background: var(--warn-bg);
+    font-size: 13px;
+    font-weight: var(--w-body);
+    color: var(--ink);
+}
+
+.dash-banner a {
+    font-weight: var(--w-control);
+    color: var(--ink);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------- page head */
+.dash-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 13px;
+    margin-bottom: 15px;
+}
+
+.dash-head h1 {
+    margin: 0;
+    font-size: 26px;
+    font-weight: var(--w-display);
+    color: var(--ink);
+}
+
+.dash-subtitle {
+    margin: 2px 0 9px;
+    font-size: 12px;
+    font-weight: var(--w-body);
+    color: var(--ink-3);
+}
+
+.dash-dot {
+    margin: 0 5px;
+}
+
+.dash-head-actions {
+    display: flex;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 11px;
+}
+
+.dash-head-buttons {
+    display: flex;
+    gap: 8px;
+}
+
+/* ---------------------------------------------------------------- pace card */
+.dash-pace {
+    height: 100%;
+    padding: var(--card-pad-y) var(--card-pad-x);
+    border: 1px solid var(--app-border);
+    border-radius: var(--radius-card);
+    background: var(--card-bg);
+}
+
+.dash-pace header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 9px;
+    margin-bottom: 13px;
+}
+
+.dash-pace h2 {
+    margin: 0;
+    font-size: 11px;
+    font-weight: var(--w-display);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+}
+
+.dash-pace-summary {
+    font-size: 11px;
+    font-weight: var(--w-control);
+    color: var(--ink-3);
+    font-variant-numeric: tabular-nums;
+}
+
+/* The projection disclaimer stays verbatim and stays visible — the dashboard projects at today's rate. */
+.dash-rate-note {
+    margin: 11px 0 0;
+    font-size: 11px;
+    font-weight: var(--w-body);
+    color: var(--ink-3);
+}
+
+.dash-overplan {
+    margin: 7px 0 0;
+    font-size: 12px;
+    font-weight: var(--w-control);
+    color: var(--bad);
+}
+
+/* ---------------------------------------------------------------- envelopes (conditional strip) */
+.dash-envelopes {
+    padding: var(--card-pad-y) var(--card-pad-x);
+    border: 1px solid var(--app-border);
+    border-radius: var(--radius-card);
+    background: var(--card-bg);
+}
+
+.dash-envelopes h2 {
+    margin: 0 0 7px;
+    font-size: 11px;
+    font-weight: var(--w-display);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+}
+
+.dash-envelopes ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.dash-envelopes li {
+    display: grid;
+    grid-template-columns: minmax(0, 10em) 1fr auto auto;
+    align-items: center;
+    gap: 13px;
+    padding: 7px 0;
+    font-size: 12px;
+    font-weight: var(--w-control);
+}
+
+.dash-envelopes li + li {
+    border-top: 1px solid var(--hair);
+}
+
+.dash-env-name {
+    color: var(--ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dash-env-bar {
+    display: block;
+    height: 4px;
+    border-radius: var(--radius-bar);
+    background: var(--rail);
+    overflow: hidden;
+}
+
+.dash-env-bar > span {
+    display: block;
+    height: 100%;
+    background: var(--brand-accent);
+}
+
+.dash-env-money {
+    color: var(--ink-3);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------- breakdown tables */
+.dash-meta {
+    display: block;
+    font-size: 11px;
+    font-weight: var(--w-body);
+    color: var(--ink-3);
+}
+
+/* The Card / Bank account summary sits above the bank table with a little air between the two. */
+.dash-method {
+    margin-bottom: 14px;
+}
+
+/* Unbudgeted group headings: eyebrow text with the subtotal in ink, a rule above to separate the groups. */
+.dash-other-group th {
+    padding-top: 12px;
+    border-top: 1px solid var(--hair);
+    font-size: 11px;
+    font-weight: var(--w-control);
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+}
+
+.dash-other-group th:last-child {
+    font-size: 13px;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--ink);
+}
+
+.dash-other-group + tr td:first-child,
+.dash-other-group ~ tr[data-testid="dash-other-row"] td:first-child {
+    padding-left: 14px;
+}
+
+.dash-meta-block {
+    margin: 0 0 9px;
+    font-size: 11px;
+    color: var(--ink-3);
+}
+
+.dash-empty-view {
+    margin: 0;
+    font-size: 12px;
+    color: var(--ink-3);
+}
+
+@media (max-width: 767.98px) {
+    .dash-head h1 { font-size: 20px; }
+
+    .dash-head-actions {
+        width: 100%;
+        align-items: flex-start;
+    }
+
+    .dash-envelopes li {
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 5px 11px;
+    }
+
+    .dash-env-bar { display: none; }
+}
+
+/* #209 · on a phone a "both" pair breaks after its middot (₡ over $) instead of forcing the table wider than the screen,
+   and the cells tighten; whatever still doesn't fit scrolls inside its own .table-responsive box, never the page. */
+@media (max-width: 575.98px) {
+    .dash-table {
+        font-size: .8125rem;
+    }
+
+    .dash-table th,
+    .dash-table td {
+        padding-left: .2rem;
+        padding-right: .2rem;
+    }
+
+    .dash-table thead th {
+        font-size: .625rem !important;   /* the shared table-head style is more specific */
+        letter-spacing: 0 !important;
+        white-space: normal;
+    }
+
+    .dash-table td.text-nowrap {
+        white-space: normal !important; /* Bootstrap's .text-nowrap is !important itself */
+    }
+
+    .dash-pair-sep {
+        display: none;
+    }
+
+    .dash-pair-alt {
+        display: block;
+        color: var(--ink-2);
+        font-size: .75rem;
+    }
+}
+
+/* The week's whole spend: a column on a wide screen, a line under the week's dates on a phone. */
+.dash-week-sum-sub {
+    display: none;
+}
+
+@media (max-width: 575.98px) {
+    .dash-table .dash-week-sum {
+        display: none;
+    }
+
+    /* ₡ over $ (the Pair rules above), a step smaller than the cells, so the week column stays as wide as its dates. */
+    .dash-week-sum-sub {
+        display: block;
+        margin-top: 3px;
+        font-size: .6875rem;
+        font-weight: 600;
+        line-height: 1.25;
+    }
+
+    .dash-week-sum-label {
+        display: block;
+        font-size: .5625rem;
+        font-weight: 500;
+        letter-spacing: .04em;
+        text-transform: uppercase;
+        color: var(--ink-3);
+    }
+
+    .dash-week-sum-sub .dash-pair-alt {
+        font-size: .625rem;
+    }
+}

@@ -7,13 +7,13 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using OtpNet;
-using Perezosoft.Api.Services;
-using Perezosoft.Core.Entities;
-using Perezosoft.Infrastructure;
-using Perezosoft.Infrastructure.Persistence;
+using Vuelto.Api.Services;
+using Vuelto.Core.Entities;
+using Vuelto.Infrastructure;
+using Vuelto.Infrastructure.Persistence;
 using Testcontainers.PostgreSql;
 
-namespace Perezosoft.Api.Tests.Infrastructure;
+namespace Vuelto.Api.Tests.Infrastructure;
 
 /// <summary>
 /// v2 audit B8-6: the HTTP integration harness. Boots the REAL app (<c>Program</c>) via
@@ -37,7 +37,7 @@ public sealed class IntegrationTestFactory : WebApplicationFactory<Program>, IAs
     // Long enough for HMAC-SHA256 (JwtSettings requires ≥32 chars); value is irrelevant, only length + validity.
     private const string TestJwtSecret = "integration-test-jwt-secret-key-0123456789";
 
-    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:17").Build();
+    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("public.ecr.aws/docker/library/postgres:17.11").Build();
 
     /// <summary>Superuser connection string of the throwaway container (for catalog-level asserts).</summary>
     public string DatabaseConnectionString => _container.GetConnectionString();
@@ -47,6 +47,7 @@ public sealed class IntegrationTestFactory : WebApplicationFactory<Program>, IAs
         // Must be present when Program reads Jwt:Secret at CreateBuilder time (before Build) — env vars
         // are a CreateBuilder config source; the WebApplicationFactory config hooks run too late.
         Environment.SetEnvironmentVariable("Jwt__Secret", TestJwtSecret);
+        App.AppTestComposition.PinEnvironment(); // the app's own process-level pins (Arch A1)
     }
 
     public async Task InitializeAsync()
@@ -110,6 +111,9 @@ public sealed class IntegrationTestFactory : WebApplicationFactory<Program>, IAs
             // across the auth-flow tests. This keeps the limiter active but non-colliding — the limiter
             // itself is tested in isolation by RateLimitingTests.
             services.AddSingleton<Microsoft.AspNetCore.Hosting.IStartupFilter, UniqueClientIpStartupFilter>();
+
+            // The app's own swaps, after the platform's (Arch A1).
+            App.AppTestComposition.ConfigureTestServices(services);
         });
     }
 
@@ -130,11 +134,40 @@ public sealed class IntegrationTestFactory : WebApplicationFactory<Program>, IAs
     /// <summary>Computes the current TOTP for a Base32 secret (same library the app uses).</summary>
     public static string Totp(string base32Secret) => new Totp(Base32Encoding.ToBytes(base32Secret)).ComputeTotp();
 
+    /// <summary>
+    /// The per-gate seam (v4 audit T59, R154): a host identical to this one with the named config gates switched
+    /// on — <c>WithGates("Billing")</c>, <c>WithGates("PublicApi", "Webhooks")</c>. A gate is a section-bound
+    /// settings class with a <c>bool Enabled</c>; each derived host has its own configuration, so nothing leaks
+    /// into another test the way a process-wide environment variable does.
+    /// </summary>
+    public WebApplicationFactory<Program> WithGates(params string[] sections) =>
+        WithWebHostBuilder(b =>
+        {
+            foreach (var section in sections) b.UseSetting($"{section}:Enabled", "true");
+        });
+
+    /// <summary>Every config gate the app declares, by reflection — a new gate is on this list the day it is added.</summary>
+    public static IReadOnlyList<string> AllGates() =>
+        [.. Configuration.SettingsCatalog.SectionBound().Where(Configuration.SettingsCatalog.HasEnabledSwitch)
+            .Select(t => Configuration.SettingsCatalog.SectionNameOf(t)!).Order()];
+
     /// <summary>A client that does NOT auto-follow redirects, so a 302 Location can be inspected.</summary>
     public HttpClient CreateNoRedirectClient() =>
         CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
 
     /// <summary>Seeds a tenant + a user who owns it, and returns the identifiers a token needs.</summary>
+    /// <summary>
+    /// Starts the server (if this test is the first to) and waits for the scheduler's first pass, which runs
+    /// every job the moment the host starts. Call it before seeding a row a job would sweep — an EXPIRED
+    /// refresh token is deleted by <c>ExpiredTokenCleanupJob</c> — so the test never races that pass.
+    /// </summary>
+    public async Task WaitForSchedulerFirstPassAsync()
+    {
+        _ = Server;
+        await Services.GetServices<Microsoft.Extensions.Hosting.IHostedService>()
+            .OfType<Vuelto.Infrastructure.Scheduling.ScheduledJobsHost>().Single().FirstPassCompleted;
+    }
+
     public async Task<SeededUser> SeedUserAsync(string role = TenantRoles.Owner, string? email = null)
     {
         email ??= $"user-{Guid.CreateVersion7():N}@test.local";

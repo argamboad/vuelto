@@ -1,11 +1,11 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
-using Perezosoft.Core.Abstractions;
-using Perezosoft.Core.Entities;
-using Perezosoft.Core.Repositories;
-using Perezosoft.Infrastructure.Email;
+using Vuelto.Core.Abstractions;
+using Vuelto.Core.Entities;
+using Vuelto.Core.Repositories;
+using Vuelto.Infrastructure.Email;
 
-namespace Perezosoft.Api.Services;
+namespace Vuelto.Api.Services;
 
 /// <summary>A user's notification delivery preferences (NOTIFY-2). Absence ⇒ both on.</summary>
 public sealed record NotificationPreferences(bool InApp, bool Email);
@@ -98,7 +98,7 @@ public sealed class NotificationService(
                 // Brand the copy via the shared template (title/body are HTML-encoded inside). The
                 // app-facing IEmailSender is the outbox-backed decorator (ADR-007) — reliable + retried.
                 var emailBody = BrandedEmail.Notification(title, body, BrandedEmail.ResolveCulture(user.Locale));
-                await emailSender.SendAsync(user.Email, emailBody.Subject, emailBody.Html, emailBody.InlineImages, cancellationToken);
+                await emailSender.SendAsync(user.Email, emailBody.Subject, emailBody.Html, emailBody.InlineImages, cancellationToken: cancellationToken);
             }
         }
     }

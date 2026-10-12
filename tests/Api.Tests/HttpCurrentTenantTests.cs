@@ -1,8 +1,8 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
-using Perezosoft.Api.Services;
+using Vuelto.Api.Services;
 
-namespace Perezosoft.Api.Tests;
+namespace Vuelto.Api.Tests;
 
 /// <summary>
 /// Unit coverage for the <see cref="HttpCurrentTenant"/> tenant-context primitive (ADR-003): an

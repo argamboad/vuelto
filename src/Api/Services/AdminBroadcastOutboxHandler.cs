@@ -1,9 +1,9 @@
 using System.Text.Json;
-using Perezosoft.Core.Abstractions;
-using Perezosoft.Core.Entities;
-using Perezosoft.Core.Repositories;
+using Vuelto.Core.Abstractions;
+using Vuelto.Core.Entities;
+using Vuelto.Core.Repositories;
 
-namespace Perezosoft.Api.Services;
+namespace Vuelto.Api.Services;
 
 /// <summary>The outbox payload for a platform-wide staff broadcast (ADMIN-3): the announcement copy plus
 /// the acting staff id, fanned out to every user by <see cref="AdminBroadcastOutboxHandler"/>. The
@@ -31,6 +31,8 @@ public sealed class AdminBroadcastOutboxHandler(IUserRepository users, INotifica
 {
     public const string MessageType = "admin.broadcast";
     public string Type => MessageType;
+    public bool DissolvesWithItsTenant => false; // platform-wide: never any one household's
+    public bool KeepsPayloadWhenDone => true; // the only record of who announced platform-wide (staff id + copy, no personal data)
 
     public async Task HandleAsync(OutboxMessage message, CancellationToken cancellationToken = default)
     {

@@ -1,11 +1,16 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Perezosoft.Api.Services;
-using Perezosoft.Api.Tests.Infrastructure;
+using Vuelto.Api.Services;
+using Vuelto.Api.Tests.Infrastructure;
+using Vuelto.Core.Entities;
+using Vuelto.Infrastructure.Persistence;
 
-namespace Perezosoft.Api.Tests.Integration;
+namespace Vuelto.Api.Tests.Integration;
 
 /// <summary>
 /// v3 audit TB-AUTH-1 (T44): the refresh-token theft response, proven at the wire. The service-level
@@ -14,18 +19,25 @@ namespace Perezosoft.Api.Tests.Integration;
 /// replaying a rotated-out token through <c>POST /api/auth/refresh</c> must (a) return the same generic
 /// 401 as any bad token (no reuse signal leaked to the attacker) and (b) revoke every live session for
 /// the user, killing the legitimately-rotated token too.
-/// Uses the native (body-token) transport so the test drives raw tokens without a cookie jar.
+/// ADR-002 addendum (2026-09-18): a replay WITHIN <c>RefreshToken:ReuseGraceSeconds</c> (60 s) of the
+/// rotation, while the successor is still live, is a benign race (two tabs, a lost response) — it gets
+/// a fresh session and revokes nothing. The theft tests therefore move the rotation out of the window
+/// first. Most tests use the native (body-token) transport so they drive raw tokens without a cookie
+/// jar; the two-tab race uses the web cookie transport, where it actually happens.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
 public class RefreshReplayTests(IntegrationTestFactory factory)
 {
+    private const string RefreshCookie = "refresh_token";
+
     private readonly IntegrationTestFactory _factory = factory;
 
     [Fact]
-    public async Task Refresh_RotatedTokenReplay_RevokesAllSessions_WithoutLeakingReuse()
+    public async Task Refresh_RotatedTokenReplay_AfterGraceWindow_RevokesAllSessions_WithoutLeakingReuse()
     {
         var user = await _factory.SeedUserAsync();
         var rawA = await IssueRefreshTokenAsync(user.UserId);
+        var phone = await IssueRefreshTokenAsync(user.UserId);
         var client = _factory.CreateClient();
 
         // 1. Legit rotation: A → B (A is revoked server-side, B comes back on the body).
@@ -33,6 +45,9 @@ public class RefreshReplayTests(IntegrationTestFactory factory)
         Assert.Equal(HttpStatusCode.OK, first.StatusCode);
         var rawB = await ReadRefreshTokenAsync(first);
         Assert.False(string.IsNullOrEmpty(rawB));
+
+        // The rotation is now older than the 60 s grace window.
+        await AgeRotationsAsync(user.UserId, TimeSpan.FromSeconds(61));
 
         // 2. Attacker replays the rotated-out A. Must be indistinguishable from a plain bad token —
         //    same status AND same error code as a never-issued garbage token.
@@ -43,9 +58,11 @@ public class RefreshReplayTests(IntegrationTestFactory factory)
         Assert.Equal(HttpStatusCode.Unauthorized, garbage.StatusCode);
         Assert.Equal(await garbage.Content.ReadAsStringAsync(), replayBody);
 
-        // 3. The theft response revoked EVERY session: the legitimately-rotated B is dead too.
-        var legit = await PostRefreshAsync(client, rawB!);
-        Assert.Equal(HttpStatusCode.Unauthorized, legit.StatusCode);
+        // 3. The theft response revoked EVERY session: the legitimately-rotated B is dead too, and so is
+        //    the user's other device.
+        Assert.Equal(HttpStatusCode.Unauthorized, (await PostRefreshAsync(client, rawB!)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await PostRefreshAsync(client, phone)).StatusCode);
+        Assert.Equal(0, await CountLiveTokensAsync(user.UserId));
     }
 
     [Fact]
@@ -65,6 +82,277 @@ public class RefreshReplayTests(IntegrationTestFactory factory)
         Assert.Equal(HttpStatusCode.OK, phoneRefresh.StatusCode);
     }
 
+    [Fact]
+    public async Task Refresh_SameCookieTwice_BackToBack_BothSucceed_AndNothingIsRevoked()
+    {
+        // The staging bug: two tabs refresh at once with the same cookie (or a refresh's response is lost
+        // and the browser retries with the old cookie). The second presentation lands inside the grace
+        // window with a live successor — a race, not a theft: both get a session, no one is signed out.
+        var user = await _factory.SeedUserAsync();
+        var cookie = await IssueRefreshTokenAsync(user.UserId);
+        var phone = await IssueRefreshTokenAsync(user.UserId);
+        var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
+
+        var tab1 = await PostWebRefreshAsync(client, cookie);
+        var tab2 = await PostWebRefreshAsync(client, cookie);
+
+        Assert.Equal(HttpStatusCode.OK, tab1.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, tab2.StatusCode);
+        var rotated1 = ReadRefreshCookie(tab1);
+        var rotated2 = ReadRefreshCookie(tab2);
+        Assert.False(string.IsNullOrEmpty(rotated1));
+        Assert.False(string.IsNullOrEmpty(rotated2));
+        Assert.NotEqual(rotated1, rotated2);
+
+        // Nothing was revoked: both new chains and the user's other device keep working.
+        Assert.Equal(HttpStatusCode.OK, (await PostRefreshAsync(client, phone)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await PostWebRefreshAsync(client, rotated1!)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await PostWebRefreshAsync(client, rotated2!)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Refresh_ThirdPresentationInsideGrace_Is401_AndRevokesAllSessions()
+    {
+        // v4 AUTH-1 (T28, R81): the grace is one-shot. A rotated-out token forgiven once (the benign race)
+        // must not be forgiven again — a third presentation inside the same 60 s window is reuse: the
+        // generic 401, and every session of the user revoked (both chains the grace created, and the phone).
+        var user = await _factory.SeedUserAsync();
+        var rawA = await IssueRefreshTokenAsync(user.UserId);
+        var phone = await IssueRefreshTokenAsync(user.UserId);
+        var client = _factory.CreateClient();
+
+        var first = await PostRefreshAsync(client, rawA);                       // A → B
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+        var second = await PostRefreshAsync(client, rawA);                      // A again, inside the grace: forgiven → C
+        Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+        var rawC = await ReadRefreshTokenAsync(second);
+
+        var third = await PostRefreshAsync(client, rawA);                       // A a third time: reuse
+
+        Assert.Equal(HttpStatusCode.Unauthorized, third.StatusCode);
+        Assert.Equal(await (await PostRefreshAsync(client, "never-issued-token")).Content.ReadAsStringAsync(),
+            await third.Content.ReadAsStringAsync());
+        Assert.Equal(0, await CountLiveTokensAsync(user.UserId));
+        Assert.Equal(HttpStatusCode.Unauthorized, (await PostRefreshAsync(client, rawC!)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await PostRefreshAsync(client, phone)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Refresh_AttackerRotatesFirst_VictimsRenewalInsideGrace_GetsASession_ByDesign()
+    {
+        // v4 AUTH-13 (T28): the grace is symmetric, and this test records the accepted trade-off rather than
+        // hides it (ADR-002 addendum, 2026-09-28). A thief holding a copy of A who rotates it FIRST gets B; the
+        // victim's own renewal with A, landing inside the window, is the "benign race" and gets C — the alarm
+        // does not fire for that pair. What the platform guarantees instead: the grace was spent on the
+        // victim's renewal, so the thief's NEXT replay of A (or the victim's, whichever comes) revokes everything,
+        // and the window is bounded by the client's refresh timeout + retry delay (T30) being shorter than it.
+        var user = await _factory.SeedUserAsync();
+        var rawA = await IssueRefreshTokenAsync(user.UserId);
+        var client = _factory.CreateClient();
+
+        var thief = await PostRefreshAsync(client, rawA);                       // attacker first: A → B
+        Assert.Equal(HttpStatusCode.OK, thief.StatusCode);
+        var rawB = await ReadRefreshTokenAsync(thief);
+        var victim = await PostRefreshAsync(client, rawA);                      // victim's scheduled renewal
+        Assert.Equal(HttpStatusCode.OK, victim.StatusCode);                     // forgiven — the documented trade
+        Assert.Equal(2, await CountLiveTokensAsync(user.UserId));               // both chains live
+
+        var replay = await PostRefreshAsync(client, rawA);                      // anyone presents A once more
+
+        Assert.Equal(HttpStatusCode.Unauthorized, replay.StatusCode);
+        Assert.Equal(0, await CountLiveTokensAsync(user.UserId));               // the thief's B is dead too
+        Assert.Equal(HttpStatusCode.Unauthorized, (await PostRefreshAsync(client, rawB!)).StatusCode);
+    }
+
+    [Theory]
+    [InlineData(false)] // a fresh token: the rotation path
+    [InlineData(true)]  // a token rotated seconds ago, successor live: the grace path
+    public async Task Refresh_RevokeAllBetweenInspectAndIssue_LeavesNoLiveToken(bool withinGrace) // v4 T54 · TB-AUTH-30
+    {
+        // The endpoint inspects the presented token, then issues its successor. A revoke-all landing in between —
+        // "sign out everywhere" from another device, an erasure, the theft response to a replay — must leave NO
+        // live token: the successor must not be minted on the strength of an inspection that is no longer true.
+        // The seam: a decorator over IRefreshTokenService runs the revoke-all right after the inspection returns.
+        var user = await _factory.SeedUserAsync();
+        var rawA = await IssueRefreshTokenAsync(user.UserId);
+        var interleave = new Interleave();
+        using var host = _factory.WithWebHostBuilder(b => b.ConfigureTestServices(services =>
+        {
+            services.AddSingleton(interleave);
+            services.AddScoped<IRefreshTokenService>(sp => new InterleavingRefreshTokenService(
+                ActivatorUtilities.CreateInstance<RefreshTokenService>(sp), sp.GetRequiredService<Interleave>()));
+        }));
+        var client = host.CreateClient();
+        var presented = rawA;
+        if (withinGrace)
+        {
+            var rotated = await PostRefreshAsync(client, rawA);
+            Assert.Equal(HttpStatusCode.OK, rotated.StatusCode); // A → B; A is now inside its grace window
+        }
+        interleave.AfterInspect = async () =>
+        {
+            using var scope = host.Services.CreateScope(); // another connection, like another request
+            await scope.ServiceProvider.GetRequiredService<IRefreshTokenService>().RevokeAllUserTokensAsync(user.UserId);
+        };
+
+        var refresh = await PostRefreshAsync(client, presented);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, refresh.StatusCode);
+        Assert.Equal(0, await CountLiveTokensAsync(user.UserId)); // OLD code: the successor survives the revoke-all
+    }
+
+    /// <summary>The one-shot hook <see cref="InterleavingRefreshTokenService"/> runs after an inspection.</summary>
+    private sealed class Interleave
+    {
+        public Func<Task>? AfterInspect { get; set; }
+    }
+
+    /// <summary>Real service, plus a hook right after <see cref="InspectRefreshTokenAsync"/> — the interleaving seam TB-AUTH-30 needs.</summary>
+    private sealed class InterleavingRefreshTokenService(IRefreshTokenService inner, Interleave interleave) : IRefreshTokenService
+    {
+        public async Task<RefreshTokenInspection> InspectRefreshTokenAsync(string rawToken, CancellationToken cancellationToken = default)
+        {
+            var inspection = await inner.InspectRefreshTokenAsync(rawToken, cancellationToken);
+            if (interleave.AfterInspect is { } hook)
+            {
+                interleave.AfterInspect = null; // once: the revoke-all's own inspections must not recurse
+                await hook();
+            }
+            return inspection;
+        }
+
+        public Task<IssuedRefreshToken> IssueRefreshTokenAsync(Guid userId, string ipAddress, string provider, DateTimeOffset? sessionExpiresAt = null, CancellationToken cancellationToken = default) =>
+            inner.IssueRefreshTokenAsync(userId, ipAddress, provider, sessionExpiresAt, cancellationToken);
+        public Task<RefreshToken?> ValidateRefreshTokenAsync(string rawToken, CancellationToken cancellationToken = default) => inner.ValidateRefreshTokenAsync(rawToken, cancellationToken);
+        public Task<bool> TryMarkRotatedAsync(Guid tokenId, Guid replacedByTokenId, CancellationToken cancellationToken = default) => inner.TryMarkRotatedAsync(tokenId, replacedByTokenId, cancellationToken);
+        public Task<bool> TryConsumeGraceAsync(Guid tokenId, CancellationToken cancellationToken = default) => inner.TryConsumeGraceAsync(tokenId, cancellationToken);
+        public Task<int> CountGraceUsesAsync(Guid userId, CancellationToken cancellationToken = default) => inner.CountGraceUsesAsync(userId, cancellationToken);
+        public Task RevokeRefreshTokenAsync(Guid tokenId, CancellationToken cancellationToken = default) => inner.RevokeRefreshTokenAsync(tokenId, cancellationToken);
+        public Task RevokeAllUserTokensAsync(Guid userId, CancellationToken cancellationToken = default) => inner.RevokeAllUserTokensAsync(userId, cancellationToken);
+    }
+
+    [Fact]
+    public async Task Refresh_PreLogoutRotatedToken_WithinGraceWindow_Is401_AndIssuesNoSession()
+    {
+        // Logout revokes the successor, so a stale token from another tab can never undo a sign-out —
+        // even seconds after the rotation, inside the grace window.
+        var user = await _factory.SeedUserAsync();
+        var rawA = await IssueRefreshTokenAsync(user.UserId);
+        var client = _factory.CreateClient();
+
+        var rotated = await PostRefreshAsync(client, rawA);
+        Assert.Equal(HttpStatusCode.OK, rotated.StatusCode);
+        var rawB = await ReadRefreshTokenAsync(rotated);
+
+        var logout = await PostNativeAsync(client, "/api/auth/logout", rawB!);
+        Assert.Equal(HttpStatusCode.OK, logout.StatusCode);
+        var tokensAfterLogout = await CountTokensAsync(user.UserId);
+
+        var stale = await PostRefreshAsync(client, rawA);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, stale.StatusCode);
+        Assert.Equal(0, await CountLiveTokensAsync(user.UserId));
+        Assert.Equal(tokensAfterLogout, await CountTokensAsync(user.UserId)); // no session was minted
+    }
+
+    [Fact]
+    public async Task Logout_WithTheTokenJustRotatedOut_StillRevokesTheSuccessor()
+    {
+        // v4 LB-AUTH-4 (T29, R124): the keep-alive makes this routine — a refresh is in flight when the user
+        // clicks Sign out, so logout presents the token the refresh just rotated out. It must still find the
+        // user and revoke the whole family (the successor the refresh minted, and the phone), or the refresh
+        // response lands a moment later and restores the session the user just ended.
+        var user = await _factory.SeedUserAsync();
+        var rawA = await IssueRefreshTokenAsync(user.UserId);
+        var phone = await IssueRefreshTokenAsync(user.UserId);
+        var client = _factory.CreateClient();
+
+        var rotated = await PostRefreshAsync(client, rawA);                     // A → B (the in-flight refresh)
+        Assert.Equal(HttpStatusCode.OK, rotated.StatusCode);
+        var rawB = await ReadRefreshTokenAsync(rotated);
+
+        var logout = await PostNativeAsync(client, "/api/auth/logout", rawA);   // Sign out, with the old token
+
+        Assert.Equal(HttpStatusCode.OK, logout.StatusCode);
+        Assert.Equal(0, await CountLiveTokensAsync(user.UserId));
+        Assert.Equal(HttpStatusCode.Unauthorized, (await PostRefreshAsync(client, rawB!)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await PostRefreshAsync(client, phone)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Logout_WithAnExpiredToken_RevokesTheUsersOtherSessions()
+    {
+        // v4 LB-AUTH-4 (T29): a device that slept past its refresh token's expiry still promises "sign out
+        // everywhere" — the endpoint must resolve the user from the expired token and revoke the others.
+        // (Until the hourly cleanup deletes the expired row, that is; an unknown hash is a no-op, below.)
+        await _factory.WaitForSchedulerFirstPassAsync(); // the cleanup sweeps expired tokens on the host's first tick
+        var user = await _factory.SeedUserAsync();
+        var rawA = await IssueRefreshTokenAsync(user.UserId);
+        var phone = await IssueRefreshTokenAsync(user.UserId);
+        var client = _factory.CreateClient();
+        await ExpireTokenAsync(rawA);
+
+        var logout = await PostNativeAsync(client, "/api/auth/logout", rawA);
+
+        Assert.Equal(HttpStatusCode.OK, logout.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await PostRefreshAsync(client, phone)).StatusCode);
+        Assert.Equal(0, await CountLiveTokensAsync(user.UserId));
+    }
+
+    [Fact]
+    public async Task Logout_WithAnUnknownToken_IsANoOp_AndStill200()
+    {
+        // Only an unknown hash is a no-op (R124): the user's real sessions are untouched, and the answer is
+        // the same 200 — logout never reveals whether the token was known.
+        var user = await _factory.SeedUserAsync();
+        var phone = await IssueRefreshTokenAsync(user.UserId);
+        var client = _factory.CreateClient();
+
+        var logout = await PostNativeAsync(client, "/api/auth/logout", "never-issued-token");
+
+        Assert.Equal(HttpStatusCode.OK, logout.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await PostRefreshAsync(client, phone)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Refresh_UnderAnAbsoluteLifetime_NeverExtendsTheChainPastIt()
+    {
+        // v4 T36 (decision #2): with RefreshToken:AbsoluteLifetimeDays set, a rotation through the endpoint
+        // inherits the session's end instead of minting another full lifetime.
+        var user = await _factory.SeedUserAsync();
+        using var host = _factory.WithWebHostBuilder(b => b.UseSetting("RefreshToken:AbsoluteLifetimeDays", "1"));
+        string rawA;
+        DateTimeOffset sessionEnd;
+        using (var scope = host.Services.CreateScope())
+        {
+            var issued = await scope.ServiceProvider.GetRequiredService<IRefreshTokenService>().IssueRefreshTokenAsync(user.UserId, "127.0.0.1", "test");
+            rawA = issued.RawToken;
+            sessionEnd = issued.Token.SessionExpiresAt ?? throw new Xunit.Sdk.XunitException("the sign-in did not stamp the session's end");
+        }
+        var client = host.CreateClient();
+
+        var rotated = await PostRefreshAsync(client, rawA);
+
+        Assert.Equal(HttpStatusCode.OK, rotated.StatusCode);
+        using var read = _factory.Services.CreateScope();
+        var db = read.ServiceProvider.GetRequiredService<AppDbContext>();
+        var successor = await db.RefreshTokens.SingleAsync(t => t.UserId == user.UserId && !t.IsRevoked);
+        // Postgres stores microseconds, .NET ticks are 100 ns: compare to the microsecond.
+        Assert.InRange(successor.SessionExpiresAt!.Value, sessionEnd.AddTicks(-9), sessionEnd.AddTicks(9));
+        Assert.True(successor.ExpiresAt <= sessionEnd.AddTicks(9), $"successor expires {successor.ExpiresAt}, past the session's end {sessionEnd}");
+    }
+
+    /// <summary>Moves one token's expiry into the past (the app runs on the real clock).</summary>
+    private async Task ExpireTokenAsync(string rawToken)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var hash = scope.ServiceProvider.GetRequiredService<ITokenHasher>().HashToken(rawToken);
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var expired = await db.RefreshTokens.Where(t => t.TokenHash == hash)
+            .ExecuteUpdateAsync(s => s.SetProperty(t => t.ExpiresAt, DateTimeOffset.UtcNow.AddMinutes(-1)));
+        Assert.Equal(1, expired);
+    }
+
     /// <summary>Issues a session for the user via the app's own service — the same path a login uses.</summary>
     private async Task<string> IssueRefreshTokenAsync(Guid userId)
     {
@@ -73,9 +361,37 @@ public class RefreshReplayTests(IntegrationTestFactory factory)
         return (await service.IssueRefreshTokenAsync(userId, "127.0.0.1", "test")).RawToken;
     }
 
-    private static Task<HttpResponseMessage> PostRefreshAsync(HttpClient client, string rawToken)
+    /// <summary>Moves every rotation of the user's tokens <paramref name="age"/> into the past (the app runs on the real clock).</summary>
+    private async Task AgeRotationsAsync(Guid userId, TimeSpan age)
     {
-        var req = new HttpRequestMessage(HttpMethod.Post, "/api/auth/refresh")
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var aged = await db.RefreshTokens
+            .Where(t => t.UserId == userId && t.RotatedAt != null)
+            .ExecuteUpdateAsync(s => s.SetProperty(t => t.RotatedAt, t => t.RotatedAt - age));
+        Assert.True(aged > 0, "expected at least one rotated token to age");
+    }
+
+    private async Task<int> CountLiveTokensAsync(Guid userId)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        return await db.RefreshTokens.CountAsync(t => t.UserId == userId && !t.IsRevoked);
+    }
+
+    private async Task<int> CountTokensAsync(Guid userId)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        return await db.RefreshTokens.CountAsync(t => t.UserId == userId);
+    }
+
+    private static Task<HttpResponseMessage> PostRefreshAsync(HttpClient client, string rawToken) =>
+        PostNativeAsync(client, "/api/auth/refresh", rawToken);
+
+    private static Task<HttpResponseMessage> PostNativeAsync(HttpClient client, string path, string rawToken)
+    {
+        var req = new HttpRequestMessage(HttpMethod.Post, path)
         {
             Content = JsonContent.Create(new { refresh_token = rawToken }),
         };
@@ -83,9 +399,29 @@ public class RefreshReplayTests(IntegrationTestFactory factory)
         return client.SendAsync(req);
     }
 
+    /// <summary>The browser transport: the refresh token rides the HttpOnly cookie, the body is empty.</summary>
+    private static Task<HttpResponseMessage> PostWebRefreshAsync(HttpClient client, string rawToken)
+    {
+        var req = new HttpRequestMessage(HttpMethod.Post, "/api/auth/refresh");
+        // Encoded the way CookieService writes it (base64 carries + / =), as the browser sends it back.
+        req.Headers.Add("Cookie", $"{RefreshCookie}={Uri.EscapeDataString(rawToken)}");
+        return client.SendAsync(req);
+    }
+
     private static async Task<string?> ReadRefreshTokenAsync(HttpResponseMessage response)
     {
         using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         return doc.RootElement.GetProperty("refresh_token").GetString();
+    }
+
+    /// <summary>The value of the Path=/api/auth refresh cookie set on the response (the Path=/ one is the legacy-orphan expiry).</summary>
+    private static string? ReadRefreshCookie(HttpResponseMessage response)
+    {
+        if (!response.Headers.TryGetValues("Set-Cookie", out var setCookies))
+            return null;
+        var cookie = setCookies.FirstOrDefault(c =>
+            c.StartsWith($"{RefreshCookie}=", StringComparison.Ordinal) &&
+            c.Contains("path=/api/auth", StringComparison.OrdinalIgnoreCase));
+        return cookie is null ? null : Uri.UnescapeDataString(cookie[(RefreshCookie.Length + 1)..].Split(';')[0]);
     }
 }

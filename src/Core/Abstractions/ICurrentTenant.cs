@@ -1,4 +1,4 @@
-namespace Perezosoft.Core.Abstractions;
+namespace Vuelto.Core.Abstractions;
 
 /// <summary>
 /// The tenant the current request acts within, resolved from the authenticated

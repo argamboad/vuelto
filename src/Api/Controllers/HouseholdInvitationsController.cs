@@ -1,12 +1,12 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Perezosoft.Api.Authentication;
-using Perezosoft.Api.Models;
-using Perezosoft.Api.Services;
-using Perezosoft.Core.Authorization;
-using Perezosoft.Core.Repositories;
+using Vuelto.Api.Authentication;
+using Vuelto.Api.Models;
+using Vuelto.Api.Services;
+using Vuelto.Core.Authorization;
+using Vuelto.Core.Repositories;
 
-namespace Perezosoft.Api.Controllers;
+namespace Vuelto.Api.Controllers;
 
 /// <summary>
 /// Tenant ("household") invitations. Owners or admins (Permission.ManageMembers) invite by email,

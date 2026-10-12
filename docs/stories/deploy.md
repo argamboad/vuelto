@@ -72,7 +72,7 @@ on / ignored off — minimal TestServer).
   serves its static files (recorded in ADR-017).
 - **`ApiBaseUrl` becomes optional** in `src/Web`: default to `builder.HostEnvironment.BaseAddress`
   (same origin) when unset, instead of throwing. Local dev config keeps the explicit
-  `https://localhost:7160`; the deployed bundle ships without it. (The e2e CI job's appsettings
+  `https://localhost:7260`; the deployed bundle ships without it. (The e2e CI job's appsettings
   overwrite keeps working — explicit config still wins.)
 - **Forwarded headers.** `UseForwardedHeaders` (`XForwardedFor | XForwardedProto`) — currently missing;
   behind Render every request would look like the proxy's IP, collapsing the per-IP passwordless rate
@@ -118,7 +118,8 @@ ADR-017 referenced.
 
 ### DEPLOY-2 — Containerize + bring up the staging environment (Render + Neon + Brevo)
 
-**Status: 🚧 Local half done** (`feat/deploy-2-container`) — cloud bring-up pending operator accounts.
+**Status: ✅ Done** — the container half landed on `feat/deploy-2-container`; the cloud bring-up followed (live
+staging on Render + Neon + Brevo, all four sign-in paths verified there — see the epic header).
 Multi-stage `Dockerfile` (repo root) + `.dockerignore`: publishes Web + Api, folds the WASM bundle into
 the API's `wwwroot`, runs non-root, binds `$PORT` (default 8080), `HEALTHCHECK` → `/health`. A compose
 `app` service (behind the `app` **profile**, so `docker compose up -d` still starts only db+mail) gives
@@ -189,7 +190,12 @@ jobs). **`deploy-staging`**: on a push to `develop`, after every test gate is gr
 deploy hook (`RENDER_DEPLOY_HOOK_STAGING`), then waits for the new build to be live (`GET /api/version` reports the pushed commit — the old instance
 serves during Render's build) and smoke-tests
 (liveness, readiness, SPA shell + deep-link, `/api/*` → 404 not the shell, `/api/auth/providers`); a red
-smoke fails the run. **`deploy-prod`**: on a push to `main`, behind the `production` GitHub Environment
+smoke fails the run. **Superseded builds (2026-09-05):** back-to-back pushes make the host build the newer
+head, so the older push never shows up at `/api/version`; the concurrency group cancels the older job when
+the runs start in order, and when they don't, `deploy-smoke.sh` accepts a live commit that is a
+*descendant* of the expected one (compare API via `GH_TOKEN`) and smokes that build — the one that is
+actually deployed — instead of failing after the 12½-minute wait (found on this app's develop: runs 33994412795 / 33994421122, PRs #32 + #33 merged a minute apart; platform PR #209, synced).
+**`deploy-prod`**: on a push to `main`, behind the `production` GitHub Environment
 (add a required reviewer → manual approval; `main` stays deploy-only). Both **skip cleanly** (log a notice,
 pass) when their hook/URL aren't set, so the platform is green out of the box and a downstream app opts in.
 QA plan gained **§1.5 "Environment B — deployed staging"** (real-Brevo inboxes, cold-start, config-gated
@@ -202,7 +208,8 @@ required reviewer + `RENDER_DEPLOY_HOOK_PROD`. Turn **off** Render's native auto
 CI is the only trigger. Steps in `docs/DEPLOYMENT.md`.
 
 **As a** maintainer
-**I want** merges to `develop` to auto-deploy staging (with a smoke gate) and a protected manual path for prod
+**I want** merges to `develop` to auto-deploy staging (with a smoke gate) — on GitHub; since ADR-028 the
+Forgejo dispatch `deploy=staging` is the trigger — and a protected manual path for prod
 **So that** staging always reflects `develop` for QA, and prod stays a deliberate act from `main`
 
 **Context / notes:**

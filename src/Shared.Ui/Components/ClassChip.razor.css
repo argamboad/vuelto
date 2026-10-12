@@ -1,0 +1,45 @@
+/* A pill, sized for reading rather than for tapping — it is a label, not a control. The tone is an attribute
+   rather than a class so the component is the only thing that can set it; every value resolves through the
+   SKIN-1 tokens, so both themes follow from the token swap with no rule of their own here. */
+.class-chip {
+    display: inline-block;
+    padding: 2px 9px;
+    border-radius: var(--bs-border-radius-pill);
+    font-size: 10px;
+    font-weight: var(--w-control);
+    line-height: 1.6;
+    white-space: nowrap;
+}
+
+/* Planned spending — the ordinary case, so it carries the brand tint rather than a semantic colour. */
+.class-chip[data-tone="plan"] {
+    background: var(--bs-primary-bg-subtle);
+    color: var(--bs-primary-text-emphasis);
+}
+
+/* Discretionary: real, but nothing to act on. */
+.class-chip[data-tone="neutral"] {
+    background: var(--rail);
+    color: var(--ink-2);
+}
+
+/* Unplanned essential — the one class that asks to be looked at. Amber NEVER means over budget. */
+.class-chip[data-tone="warn"] {
+    background: var(--warn-bg);
+    color: var(--ink);
+}
+
+/* Money in. */
+.class-chip[data-tone="good"] {
+    background: var(--warn-bg);
+    background: color-mix(in srgb, var(--good) 16%, transparent);
+    color: var(--good);
+}
+
+/* An envelope contribution is carved out of expenses entirely — neither spending nor income, so it takes the
+   accent rather than any of the four above. The handout draws four chips and not this one; it is the fifth
+   class the API has, and it needs a tone of its own or it reads as discretionary. */
+.class-chip[data-tone="saving"] {
+    background: color-mix(in srgb, var(--brand-accent) 18%, transparent);
+    color: var(--bs-primary-text-emphasis);
+}

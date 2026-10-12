@@ -44,7 +44,7 @@
             <string>OAuth callback</string>
             <key>CFBundleURLSchemes</key>
             <array>
-                <string>perezosoft</string>
+                <string>vuelto</string>
             </array>
         </dict>
     </array>

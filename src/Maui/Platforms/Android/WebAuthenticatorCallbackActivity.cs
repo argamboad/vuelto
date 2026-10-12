@@ -2,13 +2,13 @@ using Android.App;
 using Android.Content;
 using Android.Content.PM;
 using Android.OS;
-using Perezosoft.Maui.Auth;
-using Perezosoft.Shared.Ui.Auth;
+using Vuelto.Maui.Auth;
+using Vuelto.Shared.Ui.Auth;
 
-namespace Perezosoft.Maui.Platforms.Android;
+namespace Vuelto.Maui.Platforms.Android;
 
 /// <summary>
-/// Receives the OAuth callback redirect (<c>perezosoft://auth?…</c>) and hands it to
+/// Receives the OAuth callback redirect (<c>vuelto://auth?…</c>) and hands it to
 /// <see cref="Microsoft.Maui.Authentication.WebAuthenticator"/> to complete the flow.
 /// The intent filter must match the scheme used by <c>WebAuthenticatorOAuthInitiator</c>
 /// and the API's <c>Auth:Native:CallbackScheme</c>.
@@ -21,7 +21,7 @@ namespace Perezosoft.Maui.Platforms.Android;
 public class WebAuthenticatorCallbackActivity : Microsoft.Maui.Authentication.WebAuthenticatorCallbackActivity
 {
     // Must equal MauiProgram.CallbackScheme and the API's Auth:Native:CallbackScheme.
-    private const string CallbackScheme = "perezosoft";
+    private const string CallbackScheme = "vuelto";
 
     protected override void OnCreate(Bundle? savedInstanceState)
     {

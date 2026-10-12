@@ -1,8 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using Perezosoft.Core.Entities;
+using Vuelto.Core.Entities;
 
-namespace Perezosoft.Infrastructure.Persistence.Configurations;
+namespace Vuelto.Infrastructure.Persistence.Configurations;
 
 public class TenantInvitationConfiguration : IEntityTypeConfiguration<TenantInvitation>
 {

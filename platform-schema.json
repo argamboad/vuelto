@@ -1,0 +1,1898 @@
+{
+  "$comment": [
+    "The shape the platform's migrations build for the platform's tables, as Postgres reports it (Arch A5, R161): columns,",
+    "constraints, indexes, row-level-security policies. Written by PlatformSchemaTests with PLATFORM_SCHEMA_WRITE=1 on the",
+    "platform after a schema migration; never edited by hand. Downstream, the same test compares the app's migrated",
+    "database with this file for these tables — the app's own tables are not listed and not checked."
+  ],
+  "tables": {
+    "ApiKeys": {
+      "columns": [
+        {
+          "name": "Id",
+          "type": "uuid",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "TenantId",
+          "type": "uuid",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "Name",
+          "type": "character varying",
+          "length": "128",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "KeyHash",
+          "type": "character varying",
+          "length": "128",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "Prefix",
+          "type": "character varying",
+          "length": "32",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "Scopes",
+          "type": "character varying",
+          "length": "256",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "CreatedByUserId",
+          "type": "uuid",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "CreatedAt",
+          "type": "timestamp with time zone",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "LastUsedAt",
+          "type": "timestamp with time zone",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": true,
+          "default": ""
+        },
+        {
+          "name": "ExpiresAt",
+          "type": "timestamp with time zone",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": true,
+          "default": ""
+        },
+        {
+          "name": "RevokedAt",
+          "type": "timestamp with time zone",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": true,
+          "default": ""
+        }
+      ],
+      "constraints": [
+        {
+          "name": "PK_ApiKeys",
+          "type": "PRIMARY KEY",
+          "columns": "Id",
+          "references": "",
+          "onDelete": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "IX_ApiKeys_KeyHash",
+          "definition": "CREATE UNIQUE INDEX \"IX_ApiKeys_KeyHash\" ON public.\"ApiKeys\" USING btree (\"KeyHash\")"
+        },
+        {
+          "name": "IX_ApiKeys_TenantId",
+          "definition": "CREATE INDEX \"IX_ApiKeys_TenantId\" ON public.\"ApiKeys\" USING btree (\"TenantId\")"
+        },
+        {
+          "name": "PK_ApiKeys",
+          "definition": "CREATE UNIQUE INDEX \"PK_ApiKeys\" ON public.\"ApiKeys\" USING btree (\"Id\")"
+        }
+      ],
+      "policies": [
+        {
+          "name": "rls_tenant_isolation",
+          "command": "ALL",
+          "using": "((\"TenantId\" = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid) OR (current_setting('app.rls_bypass'::text, true) = 'on'::text))",
+          "withCheck": "((\"TenantId\" = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid) OR (current_setting('app.rls_bypass'::text, true) = 'on'::text))",
+          "enabled": true,
+          "forced": true
+        }
+      ]
+    },
+    "AuditEvents": {
+      "columns": [
+        {
+          "name": "Id",
+          "type": "uuid",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "TenantId",
+          "type": "uuid",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "ActorUserId",
+          "type": "uuid",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": true,
+          "default": ""
+        },
+        {
+          "name": "Action",
+          "type": "character varying",
+          "length": "128",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "EntityType",
+          "type": "character varying",
+          "length": "128",
+          "precision": "",
+          "scale": "",
+          "nullable": true,
+          "default": ""
+        },
+        {
+          "name": "EntityId",
+          "type": "character varying",
+          "length": "256",
+          "precision": "",
+          "scale": "",
+          "nullable": true,
+          "default": ""
+        },
+        {
+          "name": "Metadata",
+          "type": "jsonb",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": true,
+          "default": ""
+        },
+        {
+          "name": "CreatedAt",
+          "type": "timestamp with time zone",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "ImpersonatedBy",
+          "type": "uuid",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": true,
+          "default": ""
+        }
+      ],
+      "constraints": [
+        {
+          "name": "PK_AuditEvents",
+          "type": "PRIMARY KEY",
+          "columns": "Id",
+          "references": "",
+          "onDelete": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "IX_AuditEvents_TenantId_CreatedAt",
+          "definition": "CREATE INDEX \"IX_AuditEvents_TenantId_CreatedAt\" ON public.\"AuditEvents\" USING btree (\"TenantId\", \"CreatedAt\")"
+        },
+        {
+          "name": "PK_AuditEvents",
+          "definition": "CREATE UNIQUE INDEX \"PK_AuditEvents\" ON public.\"AuditEvents\" USING btree (\"Id\")"
+        }
+      ],
+      "policies": [
+        {
+          "name": "rls_tenant_isolation",
+          "command": "ALL",
+          "using": "((\"TenantId\" = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid) OR (current_setting('app.rls_bypass'::text, true) = 'on'::text))",
+          "withCheck": "((\"TenantId\" = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid) OR (current_setting('app.rls_bypass'::text, true) = 'on'::text))",
+          "enabled": true,
+          "forced": true
+        }
+      ]
+    },
+    "DataProtectionKeys": {
+      "columns": [
+        {
+          "name": "Id",
+          "type": "integer",
+          "length": "",
+          "precision": "32",
+          "scale": "0",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "FriendlyName",
+          "type": "text",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": true,
+          "default": ""
+        },
+        {
+          "name": "Xml",
+          "type": "text",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": true,
+          "default": ""
+        }
+      ],
+      "constraints": [
+        {
+          "name": "PK_DataProtectionKeys",
+          "type": "PRIMARY KEY",
+          "columns": "Id",
+          "references": "",
+          "onDelete": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "PK_DataProtectionKeys",
+          "definition": "CREATE UNIQUE INDEX \"PK_DataProtectionKeys\" ON public.\"DataProtectionKeys\" USING btree (\"Id\")"
+        }
+      ],
+      "policies": []
+    },
+    "InboxMessages": {
+      "columns": [
+        {
+          "name": "Id",
+          "type": "uuid",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "Source",
+          "type": "character varying",
+          "length": "64",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "IdempotencyKey",
+          "type": "character varying",
+          "length": "256",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "ReceivedAt",
+          "type": "timestamp with time zone",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        }
+      ],
+      "constraints": [
+        {
+          "name": "PK_InboxMessages",
+          "type": "PRIMARY KEY",
+          "columns": "Id",
+          "references": "",
+          "onDelete": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "IX_InboxMessages_Source_IdempotencyKey",
+          "definition": "CREATE UNIQUE INDEX \"IX_InboxMessages_Source_IdempotencyKey\" ON public.\"InboxMessages\" USING btree (\"Source\", \"IdempotencyKey\")"
+        },
+        {
+          "name": "PK_InboxMessages",
+          "definition": "CREATE UNIQUE INDEX \"PK_InboxMessages\" ON public.\"InboxMessages\" USING btree (\"Id\")"
+        }
+      ],
+      "policies": []
+    },
+    "LoginTokens": {
+      "columns": [
+        {
+          "name": "Id",
+          "type": "uuid",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "Email",
+          "type": "character varying",
+          "length": "256",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "CodeHash",
+          "type": "character varying",
+          "length": "256",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "Purpose",
+          "type": "character varying",
+          "length": "32",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "ExpiresAt",
+          "type": "timestamp with time zone",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "ConsumedAt",
+          "type": "timestamp with time zone",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": true,
+          "default": ""
+        },
+        {
+          "name": "AttemptCount",
+          "type": "integer",
+          "length": "",
+          "precision": "32",
+          "scale": "0",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "CreatedAt",
+          "type": "timestamp with time zone",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        }
+      ],
+      "constraints": [
+        {
+          "name": "PK_LoginTokens",
+          "type": "PRIMARY KEY",
+          "columns": "Id",
+          "references": "",
+          "onDelete": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "IX_LoginTokens_Email_Purpose",
+          "definition": "CREATE INDEX \"IX_LoginTokens_Email_Purpose\" ON public.\"LoginTokens\" USING btree (\"Email\", \"Purpose\")"
+        },
+        {
+          "name": "PK_LoginTokens",
+          "definition": "CREATE UNIQUE INDEX \"PK_LoginTokens\" ON public.\"LoginTokens\" USING btree (\"Id\")"
+        }
+      ],
+      "policies": []
+    },
+    "MfaRecoveryCodes": {
+      "columns": [
+        {
+          "name": "Id",
+          "type": "uuid",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "UserId",
+          "type": "uuid",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "CodeHash",
+          "type": "character varying",
+          "length": "256",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "UsedAt",
+          "type": "timestamp with time zone",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": true,
+          "default": ""
+        }
+      ],
+      "constraints": [
+        {
+          "name": "PK_MfaRecoveryCodes",
+          "type": "PRIMARY KEY",
+          "columns": "Id",
+          "references": "",
+          "onDelete": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "IX_MfaRecoveryCodes_UserId",
+          "definition": "CREATE INDEX \"IX_MfaRecoveryCodes_UserId\" ON public.\"MfaRecoveryCodes\" USING btree (\"UserId\")"
+        },
+        {
+          "name": "PK_MfaRecoveryCodes",
+          "definition": "CREATE UNIQUE INDEX \"PK_MfaRecoveryCodes\" ON public.\"MfaRecoveryCodes\" USING btree (\"Id\")"
+        }
+      ],
+      "policies": []
+    },
+    "NotificationPreferences": {
+      "columns": [
+        {
+          "name": "Id",
+          "type": "uuid",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "UserId",
+          "type": "uuid",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "InAppEnabled",
+          "type": "boolean",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "EmailEnabled",
+          "type": "boolean",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        }
+      ],
+      "constraints": [
+        {
+          "name": "PK_NotificationPreferences",
+          "type": "PRIMARY KEY",
+          "columns": "Id",
+          "references": "",
+          "onDelete": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "IX_NotificationPreferences_UserId",
+          "definition": "CREATE UNIQUE INDEX \"IX_NotificationPreferences_UserId\" ON public.\"NotificationPreferences\" USING btree (\"UserId\")"
+        },
+        {
+          "name": "PK_NotificationPreferences",
+          "definition": "CREATE UNIQUE INDEX \"PK_NotificationPreferences\" ON public.\"NotificationPreferences\" USING btree (\"Id\")"
+        }
+      ],
+      "policies": []
+    },
+    "Notifications": {
+      "columns": [
+        {
+          "name": "Id",
+          "type": "uuid",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "UserId",
+          "type": "uuid",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "Kind",
+          "type": "character varying",
+          "length": "64",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "Title",
+          "type": "character varying",
+          "length": "256",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "Body",
+          "type": "text",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "Metadata",
+          "type": "jsonb",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": true,
+          "default": ""
+        },
+        {
+          "name": "ReadAt",
+          "type": "timestamp with time zone",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": true,
+          "default": ""
+        },
+        {
+          "name": "CreatedAt",
+          "type": "timestamp with time zone",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        }
+      ],
+      "constraints": [
+        {
+          "name": "PK_Notifications",
+          "type": "PRIMARY KEY",
+          "columns": "Id",
+          "references": "",
+          "onDelete": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "IX_Notifications_UserId_CreatedAt",
+          "definition": "CREATE INDEX \"IX_Notifications_UserId_CreatedAt\" ON public.\"Notifications\" USING btree (\"UserId\", \"CreatedAt\")"
+        },
+        {
+          "name": "PK_Notifications",
+          "definition": "CREATE UNIQUE INDEX \"PK_Notifications\" ON public.\"Notifications\" USING btree (\"Id\")"
+        }
+      ],
+      "policies": []
+    },
+    "OutboxMessages": {
+      "columns": [
+        {
+          "name": "Id",
+          "type": "uuid",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "Type",
+          "type": "character varying",
+          "length": "128",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "Payload",
+          "type": "text",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "TenantId",
+          "type": "uuid",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": true,
+          "default": ""
+        },
+        {
+          "name": "Status",
+          "type": "character varying",
+          "length": "16",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "AttemptCount",
+          "type": "integer",
+          "length": "",
+          "precision": "32",
+          "scale": "0",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "CreatedAt",
+          "type": "timestamp with time zone",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "NextAttemptAt",
+          "type": "timestamp with time zone",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "ProcessedAt",
+          "type": "timestamp with time zone",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": true,
+          "default": ""
+        },
+        {
+          "name": "LastError",
+          "type": "character varying",
+          "length": "1000",
+          "precision": "",
+          "scale": "",
+          "nullable": true,
+          "default": ""
+        }
+      ],
+      "constraints": [
+        {
+          "name": "PK_OutboxMessages",
+          "type": "PRIMARY KEY",
+          "columns": "Id",
+          "references": "",
+          "onDelete": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "IX_OutboxMessages_Status_NextAttemptAt",
+          "definition": "CREATE INDEX \"IX_OutboxMessages_Status_NextAttemptAt\" ON public.\"OutboxMessages\" USING btree (\"Status\", \"NextAttemptAt\")"
+        },
+        {
+          "name": "PK_OutboxMessages",
+          "definition": "CREATE UNIQUE INDEX \"PK_OutboxMessages\" ON public.\"OutboxMessages\" USING btree (\"Id\")"
+        }
+      ],
+      "policies": []
+    },
+    "RefreshTokens": {
+      "columns": [
+        {
+          "name": "Id",
+          "type": "uuid",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "UserId",
+          "type": "uuid",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "TokenHash",
+          "type": "character varying",
+          "length": "256",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "IssuedAt",
+          "type": "timestamp with time zone",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "ExpiresAt",
+          "type": "timestamp with time zone",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "IsRevoked",
+          "type": "boolean",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "IssuedFromIp",
+          "type": "character varying",
+          "length": "64",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "Provider",
+          "type": "character varying",
+          "length": "64",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "ReplacedByTokenId",
+          "type": "uuid",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": true,
+          "default": ""
+        },
+        {
+          "name": "RotatedAt",
+          "type": "timestamp with time zone",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": true,
+          "default": ""
+        },
+        {
+          "name": "GraceUsedAt",
+          "type": "timestamp with time zone",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": true,
+          "default": ""
+        },
+        {
+          "name": "SessionExpiresAt",
+          "type": "timestamp with time zone",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": true,
+          "default": ""
+        }
+      ],
+      "constraints": [
+        {
+          "name": "PK_RefreshTokens",
+          "type": "PRIMARY KEY",
+          "columns": "Id",
+          "references": "",
+          "onDelete": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "IX_RefreshTokens_TokenHash",
+          "definition": "CREATE UNIQUE INDEX \"IX_RefreshTokens_TokenHash\" ON public.\"RefreshTokens\" USING btree (\"TokenHash\")"
+        },
+        {
+          "name": "IX_RefreshTokens_UserId",
+          "definition": "CREATE INDEX \"IX_RefreshTokens_UserId\" ON public.\"RefreshTokens\" USING btree (\"UserId\")"
+        },
+        {
+          "name": "PK_RefreshTokens",
+          "definition": "CREATE UNIQUE INDEX \"PK_RefreshTokens\" ON public.\"RefreshTokens\" USING btree (\"Id\")"
+        }
+      ],
+      "policies": []
+    },
+    "Subscriptions": {
+      "columns": [
+        {
+          "name": "Id",
+          "type": "uuid",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "TenantId",
+          "type": "uuid",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "PlanKey",
+          "type": "character varying",
+          "length": "64",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "Status",
+          "type": "character varying",
+          "length": "32",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "StripeCustomerId",
+          "type": "character varying",
+          "length": "256",
+          "precision": "",
+          "scale": "",
+          "nullable": true,
+          "default": ""
+        },
+        {
+          "name": "StripeSubscriptionId",
+          "type": "character varying",
+          "length": "256",
+          "precision": "",
+          "scale": "",
+          "nullable": true,
+          "default": ""
+        },
+        {
+          "name": "CurrentPeriodEnd",
+          "type": "timestamp with time zone",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": true,
+          "default": ""
+        },
+        {
+          "name": "CreatedAt",
+          "type": "timestamp with time zone",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "UpdatedAt",
+          "type": "timestamp with time zone",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "LapseNotifiedAt",
+          "type": "timestamp with time zone",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": true,
+          "default": ""
+        },
+        {
+          "name": "LastEventAt",
+          "type": "timestamp with time zone",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": true,
+          "default": ""
+        }
+      ],
+      "constraints": [
+        {
+          "name": "PK_Subscriptions",
+          "type": "PRIMARY KEY",
+          "columns": "Id",
+          "references": "",
+          "onDelete": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "IX_Subscriptions_TenantId",
+          "definition": "CREATE UNIQUE INDEX \"IX_Subscriptions_TenantId\" ON public.\"Subscriptions\" USING btree (\"TenantId\")"
+        },
+        {
+          "name": "PK_Subscriptions",
+          "definition": "CREATE UNIQUE INDEX \"PK_Subscriptions\" ON public.\"Subscriptions\" USING btree (\"Id\")"
+        }
+      ],
+      "policies": [
+        {
+          "name": "rls_tenant_isolation",
+          "command": "ALL",
+          "using": "((\"TenantId\" = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid) OR (current_setting('app.rls_bypass'::text, true) = 'on'::text))",
+          "withCheck": "((\"TenantId\" = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid) OR (current_setting('app.rls_bypass'::text, true) = 'on'::text))",
+          "enabled": true,
+          "forced": true
+        }
+      ]
+    },
+    "TenantInvitations": {
+      "columns": [
+        {
+          "name": "Id",
+          "type": "uuid",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "TenantId",
+          "type": "uuid",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "InvitedEmail",
+          "type": "character varying",
+          "length": "256",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "InvitedByUserId",
+          "type": "uuid",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "Status",
+          "type": "character varying",
+          "length": "32",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "TokenHash",
+          "type": "character varying",
+          "length": "256",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "CreatedAt",
+          "type": "timestamp with time zone",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "ExpiresAt",
+          "type": "timestamp with time zone",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        }
+      ],
+      "constraints": [
+        {
+          "name": "FK_TenantInvitations_Tenants_TenantId",
+          "type": "FOREIGN KEY",
+          "columns": "TenantId",
+          "references": "Tenants(Id)",
+          "onDelete": "CASCADE"
+        },
+        {
+          "name": "PK_TenantInvitations",
+          "type": "PRIMARY KEY",
+          "columns": "Id",
+          "references": "",
+          "onDelete": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "IX_TenantInvitations_TenantId_Status",
+          "definition": "CREATE INDEX \"IX_TenantInvitations_TenantId_Status\" ON public.\"TenantInvitations\" USING btree (\"TenantId\", \"Status\")"
+        },
+        {
+          "name": "IX_TenantInvitations_TokenHash",
+          "definition": "CREATE UNIQUE INDEX \"IX_TenantInvitations_TokenHash\" ON public.\"TenantInvitations\" USING btree (\"TokenHash\")"
+        },
+        {
+          "name": "PK_TenantInvitations",
+          "definition": "CREATE UNIQUE INDEX \"PK_TenantInvitations\" ON public.\"TenantInvitations\" USING btree (\"Id\")"
+        }
+      ],
+      "policies": [
+        {
+          "name": "rls_tenant_isolation",
+          "command": "ALL",
+          "using": "((\"TenantId\" = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid) OR (current_setting('app.rls_bypass'::text, true) = 'on'::text))",
+          "withCheck": "((\"TenantId\" = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid) OR (current_setting('app.rls_bypass'::text, true) = 'on'::text))",
+          "enabled": true,
+          "forced": true
+        }
+      ]
+    },
+    "TenantMemberships": {
+      "columns": [
+        {
+          "name": "Id",
+          "type": "uuid",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "TenantId",
+          "type": "uuid",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "UserId",
+          "type": "uuid",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "Role",
+          "type": "character varying",
+          "length": "32",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "JoinedAt",
+          "type": "timestamp with time zone",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        }
+      ],
+      "constraints": [
+        {
+          "name": "FK_TenantMemberships_Tenants_TenantId",
+          "type": "FOREIGN KEY",
+          "columns": "TenantId",
+          "references": "Tenants(Id)",
+          "onDelete": "CASCADE"
+        },
+        {
+          "name": "FK_TenantMemberships_Users_UserId",
+          "type": "FOREIGN KEY",
+          "columns": "UserId",
+          "references": "Users(Id)",
+          "onDelete": "CASCADE"
+        },
+        {
+          "name": "PK_TenantMemberships",
+          "type": "PRIMARY KEY",
+          "columns": "Id",
+          "references": "",
+          "onDelete": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "IX_TenantMemberships_TenantId",
+          "definition": "CREATE INDEX \"IX_TenantMemberships_TenantId\" ON public.\"TenantMemberships\" USING btree (\"TenantId\")"
+        },
+        {
+          "name": "IX_TenantMemberships_UserId",
+          "definition": "CREATE UNIQUE INDEX \"IX_TenantMemberships_UserId\" ON public.\"TenantMemberships\" USING btree (\"UserId\")"
+        },
+        {
+          "name": "PK_TenantMemberships",
+          "definition": "CREATE UNIQUE INDEX \"PK_TenantMemberships\" ON public.\"TenantMemberships\" USING btree (\"Id\")"
+        }
+      ],
+      "policies": []
+    },
+    "Tenants": {
+      "columns": [
+        {
+          "name": "Id",
+          "type": "uuid",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "Name",
+          "type": "character varying",
+          "length": "200",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "CreatedAt",
+          "type": "timestamp with time zone",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "UpdatedAt",
+          "type": "timestamp with time zone",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        }
+      ],
+      "constraints": [
+        {
+          "name": "PK_Tenants",
+          "type": "PRIMARY KEY",
+          "columns": "Id",
+          "references": "",
+          "onDelete": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "PK_Tenants",
+          "definition": "CREATE UNIQUE INDEX \"PK_Tenants\" ON public.\"Tenants\" USING btree (\"Id\")"
+        }
+      ],
+      "policies": []
+    },
+    "UsageCounters": {
+      "columns": [
+        {
+          "name": "Id",
+          "type": "uuid",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "TenantId",
+          "type": "uuid",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "Key",
+          "type": "character varying",
+          "length": "64",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "Period",
+          "type": "character varying",
+          "length": "7",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "Count",
+          "type": "integer",
+          "length": "",
+          "precision": "32",
+          "scale": "0",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "UpdatedAt",
+          "type": "timestamp with time zone",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        }
+      ],
+      "constraints": [
+        {
+          "name": "PK_UsageCounters",
+          "type": "PRIMARY KEY",
+          "columns": "Id",
+          "references": "",
+          "onDelete": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "IX_UsageCounters_TenantId_Key_Period",
+          "definition": "CREATE UNIQUE INDEX \"IX_UsageCounters_TenantId_Key_Period\" ON public.\"UsageCounters\" USING btree (\"TenantId\", \"Key\", \"Period\")"
+        },
+        {
+          "name": "PK_UsageCounters",
+          "definition": "CREATE UNIQUE INDEX \"PK_UsageCounters\" ON public.\"UsageCounters\" USING btree (\"Id\")"
+        }
+      ],
+      "policies": [
+        {
+          "name": "rls_tenant_isolation",
+          "command": "ALL",
+          "using": "((\"TenantId\" = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid) OR (current_setting('app.rls_bypass'::text, true) = 'on'::text))",
+          "withCheck": "((\"TenantId\" = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid) OR (current_setting('app.rls_bypass'::text, true) = 'on'::text))",
+          "enabled": true,
+          "forced": true
+        }
+      ]
+    },
+    "UserLogins": {
+      "columns": [
+        {
+          "name": "Id",
+          "type": "uuid",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "UserId",
+          "type": "uuid",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "Provider",
+          "type": "character varying",
+          "length": "64",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "ProviderUserId",
+          "type": "character varying",
+          "length": "256",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "CreatedAt",
+          "type": "timestamp with time zone",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        }
+      ],
+      "constraints": [
+        {
+          "name": "FK_UserLogins_Users_UserId",
+          "type": "FOREIGN KEY",
+          "columns": "UserId",
+          "references": "Users(Id)",
+          "onDelete": "CASCADE"
+        },
+        {
+          "name": "PK_UserLogins",
+          "type": "PRIMARY KEY",
+          "columns": "Id",
+          "references": "",
+          "onDelete": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "IX_UserLogins_Provider_ProviderUserId",
+          "definition": "CREATE UNIQUE INDEX \"IX_UserLogins_Provider_ProviderUserId\" ON public.\"UserLogins\" USING btree (\"Provider\", \"ProviderUserId\")"
+        },
+        {
+          "name": "IX_UserLogins_UserId",
+          "definition": "CREATE INDEX \"IX_UserLogins_UserId\" ON public.\"UserLogins\" USING btree (\"UserId\")"
+        },
+        {
+          "name": "PK_UserLogins",
+          "definition": "CREATE UNIQUE INDEX \"PK_UserLogins\" ON public.\"UserLogins\" USING btree (\"Id\")"
+        }
+      ],
+      "policies": []
+    },
+    "UserMfa": {
+      "columns": [
+        {
+          "name": "Id",
+          "type": "uuid",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "UserId",
+          "type": "uuid",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "EncryptedSecret",
+          "type": "text",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "Enabled",
+          "type": "boolean",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "EnrolledAt",
+          "type": "timestamp with time zone",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "LastVerifiedTimeStep",
+          "type": "bigint",
+          "length": "",
+          "precision": "64",
+          "scale": "0",
+          "nullable": true,
+          "default": ""
+        },
+        {
+          "name": "FailedAttemptCount",
+          "type": "integer",
+          "length": "",
+          "precision": "32",
+          "scale": "0",
+          "nullable": false,
+          "default": "0"
+        },
+        {
+          "name": "LockedUntil",
+          "type": "timestamp with time zone",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": true,
+          "default": ""
+        }
+      ],
+      "constraints": [
+        {
+          "name": "PK_UserMfa",
+          "type": "PRIMARY KEY",
+          "columns": "Id",
+          "references": "",
+          "onDelete": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "IX_UserMfa_UserId",
+          "definition": "CREATE UNIQUE INDEX \"IX_UserMfa_UserId\" ON public.\"UserMfa\" USING btree (\"UserId\")"
+        },
+        {
+          "name": "PK_UserMfa",
+          "definition": "CREATE UNIQUE INDEX \"PK_UserMfa\" ON public.\"UserMfa\" USING btree (\"Id\")"
+        }
+      ],
+      "policies": []
+    },
+    "Users": {
+      "columns": [
+        {
+          "name": "Id",
+          "type": "uuid",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "Email",
+          "type": "character varying",
+          "length": "256",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "DisplayName",
+          "type": "character varying",
+          "length": "256",
+          "precision": "",
+          "scale": "",
+          "nullable": true,
+          "default": ""
+        },
+        {
+          "name": "EmailVerified",
+          "type": "boolean",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "CreatedAt",
+          "type": "timestamp with time zone",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "UpdatedAt",
+          "type": "timestamp with time zone",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "Locale",
+          "type": "character varying",
+          "length": "10",
+          "precision": "",
+          "scale": "",
+          "nullable": true,
+          "default": ""
+        },
+        {
+          "name": "Theme",
+          "type": "character varying",
+          "length": "10",
+          "precision": "",
+          "scale": "",
+          "nullable": true,
+          "default": ""
+        }
+      ],
+      "constraints": [
+        {
+          "name": "PK_Users",
+          "type": "PRIMARY KEY",
+          "columns": "Id",
+          "references": "",
+          "onDelete": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "IX_Users_Email",
+          "definition": "CREATE UNIQUE INDEX \"IX_Users_Email\" ON public.\"Users\" USING btree (\"Email\")"
+        },
+        {
+          "name": "PK_Users",
+          "definition": "CREATE UNIQUE INDEX \"PK_Users\" ON public.\"Users\" USING btree (\"Id\")"
+        }
+      ],
+      "policies": []
+    },
+    "WebhookDeliveries": {
+      "columns": [
+        {
+          "name": "Id",
+          "type": "uuid",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "TenantId",
+          "type": "uuid",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "SubscriptionId",
+          "type": "uuid",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "EventType",
+          "type": "character varying",
+          "length": "128",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "EventId",
+          "type": "character varying",
+          "length": "64",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "Body",
+          "type": "text",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "Success",
+          "type": "boolean",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "StatusCode",
+          "type": "integer",
+          "length": "",
+          "precision": "32",
+          "scale": "0",
+          "nullable": true,
+          "default": ""
+        },
+        {
+          "name": "Error",
+          "type": "character varying",
+          "length": "1000",
+          "precision": "",
+          "scale": "",
+          "nullable": true,
+          "default": ""
+        },
+        {
+          "name": "CreatedAt",
+          "type": "timestamp with time zone",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        }
+      ],
+      "constraints": [
+        {
+          "name": "PK_WebhookDeliveries",
+          "type": "PRIMARY KEY",
+          "columns": "Id",
+          "references": "",
+          "onDelete": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "IX_WebhookDeliveries_TenantId_SubscriptionId_CreatedAt",
+          "definition": "CREATE INDEX \"IX_WebhookDeliveries_TenantId_SubscriptionId_CreatedAt\" ON public.\"WebhookDeliveries\" USING btree (\"TenantId\", \"SubscriptionId\", \"CreatedAt\")"
+        },
+        {
+          "name": "PK_WebhookDeliveries",
+          "definition": "CREATE UNIQUE INDEX \"PK_WebhookDeliveries\" ON public.\"WebhookDeliveries\" USING btree (\"Id\")"
+        }
+      ],
+      "policies": []
+    },
+    "WebhookSubscriptions": {
+      "columns": [
+        {
+          "name": "Id",
+          "type": "uuid",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "TenantId",
+          "type": "uuid",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "Url",
+          "type": "character varying",
+          "length": "2048",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "EventTypes",
+          "type": "character varying",
+          "length": "1024",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "EncryptedSecret",
+          "type": "text",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "CreatedByUserId",
+          "type": "uuid",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "CreatedAt",
+          "type": "timestamp with time zone",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": false,
+          "default": ""
+        },
+        {
+          "name": "DisabledAt",
+          "type": "timestamp with time zone",
+          "length": "",
+          "precision": "",
+          "scale": "",
+          "nullable": true,
+          "default": ""
+        }
+      ],
+      "constraints": [
+        {
+          "name": "PK_WebhookSubscriptions",
+          "type": "PRIMARY KEY",
+          "columns": "Id",
+          "references": "",
+          "onDelete": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "IX_WebhookSubscriptions_TenantId",
+          "definition": "CREATE INDEX \"IX_WebhookSubscriptions_TenantId\" ON public.\"WebhookSubscriptions\" USING btree (\"TenantId\")"
+        },
+        {
+          "name": "PK_WebhookSubscriptions",
+          "definition": "CREATE UNIQUE INDEX \"PK_WebhookSubscriptions\" ON public.\"WebhookSubscriptions\" USING btree (\"Id\")"
+        }
+      ],
+      "policies": [
+        {
+          "name": "rls_tenant_isolation",
+          "command": "ALL",
+          "using": "((\"TenantId\" = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid) OR (current_setting('app.rls_bypass'::text, true) = 'on'::text))",
+          "withCheck": "((\"TenantId\" = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid) OR (current_setting('app.rls_bypass'::text, true) = 'on'::text))",
+          "enabled": true,
+          "forced": true
+        }
+      ]
+    }
+  }
+}

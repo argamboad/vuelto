@@ -2,11 +2,11 @@ using System.Diagnostics;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
-using Perezosoft.Api.Observability;
-using Perezosoft.Api.Tests.Infrastructure;
-using Perezosoft.Core.Abstractions;
+using Vuelto.Api.Observability;
+using Vuelto.Api.Tests.Infrastructure;
+using Vuelto.Core.Abstractions;
 
-namespace Perezosoft.Api.Tests.Observability;
+namespace Vuelto.Api.Tests.Observability;
 
 /// <summary>
 /// OBS-2 (ADR-008): the request span is tagged with tenant_id/user_id (identifiers only) so traces

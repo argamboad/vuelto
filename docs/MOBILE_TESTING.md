@@ -4,25 +4,25 @@ How to run and sign in to the Android app against your local API. Covers **email
 **Google/Microsoft OAuth**, and **"remember me"** (session survives an app restart).
 
 The trick that makes everything work — including OAuth — is **`adb reverse`**: it maps the
-device's `localhost:5238` to your host machine, so the app talks to the API at
-`http://localhost:5238`. Using `localhost` (not the emulator's `10.0.2.2` alias) is what
+device's `localhost:5338` to your host machine, so the app talks to the API at
+`http://localhost:5338`. Using `localhost` (not the emulator's `10.0.2.2` alias) is what
 lets OAuth succeed, because Google/Microsoft accept `localhost` as a redirect host but
-reject raw IPs. The app's Android base URL is already set to `http://localhost:5238`.
+reject raw IPs. The app's Android base URL is already set to `http://localhost:5338`.
 
 ## 1. Prerequisites (host)
 
 Start the backing services and the API:
 
 ```bash
-docker compose up -d                                   # Postgres (5433) + Mailpit (1025/8025)
-dotnet run --project src/Api --launch-profile https    # serves https:7160 AND http:5238
+docker compose up -d                                   # Postgres (5434) + Mailpit (1026/8026) — the vuelto stack
+dotnet run --project src/Api --launch-profile https    # serves https:7260 AND http:5338
 ```
 
-The `https` profile binds **both** `https://localhost:7160` (web/desktop) and
-`http://localhost:5238` (mobile) in one run. `UseHttpsRedirection` is disabled in
-Development, so the cleartext `:5238` leg is not redirected.
+The `https` profile binds **both** `https://localhost:7260` (web/desktop) and
+`http://localhost:5338` (mobile) in one run. `UseHttpsRedirection` is disabled in
+Development, so the cleartext `:5338` leg is not redirected.
 
-An Android emulator (AVD) running, or a physical device with USB debugging enabled.
+An Android emulator (AVD) running, or a physical device with USB or Wi-Fi debugging enabled.
 
 ## 2. Bridge the device to the host
 
@@ -34,40 +34,88 @@ build/F5 again and the bridge is back.
 To set it by hand (it does not persist across emulator/device restarts):
 
 ```bash
-adb reverse tcp:5238 tcp:5238
+adb reverse tcp:5338 tcp:5338
 ```
 
-Verify: `adb reverse --list` should show `tcp:5238 tcp:5238`. From then on, anything on the
-device hitting `localhost:5238` (the app *and* the in-app browser tab) reaches your host API.
+Verify: `adb reverse --list` should show `tcp:5338 tcp:5338`. From then on, anything on the
+device hitting `localhost:5338` (the app *and* the in-app browser tab) reaches your host API.
 
 ## 3. Run the app
 
-From Visual Studio: select the Android target + your emulator, F5. Or CLI (emulator already
-running):
+**Start profiles.** Run `pwsh tools/dev-profiles.ps1` once per clone. It writes the profiles for Visual Studio (the
+startup dropdown, from `<Sln>.slnLaunch.user`) and VS Code (Run and Debug, from the `"launch"` block of
+`.vscode/settings.json`). Both files are gitignored, because the VS Code device profiles name your own phone and
+tablet.
+
+**Visual Studio: two profiles + the toolbar's Debug Target.** VS ignores a MAUI project's target inside a
+multi-project profile (per-device profiles all launched whatever the toolbar last named), so the device is picked
+where VS actually reads it:
+
+| Profile | Starts |
+|---|---|
+| **API + Web** | the API and the Blazor WebAssembly client in the browser |
+| **API + app** | the API and the MAUI shell on the toolbar's Debug Target — Windows Machine, a device or an emulator |
+
+**VS Code: one profile per target**, since there the profile can carry the device:
+
+| Profile | Starts |
+|---|---|
+| **API + Web** | the API and the Blazor WebAssembly client in the browser |
+| **API + Windows desktop** | the API and the MAUI shell on Windows |
+| **API + Android phone (device)** | the API and the MAUI shell on your phone, over Wi-Fi (or USB) debugging |
+| **API + Android phone (emulator)** | the API and the MAUI shell on the `phone` AVD |
+| **API + Android tablet (device)** | the API and the MAUI shell on your tablet |
+| **API + Android tablet (emulator)** | the API and the MAUI shell on the `tablet` AVD |
+
+- **VS Code, once per clone, before the Android profiles:** Command Palette → **Select C# Startup Project** (the MAUI
+  project), then **Select Launch Configuration** (any Android entry). On Windows the .NET MAUI extension otherwise
+  keeps assuming the Windows platform, attaches the CoreCLR debugger to the Mono Android app, and the app is installed
+  but never starts. The choice lives in VS Code's workspace state, which the script can't write; it holds until you
+  pick a Windows entry there again. The device itself always comes from the profile.
+- **Emulators.** Create two AVDs, named exactly `phone` and `tablet` (Android Studio → Device Manager). VS Code's
+  profile first runs `tools/android-emulator.ps1`, which boots (or reuses) `phone` on console port 5554 and `tablet`
+  on 5556, so their adb serials are always `emulator-5554` / `emulator-5556`. VS (and Android Studio) boot an emulator
+  on the next free port, so the two can end up swapped; the script then closes the one on the wrong port and reboots
+  it on the right one.
+- **Devices.** Pair each once: Developer options → Wireless debugging → *Pair device with pairing code*, then
+  `adb pair <ip>:<port>` with the code. With both connected, `pwsh tools/dev-profiles.ps1 -Discover` records them in
+  `~/dev-tools/devices.json`, outside every repo, so each clone and each new app picks them up from there. VS Code (the
+  MAUI extension) targets a device by its adb serial: over Wi-Fi that is the mDNS name
+  `adb-<serial>-<id>._adb-tls-connect._tcp`, which stays the same across reconnects **while the device is on the PC's
+  network**. Reached only through a VPN (Tailscale, another subnet), it gets an `IP:port` serial that changes every
+  time Wireless debugging restarts. `adb reverse` works over Wi-Fi the same as over USB.
+- A missing AVD or device just leaves its VS Code profile out (the script says which). Re-run the script after adding
+  one.
+- VS Code needs the **.NET MAUI** extension for the Android profiles. The script also tells the Java extension, if you
+  have it, to skip `obj/` and `bin/` — it otherwise floods Problems with errors from the generated Android stubs.
+
+Or CLI, with one device or emulator connected (with more, add `-p:AdbTarget=-s%20<serial>`):
 
 ```bash
-dotnet build src/Maui/Perezosoft.Maui.csproj -t:Run -f net10.0-android
+dotnet build src/Maui/Vuelto.Maui.csproj -t:Run -f net10.0-android
 ```
 
 ## 4. Test email OTP (no extra setup)
 
 1. On the login screen, enter an email and tap **Email me a 6-digit code**.
-2. Open Mailpit on the host: <http://localhost:8025>, copy the code.
+2. Open Mailpit on the host: <http://localhost:8026>, copy the code.
 3. Enter it in the app → you're signed in.
 
 ## 5. Test Google / Microsoft OAuth
 
 OAuth needs the provider to accept the redirect URI the API will use,
-`http://localhost:5238/signin-{provider}`. **Providers allow `http://localhost` (any port)**,
+`http://localhost:5338/signin-{provider}`. **Providers allow `http://localhost` (any port)**,
 so register these once in each console:
 
 | Provider | Redirect URI to register |
 |---|---|
-| Google (OAuth client → Authorized redirect URIs) | `http://localhost:5238/signin-google` |
-| Microsoft (App registration → Authentication → Web → Redirect URIs) | `http://localhost:5238/signin-microsoft` |
+| Google (OAuth client → Authorized redirect URIs) | `http://localhost:5338/signin-google` |
+| Microsoft (App registration → Authentication → Web → Redirect URIs) | `http://localhost:5338/signin-microsoft` |
 
 > The Google one is likely already registered — it's the same URI the desktop/web flow uses.
-> Microsoft typically needs `http://localhost:5238/signin-microsoft` added.
+> Microsoft typically needs `http://localhost:5338/signin-microsoft` added. The complete list a
+> registration must carry — local HTTPS (`https://localhost:7260/…`), these emulator rows, and staging —
+> is in `DEPLOYMENT.md` §5.
 
 Then in the app tap **Continue with Google/Microsoft** → a browser tab opens → sign in →
 the tab shows "you can close this" → the app completes sign-in. (Account **linking** from
@@ -81,13 +129,13 @@ the Android Keystore and silently exchanged on startup).
 ## Troubleshooting
 
 - **Everything fails / spinner forever** → `adb reverse` not set (re-run step 2), or the API
-  isn't running. Confirm from the host: `curl http://localhost:5238/api/auth/refresh -X POST`
+  isn't running. Confirm from the host: `curl http://localhost:5338/api/auth/refresh -X POST`
   returns `401` (not a connection error).
 - **OAuth: "redirect_uri_mismatch" / "reply URL does not match"** → the
-  `http://localhost:5238/signin-{provider}` URI isn't registered for that provider (step 5).
-- **OAuth tab opens but never returns to the app** → the `perezosoft://auth` intent filter
+  `http://localhost:5338/signin-{provider}` URI isn't registered for that provider (step 5).
+- **OAuth tab opens but never returns to the app** → the `vuelto://auth` intent filter
   didn't match; confirm `MauiProgram.CallbackScheme`, the API's `Auth:Native:CallbackScheme`,
-  and `WebAuthenticatorCallbackActivity`'s scheme are all `perezosoft`.
+  and `WebAuthenticatorCallbackActivity`'s scheme are all `vuelto`.
 - **Cleartext blocked** → the app talks HTTP to `localhost`, permitted by
   `Platforms/Android/Resources/xml/network_security_config.xml`. If you change the host,
   add it there.
@@ -104,6 +152,6 @@ the Android Keystore and silently exchanged on startup).
   If you re-add `inspectUri` to debug WASM C#, silence the break via Debug → Windows →
   Exception Settings (Ctrl+Alt+E) → uncheck the **JavaScript Exceptions** category.
 - **Physical device** → `adb reverse` works over USB too; no other change needed.
-- **Pointing the app somewhere else** → set `PEREZOSOFT_API_BASE_URL` before launching (any
+- **Pointing the app somewhere else** → set `VUELTO_API_BASE_URL` before launching (any
   platform): overrides the compiled per-platform API base — e.g. a LAN address for a device that
   can't use `adb reverse`, or plain HTTP for the CI native smoke (`native-smoke-windows`).

@@ -1,6 +1,6 @@
 ﻿using Foundation;
 
-namespace Perezosoft.Maui;
+namespace Vuelto.Maui;
 
 [Register("AppDelegate")]
 public class AppDelegate : MauiUIApplicationDelegate

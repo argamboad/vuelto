@@ -1,6 +1,6 @@
 using Microsoft.Playwright;
 
-namespace Perezosoft.E2E.Tests;
+namespace Vuelto.E2E.Tests;
 
 /// <summary>
 /// GDPR export download journey (GDPR-1 UI + NATIVE-3). The owner requests an export and the

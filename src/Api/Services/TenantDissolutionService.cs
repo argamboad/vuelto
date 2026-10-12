@@ -1,7 +1,7 @@
-using Perezosoft.Core.Abstractions;
-using Perezosoft.Core.Repositories;
+using Vuelto.Core.Abstractions;
+using Vuelto.Core.Repositories;
 
-namespace Perezosoft.Api.Services;
+namespace Vuelto.Api.Services;
 
 /// <summary>
 /// The shared "dissolve a tenant's data" sequence (DEBT-7): fan out over every

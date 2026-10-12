@@ -1,14 +1,15 @@
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Time.Testing;
 using Npgsql;
-using Perezosoft.Api.Services;
-using Perezosoft.Api.Tests.Infrastructure;
-using Perezosoft.Core.Billing;
-using Perezosoft.Core.Entities;
-using Perezosoft.Core.Repositories;
-using Perezosoft.Infrastructure.Repositories;
+using Vuelto.Api.Services;
+using Vuelto.Api.Tests.Infrastructure;
+using Vuelto.Core.Billing;
+using Vuelto.Core.Entities;
+using Vuelto.Core.Repositories;
+using Vuelto.Infrastructure.Repositories;
 
-namespace Perezosoft.Api.Tests.Billing;
+namespace Vuelto.Api.Tests.Billing;
 
 /// <summary>
 /// Drives BILLING-5 (ADR-006): plan **quotas** — seats (members + pending invites vs the plan's seat
@@ -18,20 +19,23 @@ namespace Perezosoft.Api.Tests.Billing;
 [Collection(PostgresCollection.Name)]
 public class QuotaServiceTests(PostgresFixture fixture) : PostgresTestBase(fixture)
 {
-    // Catalog example limits this suite pins to: Free seats=3 / export=3; Pro seats=10.
+    // Catalog example limits this suite pins to: Free export=3; Pro seats=10. The Free SEAT limit is read
+    // from the catalog rather than copied, so re-tuning it (GATES-1 moved it 3 → 5) re-tunes these tests
+    // with it — what they actually assert is the rule at the boundary, not the number.
+    private static readonly int FreeSeats = PlanCatalog.Get(PlanKeys.Free).SeatLimit!.Value;
 
     [Fact]
     public async Task Seats_UnderFreeLimit_CanAdd()
     {
         var tenant = Guid.CreateVersion7();
-        await SeedTenantWithMembersAsync(tenant, members: 2); // Free (no sub) → limit 3
+        await SeedTenantWithMembersAsync(tenant, members: FreeSeats - 1); // Free (no sub), one seat spare
 
         await using var db = Fixture.CreateContext(tenant);
         var quota = BuildQuota(db, tenant);
 
         var usage = await quota.GetSeatUsageAsync();
-        Assert.Equal(2, usage.Used);
-        Assert.Equal(3, usage.Limit);
+        Assert.Equal(FreeSeats - 1, usage.Used);
+        Assert.Equal(FreeSeats, usage.Limit);
         Assert.True(await quota.CanAddSeatsAsync());
     }
 
@@ -39,7 +43,7 @@ public class QuotaServiceTests(PostgresFixture fixture) : PostgresTestBase(fixtu
     public async Task Seats_AtFreeLimit_CannotAdd()
     {
         var tenant = Guid.CreateVersion7();
-        await SeedTenantWithMembersAsync(tenant, members: 3);
+        await SeedTenantWithMembersAsync(tenant, members: FreeSeats);
 
         await using var db = Fixture.CreateContext(tenant);
         var quota = BuildQuota(db, tenant);
@@ -52,13 +56,13 @@ public class QuotaServiceTests(PostgresFixture fixture) : PostgresTestBase(fixtu
     public async Task Seats_PendingInvitesCountTowardSeats()
     {
         var tenant = Guid.CreateVersion7();
-        await SeedTenantWithMembersAsync(tenant, members: 2);
-        await SeedPendingInviteAsync(tenant, "pending@x.com"); // 2 members + 1 pending = 3
+        await SeedTenantWithMembersAsync(tenant, members: FreeSeats - 1);
+        await SeedPendingInviteAsync(tenant, "pending@x.com"); // the pending invite takes the last seat
 
         await using var db = Fixture.CreateContext(tenant);
         var quota = BuildQuota(db, tenant);
 
-        Assert.Equal(3, (await quota.GetSeatUsageAsync()).Used);
+        Assert.Equal(FreeSeats, (await quota.GetSeatUsageAsync()).Used);
         Assert.False(await quota.CanAddSeatsAsync());
     }
 
@@ -94,6 +98,50 @@ public class QuotaServiceTests(PostgresFixture fixture) : PostgresTestBase(fixtu
         var count = (await new EfRepository<UsageCounter>(read).Query().ToListAsync())
             .Where(c => c.Key == UsageKeys.Export).Sum(c => c.Count);
         Assert.Equal(2, count);
+    }
+
+    [Fact]
+    public async Task PeriodKey_IsTheInvariantCalendar_WhateverTheRequestCultureIs()
+    {
+        // v4 T44 (LB-BILL-26, R134): the monthly key was now.ToString("yyyy-MM") — the CURRENT culture's
+        // calendar. Under th-TH (Thai Buddhist) July 2026 is "2569-07", under ar-SA (Umm al-Qura) "1448-01":
+        // a tenant whose requests arrive under different cultures got a separate counter per calendar, and
+        // with it a multiple of the monthly cap. The key is one calendar, the invariant one.
+        var tenant = Guid.CreateVersion7();
+        await SeedTenantWithMembersAsync(tenant, members: 1); // Free: export = 3 a month
+        var clock = new FakeTimeProvider(new DateTimeOffset(2026, 7, 15, 0, 0, 0, TimeSpan.Zero));
+
+        var before = CultureInfo.CurrentCulture;
+        try
+        {
+            foreach (var culture in new[] { "th-TH", "ar-SA", "en-US" })
+            {
+                CultureInfo.CurrentCulture = new CultureInfo(culture);
+                await using var db = Fixture.CreateContext(tenant);
+                Assert.True(await BuildQuota(db, tenant, clock).TryConsumeAsync(UsageKeys.Export));
+            }
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = before;
+        }
+
+        await using var read = Fixture.CreateContext(tenant);
+        var row = Assert.Single(await new EfRepository<UsageCounter>(read).Query().Where(c => c.Key == UsageKeys.Export).ToListAsync());
+        Assert.Equal("2026-07", row.Period);
+        Assert.Equal(3, row.Count);
+
+        // ...so the fourth consume of the month is over the cap, in any culture.
+        CultureInfo.CurrentCulture = new CultureInfo("th-TH");
+        try
+        {
+            await using var db = Fixture.CreateContext(tenant);
+            Assert.False(await BuildQuota(db, tenant, clock).TryConsumeAsync(UsageKeys.Export));
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = before;
+        }
     }
 
     [Fact]
@@ -202,12 +250,12 @@ public class QuotaServiceTests(PostgresFixture fixture) : PostgresTestBase(fixtu
     public async Task Invite_BeyondFreeSeatLimit_ReturnsSeatLimitReached()
     {
         var tenant = Guid.CreateVersion7();
-        var ownerId = await SeedTenantWithMembersAsync(tenant, members: 3); // Free, at cap
+        var ownerId = await SeedTenantWithMembersAsync(tenant, members: FreeSeats); // Free, at cap
 
         await using var db = Fixture.CreateContext(tenant);
         var svc = new ServiceHarness(db, currentTenant: new TestCurrentTenant { TenantId = tenant }).InvitationService();
 
-        var result = await svc.CreateAsync(tenant, ownerId, "fourth@x.com");
+        var result = await svc.CreateAsync(tenant, ownerId, "one-too-many@x.com");
         Assert.Equal(InviteCreateStatus.SeatLimitReached, result.Status);
     }
 
@@ -258,7 +306,7 @@ public class QuotaServiceTests(PostgresFixture fixture) : PostgresTestBase(fixtu
 
     // --- helpers ---
 
-    private static QuotaService BuildQuota(Perezosoft.Infrastructure.Persistence.AppDbContext db, Guid tenant, TimeProvider? clock = null) =>
+    private static QuotaService BuildQuota(Vuelto.Infrastructure.Persistence.AppDbContext db, Guid tenant, TimeProvider? clock = null) =>
         new(new EfRepository<Subscription>(db), new TenantRepository(db), new TenantInvitationRepository(db),
             new EfRepository<UsageCounter>(db), new TestCurrentTenant { TenantId = tenant }, clock ?? TimeProvider.System);
 

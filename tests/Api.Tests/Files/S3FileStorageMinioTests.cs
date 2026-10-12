@@ -1,11 +1,11 @@
 using System.Text;
 using Microsoft.Extensions.Options;
-using Perezosoft.Api.Tests.Infrastructure;
-using Perezosoft.Core.Abstractions;
-using Perezosoft.Infrastructure.Files;
+using Vuelto.Api.Tests.Infrastructure;
+using Vuelto.Core.Abstractions;
+using Vuelto.Infrastructure.Files;
 using Testcontainers.Minio;
 
-namespace Perezosoft.Api.Tests.Files;
+namespace Vuelto.Api.Tests.Files;
 
 /// <summary>
 /// Starts one MinIO (S3-compatible) container for the class and creates the test bucket. Proves the
@@ -14,8 +14,17 @@ namespace Perezosoft.Api.Tests.Files;
 /// </summary>
 public sealed class MinioFixture : IAsyncLifetime
 {
-    public const string Bucket = "perezosoft-test";
-    private readonly MinioContainer _minio = new MinioBuilder("minio/minio:latest").Build();
+    public const string Bucket = "vuelto-test";
+    // OUR OWN copy of the pinned release (never :latest — v3 DEP-9), because upstream has now vanished twice:
+    // MinIO's `minio/minio` on Docker Hub became unpullable on 2026-09-11, and on 2026-10-01 quay.io/minio
+    // started answering 401 to anonymous pulls — the desk runners kept passing only on their local image
+    // cache while GitHub's hosted runner failed every build. ghcr.io/argamboad/minio is that same image
+    // (RELEASE.2025-09-07T16-13-09Z, image id 69b2ec208575, manifest sha256:52dfd5c0bbd3…), pushed from the
+    // cache and public, so a fresh runner can always pull it. A floating tag is what turned an upstream
+    // distribution change into a CI outage with no pinned known-good to fall back to; a registry we do not
+    // control turned out to be the same risk one level up.
+    private readonly MinioContainer _minio =
+        new MinioBuilder("ghcr.io/argamboad/minio:RELEASE.2025-09-07T16-13-09Z").Build();
 
     public S3StorageSettings Settings { get; private set; } = default!;
 
@@ -99,6 +108,25 @@ public sealed class S3FileStorageMinioTests(MinioFixture fixture) : IClassFixtur
         Assert.True(url.IsAbsoluteUri);
         using var http = new HttpClient();
         Assert.Equal("presigned-body", await http.GetStringAsync(url));
+    }
+
+    [Fact]
+    public async Task PresignedUrl_WithABearerHeader_IsRefused_SoTheDownloadClientMustBePlain() // v4 T49
+    {
+        // AWS documents that a presigned request must not also carry an Authorization header. This settles it
+        // for the S3-compatible endpoint the platform is actually tested against: the same URL succeeds plain
+        // and is refused with a bearer — which is why BearerScopedHandler never signs a foreign host.
+        var storage = NewStorage(Guid.NewGuid());
+        await storage.PutAsync("b.txt", Bytes("plain-only"), "text/plain");
+        var url = await storage.GetDownloadUrlAsync("b.txt", TimeSpan.FromMinutes(5));
+
+        using var http = new HttpClient();
+        Assert.Equal("plain-only", await http.GetStringAsync(url));
+
+        using var withBearer = new HttpRequestMessage(HttpMethod.Get, url);
+        withBearer.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", "tenant-scoped-token");
+        using var refused = await http.SendAsync(withBearer);
+        Assert.False(refused.IsSuccessStatusCode, $"MinIO accepted a presigned GET with a bearer: {(int)refused.StatusCode}");
     }
 
     [Fact]

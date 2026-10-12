@@ -22,7 +22,7 @@
 > ⚠️ **RE-VERIFY at project start.** Versions move; search for current stable before committing.
 > Policy: **target the latest _stable_ release, never previews.**
 >
-> **Verified 2026-08-25 (SDK-bump slice; first verified 2026-06-17):** .NET SDK **pinned in `global.json` (10.0.400, rollForward disable)** — the single source of truth
+> **Verified 2026-09-09 (SDK 10.0.401 bump — the 10.0.400 SDK left the machine with a tooling update; earlier 2026-08-25, 2026-06-17):** .NET SDK **pinned in `global.json` (10.0.401, rollForward disable)** — the single source of truth
 > (CI `setup-dotnet` + both Dockerfile image tags follow it; v3 audit DEP-4) · ASP.NET Core / EF Core
 > **10.0.11** · Npgsql.EntityFrameworkCore.PostgreSQL **10.0.3** · PostgreSQL server **17**.
 > Note: `Guid.CreateVersion7()` (time-ordered UUIDv7) is supported in .NET 9+ — already used in
@@ -101,7 +101,7 @@ Spun up via `docker compose up -d`. Copy `.env.example` → `.env` and adjust be
 
 | Service | Image | Default port(s) | Purpose |
 |---------|-------|-----------------|---------|
-| `db` | `postgres:17` | `${DB_PORT:-5432}` (committed `.env.example` sets **5433**) | PostgreSQL — matches production DB engine |
+| `db` | `postgres:17.11` | `${DB_PORT:-5432}` (committed `.env.example` sets **5433**) | PostgreSQL — matches production DB engine |
 | `mail` | `axllent/mailpit:latest` | SMTP `${MAIL_SMTP_PORT:-1025}`, UI `${MAIL_UI_PORT:-8025}` | Local SMTP trap for passwordless + invitation emails |
 
 Both services have healthchecks. When the API container is added to compose (per-project), it should declare `depends_on: db: condition: service_healthy`.
@@ -157,4 +157,25 @@ Production reads the same keys from real environment variables, never a committe
   with AWS S3, MinIO, R2, DO Spaces). Selected only when `Storage:S3:*` is configured; else local disk.
 - **`Swashbuckle.AspNetCore` 7.2.0** — the leak-free public OpenAPI document at
   `GET /api/public/openapi.json` (PUBAPI-2 / ADR-015), emitted only when `PublicApi:Enabled`.
-- _TODO_
+- **`HtmlAgilityPack`** (MIT) — HTML parsing for the bank voucher extractors (BAC, BN); confined to
+  `src/Infrastructure/Email/Vouchers/`. Core keeps only the pure text/date/money helpers (ADR-V010).
+- **BCCR reference rates** (compra/venta) from the Finance Ministry's public mirror
+  (`api.hacienda.go.cr/indicadores/tc`, no key) via a plain `HttpClient` + `IMemoryCache` (1 h
+  freshness window counts as live) — the default `ExchangeRate:Provider` (ADR-V019); the
+  **exchangerate-api.com** one-rate feed (free tier, `ExchangeRate:ApiKey`) stays selectable
+  (ADR-V006). Both hosts fixed, allowlisted for the outbound-URL guard (R76).
+- **Microsoft Graph + Gmail REST** via plain `HttpClient` (no SDKs) for read-only voucher ingestion:
+  mail-scope consent reuses the platform's `Authentication:{Microsoft,Google}` client credentials;
+  mailbox tokens encrypted with **Data Protection** (no extra key). Polling is an `IScheduledJob`
+  on the platform's scheduler (ADR-V010).
+- **No component library** — the UI is the platform's Bootstrap 5.3 RCL; the donor's MudBlazor is
+  not brought over (ADR-V011).
+- **Retired from the donor:** `System.Net.Mail`/Brevo HTTP senders (platform outbox + MailKit),
+  `AesEmailTokenEncryptor` (Data Protection), Serilog + Sentry (platform OpenTelemetry), Swashbuckle
+  for the private API (Postman is canonical), `railway.json`/`vercel.json` (Render).
+- **`QuestPDF` 2026.9** — the Reports PDF (REPORTS-7 / ADR-V022), rendered server-side and confined to
+  `src/Api/Features/Reports/Pdf/`. **Community licence** (free for organisations under USD 1M annual revenue),
+  set in code; revisit the licence if Vuelto ever crosses that line. Its native Skia library runs in the
+  `aspnet` runtime image with no extra system package (verified in the spike). System fonts are off: the PDF
+  embeds **Nunito** (SIL OFL 1.1 — static 400/600/700 cut from the Google Fonts variable face, licence beside
+  the files; it carries ₡). **`PdfPig` 0.1.16** (Apache-2.0) is test-only — it reads the generated PDF's text back.

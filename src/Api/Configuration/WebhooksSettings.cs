@@ -1,4 +1,4 @@
-namespace Perezosoft.Api.Configuration;
+namespace Vuelto.Api.Configuration;
 
 /// <summary>
 /// Toggles the outbound webhooks surface (HOOKS, ADR-016). **Default off** — like the public API, a

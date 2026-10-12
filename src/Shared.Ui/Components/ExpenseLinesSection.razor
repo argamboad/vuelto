@@ -1,0 +1,190 @@
+@using System.Globalization
+@using System.Net.Http.Json
+@using System.Text.Json.Serialization
+@inject HttpClient Http
+@inject IStringLocalizer<AppStrings> Localizer
+
+@* One budget-line list (fixed or variable — EXPENSES-1, ADR-V007/V008), presented per SKIN-9: ordered grid
+   rows rather than a table, because each row is a drag target; a handle that is also a BUTTON opening a move
+   menu (up, down, to position), which is the keyboard path and the only path on a touch screen; the
+   section's total in the header. Creating and editing live in the page's dialog — this list only lists and
+   reorders. Reorder is optimistic: the rows move first, the PUT follows, a refused PUT puts them back. *@
+<section class="lines" data-testid="@TestId">
+    <header class="lines-head">
+        <h2>@Localizer[TitleKey] <span class="lines-hint">@Localizer[HintKey]</span></h2>
+        <span class="lines-total" data-testid="exp-total">@BudgetMoney.Format(_items, Rate, Display)</span>
+    </header>
+
+    @if (_error is not null)
+    {
+        <div class="alert alert-danger py-2" data-testid="exp-error">@_error</div>
+    }
+
+    @if (_loading)
+    {
+        <div class="text-muted"><span class="spinner-border spinner-border-sm me-2"></span>@Localizer["Common_Loading"]</div>
+    }
+    else if (_items.Count == 0)
+    {
+        <p class="lines-empty" data-testid="exp-empty">@Localizer["Budget_Empty"]</p>
+    }
+    else
+    {
+        <ul class="lines-list" aria-label="@Localizer[TitleKey]">
+            @{ var active = _items.Where(i => i.IsActive).ToList(); }
+            @foreach (var item in _items)
+            {
+                var idx = active.IndexOf(item);
+                <li class="line" data-testid="exp-row" data-inactive="@(item.IsActive ? null : "true")"
+                    draggable="@(item.IsActive ? "true" : null)"
+                    @ondragstart="() => _dragId = item.Id" @ondragend="() => _dragId = null"
+                    @ondragover:preventDefault @ondrop="() => DropOnAsync(item)">
+                    <div class="line-handle-cell">
+                        @if (item.IsActive)
+                        {
+                            <button type="button" class="line-handle" data-testid="exp-handle" aria-haspopup="menu"
+                                    aria-expanded="@(_menuFor == item.Id ? "true" : "false")"
+                                    aria-label="@Localizer["Budget_DragToReorder", item.Name]" disabled="@_saving"
+                                    @onclick="() => _menuFor = _menuFor == item.Id ? null : item.Id">
+                                <span aria-hidden="true">⠿</span>
+                            </button>
+                            @if (_menuFor == item.Id)
+                            {
+                                <div class="move-menu" role="menu" data-testid="exp-move-menu" @onkeydown="OnMenuKeyDown">
+                                    <button type="button" class="move-item" role="menuitem" data-testid="exp-move-up" disabled="@(idx <= 0)" @onclick="() => MoveToAsync(item, idx - 1)">@Localizer["Budget_MoveUp"]</button>
+                                    <button type="button" class="move-item" role="menuitem" data-testid="exp-move-down" disabled="@(idx >= active.Count - 1)" @onclick="() => MoveToAsync(item, idx + 1)">@Localizer["Budget_MoveDown"]</button>
+                                    <label class="move-to">
+                                        <span>@Localizer["Budget_MoveTo"]</span>
+                                        <select class="form-select form-select-sm" data-testid="exp-move-to" value="@(idx + 1)" @onchange="e => MoveToAsync(item, int.Parse((string)e.Value!, CultureInfo.InvariantCulture) - 1)">
+                                            @for (var p = 1; p <= active.Count; p++) { <option value="@p">@p</option> }
+                                        </select>
+                                    </label>
+                                </div>
+                                <div class="move-backdrop" @onclick="() => _menuFor = null"></div>
+                            }
+                        }
+                    </div>
+                    <div class="line-name-cell">
+                        <span class="line-name" data-testid="exp-row-name">@item.Name</span>
+                        @if (!item.IsActive)
+                        {
+                            <span class="line-status">@Localizer["Budget_StatusInactive"]</span>
+                        }
+                        @* Below md the category and paid-with columns hide; the sub-line repeats them. *@
+                        <span class="line-sub" data-testid="exp-row-sub" aria-hidden="true">@SubLine(item)</span>
+                    </div>
+                    <span class="line-amount" data-testid="exp-row-budget">
+                        <Money Crc="item.BudgetCrc" Usd="item.BudgetUsd" Currency="@item.Currency" Size="row" />
+                    </span>
+                    <span class="line-category col-md" data-testid="exp-row-category">@CategoryName(item)</span>
+                    <span class="line-paid col-md"><span class="line-chip" data-testid="exp-row-paid">@PaidWith(item)</span></span>
+                    <button type="button" class="btn btn-link btn-sm line-edit" data-testid="exp-edit" disabled="@_saving" @onclick="() => OnEdit.InvokeAsync(item)">@Localizer["Catalog_Edit"]</button>
+                </li>
+            }
+        </ul>
+    }
+</section>
+
+@code {
+    /// <summary><c>fixed</c> or <c>variable</c> — selects the API list.</summary>
+    [Parameter, EditorRequired] public string Kind { get; set; } = "fixed";
+
+    /// <summary>exp-fixed / exp-variable: the caller names the list (R149: a literal id, not one built from Kind).</summary>
+    [Parameter, EditorRequired] public string TestId { get; set; } = "";
+    [Parameter, EditorRequired] public string TitleKey { get; set; } = "";
+    [Parameter, EditorRequired] public string HintKey { get; set; } = "";
+    /// <summary>Active categories the page loaded once for both lists.</summary>
+    [Parameter] public IReadOnlyList<CategoryOption> Categories { get; set; } = [];
+
+    /// <summary>Today's rate for the section total (null: each currency is summed on its own side).</summary>
+    [Parameter] public decimal? Rate { get; set; }
+    [Parameter] public string Display { get; set; } = MoneyDisplay.Both;
+
+    /// <summary>The page opens its dialog for this line.</summary>
+    [Parameter] public EventCallback<ExpenseLine> OnEdit { get; set; }
+
+    /// <summary>Raised whenever the list (re)loads or reorders, so the page's header can sum both lists.</summary>
+    [Parameter] public EventCallback<IReadOnlyList<ExpenseLine>> OnItemsChanged { get; set; }
+
+    public sealed record NamedItem([property: JsonPropertyName("id")] Guid Id, [property: JsonPropertyName("name")] string Name, [property: JsonPropertyName("is_active")] bool IsActive);
+
+    private string Endpoint => $"/api/expenses/{Kind}";
+    private bool _loading = true;
+    private bool _saving;
+    private string? _error;
+    private List<ExpenseLine> _items = new();
+    private Guid? _menuFor;
+    private Guid? _dragId;
+
+    protected override async Task OnInitializedAsync() => await ReloadAsync();
+
+    /// <summary>The page calls this after its dialog saves a line of this kind.</summary>
+    public async Task ReloadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _items = await Http.GetFromJsonAsync<List<ExpenseLine>>($"{Endpoint}?include_inactive=true") ?? new();
+            await OnItemsChanged.InvokeAsync(_items);
+        }
+        catch { _error = Localizer["Budget_LoadError"]; }
+        finally { _loading = false; }
+        StateHasChanged();
+    }
+
+    private string CategoryName(ExpenseLine item) => Categories.FirstOrDefault(c => c.Id == item.CategoryId)?.Name ?? "—";
+
+    /// <summary>"BAC · account" — where the money leaves from and how, as one chip.</summary>
+    private string PaidWith(ExpenseLine item)
+    {
+        // The method alone (owner, 2026-09-14): a plan names no bank.
+        return item.PaymentMethod == "bank_account" ? Localizer["Budget_MethodAccount"].Value : Localizer["Budget_MethodCard"].Value;
+    }
+
+    private string SubLine(ExpenseLine item) => $"{CategoryName(item)} · {PaidWith(item)}";
+
+    private void OnMenuKeyDown(KeyboardEventArgs e) { if (e.Key == "Escape") _menuFor = null; }
+
+    private Task DropOnAsync(ExpenseLine target)
+    {
+        if (_dragId is not { } id || id == target.Id || !target.IsActive) { _dragId = null; return Task.CompletedTask; }
+        var active = _items.Where(i => i.IsActive).ToList();
+        var dragged = active.FirstOrDefault(i => i.Id == id);
+        _dragId = null;
+        return dragged is null ? Task.CompletedTask : MoveToAsync(dragged, active.IndexOf(target));
+    }
+
+    /// <summary>
+    /// Moves an active line to a position among the active lines, on screen first, then PUTs the whole active
+    /// order (the API requires the exact active set). A refused PUT restores the previous order and says so.
+    /// </summary>
+    private async Task MoveToAsync(ExpenseLine item, int target)
+    {
+        _menuFor = null;
+        var active = _items.Where(i => i.IsActive).ToList();
+        var from = active.IndexOf(item);
+        if (from < 0 || target < 0 || target >= active.Count || target == from) return;
+
+        var previous = _items;
+        active.RemoveAt(from);
+        active.Insert(target, item);
+        _items = active.Concat(_items.Where(i => !i.IsActive)).ToList();
+        await OnItemsChanged.InvokeAsync(_items);
+
+        _saving = true; _error = null;
+        try
+        {
+            var res = await Http.PutAsJsonAsync($"{Endpoint}/order", new { ordered_ids = active.Select(i => i.Id).ToList() });
+            if (!res.IsSuccessStatusCode) await RollbackAsync(previous);
+        }
+        catch { await RollbackAsync(previous); }
+        finally { _saving = false; }
+    }
+
+    private async Task RollbackAsync(List<ExpenseLine> previous)
+    {
+        _items = previous;
+        _error = Localizer["Budget_ReorderError"];
+        await OnItemsChanged.InvokeAsync(_items);
+    }
+}

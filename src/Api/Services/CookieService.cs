@@ -1,6 +1,6 @@
-using Perezosoft.Api.Configuration;
+using Vuelto.Api.Configuration;
 
-namespace Perezosoft.Api.Services;
+namespace Vuelto.Api.Services;
 
 /// <summary>
 /// Manages refresh token cookie operations.
@@ -22,7 +22,7 @@ public class CookieService(IRefreshTokenSettings settings, TimeProvider clock) :
         // successful sign-in clears the orphan automatically — no manual cookie-clearing needed.
         ExpireLegacyRefreshTokenCookie(response);
 
-        // SameSite=Lax: the client (https://localhost:7008) and API (https://localhost:7160)
+        // SameSite=Lax: the client and the API (two local origins on different ports)
         // are the same site (localhost), so the refresh fetch is a same-site request and the
         // cookie is sent. Lax/Strict require both ends to be HTTPS (schemeful same-site treats
         // http and https localhost as different sites). Do NOT use None here — None demands

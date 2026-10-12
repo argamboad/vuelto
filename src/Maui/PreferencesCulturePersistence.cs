@@ -1,6 +1,6 @@
-using Perezosoft.Shared.Ui;
+using Vuelto.Shared.Ui;
 
-namespace Perezosoft.Maui;
+namespace Vuelto.Maui;
 
 /// <summary>
 /// Native implementation: OS <see cref="Preferences"/>, because that's the only store

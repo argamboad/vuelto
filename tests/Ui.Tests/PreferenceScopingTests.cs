@@ -2,11 +2,11 @@ using System.Globalization;
 using Bunit;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
-using Perezosoft.Shared.Ui.Layout;
-using Perezosoft.Ui.Tests.Infrastructure;
+using Vuelto.Shared.Ui.Layout;
+using Vuelto.Ui.Tests.Infrastructure;
 using Xunit;
 
-namespace Perezosoft.Ui.Tests;
+namespace Vuelto.Ui.Tests;
 
 /// <summary>
 /// v3 audit ADM-9 + the impersonation-hardening half of T40. ADM-9: the device pref store cached a
@@ -41,8 +41,12 @@ public class PreferenceScopingTests : ComponentTestBase
     {
         CultureInfo.CurrentCulture = CultureInfo.CurrentUICulture = new CultureInfo("en");
 
-        // An impersonation session that (defensively) DOES carry the target's prefs.
-        await SignInAsync(theme: "dark", locale: "es", impersonatedBy: "00000000-0000-0000-0000-000000000009");
+        // An impersonation session that (defensively) DOES carry the target's prefs. Entered the way the app
+        // does — BeginImpersonation on a staff session; impersonation is a state, not a claim a refresh could
+        // hand back (v4 T31, R125).
+        await SignInAsync(name: "Staff Member");
+        Auth.BeginImpersonation(TestJwt.Build(name: "Target User", theme: "dark", locale: "es",
+            impersonatedBy: "00000000-0000-0000-0000-000000000009"));
         Assert.True(Auth.IsImpersonating);
 
         RenderLayout(this);

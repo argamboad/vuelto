@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Configuration;
 
-namespace Perezosoft.Api.Configuration;
+namespace Vuelto.Api.Configuration;
 
 /// <summary>
 /// Provides typed configuration settings from IConfiguration.
@@ -16,7 +16,7 @@ public class JwtSettings : IJwtSettings
     {
         SecretKey = config["Jwt:Secret"]
             ?? throw new InvalidOperationException("Jwt:Secret not configured (set Jwt__Secret in .env for dev)");
-        Issuer = config["Jwt:Issuer"] ?? "Perezosoft";
+        Issuer = config["Jwt:Issuer"] ?? "Vuelto";
         ExpiryMinutes = config.GetValue("Jwt:ExpiryMinutes", 60);
 
         const int MinSecretKeyLength = 32;
@@ -30,10 +30,16 @@ public class JwtSettings : IJwtSettings
 public class RefreshTokenSettings : IRefreshTokenSettings
 {
     public int ExpiryDays { get; }
+    public int ReuseGraceSeconds { get; }
+    public int? AbsoluteLifetimeDays { get; }
 
     public RefreshTokenSettings(IConfiguration config)
     {
         ExpiryDays = config.GetValue("RefreshToken:ExpiryDays", 30);
+        ReuseGraceSeconds = config.GetValue("RefreshToken:ReuseGraceSeconds", 60);
+        // Blank, absent or 0 all mean "no absolute lifetime" — the knob ships off (v4 T36, decision #2).
+        var absolute = config.GetValue<int?>("RefreshToken:AbsoluteLifetimeDays");
+        AbsoluteLifetimeDays = absolute is > 0 ? absolute : null;
     }
 }
 
@@ -44,7 +50,7 @@ public class ApplicationSettings : IApplicationSettings
 
     public ApplicationSettings(IConfiguration config)
     {
-        ClientUrl = config["Auth:AppBaseUrl"]?.TrimEnd('/') ?? "https://localhost:7008";
+        ClientUrl = config["Auth:AppBaseUrl"]?.TrimEnd('/') ?? LocalPorts.WebHttpsUrl; // the Web app's https launch profile (local-ports.props)
         NativeCallbackScheme = config["Auth:Native:CallbackScheme"] ?? string.Empty;
     }
 }

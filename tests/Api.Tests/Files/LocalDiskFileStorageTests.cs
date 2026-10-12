@@ -1,11 +1,11 @@
 using System.Text;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Options;
-using Perezosoft.Api.Tests.Infrastructure;
-using Perezosoft.Core.Abstractions;
-using Perezosoft.Infrastructure.Files;
+using Vuelto.Api.Tests.Infrastructure;
+using Vuelto.Core.Abstractions;
+using Vuelto.Infrastructure.Files;
 
-namespace Perezosoft.Api.Tests.Files;
+namespace Vuelto.Api.Tests.Files;
 
 /// <summary>
 /// FILES-1 (ADR-010): <see cref="LocalDiskFileStorage"/> round-trips bytes + content-type, namespaces

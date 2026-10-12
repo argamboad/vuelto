@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace Perezosoft.Api.Models;
+namespace Vuelto.Api.Models;
 
 /// <summary>Request to start a hosted checkout for a paid plan.</summary>
 public record CreateCheckoutRequest

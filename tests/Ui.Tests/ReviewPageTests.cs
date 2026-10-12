@@ -1,0 +1,380 @@
+using System.Net;
+using Bunit;
+using Microsoft.Extensions.DependencyInjection;
+using Vuelto.Shared.Ui;
+using Vuelto.Shared.Ui.Pages;
+using Vuelto.Ui.Tests.Infrastructure;
+using Xunit;
+
+namespace Vuelto.Ui.Tests;
+
+/// <summary>EMAIL-6 UI: the queue renders drafts with the suggestion prefilled and the parsed fields read-only, opens only the blanks, confirm posts the decision and reloads, discard posts, 409 explains and reloads, and the empty state shows.</summary>
+public class ReviewPageTests : ComponentTestBase
+{
+    private const string V1 = "dddddddd-0000-0000-0000-000000000001";
+    private const string V2 = "dddddddd-0000-0000-0000-000000000002";
+    private const string Cat1 = "cccccccc-0000-0000-0000-000000000001";
+    private const string Cat2 = "cccccccc-0000-0000-0000-000000000002";
+    private const string Bank1 = "bbbbbbbb-0000-0000-0000-000000000001";
+    private const string Categories = $$"""[{"id":"{{Cat1}}","name":"Dining","is_active":true},{"id":"{{Cat2}}","name":"Groceries","is_active":true}]""";
+    private const string Banks = $$"""[{"id":"{{Bank1}}","name":"BAC Credomatic","is_active":true}]""";
+    private const string Queue = $$"""
+        [{"id":"{{V1}}","parsed_bank":"Bac","merchant":"TACO BELL PLAZA REAL C","amount":7620,"currency":"CRC","date":"2026-06-13","bank_id":"{{Bank1}}","card_number":"************1234","card_brand":"VISA","card_label":"VISA ····1234","authorization":"662664","reference":null,"transaction_type":"COMPRA","missing_fields":[],"suggested_category_id":"{{Cat1}}","suggested_class":"extraordinary","received_at":"2026-06-16T12:00:00+00:00"},
+         {"id":"{{V2}}","parsed_bank":"BN","merchant":null,"amount":null,"currency":null,"date":"2026-06-14","bank_id":"{{Bank1}}","card_number":null,"authorization":null,"reference":"R1","transaction_type":"PAGO","missing_fields":["Merchant","Amount","Currency"],"suggested_category_id":null,"suggested_class":null,"received_at":null}]
+        """;
+
+    /// <summary>Always re-query: every change re-renders the card, and a cached element's handlers go stale.</summary>
+    private static AngleSharp.Dom.IElement Card(IRenderedComponent<Review> cut, int index) => cut.FindAll("[data-testid='review-voucher']")[index];
+
+    private void StubQueue(string queue = Queue)
+    {
+        Http.On(HttpMethod.Get, "/api/categories", Categories);
+        Http.On(HttpMethod.Get, "/api/banks", Banks);
+        Http.On(HttpMethod.Get, "/api/pending-vouchers", queue);
+    }
+
+    // ---- #210 (ADR-V027): the bank half-hid the number — ask which card, remember, preselect ----
+
+    private const string Black = "cccccccc-0000-0000-0000-00000000b1ac";
+    private const string Other = "cccccccc-0000-0000-0000-000000000001";
+
+    private void StubAmbiguous(string? known)
+    {
+        StubQueue($$"""
+            [{"id":"{{V1}}","parsed_bank":"BN","merchant":"PAGO TARJETA","amount":50000,"currency":"CRC","date":"2026-10-05","bank_id":"{{Bank1}}","card_number":"XXXXXXXXXXX8755X","card_brand":null,"card_label":"XXXXXXXXXXX8755X","card_ambiguous":true,"known_card_id":{{(known is null ? "null" : $"\"{known}\"")}},"authorization":null,"reference":"R9","transaction_type":"PAGO","missing_fields":[],"suggested_category_id":"{{Cat1}}","suggested_class":"budgeted","received_at":null}]
+            """);
+        Http.On(HttpMethod.Get, "/api/cards", $$"""[{"id":"{{Black}}","name":"Black","auto_named":false},{"id":"{{Other}}","name":"VISA-1234","auto_named":true}]""");
+        Http.On(HttpMethod.Post, $"/api/pending-vouchers/{V1}/confirm", $$"""{"transaction_id":"{{V1}}","month_id":"{{V1}}","amount_crc":50000,"amount_usd":100,"remembered":false}""");
+    }
+
+    private async Task<string> ConfirmBodyAsync(IRenderedComponent<Review> cut)
+    {
+        Card(cut, 0).QuerySelector("[data-testid='review-confirm']")!.Click();
+        cut.WaitForAssertion(() => Assert.Contains("Review_Confirmed", cut.Find("[data-testid='review-notice']").TextContent));
+        return await Assert.Single(Http.Requests, r => r.Method == HttpMethod.Post && r.RequestUri!.AbsolutePath.StartsWith("/api/pending-vouchers")).Content!.ReadAsStringAsync();
+    }
+
+    [Fact]
+    public async Task AHalfHiddenNumber_AsksWhichCard_AndWillNotConfirmUntilAnswered()
+    {
+        await SignInAsync();
+        StubAmbiguous(known: null);
+        var cut = Render<Review>();
+        cut.WaitForElement("[data-testid='review-card-pick']");
+
+        Assert.Contains("XXXXXXXXXXX8755X", cut.Find("[data-testid='review-card']").TextContent); // the printed pattern, not a guessed ····8755
+        Assert.Contains("Review_CardHint[XXXXXXXXXXX8755X]", cut.Find("[data-testid='review-card-hint']").TextContent);
+        var options = cut.FindAll("[data-testid='review-card-pick'] option").Select(o => o.GetAttribute("value")).ToList();
+        Assert.Equal(["", Black, Other, "none"], options);
+
+        Card(cut, 0).QuerySelector("[data-testid='review-confirm']")!.Click();
+        cut.WaitForAssertion(() => Assert.Contains("Review_CardRequired", cut.Find("[data-testid='review-notice']").TextContent));
+        Assert.DoesNotContain(Http.Requests, r => r.Method == HttpMethod.Post && r.RequestUri!.AbsolutePath.StartsWith("/api/pending-vouchers"));
+
+        cut.Find("[data-testid='review-card-pick']").Change(Black);
+        var body = await ConfirmBodyAsync(cut);
+        Assert.Contains($"\"card_id\":\"{Black}\"", body);
+        Assert.Contains("\"skip_card\":false", body);
+    }
+
+    [Fact]
+    public async Task LastTimesAnswer_IsPreselected_AndNoCard_SkipsIt()
+    {
+        await SignInAsync();
+        StubAmbiguous(known: Black);
+        var cut = Render<Review>();
+        cut.WaitForElement("[data-testid='review-card-pick']");
+
+        Assert.Equal(Black, cut.Find("[data-testid='review-card-pick']").GetAttribute("value"));
+        Assert.Contains("Review_CardRemembered", cut.Find("[data-testid='review-card-hint']").TextContent);
+
+        cut.Find("[data-testid='review-card-pick']").Change("none");
+        var body = await ConfirmBodyAsync(cut);
+        Assert.Contains("\"card_id\":null", body);
+        Assert.Contains("\"skip_card\":true", body);
+    }
+
+    [Fact]
+    public async Task APlainNumber_AsksNothing_AndSendsNoCardChoice()
+    {
+        await SignInAsync();
+        StubQueue();
+        var cut = Render<Review>();
+        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("[data-testid='review-voucher']").Count));
+
+        Assert.Empty(cut.FindAll("[data-testid='review-card-pick']"));
+    }
+
+    [Fact]
+    public async Task Confirm_CanCreateTheCategoryInline_AndEveryCardSeesIt()
+    {
+        const string NewCatId = "cccccccc-0000-0000-0000-000000000009";
+        await SignInAsync();
+        StubQueue();
+        Http.On(HttpMethod.Post, "/api/categories", $$"""{"id":"{{NewCatId}}","name":"Viajes","is_active":true}""", HttpStatusCode.Created);
+        Http.On(HttpMethod.Post, $"/api/pending-vouchers/{V1}/confirm", $$"""{"transaction_id":"{{V1}}","month_id":"{{V1}}","amount_crc":7620,"amount_usd":15,"remembered":false}""");
+
+        var cut = Render<Review>();
+        cut.WaitForAssertion(() => Assert.Contains("VISA ····1234", cut.Find("[data-testid='review-card']").TextContent)); // CARDS-1: the card the voucher printed
+        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("[data-testid='review-voucher']").Count));
+
+        Card(cut, 0).QuerySelector("[data-testid='review-category-new']")!.Click();
+        Card(cut, 0).QuerySelector("[data-testid='review-category-new-name']")!.Input("Viajes");
+        Card(cut, 0).QuerySelector("[data-testid='review-category-new-save']")!.Click();
+
+        cut.WaitForAssertion(() => Assert.Equal(NewCatId, Card(cut, 0).QuerySelector("[data-testid='review-category']")!.GetAttribute("value")));
+        // The page's list is shared: the other card can pick it too.
+        Assert.Contains(Card(cut, 1).QuerySelectorAll("[data-testid='review-category'] option"), o => o.GetAttribute("value") == NewCatId);
+
+        Card(cut, 0).QuerySelector("[data-testid='review-confirm']")!.Click();
+        cut.WaitForAssertion(() => Assert.Contains("Review_Confirmed", cut.Find("[data-testid='review-notice']").TextContent));
+        var body = await Assert.Single(Http.Requests, r => r.Method == HttpMethod.Post && r.RequestUri!.AbsolutePath.StartsWith("/api/pending-vouchers")).Content!.ReadAsStringAsync();
+        Assert.Contains($"\"category_id\":\"{NewCatId}\"", body);
+    }
+
+    [Fact]
+    public async Task Confirm_AsUnplanned_OffersTheRefund_PreviewsIt_AndSendsItAlong()
+    {
+        await SignInAsync();
+        StubQueue();
+        Http.On(HttpMethod.Post, $"/api/pending-vouchers/{V1}/confirm", $$"""{"transaction_id":"{{V1}}","month_id":"{{V1}}","amount_crc":7620,"amount_usd":15,"remembered":false}""");
+
+        var cut = Render<Review>();
+        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("[data-testid='review-voucher']").Count));
+
+        // Suggested as extraordinary: the refund toggle is already there (ADR-V025). Switch to Unplanned: it stays, then the percentage + preview.
+        Assert.NotNull(Card(cut, 0).QuerySelector("[data-testid='review-refund-expected']"));
+        Card(cut, 0).QuerySelector("[data-testid='review-class-option'][data-value='unplanned_essential']")!.Change(true);
+        Assert.Null(Card(cut, 0).QuerySelector("[data-testid='review-refund-amount']"));
+        Card(cut, 0).QuerySelector("[data-testid='review-refund-expected']")!.Change(true);
+        Card(cut, 0).QuerySelector("[data-testid='review-refund-mode'][data-value='percent']")!.Change(true);
+        Card(cut, 0).QuerySelector("[data-testid='review-refund-pct']")!.Change("30");
+        Assert.Contains("Tx_RefundPreview[₡2,286.00]", Card(cut, 0).QuerySelector("[data-testid='review-refund-hint']")!.TextContent); // 30 % of the voucher's ₡7,620
+        // The same refund notes the manual form asks for (owner, 2026-09-14): why you expect it back, case number and all.
+        Assert.DoesNotContain("review-refund-case", Card(cut, 0).QuerySelectorAll("[data-testid]").Select(e => e.GetAttribute("data-testid")));
+        Card(cut, 0).QuerySelector("textarea[data-testid='review-refund-notes']")!.Input("CASE-7, lent to Diego");
+
+        Card(cut, 0).QuerySelector("[data-testid='review-confirm']")!.Click();
+
+        cut.WaitForAssertion(() => Assert.Contains("Review_Confirmed", cut.Find("[data-testid='review-notice']").TextContent));
+        var body = await Assert.Single(Http.Requests, r => r.Method == HttpMethod.Post && r.RequestUri!.AbsolutePath.StartsWith("/api/pending-vouchers")).Content!.ReadAsStringAsync();
+        Assert.Contains("\"refund_expected\":true", body);
+        Assert.Contains("\"refund_amount\":2286", body); // the amount, never the percentage (#202)
+        Assert.DoesNotContain("refund_case_number", body);
+        Assert.Contains("\"refund_notes\":\"CASE-7, lent to Diego\"", body);
+    }
+
+    [Fact]
+    public async Task Confirm_OnAnotherClass_SendsNoRefund_EvenIfItWasToggledBefore()
+    {
+        await SignInAsync();
+        StubQueue();
+        Http.On(HttpMethod.Post, $"/api/pending-vouchers/{V1}/confirm", $$"""{"transaction_id":"{{V1}}","month_id":"{{V1}}","amount_crc":7620,"amount_usd":15,"remembered":false}""");
+
+        var cut = Render<Review>();
+        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("[data-testid='review-voucher']").Count));
+        Card(cut, 0).QuerySelector("[data-testid='review-class-option'][data-value='unplanned_essential']")!.Change(true);
+        Card(cut, 0).QuerySelector("[data-testid='review-refund-expected']")!.Change(true);
+        Card(cut, 0).QuerySelector("[data-testid='review-refund-amount']")!.Change("2000");
+        Card(cut, 0).QuerySelector("[data-testid='review-class-option'][data-value='extraordinary']")!.Change(true); // discretionary keeps them (ADR-V025)
+        Assert.NotNull(Card(cut, 0).QuerySelector("[data-testid='review-refund-expected']"));
+        Card(cut, 0).QuerySelector("[data-testid='review-class-option'][data-value='budgeted']")!.Change(true); // changed their mind: the controls hide
+        Assert.Null(Card(cut, 0).QuerySelector("[data-testid='review-refund-expected']"));
+
+        Card(cut, 0).QuerySelector("[data-testid='review-confirm']")!.Click();
+
+        cut.WaitForAssertion(() => Assert.Contains("Review_Confirmed", cut.Find("[data-testid='review-notice']").TextContent));
+        var body = await Assert.Single(Http.Requests, r => r.Method == HttpMethod.Post && r.RequestUri!.AbsolutePath.StartsWith("/api/pending-vouchers")).Content!.ReadAsStringAsync();
+        Assert.Contains("\"refund_expected\":false", body);
+        Assert.Contains("\"refund_amount\":null", body);
+    }
+
+    [Fact]
+    public async Task SyncAll_PostsOnce_ShowsTheSummary_ReloadsTheQueue_AndPokesTheBadge()
+    {
+        await SignInAsync();
+        StubQueue();
+        Http.On(HttpMethod.Post, "/api/email/connections/sync", """{"synced_inboxes":2,"needs_reconsent":0,"staged":3,"duplicates":5,"unrecognized":1}""");
+        var notified = false;
+        Services.GetRequiredService<ReviewQueueNotifier>().Changed += () => notified = true;
+
+        var cut = Render<Review>();
+        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("[data-testid='review-voucher']").Count));
+        cut.Find("[data-testid='review-sync-all']").Click();
+
+        cut.WaitForAssertion(() => Assert.Contains("Review_SyncResult[2, 3, 5, 1]", cut.Find("[data-testid='review-notice']").TextContent));
+        Assert.Single(Http.Requests, r => r.Method == HttpMethod.Post && r.RequestUri!.AbsolutePath == "/api/email/connections/sync");
+        Assert.Equal(2, Http.Requests.Count(r => r.Method == HttpMethod.Get && r.RequestUri!.AbsolutePath == "/api/pending-vouchers")); // reloaded
+        Assert.True(notified);
+        Assert.Contains("alert-success", cut.Find("[data-testid='review-notice']").ClassName);
+    }
+
+    [Fact]
+    public async Task SyncAll_ReportsDeadInboxes_AndNoInboxes_AsWarnings()
+    {
+        await SignInAsync();
+        StubQueue();
+        Http.On(HttpMethod.Post, "/api/email/connections/sync", """{"synced_inboxes":1,"needs_reconsent":1,"staged":0,"duplicates":2,"unrecognized":0}""");
+
+        var cut = Render<Review>();
+        cut.WaitForElement("[data-testid='review-sync-all']").Click();
+        cut.WaitForAssertion(() => Assert.Contains("Review_SyncReconsent[1]", cut.Find("[data-testid='review-notice']").TextContent));
+        Assert.Contains("Review_SyncResult[1, 0, 2, 0]", cut.Find("[data-testid='review-notice']").TextContent);
+        Assert.Contains("alert-danger", cut.Find("[data-testid='review-notice']").ClassName);
+
+        Http.On(HttpMethod.Post, "/api/email/connections/sync", """{"synced_inboxes":0,"needs_reconsent":0,"staged":0,"duplicates":0,"unrecognized":0}""");
+        cut.Find("[data-testid='review-sync-all']").Click();
+        cut.WaitForAssertion(() => Assert.Contains("Review_SyncNoInboxes", cut.Find("[data-testid='review-notice']").TextContent));
+    }
+
+    [Fact]
+    public async Task Renders_Drafts_WithTheSuggestionPrefilled_AndOpensOnlyTheBlanks()
+    {
+        await SignInAsync();
+        StubQueue();
+
+        var cut = Render<Review>();
+
+        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("[data-testid='review-voucher']").Count));
+        Assert.Contains("Review_ToReview[2]", cut.Find("[data-testid='review-count']").TextContent);
+        var cards = cut.FindAll("[data-testid='review-voucher']");
+
+        Assert.Contains("TACO BELL PLAZA REAL C", cards[0].QuerySelector("[data-testid='review-merchant']")!.TextContent);
+        Assert.Contains("₡7,620.00", cards[0].QuerySelector("[data-testid='review-amount']")!.TextContent);
+        Assert.Contains("BAC Credomatic", cards[0].TextContent);
+        Assert.NotNull(cards[0].QuerySelector("[data-testid='review-suggested']"));
+        Assert.Equal(Cat1, cards[0].QuerySelector("[data-testid='review-category']")!.GetAttribute("value"));
+        Assert.True(cards[0].QuerySelector("[data-testid='review-class-option'][data-value='extraordinary']")!.HasAttribute("checked"));
+        Assert.Null(cards[0].QuerySelector("[data-testid='review-amount-input']")); // parsed → read-only
+        Assert.Null(cards[0].QuerySelector("[data-testid='review-missing']"));
+
+        Assert.Contains("Review_UnknownMerchant", cards[1].QuerySelector("[data-testid='review-merchant']")!.TextContent);
+        Assert.Contains("Tx_Payee, Tx_Amount", cards[1].QuerySelector("[data-testid='review-missing']")!.TextContent);
+        Assert.Null(cards[1].QuerySelector("[data-testid='review-suggested']"));
+        Assert.True(string.IsNullOrEmpty(cards[1].QuerySelector("[data-testid='review-category']")!.GetAttribute("value")));
+        Assert.True(cards[1].QuerySelector("[data-testid='review-class-option'][data-value='budgeted']")!.HasAttribute("checked"));
+        Assert.NotNull(cards[1].QuerySelector("[data-testid='review-payee']"));
+        Assert.NotNull(cards[1].QuerySelector("[data-testid='review-amount-input']"));
+        Assert.Null(cards[1].QuerySelector("[data-testid='review-date']")); // the date parsed
+        Assert.True(cards[1].QuerySelector("[data-testid='review-remember']")!.HasAttribute("disabled")); // nothing to remember
+    }
+
+    [Fact]
+    public async Task AutoNamedCards_AreCalledOutOnTheQueue_WithAWayToFixThem()
+    {
+        // CARDS-3: a voucher can create a card silently — the queue is where you find out, not the Cards page.
+        await SignInAsync();
+        StubQueue();
+        Http.On(HttpMethod.Get, "/api/cards", """
+            [{"id":"11111111-0000-0000-0000-000000000001","name":"VISA-1966","auto_named":true},
+             {"id":"11111111-0000-0000-0000-000000000002","name":"CARD-7112","auto_named":true},
+             {"id":"11111111-0000-0000-0000-000000000003","name":"Allan's Visa","auto_named":false}]
+            """);
+
+        var cut = Render<Review>();
+
+        cut.WaitForAssertion(() => Assert.Contains("Review_CardsNeedNaming[2]", cut.Find("[data-testid='review-cards-nudge']").TextContent));
+        Assert.Equal("/cards", cut.Find("[data-testid='review-cards-nudge'] a").GetAttribute("href"));
+    }
+
+    [Fact]
+    public async Task NoAutoNamedCards_MeansNoNudge()
+    {
+        await SignInAsync();
+        StubQueue();
+        Http.On(HttpMethod.Get, "/api/cards", """[{"id":"11111111-0000-0000-0000-000000000003","name":"Allan's Visa","auto_named":false}]""");
+
+        var cut = Render<Review>();
+
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("[data-testid='review-voucher']")));
+        Assert.Empty(cut.FindAll("[data-testid='review-cards-nudge']"));
+    }
+
+    [Fact]
+    public async Task Confirm_PostsTheDecision_WithoutOverridesForParsedFields_AndReloads()
+    {
+        await SignInAsync();
+        StubQueue();
+        Http.On(HttpMethod.Post, $"/api/pending-vouchers/{V1}/confirm", $$"""{"transaction_id":"{{V2}}","month_id":"{{V2}}","amount_crc":7620,"amount_usd":15.24,"remembered":true}""");
+
+        var notified = false;
+        Services.GetRequiredService<ReviewQueueNotifier>().Changed += () => notified = true;
+        var cut = Render<Review>();
+        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("[data-testid='review-confirm']").Count));
+        Card(cut, 0).QuerySelector("[data-testid='review-class-option'][data-value='budgeted']")!.Change(true);
+        Card(cut, 0).QuerySelector("[data-testid='review-remember']")!.Change(true);
+        Card(cut, 0).QuerySelector("[data-testid='review-notes']")!.Change(" Team lunch, split later ");
+        Card(cut, 0).QuerySelector("[data-testid='review-confirm']")!.Click();
+
+        cut.WaitForAssertion(() => Assert.Contains("Review_ConfirmedRemembered", cut.Find("[data-testid='review-notice']").TextContent));
+        Assert.True(notified); // the header badge re-counts through the notifier
+        var post = Assert.Single(Http.Requests, r => r.Method == HttpMethod.Post && r.RequestUri!.AbsolutePath.StartsWith("/api/pending-vouchers"));
+        var body = await post.Content!.ReadAsStringAsync();
+        Assert.Contains($"\"category_id\":\"{Cat1}\"", body);
+        Assert.Contains("\"transaction_class\":\"budgeted\"", body);
+        Assert.Contains("\"remember_merchant\":true", body);
+        Assert.Contains("\"notes\":\"Team lunch, split later\"", body); // the reason travels with the confirm, trimmed
+        Assert.Contains("\"original_amount\":null", body);
+        Assert.Contains("\"payee\":null", body);
+        Assert.Equal(2, Http.Requests.Count(r => r.RequestUri!.AbsolutePath == "/api/pending-vouchers")); // reloaded
+    }
+
+    [Fact]
+    public async Task Confirm_SendsTheOverrides_ForTheBlanks_AndRequiresACategory()
+    {
+        await SignInAsync();
+        StubQueue();
+        Http.On(HttpMethod.Post, $"/api/pending-vouchers/{V2}/confirm", $$"""{"transaction_id":"{{V1}}","month_id":"{{V1}}","amount_crc":5000,"amount_usd":10,"remembered":false}""");
+
+        var cut = Render<Review>();
+        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("[data-testid='review-confirm']").Count));
+        Card(cut, 1).QuerySelector("[data-testid='review-confirm']")!.Click();
+        cut.WaitForAssertion(() => Assert.Contains("Review_CategoryRequired", cut.Find("[data-testid='review-notice']").TextContent));
+        Assert.DoesNotContain(Http.Requests, r => r.Method == HttpMethod.Post && r.RequestUri!.AbsolutePath.StartsWith("/api/pending-vouchers"));
+
+        Card(cut, 1).QuerySelector("[data-testid='review-category']")!.Change(Cat2);
+        Card(cut, 1).QuerySelector("[data-testid='review-payee']")!.Change("Pago BN");
+        Card(cut, 1).QuerySelector("[data-testid='review-amount-input']")!.Change("5000");
+        Card(cut, 1).QuerySelector("[data-testid='review-currency']")!.Change("CRC");
+        Card(cut, 1).QuerySelector("[data-testid='review-confirm']")!.Click();
+
+        cut.WaitForAssertion(() => Assert.Contains("Review_Confirmed", cut.Find("[data-testid='review-notice']").TextContent));
+        var body = await Assert.Single(Http.Requests, r => r.Method == HttpMethod.Post && r.RequestUri!.AbsolutePath.StartsWith("/api/pending-vouchers")).Content!.ReadAsStringAsync();
+        Assert.Contains($"\"category_id\":\"{Cat2}\"", body);
+        Assert.Contains("\"payee\":\"Pago BN\"", body);
+        Assert.Contains("\"original_amount\":5000", body);
+        Assert.Contains("\"currency\":\"CRC\"", body);
+        Assert.Contains("\"transaction_date\":null", body);
+    }
+
+    [Fact]
+    public async Task Discard_Posts_AndAConflictExplainsAndReloads()
+    {
+        await SignInAsync();
+        StubQueue();
+        Http.On(HttpMethod.Post, $"/api/pending-vouchers/{V1}/discard", "", HttpStatusCode.NoContent);
+        Http.On(HttpMethod.Post, $"/api/pending-vouchers/{V2}/confirm", """{"error":"not_pending","message":"x"}""", HttpStatusCode.Conflict);
+
+        var cut = Render<Review>();
+        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("[data-testid='review-discard']").Count));
+        Card(cut, 0).QuerySelector("[data-testid='review-discard']")!.Click();
+        cut.WaitForAssertion(() => Assert.Contains("Review_Discarded", cut.Find("[data-testid='review-notice']").TextContent));
+        Assert.Single(Http.Requests, r => r.Method == HttpMethod.Post && r.RequestUri!.AbsolutePath == $"/api/pending-vouchers/{V1}/discard");
+
+        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("[data-testid='review-voucher']").Count)); // reloaded (the stub still returns both)
+        Card(cut, 1).QuerySelector("[data-testid='review-category']")!.Change(Cat1);
+        Card(cut, 1).QuerySelector("[data-testid='review-confirm']")!.Click();
+        cut.WaitForAssertion(() => Assert.Contains("Review_NotPending", cut.Find("[data-testid='review-notice']").TextContent));
+        Assert.Equal(3, Http.Requests.Count(r => r.RequestUri!.AbsolutePath == "/api/pending-vouchers")); // initial + two reloads
+    }
+
+    [Fact]
+    public async Task EmptyQueue_ShowsTheEmptyState_AndNoCount()
+    {
+        await SignInAsync();
+        StubQueue("[]");
+        var cut = Render<Review>();
+        cut.WaitForElement("[data-testid='review-empty']");
+        Assert.Empty(cut.FindAll("[data-testid='review-count']"));
+    }
+}

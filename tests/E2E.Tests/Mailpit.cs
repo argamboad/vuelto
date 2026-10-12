@@ -1,17 +1,17 @@
 using System.Net.Http.Json;
 using System.Text.RegularExpressions;
 
-namespace Perezosoft.E2E.Tests;
+namespace Vuelto.E2E.Tests;
 
 /// <summary>
-/// Minimal client for the dev Mailpit REST API (http://localhost:8025) so E2E tests can read
+/// Minimal client for the dev Mailpit REST API (this repo's Mailpit UI port, local-ports.props) so E2E tests can read
 /// the OTP code / magic link the app "sends" — the same trick a manual tester uses.
 /// </summary>
 public static class Mailpit
 {
     private static readonly HttpClient Http = new()
     {
-        BaseAddress = new Uri(Environment.GetEnvironmentVariable("MAILPIT_BASE_URL") ?? "http://localhost:8025"),
+        BaseAddress = new Uri(Environment.GetEnvironmentVariable("MAILPIT_BASE_URL") ?? LocalPorts.MailUiUrl),
     };
 
     /// <summary>Deletes all trapped messages (call before triggering a fresh email).</summary>
@@ -84,8 +84,32 @@ public static class Mailpit
         return match.Success ? match.Groups[1].Value : null;
     }
 
+    /// <summary>
+    /// Waits for a message to <paramref name="toEmail"/> that carries an attachment (REPORTS-8) and returns its
+    /// subject and first attachment's name and type — the delivered email, as the recipient's client would see it.
+    /// </summary>
+    public static async Task<(string Subject, string FileName, string ContentType)> WaitForAttachmentAsync(string toEmail, TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (DateTime.UtcNow < deadline)
+        {
+            var list = await Http.GetFromJsonAsync<MessageList>("/api/v1/messages?limit=50");
+            var summary = list?.Messages?.FirstOrDefault(m =>
+                m.Attachments > 0 && m.To.Any(t => string.Equals(t.Address, toEmail, StringComparison.OrdinalIgnoreCase)));
+            if (summary is not null)
+            {
+                var detail = await Http.GetFromJsonAsync<MessageDetail>($"/api/v1/message/{summary.ID}");
+                var file = detail?.Attachments?.FirstOrDefault();
+                if (file is not null) return (summary.Subject ?? "", file.FileName, file.ContentType);
+            }
+            await Task.Delay(500);
+        }
+        throw new TimeoutException($"No email with an attachment arrived for {toEmail} within {timeout}.");
+    }
+
     private sealed record MessageList(List<MessageSummary>? Messages);
-    private sealed record MessageSummary(string ID, List<EmailAddress> To, string? Subject);
+    private sealed record MessageSummary(string ID, List<EmailAddress> To, string? Subject, int Attachments = 0);
     private sealed record EmailAddress(string Address);
-    private sealed record MessageDetail(string? Text, string? HTML);
+    private sealed record MessageDetail(string? Text, string? HTML, List<AttachmentInfo>? Attachments = null);
+    private sealed record AttachmentInfo(string FileName, string ContentType);
 }

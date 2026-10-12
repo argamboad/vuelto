@@ -4,7 +4,8 @@
 > atomically with the data change), a background **dispatcher**, an **inbox** for idempotent inbound
 > deliveries (e.g. Stripe webhooks), and a host for **scheduled/recurring** work. **Status: ✅ COMPLETE**
 > — JOBS-1 (outbox + dispatcher + email migration), JOBS-2 (inbox dedup gate), and JOBS-3 (scheduled-
-> jobs host + token-cleanup job) all shipped. Design decision and constraints in **ADR-007** (see its
+> jobs host + token-cleanup job) all shipped; JOBS-4 (file attachments on the email path, 2026-09-16)
+> extends JOBS-1. Design decision and constraints in **ADR-007** (see its
 > 2026-06-25 amendment). Stories use Gherkin acceptance criteria. This epic was the prerequisite for
 > reliable billing webhooks (`docs/stories/billing.md`) — **BILLING is now unblocked.**
 
@@ -41,8 +42,10 @@ background
 [`IUnitOfWork`](../../src/Infrastructure/Repositories/EfUnitOfWork.cs) in the **same `SaveChanges`**
 as the business change — atomic by construction. A `BackgroundService` (`OutboxDispatcher`) polls
 unsent rows, invokes a typed handler, and marks sent; failures retry with backoff and land in a
-**dead-letter** state after N attempts. `OutboxMessage` is **not** `ITenantScoped` (it's platform
-infra and may carry system effects) but stores an optional `TenantId` for handler context. This
+**dead-letter** state after N attempts (since v4 audit H7 a finished row is stamped, its payload cleared,
+and the row deleted after `Outbox:RetentionDays`). `OutboxMessage` is **not** `ITenantScoped` (it's platform
+infra and may carry system effects) but stores an optional owning `TenantId` (stamped by the email sender since
+v4 audit H6, and the key a dissolve removes content-bearing rows by — `OutboxDataContributor`). This
 slice **migrates the existing email sends** (passwordless, invitations) to enqueue → handler, on
 **existing behavior** — the safest way to prove the path (Mailpit still receives the mail).
 
@@ -54,6 +57,20 @@ slice **migrates the existing email sends** (passwordless, invitations) to enque
 > the save+commit are inside the `try`, and any failure records the attempt in a **separate transaction**
 > (`RecordFailedAttemptAsync`, re-claiming the row `FOR UPDATE`) so bookkeeping survives the rollback and a
 > poison message eventually dead-letters. Test: `ProcessDue_HandlerStagesARowThatFaultsAtCommit_StillAdvancesAttempt_AndDeadLetters`.
+
+> **2026-09-28 — claim-time accounting (v4 audit LB-JOBS-7/8, T38, R131/R135/R96).** The separate bookkeeping
+> transaction above had no fallback of its own: during a real database disconnect BOTH writes fail, so the
+> row stayed `Pending` with no attempt counted and was picked up every 5 s, re-sending the email, webhook or
+> broadcast for as long as the fault lasted. Now the **claim** transaction bumps `AttemptCount` and books
+> `NextAttemptAt` (the backoff) and commits *before* the handler runs, then re-locks the row for the handler's
+> whole run; the failure bookkeeping only writes the error text and decides dead-lettering, and is best-effort
+> (logged if it fails — the attempt is already on the row). A row that reaches the claim with its attempts
+> spent is dead-lettered there, with `ProcessedAt`, and its handler is not run again. Error text is cut with
+> `SafeTruncation` (never through an emoji — Postgres refused the half-surrogate and lost the row), and the
+> backoff exponent is clamped (`OutboxOptions.BackoffFor`) so a configurable attempt cap can't overflow it.
+> Tests: `ProcessDue_ClaimCountsTheAttempt_*`, `ProcessDue_AttemptsAlreadyExhaustedAtClaim_*`,
+> `ProcessDue_FailingHandler_WithAnEmojiAtTheTruncationBoundary_*`, `Backoff_ClampsTheExponent_*`. The
+> injected-fault half (a failing bookkeeping write still counts the attempt) waits on the DB-fault seam (T54).
 
 **Acceptance criteria**
 
@@ -171,6 +188,70 @@ boundaries unit/integration-tested; merged, app working.
 
 ---
 
+### JOBS-4 — File attachments on the email outbox path
+
+**Status: ✅ Implemented** (`feat/email-attachments`, 2026-09-16). `EmailAttachment` + its
+`Validate` guard and `MaxTotalBytes` in `src/Core/Abstractions/IEmailSender.cs`; `IEmailSender.SendAsync`
+gains `attachments` (after `inlineImages`, before the token — callers now pass `cancellationToken:` by
+name); `EmailOutboxPayload.Attachments` (nullable, defaulted); `EmailOutboxHandler` forwards them;
+`SmtpEmailSender.BuildMessage` (extracted, internal) adds MIME attachment parts. Tests:
+`tests/Api.Tests/Outbox/OutboxEmailTests.cs`, `tests/Api.Tests/Email/SmtpMessageBuilderTests.cs`,
+`tests/Core.Tests/EmailAttachmentTests.cs`. ADR-007 amendment 2026-09-16.
+
+**As a** downstream app developer
+**I want** to attach a file (e.g. a generated PDF report) to a transactional email
+**So that** users receive the document in their inbox through the same reliable outbox path
+
+**Context / notes:** the bytes ride inside the outbox payload (base64), so the total is capped at
+**7 MiB raw** (`EmailAttachment.MaxTotalBytes`; Brevo's 10 MiB limit is on the base64-encoded message — v4 T40) and checked **before** enqueueing — an
+oversize mail must never sit in the outbox failing until it dead-letters. Payloads written by the
+previous build (no `Attachments` property) must still replay after the deploy.
+
+**Acceptance criteria**
+
+```gherkin
+Scenario: An attachment survives the outbox round trip
+  Given an email with a PDF attachment
+  When it is sent through the app-facing IEmailSender
+  Then the outbox payload carries the attachment's file name, media type and bytes (base64)
+  And the email handler passes the same attachment to the SMTP sender
+
+Scenario: The SMTP message carries the attachment as a real attachment part
+  Given an email with a PDF attachment and the CID logo
+  When the SMTP sender builds the MIME message
+  Then it contains an attachment part named "report.pdf" of type application/pdf with the same bytes
+  And the logo is still an inline linked resource, not an attachment
+
+Scenario: Attachments at the size limit are accepted
+  Given attachments totalling exactly 7 MiB
+  When the email is sent
+  Then it is enqueued
+
+Scenario: Oversize attachments are rejected before anything is queued
+  Given attachments totalling more than 7 MiB
+  When the email is sent
+  Then an ArgumentException names the total and the limit
+  And no outbox message is written
+  And the SMTP sender refuses the same input before connecting
+
+Scenario: A malformed attachment is rejected
+  Given an attachment with a blank file name or a blank media type
+  When the email is sent
+  Then an ArgumentException is thrown and no outbox message is written
+
+Scenario: A message queued before the deploy still sends
+  Given an outbox email payload with no "Attachments" property
+  When the dispatcher handles it
+  Then it deserializes and is sent with no attachments
+```
+
+**Out of scope:** attachments over 7 MiB (would need storage-key references instead of inline bytes);
+per-type allow-lists; virus scanning; any HTTP/API surface (this is an internal seam — no Postman change).
+**Definition of done:** tests first; payload round trip, old-payload compatibility, handler forwarding,
+MIME shape, and the size/format guard covered; existing email callers unchanged in meaning; merged.
+
+---
+
 ## Slice plan (implementation map — when undeferred)
 
 Ordered, each a mergeable vertical slice. TDD throughout.
@@ -190,6 +271,8 @@ Ordered, each a mergeable vertical slice. TDD throughout.
      Consumed by BILLING-3. (Built as a dedup ledger, not a `direction` column — ADR-007 amendment.)
 3. ✅ **Scheduled host (JOBS-3).** — DONE. `ScheduledJobsHost : BackgroundService` + `IScheduledJob`
      (per-job intervals, failure isolation, fresh scope per run); reference `ExpiredTokenCleanupJob`.
+4. ✅ **Email attachments (JOBS-4).** — DONE 2026-09-16. `EmailAttachment` on `IEmailSender`, carried in
+     the outbox payload, 7 MiB raw total (10 MiB once encoded) checked before enqueue; old payloads still replay.
 
 **Dissolve interaction (note):** pending outbox rows for a dissolving tenant should be drained or
 cancelled — the BILLING dissolve contributor handles billing-related ones; generic system effects
@@ -199,3 +282,13 @@ without a `TenantId` are unaffected. Audit this when wiring tenant dissolve.
 lost; all handlers must be **idempotent** (at-least-once delivery); in-process single-poller is the
 baseline — horizontal scale needs `SKIP LOCKED` claim semantics (built in here) or a real broker;
 don't reach for Redis/Hangfire until multi-node actually forces it.
+
+> **2026-09-28 — strict attachment validation (v4 audit JOBS-3/4, LB-JOBS-4, ADV-P4-8; T40, R92/R132).**
+> `EmailAttachment.Validate` only checked that the media type and file name were not blank and capped the raw
+> bytes at 10 MiB — the relay's limit, which is on the *encoded* message: a 10 MiB attachment is ~13.7 MiB in
+> base64, so Brevo refused it, five times, and it dead-lettered — the exact loop the check promised to prevent.
+> `"pdf"` passed the guard and threw inside MimeKit at every send; `../../etc/passwd` went into the MIME header
+> verbatim. Now: the media type must be `type/subtype` (RFC 2045 tokens, parameters with values), the header gets
+> `SafeFileName` (a base name, slash or backslash as separator, no control characters, ≤ 255 chars), at most 20
+> parts, and the raw cap is **7 MiB** for attachments *and* inline images together — `EncodedSize(7 MiB)` fits
+> under the relay's 10 MiB with headroom (`BuildMessage_MaximumSizeAttachment_StaysUnderTheRelayLimitOnceEncoded`).

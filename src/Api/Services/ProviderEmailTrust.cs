@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Configuration;
 
-namespace Perezosoft.Api.Services;
+namespace Vuelto.Api.Services;
 
 /// <summary>
 /// Decides whether an OAuth provider's email may be treated as verified for the purpose of

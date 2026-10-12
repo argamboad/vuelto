@@ -1,0 +1,100 @@
+/* The card shell is the shared rhythm (SKIN-1 tokens: padding steps 19→17→15 with the viewport). It is an
+   anchor, so the link styling is undone here and the whole surface is the target. */
+.month-card {
+    display: block;
+    height: 100%;
+    padding: var(--card-pad-y) var(--card-pad-x);
+    border: 1px solid var(--app-border);
+    border-radius: var(--radius-card);
+    background: var(--card-bg);
+    color: var(--ink);
+    text-decoration: none;
+    transition: border-color .15s, box-shadow .15s;
+}
+
+.month-card:hover,
+.month-card:focus-visible {
+    border-color: var(--bs-primary);
+    box-shadow: 0 0 0 3px rgba(var(--bs-primary-rgb), .12);
+    color: var(--ink);
+    outline: none;
+}
+
+.month-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 9px;
+}
+
+.month-card-title {
+    margin: 0;
+    font-size: 15px;
+    font-weight: var(--w-display);
+    color: var(--ink);
+    white-space: nowrap; /* the chip and the label stay on one line at every width */
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Current takes the brand tint; closed and upcoming sit on the rail — only "now" asks for attention. */
+.month-card-chip {
+    flex-shrink: 0;
+    padding: 2px 9px;
+    border-radius: var(--bs-border-radius-pill);
+    background: var(--rail);
+    color: var(--ink-2);
+    font-size: 10px;
+    font-weight: var(--w-control);
+    line-height: 1.6;
+    white-space: nowrap;
+}
+
+.month-card-chip[data-state="current"] {
+    background: var(--bs-primary-bg-subtle);
+    color: var(--bs-primary-text-emphasis);
+}
+
+/* The window wraps to a second line on phone rather than truncating. */
+.month-card-window {
+    margin: 3px 0 11px;
+    font-size: 11px;
+    font-weight: var(--w-body);
+    color: var(--ink-3);
+}
+
+.month-card-foot {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 9px;
+    margin-top: 9px;
+    font-variant-numeric: tabular-nums;
+}
+
+.month-card-spent {
+    font-size: 11px;
+    font-weight: var(--w-body);
+    color: var(--ink-3);
+}
+
+/* Green and red mean under and over, and nothing else. */
+.month-card-result {
+    font-size: 13px;
+    font-weight: var(--w-display);
+    white-space: nowrap;
+}
+
+.month-card-result[data-tone="good"] { color: var(--good); }
+.month-card-result[data-tone="bad"] { color: var(--bad); }
+
+.month-card-nofigures {
+    margin: 9px 0 0;
+    font-size: 11px;
+    font-weight: var(--w-body);
+    color: var(--ink-3);
+}
+
+.month-card-pending {
+    letter-spacing: .2em;
+}

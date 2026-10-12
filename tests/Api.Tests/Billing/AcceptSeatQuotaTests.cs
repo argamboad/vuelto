@@ -1,10 +1,10 @@
 using Microsoft.EntityFrameworkCore;
-using Perezosoft.Api.Services;
-using Perezosoft.Api.Tests.Infrastructure;
-using Perezosoft.Core.Billing;
-using Perezosoft.Core.Entities;
+using Vuelto.Api.Services;
+using Vuelto.Api.Tests.Infrastructure;
+using Vuelto.Core.Billing;
+using Vuelto.Core.Entities;
 
-namespace Perezosoft.Api.Tests.Billing;
+namespace Vuelto.Api.Tests.Billing;
 
 /// <summary>
 /// BILLING-9 (ADR-006 addendum): the seat quota is re-checked when an invitation is ACCEPTED, not
@@ -12,17 +12,20 @@ namespace Perezosoft.Api.Tests.Billing;
 /// invites that reserve more seats than the new plan allows, and redeeming them must not grow the
 /// tenant further past its cap. The accept itself is seat-neutral (the joiner consumes the seat
 /// their pending invite reserved), so accepts at exactly the cap stay allowed; only an over-cap
-/// tenant refuses. Free plan seat limit pinned by the catalog: 3.
+/// tenant refuses. The Free seat limit is read from the catalog, not copied, so re-tuning it
+/// (GATES-1 moved it 3 → 5) re-tunes these boundary cases with it.
 /// </summary>
 [Collection(PostgresCollection.Name)]
 public class AcceptSeatQuotaTests(PostgresFixture fixture) : PostgresTestBase(fixture)
 {
+    private static readonly int FreeSeats = PlanCatalog.Get(PlanKeys.Free).SeatLimit!.Value;
+
     [Fact]
     public async Task Accept_OverDowngradedCap_ReturnsSeatLimitReached_AndMovesNothing()
     {
-        // 3 members + 1 pending = 4 reserved seats on Free(3) — the post-downgrade state.
+        // One more member than Free allows, plus a pending invite — the post-downgrade state.
         var tenant = Guid.CreateVersion7();
-        await SeedTenantWithMembersAsync(tenant, members: 3);
+        await SeedTenantWithMembersAsync(tenant, members: FreeSeats);
         var token = await SeedPendingInviteAsync(tenant, "late-joiner@x.com");
         var (inviteeId, inviteeTenant) = await ProvisionInviteeAsync("late-joiner@x.com");
 
@@ -42,12 +45,33 @@ public class AcceptSeatQuotaTests(PostgresFixture fixture) : PostgresTestBase(fi
     }
 
     [Fact]
+    public async Task ExpiredPendingInvites_DoNotReserveSeats()
+    {
+        // v4 LB-AUTH-7 (T34, R127): the seat count read Status == Pending with no expiry check, and nothing ever
+        // marks an invitation Expired — so two invites that lapsed weeks ago held a Free household at 5 of 5:
+        // the owner could invite nobody, and a valid invitee got 402 on accept.
+        var tenant = Guid.CreateVersion7();
+        await SeedTenantWithMembersAsync(tenant, members: FreeSeats - 1);
+        await SeedPendingInviteAsync(tenant, "lapsed-1@x.com", expiresAt: DateTimeOffset.UtcNow.AddDays(-14));
+        await SeedPendingInviteAsync(tenant, "lapsed-2@x.com", expiresAt: DateTimeOffset.UtcNow.AddDays(-7));
+        var token = await SeedPendingInviteAsync(tenant, "fresh@x.com");
+        var (inviteeId, _) = await ProvisionInviteeAsync("fresh@x.com");
+
+        var ambient = new TestCurrentTenant { TenantId = tenant };
+        await using var db = Fixture.CreateTestContext(ambient);
+        var harness = new ServiceHarness(db, currentTenant: ambient);
+
+        Assert.Equal(FreeSeats, (await harness.QuotaService().GetSeatUsageAsync()).Used); // members + the one live invite
+        Assert.Equal(AcceptStatus.Joined, await harness.InvitationService().AcceptAsync(inviteeId, token));
+    }
+
+    [Fact]
     public async Task Accept_AtCap_IsSeatNeutral_AndJoins()
     {
-        // 2 members + 1 pending = exactly 3/3 — the invite reserved the last seat; redeeming it
+        // Members + 1 pending = exactly at the cap — the invite reserved the last seat; redeeming it
         // swaps the reservation for a membership and must succeed.
         var tenant = Guid.CreateVersion7();
-        await SeedTenantWithMembersAsync(tenant, members: 2);
+        await SeedTenantWithMembersAsync(tenant, members: FreeSeats - 1);
         var token = await SeedPendingInviteAsync(tenant, "third@x.com");
         var (inviteeId, _) = await ProvisionInviteeAsync("third@x.com");
 
@@ -58,7 +82,7 @@ public class AcceptSeatQuotaTests(PostgresFixture fixture) : PostgresTestBase(fi
         Assert.Equal(AcceptStatus.Joined, await svc.AcceptAsync(inviteeId, token));
 
         await using var read = Fixture.CreateContext();
-        Assert.Equal(3, await read.TenantMemberships.CountAsync(m => m.TenantId == tenant));
+        Assert.Equal(FreeSeats, await read.TenantMemberships.CountAsync(m => m.TenantId == tenant));
     }
 
     [Fact]
@@ -69,8 +93,8 @@ public class AcceptSeatQuotaTests(PostgresFixture fixture) : PostgresTestBase(fi
         // status flip (TryAcceptAsync) is the guard; the loser's membership move rolls back with the
         // scope and they stay in their old tenant.
         var tenant = Guid.CreateVersion7();
-        await SeedTenantWithMembersAsync(tenant, members: 2);
-        var token = await SeedPendingInviteAsync(tenant, "contested@x.com"); // 2 + 1 pending = 3/3
+        await SeedTenantWithMembersAsync(tenant, members: FreeSeats - 1);
+        var token = await SeedPendingInviteAsync(tenant, "contested@x.com"); // members + 1 pending = at the cap
         var (aId, aTenant) = await ProvisionInviteeAsync("racer-a@x.com");
         var (bId, bTenant) = await ProvisionInviteeAsync("racer-b@x.com");
 
@@ -88,7 +112,7 @@ public class AcceptSeatQuotaTests(PostgresFixture fixture) : PostgresTestBase(fi
         Assert.Single(results, r => r == AcceptStatus.InvalidToken);
 
         await using var read = Fixture.CreateContext();
-        Assert.Equal(3, await read.TenantMemberships.CountAsync(m => m.TenantId == tenant)); // 3/3, not 4
+        Assert.Equal(FreeSeats, await read.TenantMemberships.CountAsync(m => m.TenantId == tenant)); // exactly the cap, not one over
         var winnerIsA = results[0] == AcceptStatus.Joined;
         var (winner, loser, loserHome) = winnerIsA ? (aId, bId, bTenant) : (bId, aId, aTenant);
         Assert.Equal(tenant, (await read.TenantMemberships.SingleAsync(m => m.UserId == winner)).TenantId);
@@ -99,7 +123,7 @@ public class AcceptSeatQuotaTests(PostgresFixture fixture) : PostgresTestBase(fi
     public async Task Accept_BlockedOverCap_SelfHealsWhenTheTenantUpgrades()
     {
         var tenant = Guid.CreateVersion7();
-        await SeedTenantWithMembersAsync(tenant, members: 3);
+        await SeedTenantWithMembersAsync(tenant, members: FreeSeats);
         var token = await SeedPendingInviteAsync(tenant, "healed@x.com");
         var (inviteeId, _) = await ProvisionInviteeAsync("healed@x.com");
 
@@ -152,7 +176,7 @@ public class AcceptSeatQuotaTests(PostgresFixture fixture) : PostgresTestBase(fi
     }
 
     /// <summary>Seeds a redeemable pending invitation and returns its RAW token.</summary>
-    private async Task<string> SeedPendingInviteAsync(Guid tenant, string email)
+    private async Task<string> SeedPendingInviteAsync(Guid tenant, string email, DateTimeOffset? expiresAt = null)
     {
         var raw = $"e2e-raw-{Guid.NewGuid():N}";
         await using var db = Fixture.CreateContext(tenant);
@@ -167,7 +191,7 @@ public class AcceptSeatQuotaTests(PostgresFixture fixture) : PostgresTestBase(fi
             Status = InvitationStatuses.Pending,
             TokenHash = new TokenHasher().HashToken(raw),
             CreatedAt = DateTimeOffset.UtcNow,
-            ExpiresAt = DateTimeOffset.UtcNow.AddDays(7),
+            ExpiresAt = expiresAt ?? DateTimeOffset.UtcNow.AddDays(7),
         });
         await db.SaveChangesAsync();
         return raw;

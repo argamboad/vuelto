@@ -1,7 +1,7 @@
 ﻿using Android.App;
 using Android.Runtime;
 
-namespace Perezosoft.Maui;
+namespace Vuelto.Maui;
 
 [Application]
 public class MainApplication : MauiApplication

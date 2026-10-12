@@ -4,19 +4,40 @@ End-to-end tests that drive a real browser against the running Web app + API, re
 codes from **Mailpit** (the same flow a manual tester uses). They cover the QA plan's web
 smoke path that doesn't need an external OAuth provider.
 
-## Prerequisites
+## Run it — one command
+
+```sh
+pwsh tools/e2e.ps1                                   # the whole suite
+pwsh tools/e2e.ps1 -Filter "FullyQualifiedName~Billing"   # a slice
+pwsh tools/e2e.ps1 -Gates                            # the gates-off lane: billing off + a one-domain green list, GateJourneyTests only
+```
+
+`tools/e2e.ps1` starts this repo's `db` + `mail` containers, builds, installs Chromium, then runs the API and the web
+app **with the E2E overrides as command-line settings** — mail into this repo's Mailpit, the raised sign-in rate
+limit, the fake billing provider, the test staff address — waits until both answer, runs the suite and stops both.
+Like CI, the run gets its own database: `e2e`, dropped and recreated in this repo's Postgres container each time and
+migrated + seeded by the API at startup, so the journeys see CI's seed data (not your grown dev catalog) and your dev
+database never collects test users and households.
+Your `.env` is never touched, so it can keep real mail (Brevo) and Stripe test keys for everyday development. It
+refuses to start if an API or web app is already listening on this repo's ports (that one would send real mail).
+Ports come from the compose defaults and launch profiles (README → Local ports). The manual steps below are what
+the script does.
+
+## Prerequisites (manual run)
 
 1. **Backing services** — `docker compose up -d` (Postgres + Mailpit).
 2. **API — must send email to Mailpit, not a real provider.** The dev default
-   (`appsettings.Development.json`) already points at Mailpit (`localhost:1025`). **If your
+   (`appsettings.Development.json`) already points at Mailpit (`localhost:1026` — the vuelto compose stack; the Playwright tests default to Mailpit on `8025`, so set `MAILPIT_BASE_URL=http://localhost:8026` locally). **If your
    repo-root `.env` overrides `Email__Smtp__*` to a real SMTP provider (e.g. Brevo), override
    it back for the test run** via command-line args (command-line config beats `.env`, and
    leaves `.env` untouched):
    ```sh
    dotnet run --project src/Api --launch-profile https -- \
-     --Email:Smtp:Host=localhost --Email:Smtp:Port=1025 --Email:Smtp:Username= --Email:Smtp:Password= \
+     --Email:Smtp:Host=localhost --Email:Smtp:Port=1026 --Email:Smtp:Username= --Email:Smtp:Password= \
      --Auth:RateLimit:PasswordlessPermitLimit=1000 \
+     --Auth:RateLimit:RefreshPermitLimit=1000 \
      --Admin:StaffEmails:0=e2e-staff@example.com \
+     --Billing:Enabled=true \
      --Billing:Stripe:SecretKey=
    ```
    The `Admin:StaffEmails` entry enables the admin-console journey (ADMIN-3); it must match
@@ -24,13 +45,26 @@ smoke path that doesn't need an external OAuth provider.
    **FakeBillingProvider** even if your `.env` has Stripe test keys — the billing journey
    (BILLING-8) depends on the fake's deterministic checkout URLs and `valid` webhook signature.
    CI sets the same overrides. Tests that call the API directly (the billing webhook) use
-   `E2E_API_BASE_URL` (default `https://localhost:7160`; CI overrides).
+   `E2E_API_BASE_URL` (default `https://localhost:7260`; CI overrides).
    If your `.env` doesn't override email, you can drop the `--Email:*` args — but keep the
    **rate-limit override**: the journey tests sign in several users per run from one IP, which
    trips the production default (5 OTP requests/min/IP → 429 → flaky "no OTP email" timeouts).
    CI sets the same override for its E2E job.
-3. **Web** — `dotnet run --project src/Web --launch-profile https` (serves <https://localhost:7008>).
+3. **Web** — `dotnet run --project src/Web --launch-profile https` (serves <https://localhost:7108>).
 4. **Browser (once)** — `pwsh tests/E2E.Tests/bin/Debug/net10.0/playwright.ps1 install chromium`.
+
+Every full navigation goes through `BlazorBoot` (page objects, direct `GotoAsync` calls, reloads): it
+waits for Blazor's loader to hand over to the app, and if the loader dies of a **network** cause — a
+failed `_framework/*` fetch, a loader that never finishes — it reloads the page the browser landed on
+(up to three times per navigation; a busy CI machine does that). Blazor's own "An unhandled error has
+occurred" banner with nothing failed on the network is the app's startup exception and fails at once,
+unretried. Each test process has an allowance of three dead boots in all (`BlazorBootCore.DeadBootsPerRun`);
+the fourth fails whatever its reload would have done, and CI's "Slowest journeys" step counts the same
+lines from the `.trx` and fails the shard past that number. `BlazorBoot` also keeps the browser console
+per page, which every red journey prints. Use `BlazorBoot.GotoAsync(page, url)` rather than
+`page.GotoAsync(url)` for anything that boots the app — a gate (`E2eNavigations_GoThroughBlazorBoot`)
+keeps it that way, because a retry that re-issued the navigation re-spent single-use URLs. The decision
+itself is `BlazorBootCore.cs`, Playwright-free and unit-tested from `Api.Tests` (`BlazorBootTests`).
 
 ## Run
 
@@ -38,7 +72,7 @@ smoke path that doesn't need an external OAuth provider.
 dotnet test tests/E2E.Tests
 ```
 
-Base URL defaults to `https://localhost:7008`; override with `PLAYWRIGHT_BASE_URL`. The
+Base URL defaults to `https://localhost:7108`; override with `PLAYWRIGHT_BASE_URL`. The
 dev self-signed cert is accepted (`IgnoreHTTPSErrors`).
 
 ## Coverage
@@ -70,6 +104,8 @@ dev self-signed cert is accepted (`IgnoreHTTPSErrors`).
 | Member joins by pasting the invite code on /join (NATIVE-4b) | QA-INV-02 (code-entry variant) |
 | Invalid pasted code → inline error, form stays usable | — |
 | Owner requests the GDPR export → real browser download (.json) | QA-HH export case |
+| Member downloads a date-range report as a PDF with a leaner appendix, then emails it to themselves (REPORTS-7/8/9) | QA-REP-05, QA-REP-06, QA-REP-07 |
+| Member adds, reorders, deactivates and reactivates the household's income lines (INCOME-1) | QA-INC-01, QA-INC-02 |
 
 OAuth (Google/Microsoft), desktop, and Android are intentionally **not** automated here —
 they need external provider accounts / native runners. See `docs/QA_TEST_PLAN.md` for that

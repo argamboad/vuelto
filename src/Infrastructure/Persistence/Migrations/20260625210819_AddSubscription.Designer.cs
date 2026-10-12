@@ -5,11 +5,11 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
-using Perezosoft.Infrastructure.Persistence;
+using Vuelto.Infrastructure.Persistence;
 
 #nullable disable
 
-namespace Perezosoft.Infrastructure.Persistence.Migrations
+namespace Vuelto.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
     [Migration("20260625210819_AddSubscription")]
@@ -44,7 +44,7 @@ namespace Perezosoft.Infrastructure.Persistence.Migrations
                     b.ToTable("DataProtectionKeys");
                 });
 
-            modelBuilder.Entity("Perezosoft.Core.Entities.InboxMessage", b =>
+            modelBuilder.Entity("Vuelto.Core.Entities.InboxMessage", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -71,7 +71,7 @@ namespace Perezosoft.Infrastructure.Persistence.Migrations
                     b.ToTable("InboxMessages");
                 });
 
-            modelBuilder.Entity("Perezosoft.Core.Entities.LoginToken", b =>
+            modelBuilder.Entity("Vuelto.Core.Entities.LoginToken", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -111,7 +111,7 @@ namespace Perezosoft.Infrastructure.Persistence.Migrations
                     b.ToTable("LoginTokens");
                 });
 
-            modelBuilder.Entity("Perezosoft.Core.Entities.Note", b =>
+            modelBuilder.Entity("Vuelto.Core.Entities.Note", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -142,7 +142,7 @@ namespace Perezosoft.Infrastructure.Persistence.Migrations
                     b.ToTable("Notes");
                 });
 
-            modelBuilder.Entity("Perezosoft.Core.Entities.OutboxMessage", b =>
+            modelBuilder.Entity("Vuelto.Core.Entities.OutboxMessage", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -188,7 +188,7 @@ namespace Perezosoft.Infrastructure.Persistence.Migrations
                     b.ToTable("OutboxMessages");
                 });
 
-            modelBuilder.Entity("Perezosoft.Core.Entities.RefreshToken", b =>
+            modelBuilder.Entity("Vuelto.Core.Entities.RefreshToken", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -231,7 +231,7 @@ namespace Perezosoft.Infrastructure.Persistence.Migrations
                     b.ToTable("RefreshTokens");
                 });
 
-            modelBuilder.Entity("Perezosoft.Core.Entities.Subscription", b =>
+            modelBuilder.Entity("Vuelto.Core.Entities.Subscription", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -275,7 +275,7 @@ namespace Perezosoft.Infrastructure.Persistence.Migrations
                     b.ToTable("Subscriptions");
                 });
 
-            modelBuilder.Entity("Perezosoft.Core.Entities.Tenant", b =>
+            modelBuilder.Entity("Vuelto.Core.Entities.Tenant", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -297,7 +297,7 @@ namespace Perezosoft.Infrastructure.Persistence.Migrations
                     b.ToTable("Tenants");
                 });
 
-            modelBuilder.Entity("Perezosoft.Core.Entities.TenantInvitation", b =>
+            modelBuilder.Entity("Vuelto.Core.Entities.TenantInvitation", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -340,7 +340,7 @@ namespace Perezosoft.Infrastructure.Persistence.Migrations
                     b.ToTable("TenantInvitations");
                 });
 
-            modelBuilder.Entity("Perezosoft.Core.Entities.TenantMembership", b =>
+            modelBuilder.Entity("Vuelto.Core.Entities.TenantMembership", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -370,7 +370,7 @@ namespace Perezosoft.Infrastructure.Persistence.Migrations
                     b.ToTable("TenantMemberships");
                 });
 
-            modelBuilder.Entity("Perezosoft.Core.Entities.User", b =>
+            modelBuilder.Entity("Vuelto.Core.Entities.User", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -406,7 +406,7 @@ namespace Perezosoft.Infrastructure.Persistence.Migrations
                     b.ToTable("Users");
                 });
 
-            modelBuilder.Entity("Perezosoft.Core.Entities.UserLogin", b =>
+            modelBuilder.Entity("Vuelto.Core.Entities.UserLogin", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -438,33 +438,33 @@ namespace Perezosoft.Infrastructure.Persistence.Migrations
                     b.ToTable("UserLogins");
                 });
 
-            modelBuilder.Entity("Perezosoft.Core.Entities.TenantInvitation", b =>
+            modelBuilder.Entity("Vuelto.Core.Entities.TenantInvitation", b =>
                 {
-                    b.HasOne("Perezosoft.Core.Entities.Tenant", null)
+                    b.HasOne("Vuelto.Core.Entities.Tenant", null)
                         .WithMany()
                         .HasForeignKey("TenantId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("Perezosoft.Core.Entities.TenantMembership", b =>
+            modelBuilder.Entity("Vuelto.Core.Entities.TenantMembership", b =>
                 {
-                    b.HasOne("Perezosoft.Core.Entities.Tenant", null)
+                    b.HasOne("Vuelto.Core.Entities.Tenant", null)
                         .WithMany()
                         .HasForeignKey("TenantId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("Perezosoft.Core.Entities.User", null)
+                    b.HasOne("Vuelto.Core.Entities.User", null)
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("Perezosoft.Core.Entities.UserLogin", b =>
+            modelBuilder.Entity("Vuelto.Core.Entities.UserLogin", b =>
                 {
-                    b.HasOne("Perezosoft.Core.Entities.User", "User")
+                    b.HasOne("Vuelto.Core.Entities.User", "User")
                         .WithMany("Logins")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -473,7 +473,7 @@ namespace Perezosoft.Infrastructure.Persistence.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("Perezosoft.Core.Entities.User", b =>
+            modelBuilder.Entity("Vuelto.Core.Entities.User", b =>
                 {
                     b.Navigation("Logins");
                 });

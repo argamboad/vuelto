@@ -1,0 +1,5 @@
+exit 0
++android=true
++windows=true
++apple=true
++buildmatrix=[{"tfm":"net10.0-android","os":"ubuntu-latest"},{"tfm":"net10.0-windows10.0.19041.0","os":"windows-latest"}]

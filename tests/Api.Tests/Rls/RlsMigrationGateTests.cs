@@ -1,10 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
-using Perezosoft.Api.Tests.Infrastructure;
-using Perezosoft.Infrastructure.Persistence;
+using Vuelto.Api.Tests.Infrastructure;
+using Vuelto.Infrastructure.Persistence;
 
-namespace Perezosoft.Api.Tests.Rls;
+namespace Vuelto.Api.Tests.Rls;
 
 /// <summary>
 /// B11-style enforcement gate for ADR-020: on a database built by the REAL migrations (the
@@ -32,5 +32,26 @@ public sealed class RlsMigrationGateTests(IntegrationTestFactory factory)
             "RLS backstop (ADR-020) is incomplete on the migrated schema — every ITenantScoped table "
             + "needs ENABLE + FORCE ROW LEVEL SECURITY and the tenant-isolation policy (add a migration "
             + $"using RlsDdl.StatementsFor):\n - {string.Join("\n - ", failures)}");
+    }
+
+    [Fact]
+    public async Task EverySharedOrTenantTable_HasForcedRlsAndAllFourPolicies_AfterMigrations() // Arch A4
+    {
+        // The sibling gate for ISharedOrTenantScoped tables: on the migrated schema, ENABLE + FORCE and all four
+        // command-scoped policies. The platform owns no such table (the list is empty here, and the DDL is proven on the
+        // TestSharedWidget fixture by SharedOrTenantRlsTests); an app that adds one fails here until its migration ships
+        // the policies (RlsDdl.SharedOrTenantStatementsFor).
+        using var scope = factory.Services.CreateScope();
+        var model = scope.ServiceProvider.GetRequiredService<AppDbContext>().Model;
+        var tables = RlsDdl.SharedOrTenantTables(model);
+
+        await using var conn = new NpgsqlConnection(factory.DatabaseConnectionString);
+        await conn.OpenAsync();
+        var failures = await RlsSchemaProbe.FindSharedOrTenantPolicyViolationsAsync(conn, tables);
+
+        Assert.True(failures.Count == 0,
+            "The shared-or-tenant RLS backstop (Arch A4) is incomplete on the migrated schema — every ISharedOrTenantScoped "
+            + "table needs ENABLE + FORCE ROW LEVEL SECURITY and all four command-scoped policies (add a migration using "
+            + $"RlsDdl.SharedOrTenantStatementsFor):\n - {string.Join("\n - ", failures)}");
     }
 }

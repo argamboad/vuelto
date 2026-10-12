@@ -27,6 +27,10 @@
       params, request/response shape, auth, or error codes)
 - [ ] New `ITenantScoped` entity ships its **RLS policy in the same migration** (ADR-020 —
       `RlsDdl.StatementsFor`; the scaffold emits none, the parity gate fails CI without it)
+- [ ] Coupled client + server change (a timeout against a grace window, a lifetime against a
+      claim) ships **one joint-invariant test reading both constants** (R144)
+- [ ] A deliberate exception to a numbered rule is **written into `FOUNDATION_RULES` (rule text +
+      pinning test) in this PR**, beside the ADR that argues it (R85)
 
 ## Notes
 <!-- anything reviewers/future-you should know -->

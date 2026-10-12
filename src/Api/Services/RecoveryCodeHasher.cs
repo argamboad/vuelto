@@ -1,8 +1,8 @@
 using System.Security.Cryptography;
 using System.Text;
-using Perezosoft.Api.Configuration;
+using Vuelto.Api.Configuration;
 
-namespace Perezosoft.Api.Services;
+namespace Vuelto.Api.Services;
 
 /// <summary>
 /// Keyed hashing for MFA recovery codes (v3 audit ADM-4). Recovery codes are low-entropy (~49.5 bits,
@@ -30,7 +30,7 @@ public interface IRecoveryCodeHasher
 /// </summary>
 public sealed class RecoveryCodeHasher : IRecoveryCodeHasher
 {
-    private static readonly byte[] Info = Encoding.UTF8.GetBytes("perezosoft:mfa:recovery-code-pepper:v1");
+    private static readonly byte[] Info = Encoding.UTF8.GetBytes("vuelto:mfa:recovery-code-pepper:v1");
     private readonly byte[] _key;
 
     public RecoveryCodeHasher(IJwtSettings jwt) =>

@@ -1,0 +1,42 @@
+/* Bootstrap's modal, on the app's tokens. The z-index pair keeps it above the header's menus (200/210). */
+.modal { z-index: 320; }
+.modal-backdrop { z-index: 310; }
+
+.line-dialog {
+    border: 1px solid var(--app-border);
+    border-radius: var(--radius-card);
+    background: var(--card-bg);
+    color: var(--ink);
+}
+
+.line-dialog .modal-header,
+.line-dialog .modal-footer {
+    padding: 13px var(--card-pad-x);
+    border-color: var(--hair);
+}
+
+.line-dialog .modal-body { padding: var(--card-pad-y) var(--card-pad-x); }
+
+.line-dialog .modal-title {
+    font-size: 15px;
+    font-weight: var(--w-display);
+}
+
+.line-dialog .form-label {
+    margin-bottom: 3px;
+    font-size: 11px;
+    font-weight: var(--w-control);
+    color: var(--ink-3);
+}
+
+.line-dialog .form-text {
+    font-size: 11px;
+    color: var(--ink-3);
+}
+
+/* Amount and currency are one group; the currency is a short select, not a column of its own. */
+.line-currency {
+    flex: 0 0 auto;
+    width: auto;
+    font-weight: var(--w-control);
+}

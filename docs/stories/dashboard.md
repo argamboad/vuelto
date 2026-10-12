@@ -1,0 +1,206 @@
+# Epic `DASH` — The month dashboard
+
+> Registered epic key: **DASH**. Port slice **P7** (ADR-V001): the month at a glance, re-homed from donor
+> stories **US-005** (dashboard), **US-012** (unplanned essentials, refunds, envelopes), **US-018**
+> (budgeted vs actual on the real catalog, other spending) and **US-055** (bank × payment-method
+> breakdown) — `vuelto-legacy/docs/stories/`. Decision context: ADR-V004 (dual currency), ADR-V006
+> (frozen actuals, live projections, block when no rate), ADR-V007 (transaction classes, refunds,
+> envelopes), `FEATURES.md` §15.
+
+### DASH-1 — See the month truthfully at a glance
+
+**As a** household member
+**I want** one page that shows this month's income, spend, budget lines against their actuals, weekly
+totals, balance, unplanned essentials, expected refunds, envelope reminders and the bank × method view
+**So that** I know where the money went and what is still committed before the month ends
+
+**Context / notes:** the dashboard **is the home page** (owner decision 2026-09-04): `/` renders it for a
+signed-in member (the public hero stays for anonymous visitors); the rate badge lives in its header and its
+empty state. the four tables (fixed, variable, other spending, week by week) end with a **Total**
+row summed on the page from the rows shown. the calculation is a **pure Core service** (`DashboardSummaryService`) fed by the
+`Features/Dashboard` handler: the month, its weeks, its transactions and refunds, the active envelopes,
+both budget-line lists, and **all** categories and banks (a deactivated name still labels its row). Every
+figure is a ₡/$ pair rounded to 2 dp. **Actuals** sum each transaction's frozen amounts; **projections**
+(income conversion, budget display in the other currency, pending budgeted, remainder for debts) use the
+rate resolved through the ADR-V006 chain — live → cache → the household's last transaction. When nothing
+resolves the response carries `rate_unavailable: true` and **no summary**; the page shows the month header
+and a red block instead of guessing. Rules ported verbatim: inflows fold into income; `envelope_contribution`
+and `inflow` are carved out of expenses; the card/account split follows the transaction's own method;
+a line's actual is the expense-class spend in its category; **other spending** is expense-class spend in
+categories no active line backs (sorted ₡ desc, then name; sum of line actuals + other = grand total);
+remainder for debts = income − account-paid fixed budgets; pending budgeted = Σ max(0, native budget −
+actual) valued once at the rate (never both columns); actual remainder = current balance − pending;
+refunds total counts **pending only** (a received refund is already an inflow); envelope reminders show
+monthly ones always and five-week ones only on 5-week months, remaining clamped ≥ 0; the bank × method
+grid budgets by each line's (bank, method) and actuals by each row's, bankless lines in "Unassigned" last.
+Semantic colour only: green under budget, red over — never the brand gold. The route hangs off the month
+(`GET /api/months/{id}/summary`) in its own slice; the Ledger owns the month, the Dashboard reads it.
+
+```gherkin
+Scenario: The dashboard for a month
+  Given June 2026 (4 weeks from May 28), income 3000 USD, rate 500, a fixed line Mortgage ₡350,000 (Housing, BAC, bank account)
+  And transactions: Mortgage ₡300,000 (account, Jun 5), lunch ₡10,000 unplanned_essential (card, Jun 12, refund expected 50%)
+  When I GET /api/months/{id}/summary
+  Then exchange_rate is 500 with its source and as_of, rate_unavailable is false
+  And income_total is ₡1,500,000 / $3,000; expenses_account ₡300,000, expenses_card ₡10,000, expenses_total ₡310,000
+  And fixed_expenses has Mortgage budget ₡350,000 / $700 with actual ₡300,000
+  And other_spending has the lunch's category (even if that category is inactive) at ₡10,000
+  And unplanned_essential_total is ₡10,000 and refunds_total is ₡5,000 (pending only)
+  And weekly_budgeted has one row per week with the mortgage in week 2
+  And bank_method_breakdown has BAC / bank_account budget ₡350,000 actual ₡300,000
+  And (CARDS-2) by_card lists each card's expense spend and count, largest first, the "no card" bucket last
+  And current_balance is ₡1,190,000 and pending_budgeted ₡50,000
+
+Scenario: No rate resolves
+  Given no provider key, an empty cache and no transaction in the household
+  When I GET /api/months/{id}/summary
+  Then rate_unavailable is true, exchange_rate and summary are null, and the month header is still present
+
+Scenario: Uniform 404
+  When I GET the summary for an unknown id or another household's month
+  Then I receive 404
+
+Scenario: The Dashboard page
+  Given I am signed in
+  When I open Dashboard (nav or Home) → the newest month loads; /dashboard/{id} opens that month
+  Then I see the month title, "N weeks · from – to", the rate line (live / as of / from your last transaction),
+       a month selector, Month details and New transaction buttons
+  And the "This month" card (ADR-V018, 2026-09-07): a stacked bar (income-wide; the three class spends + Still planned, the green rest = Forecast;
+       Today marker; red tail when the plan does not fit; ₡/$ switch shared with Reports) over the waterfall: Income (Primary / Secondary sub-rows) → − Budgeted spent → − Discretionary spent →
+       − Unplanned spent → = Spent so far → = Left now → − Still planned ("N% of the month elapsed") → = Forecast at month end
+       (red + a warning line below zero) + the frozen-rate note; the old Expenses/Balance cards and "Remainder for debts" are gone from the UI
+  And Fixed / Variable tables (Line, Budgeted, Actual — green under, red over, judged in the currency the line is set in; `budget_currency` on each line, 2026-09-07), Other spending, Week by week,
+       Unplanned essentials & refunds, Envelope reminders, and — side by side, both answering "where did the money leave from" —
+       By bank and payment method (7 columns) next to By card (5 columns; alias, kind, transactions, spend, share of the month,
+       "No card" last, a Total row), the pair shown once a card has been used
+  When no rate resolves → the red "projections are blocked" message and no figures
+  When there are no months → "Nothing to show yet" with New transaction
+  When the month was removed (404) → the month-no-longer-exists message
+```
+
+**Out of scope:** the CSV export button and the pending-voucher review banner (later slices); per-month
+budget overrides (never); editing income here (the month page owns it).
+
+**Definition of done:** tests first; Core.Tests port of the donor `DashboardSummaryServiceTests` (45 cases:
+income both currencies, card/account split, lines active-only in order, weekly rows, balance trio, empty
+states, inflow, envelope contribution + reminders, 2-dp rounding, dual-currency budget display + the
+double-count guard, other spending incl. inactive names/sort/reconciliation, bank × method); Api.Tests
+slice on Postgres (assembly with names, no-rate, unknown/foreign null) + HTTP (401, member read through
+the chain's last tier, 404); bUnit (newest month + every section + tone, empty state, rate-unavailable,
+404); no entity, no migration; Postman folder; QA-DASH-01..02 + regenerated PDFs; EN/ES resx; nav + Home
++ month-page entry points; merged, app working.
+
+### DASH-2 — Show amounts in colones, dollars or both — and keep that choice everywhere *(owner request, 2026-09-07)* ✅
+
+**As a** household member
+**I want** to pick whether the dashboard and the Reports tables show colones, dollars or both sides of
+every pair, and have that choice follow me to my phone
+**So that** the pages read in the currency I think in, without losing the frozen pairs when I want them
+
+**Context / notes:** one control, **Show in ₡ · $ · both**, on the dashboard header and the Reports toolbar
+(table view). Converted pairs and totals follow it; a **budget line always shows on the side it is set in**
+(a $17.99 line stays $17.99 under ₡); the Reports Budgeted total becomes one figure at today's rate
+(colón lines at buy, dollar lines at sell — ADR-V019); the "This month" bar draws in the chosen currency
+and, under both, lists each segment in ₡ and $. Persistence (ADR-V020): a device copy for the first paint
+plus the account copy (`/api/display-settings`, user-keyed `UserDisplaySettings`) that wins once chosen;
+a never-chosen account adopts the device's choice. Impersonation cannot change it.
+
+**Acceptance criteria**
+
+```gherkin
+Scenario: One side only
+  Given the dashboard shows ₡1,500,000.00 · $3,000.00 as income
+  When I set Show in to $
+  Then every pair on the page reads in dollars only, the Mortgage line's Budgeted cell still reads ₡350,000.00, and the bar draws in $
+
+Scenario: The account wins over the device
+  Given my account says USD and this device never chose
+  When I open the dashboard
+  Then it opens in $ and this device now remembers $
+
+Scenario: A first choice on this device follows me
+  Given my account never chose and this device says USD
+  When I open the dashboard
+  Then it opens in $ and my account now says USD
+
+Scenario: API
+  Given I am signed in
+  When I GET /api/display-settings before choosing
+  Then I receive 200 { display_currency: "both", is_default: true }
+  When I PUT { display_currency: "usd" }
+  Then I receive 200 { display_currency: "USD", is_default: false } and a GET agrees
+  When I PUT { display_currency: "EUR" }
+  Then I receive 400 invalid_request and nothing changed
+  When I PUT from an impersonation session
+  Then I receive 403 impersonation_not_allowed
+```
+
+**Definition of done:** tests first; `DisplaySettingsSliceTests` (default read never writes, normalise + upsert,
+per-user rows, erasure contributor), `DisplaySettingsEndpointTests` (401 / read-save-read / 400), the
+impersonation theory gains the route, the user-keyed erasure canary lists the entity; bUnit
+`DashboardPageTests.ShowIn_*` + `ReportsPageTests.ShowIn_*`; migration `AddUserDisplaySettings`; Postman
+folder 23; QA-DASH-03 + regenerated PDFs; ADR-V020.
+
+### DASH-3 — Inflows show as income, not only as a row *(owner question, 2026-09-08)* ✅
+
+**As a** household member
+**I want** money that came in as transactions (a realized refund, a sale) to appear as income where I look
+for income
+**So that** the dashboard's Income sub-rows add up to its total and the month page's Income card agrees
+with the dashboard
+
+**Context / notes:** the API already folds inflows into `income_total` (DASH-1); the dashboard now derives
+"Other income (inflows)" = total − primary − secondary and shows it as a third sub-row when non-zero. The
+month page's Income card lists "Other income this month" (the inflows' frozen ₡/$ sum and count) under the
+two editable incomes, with a link that sets the class filter to Inflow. No total on the month page — it has
+no rate to convert the configured incomes with; the dashboard is where the sum lives. Client only.
+
+```gherkin
+Scenario: The sub-rows add up
+  Given June's income is $3,000 and a ₡15,000 refund was realized in June
+  When I open the dashboard
+  Then Income shows Primary $3,000 and Other income (inflows) ₡15,000, and the Income total is their sum
+
+Scenario: The month page points at them
+  Given the same June
+  When I open the month page
+  Then the Income card reads "Other income this month ₡15,000.00 · $30.00 — show the 1 transaction(s)"
+  When I click the link
+  Then the transactions table shows only the inflow rows
+```
+
+### DASH-3 — The week cut shows unplanned spending too *(owner request, 2026-10-09 · #211)* ✅
+
+**As** a household member, **I want** "Where it went → By week" to show an **Unplanned** column beside Budgeted and
+Discretionary, **so that** I can see which week the surprises landed in.
+
+**Context / notes:** `DashboardSummaryService` already builds a per-week total for any class; the summary gains
+`weekly_unplanned` (unplanned essentials at their frozen amounts, both currencies) and the week table a third money
+column plus its total. The column adds up to the month's `unplanned_essential_total`. *Follow-up (owner, 2026-10-09):* a
+**Total** column adds each week's three classes, and the Total row's cell is the month's whole spend; on a phone it rides
+under the week's dates, stacked ₡ over $.
+
+```gherkin
+Scenario: Surprises by week
+  Given an unplanned ₡20,000 in week 1 and ₡56,000 across week 2
+  When I open the dashboard on "By week"
+  Then the Unplanned column reads ₡20,000.00 and ₡56,000.00, and its total ₡76,000.00
+```
+
+### DASH-4 — Choose ₡ · $ · both where you are *(owner request, 2026-10-09 · #207)* ✅
+
+**As** a household member, **I want** the "Show in" switch on the month page (and the Months list and Budget), **so
+that** I don't have to go to the dashboard and back to change the currency.
+
+**Context / notes:** the same `CurrencySwitch` the dashboard and Reports use, writing through `DisplayCurrencyStore`
+(device + account copy, DASH-2 / ADR-V020), per page like those two — not a global header control. The month page's
+"Other income" line now follows the preference too; income rows and budget lines keep their own currency, as they
+always have.
+
+```gherkin
+Scenario: Switch on the month page
+  Given the preference is Both
+  When I pick $ on a month page
+  Then its amounts show dollars only at once
+  And the dashboard opens in $ afterwards
+```

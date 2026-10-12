@@ -10,8 +10,8 @@ The platform is **feature-complete and continuously verified**:
 
 - **All 13 foundation epics done** — auth/tenancy, JOBS, BILLING 1–8, OBS, RBAC, FILES, GDPR, MFA,
   NOTIFY, ADMIN, PUBAPI, HOOKS, E2E.
-- **Staging live** at `https://template-staging.onrender.com` with version-gated auto-deploy from
-  develop (DEPLOY-1..3).
+- **Staging live** at `https://template-staging.onrender.com` with a version-gated CI deploy from
+  develop (DEPLOY-1..3; auto-deploy on GitHub then, a Forgejo `deploy=staging` dispatch since ADR-028).
 - **NATIVE epic at its resting point** — parity gaps G1–G7 all closed; all four MAUI targets
   (Android / Windows / iOS / macCatalyst) compile on every push; every native-relevant merge boots
   the real app through a full OTP sign-in on **Windows** (WebView2 CDP) and an **Android emulator**
@@ -54,7 +54,7 @@ The platform is **feature-complete and continuously verified**:
    Minimum = the §13c checklist column (DSK-01, DSK-03, DSK-06 + one of DSK-08..12); ideal =
    all DSK-01..14. Highest-value cases (OS behavior CI can't see): **DSK-10** (share flyout),
    **DSK-11** (billing refresh on returning to the app).
-4. **Android:** start the emulator, `adb reverse tcp:5238 tcp:5238`
+4. **Android:** start the emulator, `adb reverse tcp:5338 tcp:5338`
    (see `docs/MOBILE_TESTING.md`), then `dotnet build src/Maui -f net10.0-android -t:Run`.
    Minimum = AND-01, AND-03, AND-07 + one of AND-08..12. Human-only cases: **AND-07** (hardware
    back), **AND-10** (share sheet), **AND-13** (edge-to-edge on Android 15).
@@ -125,7 +125,7 @@ toolchain instead.
    ```
 6. **MAUI workloads** (from the repo root):
    ```bash
-   sudo dotnet workload restore src/Maui/Perezosoft.Maui.csproj
+   sudo dotnet workload restore src/Maui/Vuelto.Maui.csproj
    ```
 
 ### Phase 2 — bring up the local stack (15 min)
@@ -138,7 +138,7 @@ toolchain instead.
    pointed at it via two `Kestrel__Certificates__Default__Path/KeyPath` lines in `.env`. For a
    Catalyst/web-only session, `dotnet dev-certs https --trust` (keychain password prompt) is enough.
 4. Start the API: `dotnet run --project src/Api --launch-profile https`. Verify
-   <https://localhost:7160/health> returns Healthy; Mailpit UI at <http://localhost:8025>.
+   <https://localhost:7260/health> returns Healthy; Mailpit UI at <http://localhost:8025>.
 
 ### Phase 3 — Mac Catalyst first (it's the easy one)
 
@@ -173,11 +173,11 @@ restart persistence).
    ```bash
    dotnet build src/Maui -t:Run -f net10.0-ios
    ```
-   The simulator shares the host network, so `https://localhost:7160` reaches the API directly —
+   The simulator shares the host network, so `https://localhost:7260` reaches the API directly —
    no `adb reverse` equivalent needed.
 4. Run **QA-IOS-01** (boots to login — the G7 validation), **QA-IOS-02** (OTP sign-in),
    **QA-IOS-03** (core-flows spot-check incl. share sheet + language persistence),
-   **QA-IOS-04** (Google OAuth via `ASWebAuthenticationSession` → returns on `perezosoft://auth` —
+   **QA-IOS-04** (Google OAuth via `ASWebAuthenticationSession` → returns on `vuelto://auth` —
    this path has never been exercised anywhere).
 
 ### Phase 5 — record & report
@@ -195,8 +195,8 @@ app that ships, not by the platform.)
 | `-t:Run -f net10.0-ios` picks the wrong device | `xcrun simctl list devices`, then append `-p:_DeviceName=:v2:udid=<UDID>` |
 | App loads but sign-in spins / TLS errors (iOS) | Redo Phase 4 step 2 with the simulator **booted**; restart the app |
 | OTP email never arrives | Mailpit running? `docker compose ps`; UI at :8025 |
-| App can't reach the API | API must be on the **https** profile (port 7160); check `/health` in Safari on the Mac |
-| Want to test on a physical iPhone | Different setup (LAN-bound API + `PEREZOSOFT_API_BASE_URL` + free-provisioning signing) — not needed for §13b; ask Claude when ready |
+| App can't reach the API | API must be on the **https** profile (port 7260); check `/health` in Safari on the Mac |
+| Want to test on a physical iPhone | Different setup (LAN-bound API + `VUELTO_API_BASE_URL` + free-provisioning signing) — not needed for §13b; ask Claude when ready |
 
 ## 5. Guide — activate production (~10 min) — ⤵ downstream-app work (ADR-017 amendment, 2026-07-14)
 

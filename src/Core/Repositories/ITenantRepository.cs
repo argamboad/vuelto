@@ -1,6 +1,6 @@
-using Perezosoft.Core.Entities;
+using Vuelto.Core.Entities;
 
-namespace Perezosoft.Core.Repositories;
+namespace Vuelto.Core.Repositories;
 
 /// <summary>
 /// Tenants and their membership. Identity (logins, inboxes) stays user-scoped;
@@ -51,10 +51,6 @@ public interface ITenantRepository
     /// </summary>
     Task<bool> TryTransferOwnershipAsync(Guid tenantId, Guid currentOwnerUserId, Guid targetUserId, CancellationToken cancellationToken = default);
 
-    /// <summary>Hard-deletes a tenant (cascades its data) — used when a solo
-    /// tenant-of-one is dissolved as its owner joins another.</summary>
-    Task DeleteTenantAsync(Guid tenantId, CancellationToken cancellationToken = default);
-
     /// <summary>The tenant's members joined to their user display info.</summary>
     Task<List<TenantMemberDetail>> GetMemberDetailsAsync(Guid tenantId, CancellationToken cancellationToken = default);
 
@@ -71,7 +67,7 @@ public interface ITenantRepository
     /// <summary>
     /// Core tenant teardown in one transaction: removes invitations, memberships, and the
     /// tenant row. Feature/domain data is wiped separately by each
-    /// <see cref="Perezosoft.Core.Abstractions.ITenantDataContributor"/>; user-scoped data
+    /// <see cref="Vuelto.Core.Abstractions.ITenantDataContributor"/>; user-scoped data
     /// (logins, tokens) is untouched.
     /// </summary>
     Task WipeDataAsync(Guid tenantId, CancellationToken cancellationToken = default);

@@ -1,10 +1,10 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
-using Perezosoft.Api.Tests.Infrastructure;
-using Perezosoft.Core.Entities;
+using Vuelto.Api.Tests.Infrastructure;
+using Vuelto.Core.Entities;
 
-namespace Perezosoft.Api.Tests.Integration;
+namespace Vuelto.Api.Tests.Integration;
 
 /// <summary>
 /// v2 audit B8-6: proves the integration harness boots the real app and that the end-to-end pipeline
@@ -56,8 +56,8 @@ public class HarnessSmokeTests(IntegrationTestFactory factory)
     {
         // Two owners, two tenants. Each calls the identical route with their own token; the JWT tenant_id
         // claim drives the global filter, so neither can see the other's household or members.
-        var a = await _factory.SeedUserAsync(TenantRoles.Owner);
-        var b = await _factory.SeedUserAsync(TenantRoles.Owner);
+        var pair = await TwoTenants.SeedAsync(() => _factory.SeedUserAsync(TenantRoles.Owner), user => user.TenantId);
+        var (a, b) = (pair.MineSeed, pair.OtherSeed);
 
         var bodyA = await _factory.CreateClientFor(a).GetFromJsonAsync<HouseholdDto>("/api/household");
         var bodyB = await _factory.CreateClientFor(b).GetFromJsonAsync<HouseholdDto>("/api/household");

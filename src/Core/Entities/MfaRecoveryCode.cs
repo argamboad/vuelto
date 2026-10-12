@@ -1,4 +1,4 @@
-namespace Perezosoft.Core.Entities;
+namespace Vuelto.Core.Entities;
 
 /// <summary>
 /// A single-use MFA recovery code (MFA-1, ADR-012), stored <b>only as a hash</b> (<c>ITokenHasher</c>) —

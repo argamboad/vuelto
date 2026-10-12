@@ -1,4 +1,4 @@
-namespace Perezosoft.Core.Entities;
+namespace Vuelto.Core.Entities;
 
 /// <summary>
 /// A tenant-scoped API key for programmatic access (PUBAPI, ADR-015) — the non-interactive counterpart

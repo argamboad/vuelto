@@ -1,4 +1,4 @@
-namespace Perezosoft.Core.Abstractions;
+namespace Vuelto.Core.Abstractions;
 
 /// <summary>
 /// Idempotency gate for inbound at-least-once deliveries (webhooks). Claim a delivery before acting on

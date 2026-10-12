@@ -1,8 +1,8 @@
 using System.Text.RegularExpressions;
 using Microsoft.Playwright;
-using Perezosoft.E2E.Tests.Pages;
+using Vuelto.E2E.Tests.Pages;
 
-namespace Perezosoft.E2E.Tests;
+namespace Vuelto.E2E.Tests;
 
 /// <summary>
 /// End-to-end auth flow through the real Blazor WASM app + API + Mailpit. Covers the
@@ -38,7 +38,7 @@ public class AuthFlowTests : E2ETestBase
         await login.SignInWithOtpAsync(email);
 
         // Signed in → the app shell (sign-out + tenant badge) is shown.
-        await Expect(Page.GetByTestId("sign-out")).ToBeVisibleAsync(Slow);
+        await Expect(Page.GetByTestId("user-menu")).ToBeVisibleAsync(Slow);
         await Expect(Page.GetByTestId("tenant-badge")).ToBeVisibleAsync();
     }
 
@@ -52,8 +52,9 @@ public class AuthFlowTests : E2ETestBase
         await login.GotoAsync();
         await Expect(login.Email).ToBeVisibleAsync(new() { Timeout = 30_000 });
         await login.SignInWithOtpAsync(email);
-        await Expect(Page.GetByTestId("sign-out")).ToBeVisibleAsync(Slow);
+        await Expect(Page.GetByTestId("user-menu")).ToBeVisibleAsync(Slow);
 
+        await Page.GetByTestId("user-menu").ClickAsync();   // SKIN-4: sign out lives in the user menu
         await Page.GetByTestId("sign-out").ClickAsync();
 
         await Expect(login.Email).ToBeVisibleAsync(Slow);   // back on /login

@@ -1,7 +1,7 @@
-using Perezosoft.Core.Entities;
-using Perezosoft.Core.Repositories;
+using Vuelto.Core.Entities;
+using Vuelto.Core.Repositories;
 
-namespace Perezosoft.Api.Services;
+namespace Vuelto.Api.Services;
 
 /// <summary>
 /// Service for user management (creation, lookup, login linking).
@@ -60,6 +60,7 @@ public class UserService(
     IUserRepository repository,
     ITenantRepository tenants,
     IUnitOfWork unitOfWork,
+    ISignupGate signupGate,
     TimeProvider clock,
     ILogger<UserService> logger) : IUserService
 {
@@ -82,7 +83,7 @@ public class UserService(
         if (existingUser != null)
         {
             await RefreshDisplayNameAsync(existingUser, displayName, cancellationToken);
-            logger.LogInformation("User found by login: {Email} (provider: {Provider})", email, provider);
+            logger.LogInformation("User {UserId} found by login (provider: {Provider})", existingUser.Id, provider);
             return existingUser;
         }
 
@@ -92,7 +93,7 @@ public class UserService(
         var userByEmail = await repository.GetByEmailAsync(email, cancellationToken);
         if (userByEmail != null && !emailVerified)
         {
-            logger.LogWarning("Refused unverified-email merge for {Email} via {Provider}", email, provider);
+            logger.LogWarning("Refused unverified-email merge into user {UserId} via {Provider}", userByEmail.Id, provider);
             throw new UnverifiedEmailConflictException(email);
         }
         if (userByEmail != null)
@@ -106,8 +107,7 @@ public class UserService(
             }, cancellationToken);
             await RefreshDisplayNameAsync(userByEmail, displayName, cancellationToken);
 
-            logger.LogInformation("Linked {Provider} login to existing account: {Email} (userId: {UserId})",
-                provider, email, userByEmail.Id);
+            logger.LogInformation("Linked {Provider} login to existing user {UserId}", provider, userByEmail.Id);
             return userByEmail;
         }
 
@@ -131,8 +131,7 @@ public class UserService(
 
         var createdUser = await CreateUserWithTenantAsync(newUser, trimmedName, cancellationToken);
 
-        logger.LogInformation("New user created: {Email} (provider: {Provider}, userId: {UserId})",
-            email, provider, createdUser.Id);
+        logger.LogInformation("New user {UserId} created (provider: {Provider})", createdUser.Id, provider);
 
         return createdUser;
     }
@@ -161,7 +160,7 @@ public class UserService(
         };
 
         var created = await CreateUserWithTenantAsync(newUser, trimmedName, cancellationToken);
-        logger.LogInformation("New passwordless user created: {Email} (userId: {UserId})", email, created.Id);
+        logger.LogInformation("New passwordless user {UserId} created", created.Id);
         return created;
     }
 
@@ -172,6 +171,13 @@ public class UserService(
     /// </summary>
     private async Task<User> CreateUserWithTenantAsync(User newUser, string? trimmedName, CancellationToken cancellationToken = default)
     {
+        // GATES-2 (ADR-027). Every user-minting path funnels through here — magic link, OTP, web OAuth,
+        // native OAuth — so the green list is enforced once rather than at four call sites that can drift
+        // apart. Note where it is NOT: an existing account never reaches this method, which is what keeps
+        // editing the list from locking out people who already have data.
+        if (!await signupGate.IsAllowedAsync(newUser.Email, cancellationToken))
+            throw new SignupNotAllowedException(newUser.Email);
+
         var now = clock.GetUtcNow();
         var tenantLabel = trimmedName is { Length: > 0 }
             ? trimmedName.Split(' ')[0]

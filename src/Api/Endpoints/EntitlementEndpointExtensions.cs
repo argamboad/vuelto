@@ -1,10 +1,10 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
-using Perezosoft.Api.Configuration;
-using Perezosoft.Core.Abstractions;
+using Vuelto.Api.Configuration;
+using Vuelto.Core.Abstractions;
 
-namespace Perezosoft.Api.Endpoints;
+namespace Vuelto.Api.Endpoints;
 
 /// <summary>
 /// Gates an endpoint (or a feature group) behind a plan entitlement (ADR-006). A feature slice adds

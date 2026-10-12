@@ -1,10 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Time.Testing;
-using Perezosoft.Api.Services;
-using Perezosoft.Api.Tests.Infrastructure;
-using Perezosoft.Infrastructure.Persistence;
+using Vuelto.Api.Services;
+using Vuelto.Api.Tests.Infrastructure;
+using Vuelto.Infrastructure.Persistence;
 
-namespace Perezosoft.Api.Tests;
+namespace Vuelto.Api.Tests;
 
 /// <summary>
 /// Passwordless credential lifecycle: magic-link single-use + expiry, and OTP success,

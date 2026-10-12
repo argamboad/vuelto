@@ -1,10 +1,10 @@
 using Microsoft.EntityFrameworkCore;
-using Perezosoft.Api.Tests.Infrastructure;
-using Perezosoft.Core.Entities;
-using Perezosoft.Infrastructure.Audit;
-using Perezosoft.Infrastructure.Repositories;
+using Vuelto.Api.Tests.Infrastructure;
+using Vuelto.Core.Entities;
+using Vuelto.Infrastructure.Audit;
+using Vuelto.Infrastructure.Repositories;
 
-namespace Perezosoft.Api.Tests;
+namespace Vuelto.Api.Tests;
 
 /// <summary>
 /// OBS-4 (ADR-008): the tenant audit log records semantic events scoped to the tenant, is append-only

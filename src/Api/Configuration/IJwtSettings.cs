@@ -1,4 +1,4 @@
-namespace Perezosoft.Api.Configuration;
+namespace Vuelto.Api.Configuration;
 
 /// <summary>
 /// JWT token configuration settings.
@@ -16,6 +16,21 @@ public interface IJwtSettings
 public interface IRefreshTokenSettings
 {
     int ExpiryDays { get; }
+
+    /// <summary>
+    /// Reuse grace window (<c>RefreshToken:ReuseGraceSeconds</c>, default 60): a rotated-out token presented
+    /// again within this many seconds of its rotation, while its successor is still live, is treated as a
+    /// benign race (two tabs, a lost response) and gets a fresh session instead of the theft response.
+    /// 0 (or less) disables the window — every replay revokes all sessions. ADR-002 addendum, 2026-09-18.
+    /// </summary>
+    int ReuseGraceSeconds { get; }
+
+    /// <summary>
+    /// Optional absolute session lifetime (<c>RefreshToken:AbsoluteLifetimeDays</c>; null or 0 = off, the
+    /// default): the whole rotation chain ends this many days after the sign-in that started it, however often
+    /// it is renewed. With the keep-alive an open tab otherwise stays signed in indefinitely. v4 T36, decision #2.
+    /// </summary>
+    int? AbsoluteLifetimeDays { get; }
 }
 
 /// <summary>
@@ -28,7 +43,7 @@ public interface IApplicationSettings
 
     /// <summary>
     /// Custom URL scheme a native (mobile) client registers for the OAuth callback,
-    /// e.g. "perezosoft". Empty when unused. Desktop uses loopback HTTP instead, so
+    /// e.g. "vuelto". Empty when unused. Desktop uses loopback HTTP instead, so
     /// this stays empty until the Android slice. Validated as an allowed native
     /// redirect target alongside loopback addresses.
     /// </summary>

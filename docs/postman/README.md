@@ -1,4 +1,4 @@
-# Postman collection — Perezosoft Platform API
+# Postman collection — Vuelto API
 
 Complete, chained collection covering **every HTTP surface** of the platform: health/meta,
 passwordless sign-in (+ MFA step-up), account/sessions, MFA management, household (members,
@@ -18,9 +18,9 @@ Postman; everything else is executable and chained.
 
 | File | Becomes in Postman |
 |------|-----------|
-| `Perezosoft.postman_collection.json` | Collection (v2.1) — one collection for **all** environments |
-| `Perezosoft.local.postman_environment.json` | Environment "Perezosoft — local dev" |
-| `Perezosoft.staging.postman_environment.json` | Environment "Perezosoft — staging (Render)" |
+| `Vuelto.postman_collection.json` | Collection (v2.1) — one collection for **all** environments |
+| `Vuelto.local.postman_environment.json` | Environment "Vuelto — local dev" |
+| `Vuelto.staging.postman_environment.json` | Environment "Vuelto — staging (Render)" |
 
 ## Workspace sync — git → Postman, automatic (no export/import)
 
@@ -29,14 +29,17 @@ a mirror kept fresh by CI. The `postman-sync` workflow pushes the collection + e
 `*postman_environment.json` to the workspace (matched **by name**: update if present, create if
 not) on any change to `docs/postman/**` on `develop` — so the team never imports JSON by hand.
 
+It runs on GitHub whenever `develop` moves — every merged pull request that touched `docs/postman/` — and
+from *Run workflow* (ADR-030/031).
+
 **One-time setup** (until then the job skips with a notice):
-1. Postman → avatar → **Settings → API keys** → generate a key → GitHub repo →
-   **Settings → Secrets → Actions** → secret `POSTMAN_API_KEY`.
-2. Postman → workspace **Overview** → copy the workspace **ID** → GitHub →
-   **Settings → Variables → Actions** → variable `POSTMAN_WORKSPACE_ID`.
+1. Postman → avatar → **Settings → API keys** → generate a key → GitHub → repo →
+   **Settings → Secrets and variables → Actions → Secrets** → secret `POSTMAN_API_KEY`.
+2. Postman → workspace **Overview** → copy the workspace **ID** → GitHub → repo →
+   **Settings → Secrets and variables → Actions → Variables** → variable `POSTMAN_WORKSPACE_ID`.
 3. Delete any duplicate same-name collections/environments in the workspace once (with
-   duplicates, the first name-match wins). Trigger the first run via **Actions →
-   postman-sync → Run workflow** (or merge any `docs/postman/` change).
+   duplicates, the first name-match wins). Trigger the first run from GitHub: repo →
+   **Actions → postman-sync → Run workflow** (or merge any `docs/postman/` change).
 
 **Direction is one-way.** Edits made in the Postman UI are overwritten on the next sync — change
 the JSON here (PR-reviewed, versioned) instead. Postman's built-in "connect repository" (API
@@ -53,8 +56,8 @@ stay signed in to local and staging simultaneously and flip between them.
 
 | Environment | baseUrl | Email / OTP |
 |-------------|---------|-------------|
-| local dev | `https://localhost:7160` | Mailpit — the fetch request auto-extracts the code |
-| staging (Render) | `https://template-staging.onrender.com` | **Real inboxes** (Brevo) — no Mailpit; read the OTP in your mail and set `{{otpCode}}` manually. Use a real address you own as `userEmail`. |
+| local dev | `https://localhost:7260` | Mailpit — the fetch request auto-extracts the code |
+| staging (Render) | `https://vuelto-staging.onrender.com` | **Real inboxes** (Brevo) — no Mailpit; read the OTP in your mail and set `{{otpCode}}` manually. Use a real address you own as `userEmail`. |
 
 **Adding an environment** (e.g. production, once activated): duplicate a `*.postman_environment.json`,
 change `name` + `baseUrl`, set `mailpitUrl` to `""` for hosted envs (the Mailpit fetch then skips
@@ -69,8 +72,8 @@ instead). **Admin** requires your email in that environment's `Admin__StaffEmail
 ## Quick start (local)
 
 1. `docker compose up -d` (Postgres + Mailpit) and run the API with the **https** profile
-   (`dotnet run --project src/Api --launch-profile https` → `https://localhost:7160`).
-2. Import the collection + both environments, select **Perezosoft — local dev**.
+   (`dotnet run --project src/Api --launch-profile https` → `https://localhost:7260`).
+2. Import the collection + both environments, select **Vuelto — local dev**.
 3. **SMTP must point at Mailpit** (`localhost:1025`). If your local `.env` overrides SMTP to a
    real provider (e.g. Brevo), switch it back — the OTP auto-fetch reads Mailpit's API.
 4. For `https://localhost` allow self-signed certs: Postman → Settings → General → **SSL
@@ -110,4 +113,4 @@ instead). **Admin** requires your email in that environment's `Admin__StaffEmail
   "too many requests" message; that's the abuse guard (QA-AUTH-11), not a bug.
 - Requests marked ⚠ are destructive (account erasure). The tests on each request assert the
   *expected* status set, including documented guard responses (402 quota, 409 provider-managed…).
-- Rebranding: rename the collection/env (`Perezosoft` → your app) — see `docs/REBRANDING.md`.
+- Rebranding: done for this app (`Vuelto API`, `Vuelto — local dev` / `Vuelto — staging (Render)`); the recipe stays in `docs/REBRANDING.md`.

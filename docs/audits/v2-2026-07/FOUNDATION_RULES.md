@@ -33,7 +33,7 @@ Enforceable rules from the v2 five-phase re-audit of the SaaS template at commit
 
 - **R6 [machine]** — Files under `src/Api/Features/` register routes via `MapTenantFeatureGroup(...)`, never a raw `MapGroup(...).RequireAuthorization(...)`. *(CONF-3, DEBT-6, TR-7)* — string scan.
 - **R7 [machine]** — No feature folder references another feature's namespace. *(TR-9)* — source scan.
-- **R8 [machine]** — Only `Program.cs` references `Perezosoft.Api.Features.*` from outside `src/Api/Features/`. *(ARCH — locks the clean state)* — source scan.
+- **R8 [machine]** — Only `Program.cs` references `Vuelto.Api.Features.*` from outside `src/Api/Features/`. *(ARCH — locks the clean state)* — source scan.
 - **R9 [machine]** — Platform tests do not depend on the DELETE-ME `Note` entity / `Features.Notes.*`; the tenancy/GDPR/outbox harness uses a test-only `ITenantScoped` fixture entity. *(TR-1 — High)* — source scan over `tests/` excluding a dedicated `NotesSliceTests`.
 - **R34 [machine]** — Adding a tenant-scoped slice must not require editing a hand-maintained central list. Reduce the 5 forced touchpoints: assembly-scan endpoint modules + `IEntityTypeConfiguration<>` (shrinks `Program.cs`/`OnModelCreating`), and derive the fixture TRUNCATE list from `AppDbContext.Model.GetEntityTypes()` (see R11). *(TR-2, TR-3, ADV-3)* — interim arch test comparing the fixture list to the model.
 - **R35 [machine]** — Two parallel slices cannot silently collide on a `/api/<x>` route prefix or a table name. *(ADV-4)* — startup/arch test asserting unique route-group prefixes and distinct table names per `ITenantScoped` entity.

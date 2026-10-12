@@ -2,9 +2,9 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using System.Security.Claims;
 using Microsoft.Extensions.Logging.Abstractions;
-using Perezosoft.Shared.Ui.Auth;
+using Vuelto.Shared.Ui.Auth;
 
-namespace Perezosoft.Core.Tests.Auth;
+namespace Vuelto.Core.Tests.Auth;
 
 /// <summary>
 /// Entering impersonation swaps the in-memory access token in place, so the shared header (a

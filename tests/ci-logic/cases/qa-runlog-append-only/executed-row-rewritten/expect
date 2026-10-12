@@ -1,0 +1,2 @@
+exit 1
++Executed QA run-log row rewritten or deleted: | QA-AUTH-01 | Web | Pass | AG | abc123 | 2026-09-01 | ok |

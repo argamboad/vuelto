@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Perezosoft.Api.Configuration;
+namespace Vuelto.Api.Configuration;
 
 /// <summary>
 /// Registers the typed configuration settings (the IConfiguration-ctor pattern — ADR-001, DEBT-1)

@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 
-namespace Perezosoft.Infrastructure.Persistence;
+namespace Vuelto.Infrastructure.Persistence;
 
 /// <summary>
 /// Startup guard for the two-role RLS topology (ADR-020): verifies the app's runtime connection is

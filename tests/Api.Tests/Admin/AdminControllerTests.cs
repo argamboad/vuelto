@@ -6,20 +6,20 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using Perezosoft.Api.Configuration;
-using Perezosoft.Api.Controllers;
-using Perezosoft.Api.Models;
-using Perezosoft.Api.Services;
-using Perezosoft.Api.Tests.Infrastructure;
-using Perezosoft.Api.Tests.Notify;
-using Perezosoft.Core.Billing;
-using Perezosoft.Core.Entities;
-using Perezosoft.Infrastructure.Audit;
-using Perezosoft.Infrastructure.Outbox;
-using Perezosoft.Infrastructure.Persistence;
-using Perezosoft.Infrastructure.Repositories;
+using Vuelto.Api.Configuration;
+using Vuelto.Api.Controllers;
+using Vuelto.Api.Models;
+using Vuelto.Api.Services;
+using Vuelto.Api.Tests.Infrastructure;
+using Vuelto.Api.Tests.Notify;
+using Vuelto.Core.Billing;
+using Vuelto.Core.Entities;
+using Vuelto.Infrastructure.Audit;
+using Vuelto.Infrastructure.Outbox;
+using Vuelto.Infrastructure.Persistence;
+using Vuelto.Infrastructure.Repositories;
 
-namespace Perezosoft.Api.Tests.Admin;
+namespace Vuelto.Api.Tests.Admin;
 
 /// <summary>
 /// ADMIN-1 (ADR-014): the staff back-office. Non-staff callers get 403; staff can list tenants and view
@@ -442,9 +442,9 @@ public class AdminControllerTests(PostgresFixture fixture) : PostgresTestBase(fi
             var handler = new AdminBroadcastOutboxHandler(new UserRepository(db), new NotificationService(
                 new EfRepository<Notification>(db), new EfRepository<NotificationPreference>(db),
                 new UserRepository(db), _email, TimeProvider.System));
-            return await new Perezosoft.Infrastructure.Outbox.OutboxProcessor(
-                db, [handler], TimeProvider.System, new Perezosoft.Infrastructure.Outbox.OutboxOptions(),
-                NullLogger<Perezosoft.Infrastructure.Outbox.OutboxProcessor>.Instance).ProcessDueAsync();
+            return await new Vuelto.Infrastructure.Outbox.OutboxProcessor(
+                db, [handler], TimeProvider.System, new Vuelto.Infrastructure.Outbox.OutboxOptions(),
+                NullLogger<Vuelto.Infrastructure.Outbox.OutboxProcessor>.Instance).ProcessDueAsync();
         }
 
         Assert.Equal(1, await PollAsync()); // delivered + Sent, atomically
@@ -732,7 +732,7 @@ public class AdminControllerTests(PostgresFixture fixture) : PostgresTestBase(fi
     // Captures the email copies NotifyAsync sends, so tests can assert delivery (e.g. the MFA reset).
     private readonly CapturingEmailSender _email = new();
 
-    private (AdminController controller, AppDbContext db) BuildController(Guid callerId, Guid? impersonatedBy = null)
+    private (AdminController controller, AppDbContext db) BuildController(Guid callerId, Guid? impersonatedBy = null, bool billingEnabled = true)
     {
         var ctx = new HttpCurrentTenant(new HttpContextAccessor { HttpContext = new DefaultHttpContext() });
         var options = new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(Fixture.ConnectionString).Options;
@@ -755,6 +755,7 @@ public class AdminControllerTests(PostgresFixture fixture) : PostgresTestBase(fi
             new RefreshTokenService(new RefreshTokenRepository(db, TimeProvider.System), new TokenGenerator(),
                 new TokenHasher(), new TestRefreshSettings(), TimeProvider.System),
             new EfOutbox(db, TimeProvider.System), new EfUnitOfWork(db),
+            new BillingSettings { Enabled = billingEnabled },
             NullLogger<AdminController>.Instance, TimeProvider.System);
 
         var claims = new List<Claim> { new(ClaimTypes.NameIdentifier, callerId.ToString()) };

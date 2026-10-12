@@ -1,6 +1,6 @@
-using Perezosoft.Core.Entities;
+using Vuelto.Core.Entities;
 
-namespace Perezosoft.Core.Authorization;
+namespace Vuelto.Core.Authorization;
 
 /// <summary>
 /// The single source of truth mapping a tenant role to the set of <see cref="Permission"/>s it grants

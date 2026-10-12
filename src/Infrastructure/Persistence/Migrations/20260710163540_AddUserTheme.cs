@@ -2,7 +2,7 @@
 
 #nullable disable
 
-namespace Perezosoft.Infrastructure.Persistence.Migrations
+namespace Vuelto.Infrastructure.Persistence.Migrations
 {
     /// <inheritdoc />
     public partial class AddUserTheme : Migration

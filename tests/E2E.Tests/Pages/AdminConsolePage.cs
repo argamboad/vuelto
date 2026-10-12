@@ -1,6 +1,6 @@
 using Microsoft.Playwright;
 
-namespace Perezosoft.E2E.Tests.Pages;
+namespace Vuelto.E2E.Tests.Pages;
 
 /// <summary>Page object for the staff-only admin console (/admin).</summary>
 public class AdminConsolePage(IPage page) : BasePage(page)

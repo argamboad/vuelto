@@ -1,4 +1,4 @@
-namespace Perezosoft.Core.Entities;
+namespace Vuelto.Core.Entities;
 
 /// <summary>
 /// A user's notification delivery preferences (NOTIFY-2, ADR-013) — the per-user carve-out (ADR-C2),

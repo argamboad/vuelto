@@ -4,8 +4,9 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Vuelto.Api.Services;
 
-namespace Perezosoft.Api.Configuration;
+namespace Vuelto.Api.Configuration;
 
 /// <summary>
 /// Rate-limiting policies for abuse-prone endpoints. The passwordless endpoints are an
@@ -33,6 +34,24 @@ public static class RateLimiting
     /// <summary>Per-API-key throttle for the public API (PUBAPI-2) — partitions by the key id.</summary>
     public const string PublicApiPolicy = "public-api";
 
+    /// <summary>
+    /// Per-IP throttle for <c>/api/auth/refresh</c> (v4 T36, decision #4): the keep-alive needs one call an hour
+    /// per client, so even a household's worth of devices behind one NAT stays far under the budget, while someone
+    /// holding a stolen token can't mint rows cheaply. Overridable via <c>Auth:RateLimit:RefreshPermitLimit</c>
+    /// (raised for the E2E stack, whose whole browser suite shares one source IP).
+    /// </summary>
+    public const string RefreshPolicy = "refresh";
+    public const int RefreshPermitLimit = 60;
+
+    /// <summary>
+    /// Per-TENANT throttle for the two webhook writes that cost something per call (v4 T44, JOBS-7): the
+    /// synchronous test-send (a delivery row + a signed outbound POST) and the replay (an outbox row + a
+    /// delivery on dispatch). Both are owner-only, so the budget is the tenant's, shared by the pair: an owner
+    /// can neither grow the delivery table nor fire at a third party's URL faster than this.
+    /// </summary>
+    public const string WebhookWritePolicy = "webhook-write";
+    public const int WebhookWritePermitLimit = 10;
+
     /// <summary>Default requests allowed per IP per <see cref="Window"/> before the limiter returns 429.
     /// Overridable via <c>Auth:RateLimit:PasswordlessPermitLimit</c> (e.g. raised for the E2E stack,
     /// where the whole browser suite shares one source IP); production keeps this default.</summary>
@@ -58,9 +77,37 @@ public static class RateLimiting
         var passwordlessLimit = configuration?.GetValue("Auth:RateLimit:PasswordlessPermitLimit", PermitLimit) ?? PermitLimit;
         var otpMaxAttempts = configuration?.GetValue("Auth:Otp:MaxAttempts", 5) ?? 5;
         var verifyLimit = VerifyPermitFor(passwordlessLimit, otpMaxAttempts);
+        var refreshLimit = configuration?.GetValue("Auth:RateLimit:RefreshPermitLimit", RefreshPermitLimit) ?? RefreshPermitLimit;
         return services.AddRateLimiter(options =>
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+            // Refresh (v4 T36): per IP. A held refresh token is a credential; minting sessions with it must cost
+            // something per source, without touching the keep-alive's one call an hour per client.
+            options.AddPolicy(RefreshPolicy, httpContext =>
+            {
+                var ip = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+                return RateLimitPartition.GetFixedWindowLimiter(ip, _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = refreshLimit,
+                    Window = Window,
+                    QueueLimit = 0,
+                });
+            });
+
+            // Webhook test-send + replay (v4 T44): per tenant. The routes are owner-authenticated, so the principal
+            // carries the tenant id by the time the limiter runs; the IP is only the fallback for a missing claim.
+            options.AddPolicy(WebhookWritePolicy, httpContext =>
+            {
+                var tenant = httpContext.User.FindFirst(JwtClaims.TenantId)?.Value
+                             ?? httpContext.Connection.RemoteIpAddress?.ToString() ?? "anon";
+                return RateLimitPartition.GetFixedWindowLimiter(tenant, _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = WebhookWritePermitLimit,
+                    Window = Window,
+                    QueueLimit = 0,
+                });
+            });
 
             // Passwordless SEND endpoints (email-producing): per-IP email-bomb / outbound-cost guard (CONF-5).
             options.AddPolicy(PasswordlessPolicy, httpContext =>

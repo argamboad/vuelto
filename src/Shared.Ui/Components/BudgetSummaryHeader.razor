@@ -1,0 +1,57 @@
+@inject IStringLocalizer<AppStrings> Localizer
+
+@* SKIN-9 · the one verdict the Budget screen opens on: what the plan commits of a typical income. The bar is
+   the dashboard's two-tone split (fixed = budgeted, variable = discretionary) so the colours keep one meaning;
+   it is aria-hidden because the figures beside it are the data. The share is a projection — lines in two
+   currencies only add up at today's rate — and the header says so. *@
+<section class="budget-summary" data-testid="budget-summary" aria-label="@Localizer["Budget_PlannedMonthly"]">
+    <div class="budget-summary-main">
+        <p class="budget-summary-label">@Localizer["Budget_PlannedMonthly"]</p>
+        <p class="budget-summary-value" data-testid="budget-planned">@PlannedText</p>
+    </div>
+    <div class="budget-summary-bar">
+        <div class="budget-summary-line">
+            @if (Income is { } income && income > 0)
+            {
+                <span class="budget-summary-share" data-testid="budget-share">@Localizer["Budget_ShareOfIncome", Share(income)]</span>
+                <span class="budget-summary-income" data-testid="budget-income" title="@Localizer["Budget_TypicalIncome"]">@IncomeText</span>
+            }
+            else
+            {
+                <span class="budget-summary-share">&nbsp;</span>
+            }
+        </div>
+        <PaceBar Total="@BarTotal()" Segments="@Segments()" TestId="budget-bar" />
+        @if (HasRate)
+        {
+            <p class="budget-summary-note">@Localizer["Budget_AtTodaysRate"]</p>
+        }
+    </div>
+</section>
+
+@code {
+    /// <summary>The two lists' active sums on the display side, already converted by the page.</summary>
+    [Parameter] public decimal PlannedFixed { get; set; }
+    [Parameter] public decimal PlannedVariable { get; set; }
+    [Parameter] public string PlannedText { get; set; } = "";
+    [Parameter] public string FixedText { get; set; } = "";
+    [Parameter] public string VariableText { get; set; } = "";
+
+    /// <summary>A typical month's income on the display side; null or zero when the defaults are unset or cannot convert.</summary>
+    [Parameter] public decimal? Income { get; set; }
+    [Parameter] public string IncomeText { get; set; } = "";
+    [Parameter] public bool HasRate { get; set; }
+
+    private decimal Planned => PlannedFixed + PlannedVariable;
+
+    private int Share(decimal income) => (int)Math.Round(100m * Planned / income);
+
+    /// <summary>A share of income when there is one; otherwise the plan is the whole bar, so the split still reads.</summary>
+    private decimal BarTotal() => Income is { } i && i > 0 ? Math.Max(i, Planned) : Planned;
+
+    private List<PaceSegment> Segments() =>
+    [
+        new($"{Localizer["Budget_Fixed"]} {FixedText}", PlannedFixed, "primary"),
+        new($"{Localizer["Budget_Variable"]} {VariableText}", PlannedVariable, "accent"),
+    ];
+}

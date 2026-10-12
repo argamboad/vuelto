@@ -1,4 +1,4 @@
-namespace Perezosoft.Core.Entities;
+namespace Vuelto.Core.Entities;
 
 public class User
 {

@@ -41,8 +41,9 @@ thing has been audited, remediated, and re-audited.
    "Workspace" or "Team").
 3. **Build your features as vertical slices** — a documented convention with a complete reference
    feature (`Notes`) to copy: API endpoint + UI page + tests, end-to-end, one PR each.
-4. **Deploy** on the proven path (Render + Neon + Brevo, all free tiers) — staging auto-deploys
-   from `develop`; production is one approval click.
+4. **Deploy** on the proven path (Render + Neon + Brevo, all free tiers) — staging deploys from
+   `develop` with one manual GitHub *Run workflow* click (ADR-031);
+   production is one approval click.
 
 Everything is **web-first**: build a feature once in the shared UI library and it appears in the
 web app *and* the native Windows/Android/iOS/macOS shells, which are already wired for auth,
@@ -117,6 +118,15 @@ The domain teams underestimate most — here it's done, including the ugly parts
   ("see what the customer sees" without their password), and broadcast announcements delivered
   through the notification system.
 
+### 🚦 Pre-launch gates *(config-gated — ship before you sell, and before you are public)*
+- **Billing off by default:** the billing routes do not exist, nobody is shown an upgrade, and every
+  tenant sits on the free plan. A deployment needs no payment-provider account at all until it decides
+  to charge.
+- **Signup green list:** when configured, only listed addresses may create an account — plus anyone
+  invited into a household whose owner is listed, so a tester can bring their family without each of
+  them being listed. Existing accounts are never locked out when the list changes.
+- Both are cleared on launch day; see `NEW_APP_GUIDE.md` Phase 8.
+
 ### 🔌 Public API & API keys *(config-gated, off by default)*
 - Tenants can mint API keys (stored hash-only), scoped to their data automatically.
 - Per-key **rate limiting** and a public **OpenAPI document** for integrators.
@@ -143,7 +153,8 @@ The domain teams underestimate most — here it's done, including the ugly parts
   tests, secret scanning, license and supply-chain checks (locked dependencies), documentation
   drift gates, and **architecture tests** (35 machine-enforced rules covering tenancy, fail-closed
   auth, SSRF, atomic quotas, and more).
-- **Deploys**: Docker everywhere; staging auto-deploys on merge with a version-gated smoke check;
+- **Deploys**: Docker everywhere; staging deploys from `develop` on a manual GitHub dispatch (ADR-031)
+  with a version-gated smoke check;
   production deploys behind a manual approval. Total infra cost to start: **$0** (free tiers).
 - **Ways of working**: TDD, vertical slices, conventional commits, an ADR log explaining every
   significant decision (18 so far), and a 118-case manual QA plan with printable guides.
@@ -156,7 +167,7 @@ choices — every one is mainstream, documented, and replaceable. Full rationale
 
 | Layer | Choice | Notes |
 |---|---|---|
-| Runtime | **.NET 10** (SDK 10.0.400) | Latest stable line; policy: never previews |
+| Runtime | **.NET 10** (SDK 10.0.401) | Latest stable line; policy: never previews |
 | Backend API | **ASP.NET Core Web API** | The durable, client-agnostic asset |
 | Web frontend | **Blazor WebAssembly** | A pure client of the API — never touches the DB |
 | UI components | Shared **Razor Class Library** | One UI codebase for web *and* native shells |

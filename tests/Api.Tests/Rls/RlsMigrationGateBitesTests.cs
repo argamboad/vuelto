@@ -1,10 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
-using Perezosoft.Api.Tests.Infrastructure;
-using Perezosoft.Infrastructure.Persistence;
+using Vuelto.Api.Tests.Infrastructure;
+using Vuelto.Infrastructure.Persistence;
 using Testcontainers.PostgreSql;
 
-namespace Perezosoft.Api.Tests.Rls;
+namespace Vuelto.Api.Tests.Rls;
 
 /// <summary>
 /// Proves the RLS migration-parity gate (<see cref="RlsMigrationGateTests"/>) actually FAILS for a missing
@@ -20,7 +20,7 @@ namespace Perezosoft.Api.Tests.Rls;
 /// </summary>
 public sealed class RlsMigrationGateBitesTests : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:17").Build();
+    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("public.ecr.aws/docker/library/postgres:17.11").Build();
 
     public Task InitializeAsync() => _container.StartAsync();
     public Task DisposeAsync() => _container.DisposeAsync().AsTask();

@@ -1,4 +1,4 @@
-namespace Perezosoft.Api.Configuration;
+namespace Vuelto.Api.Configuration;
 
 /// <summary>
 /// Platform-staff allowlist (ADR-014), bound from <c>Admin</c>. Staff are configured <b>out-of-band</b>
@@ -7,6 +7,8 @@ namespace Perezosoft.Api.Configuration;
 /// </summary>
 public sealed class PlatformAdminSettings
 {
+    public const string SectionName = "Admin";
+
     /// <summary>Emails allowed to use the admin surface. Compared case-insensitively.</summary>
     public string[] StaffEmails { get; set; } = [];
 }

@@ -2,11 +2,12 @@ using Bunit;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging.Abstractions;
-using Perezosoft.Shared.Ui;
-using Perezosoft.Shared.Ui.Resources;
-using Perezosoft.Shared.Ui.Auth;
+using Microsoft.Extensions.Time.Testing;
+using Vuelto.Shared.Ui;
+using Vuelto.Shared.Ui.Resources;
+using Vuelto.Shared.Ui.Auth;
 
-namespace Perezosoft.Ui.Tests.Infrastructure;
+namespace Vuelto.Ui.Tests.Infrastructure;
 
 /// <summary>
 /// Base for RCL component tests (v3 TOOL-2). Registers a test double for every seam the shared components
@@ -20,7 +21,19 @@ public abstract class ComponentTestBase : BunitContext
     protected TestHttpHandler Http { get; } = new();
     protected FakeThemePersistence ThemeStore { get; } = new();
     protected FakeCulturePersistence CultureStore { get; } = new();
+    protected FakeFileDownloadLauncher DownloadLauncher { get; } = new();
     protected AuthService Auth { get; }
+
+    /// <summary>
+    /// The clock <see cref="Auth"/> reads — frozen at "now" so the tokens <see cref="TestJwt"/> mints are live, and
+    /// the session's renewal timer fires only when a test advances it (never mid-render on a busy machine).
+    /// </summary>
+    /// <summary>
+    /// The DEVICE clock the client reads. <see cref="TestJwt"/> mints tokens on the real clock — the server's —
+    /// and its <c>serverClockOffset</c> is the clock-skew seam (v4 T32, R126): a token minted 3 minutes ahead is
+    /// what a phone 3 minutes slow receives.
+    /// </summary>
+    protected TestClock Time { get; } = new(DateTimeOffset.UtcNow);
 
     protected ComponentTestBase()
     {
@@ -34,20 +47,34 @@ public abstract class ComponentTestBase : BunitContext
         Auth = new AuthService(
             new HttpClient(Http) { BaseAddress = new Uri("http://localhost") },
             NullLogger<AuthService>.Instance,
-            sessionStore);
+            sessionStore,
+            timeProvider: Time);
 
         Services.AddSingleton(Auth);
+        Services.AddSingleton<TimeProvider>(Time); // the clock components schedule with (R148)
         Services.AddSingleton(new HttpClient(Http) { BaseAddress = new Uri("http://localhost") });
         Services.AddSingleton<ISessionStore>(sessionStore);
         Services.AddSingleton<IThemePersistence>(ThemeStore);
         Services.AddSingleton<ICulturePersistence>(CultureStore);
+        Services.AddSingleton<IFileDownloadLauncher>(DownloadLauncher); // pages with a download (Household export, Reports CSV) inject it
         Services.AddSingleton<IStringLocalizer<AppStrings>>(new FakeStringLocalizer());
         Services.AddSingleton<AppResumeNotifier>(); // pages that refresh on app-resume (Billing) inject it
+        Services.AddSingleton<ReviewQueueNotifier>(); // the header badge + the Review page (EMAIL-6)
+        Services.AddScoped<DisplayCurrencyStore>();   // the dashboard + Reports "show in" (DISPLAY-1)
 
         // bUnit ships a fake NavigationManager (assert via Services.GetRequiredService<NavigationManager>())
         // and a JSInterop (JSInterop.Mode = Loose so unmatched JS calls no-op rather than throw).
         JSInterop.Mode = JSRuntimeMode.Loose;
     }
+
+    /// <summary>
+    /// Stub the anonymous <c>GET /api/features</c> gate probe (GATES-1, ADR-027). Explicit rather than a
+    /// harness default: a page that reads a gate should have to say which side of it the test is on.
+    /// Unstubbed, the probe 404s and <see cref="AuthService.IsBillingEnabledAsync"/> fails closed to off —
+    /// which is why a billing page test that forgets this finds itself redirected home.
+    /// </summary>
+    protected void StubFeatures(bool billing = true) =>
+        Http.On(HttpMethod.Get, "/api/features", $"{{\"billing\":{billing.ToString().ToLowerInvariant()}}}");
 
     /// <summary>
     /// Put <see cref="Auth"/> into a signed-in state by driving the actual refresh flow: stub

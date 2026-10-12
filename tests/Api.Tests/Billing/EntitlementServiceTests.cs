@@ -1,11 +1,11 @@
 using Microsoft.Extensions.Time.Testing;
-using Perezosoft.Api.Services;
-using Perezosoft.Api.Tests.Infrastructure;
-using Perezosoft.Core.Billing;
-using Perezosoft.Core.Entities;
-using Perezosoft.Infrastructure.Repositories;
+using Vuelto.Api.Services;
+using Vuelto.Api.Tests.Infrastructure;
+using Vuelto.Core.Billing;
+using Vuelto.Core.Entities;
+using Vuelto.Infrastructure.Repositories;
 
-namespace Perezosoft.Api.Tests.Billing;
+namespace Vuelto.Api.Tests.Billing;
 
 /// <summary>
 /// Drives BILLING-1 (ADR-006): entitlements resolve from the tenant's Subscription projection and
@@ -23,6 +23,20 @@ public class EntitlementServiceTests(PostgresFixture fixture) : PostgresTestBase
         var service = new EntitlementService(new EfRepository<Subscription>(db), TimeProvider.System);
 
         Assert.False(await service.HasAsync(Entitlements.ProFeature));
+    }
+
+    [Fact]
+    public void GateOff_GrantingSubscription_StillResolvesItsPlan_ByDesign()
+    {
+        // v4 T46 (BILL-1, R128): resolution is GATE-BLIND on purpose. EntitlementService does not read
+        // Billing:Enabled — a row that grants (active/trialing, period not over) resolves to its plan whether the
+        // gate is on or off, so flipping the gate never silently downgrades anyone: a comp keeps working, a Stripe
+        // row from before the gate closed keeps its plan. What "billing off" removes is the SURFACE (routes, comp,
+        // link) — not existing entitlements. BillingPostureCheck says at startup when Stripe-managed rows linger.
+        var granting = new Subscription { PlanKey = PlanKeys.Pro, Status = SubscriptionStatus.Active, CurrentPeriodEnd = null };
+
+        Assert.Equal(PlanKeys.Pro, EntitlementService.ResolvePlanKey(granting, DateTimeOffset.UtcNow));
+        Assert.DoesNotContain("Billing", string.Join(",", typeof(EntitlementService).GetConstructors().Single().GetParameters().Select(p => p.ParameterType.Name))); // no gate dependency
     }
 
     [Fact]

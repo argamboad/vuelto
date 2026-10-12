@@ -1,4 +1,4 @@
-namespace Perezosoft.Shared.Ui;
+namespace Vuelto.Shared.Ui;
 
 /// <summary>
 /// Relays "the app came back to the foreground" to interested pages (NATIVE-4). On native, an

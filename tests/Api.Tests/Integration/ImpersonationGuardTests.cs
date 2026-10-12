@@ -2,11 +2,11 @@ using System.Net;
 using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Perezosoft.Api.Tests.Infrastructure;
-using Perezosoft.Core.Entities;
-using Perezosoft.Infrastructure.Persistence;
+using Vuelto.Api.Tests.Infrastructure;
+using Vuelto.Core.Entities;
+using Vuelto.Infrastructure.Persistence;
 
-namespace Perezosoft.Api.Tests.Integration;
+namespace Vuelto.Api.Tests.Integration;
 
 /// <summary>
 /// v3 audit ADM-8 + LB-ADM-1, at the real HTTP boundary (real impersonation tokens minted by the app's
@@ -25,9 +25,19 @@ public class ImpersonationGuardTests(IntegrationTestFactory factory)
 {
     private readonly IntegrationTestFactory _factory = factory;
 
+    public static TheoryData<string, string> PrefWrites()
+    {
+        var data = new TheoryData<string, string>
+        {
+            { "/api/auth/theme", """{"theme":"dark"}""" },
+            { "/api/auth/locale", """{"locale":"en"}""" },
+        };
+        foreach (var (url, body) in App.AppAllowlists.ImpersonationGuardedWrites) data.Add(url, body); // the app's (Arch A1)
+        return data;
+    }
+
     [Theory]
-    [InlineData("/api/auth/theme", """{"theme":"dark"}""")]
-    [InlineData("/api/auth/locale", """{"locale":"en"}""")]
+    [MemberData(nameof(PrefWrites))]
     public async Task PrefWrites_UnderImpersonation_Return403(string url, string body)
     {
         var staff = await _factory.SeedUserAsync();

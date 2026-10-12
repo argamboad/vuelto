@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-v2 audit B11-8: CI gate keeping the QA PDFs in lock-step with QA_TEST_PLAN.md.
+v2 audit B11-8: CI gate keeping the QA PDFs in lock-step with QA_TEST_PLAN.md — and, since #387, the
+§16 sign-off sheet with the plan's cases (signoff_drift).
 
 Both docs/QA_TEST_GUIDE.pdf and docs/QA_RUN_LOG.pdf are *generated* from QA_TEST_PLAN.md by the two
 gen_qa_*.py scripts. This checker regenerates each and compares the EXTRACTED TEXT of the fresh output
@@ -35,8 +36,34 @@ def text_of(pdf: Path) -> str:
     return re.sub(r"\s+", " ", _DATE.sub("<date>", raw)).strip()
 
 
+def signoff_drift() -> list[str]:
+    """
+    Every case has a sign-off row, and every row names an existing case. The sheet had silently stopped
+    being filled in downstream (58 rows against 184 cases, 2026-09-10) — a row that nobody adds is a case
+    nobody runs. §16 holds two tables: the general one, and the QA-ADV-* set with its notes; a case sits
+    in one of them. Within a table a case may repeat: a re-run appends a new row (the run log is
+    append-only, .github/scripts/qa-runlog-append-only.sh).
+    """
+    plan = (HERE / "QA_TEST_PLAN.md").read_text(encoding="utf-8")
+    cases = set(re.findall(r"^### (QA-[A-Z0-9]+-\d+) — ", plan, re.M))
+    sheet = re.search(r"^## 16\. Sign-off sheet$(.*?)^## 17\.", plan, re.M | re.S)
+    if not sheet:
+        return ["QA_TEST_PLAN.md has no §16 sign-off sheet"]
+    general, _, adversarial = sheet.group(1).partition("**§14a adversarial")
+    tables = [set(re.findall(r"^\| (QA-[A-Z0-9]+-\d+) \|", t, re.M)) for t in (general, adversarial)]
+    rows = tables[0] | tables[1]
+    problems = []
+    if missing := sorted(cases - rows):
+        problems.append(f"cases with no sign-off row (add them to §16): {', '.join(missing)}")
+    if orphan := sorted(rows - cases):
+        problems.append(f"sign-off rows for cases that no longer exist: {', '.join(orphan)}")
+    if both := sorted(tables[0] & tables[1]):
+        problems.append(f"listed in both §16 tables — pick one: {', '.join(both)}")
+    return problems
+
+
 def main() -> int:
-    drift = []
+    drift = signoff_drift()
     for script, out in ARTIFACTS:
         committed = HERE / out
         if not committed.exists():
@@ -56,7 +83,7 @@ def main() -> int:
         print("QA artifacts have drifted from QA_TEST_PLAN.md:\n  - " + "\n  - ".join(drift), file=sys.stderr)
         return 1
 
-    print("QA PDFs are in sync with QA_TEST_PLAN.md.")
+    print("QA PDFs and the sign-off sheet are in sync with QA_TEST_PLAN.md.")
     return 0
 
 

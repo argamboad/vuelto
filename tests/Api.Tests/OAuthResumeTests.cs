@@ -4,9 +4,9 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
-using Perezosoft.Shared.Ui.Auth;
+using Vuelto.Shared.Ui.Auth;
 
-namespace Perezosoft.Api.Tests;
+namespace Vuelto.Api.Tests;
 
 /// <summary>
 /// NATIVE-12: native OAuth must survive Android killing the app during the browser
@@ -18,7 +18,7 @@ namespace Perezosoft.Api.Tests;
 /// </summary>
 public class OAuthResumeTests
 {
-    private const string CallbackBase = "perezosoft://auth";
+    private const string CallbackBase = "vuelto://auth";
 
     // ── fakes ────────────────────────────────────────────────────────────────
 
@@ -76,7 +76,7 @@ public class OAuthResumeTests
 
     private sealed class FakeInitiator(Func<Task<IReadOnlyDictionary<string, string>?>> run) : IOAuthInitiator
     {
-        public Task<IReadOnlyDictionary<string, string>?> RunBrowserFlowAsync(string provider, string? linkToken = null) => run();
+        public Task<IReadOnlyDictionary<string, string>?> RunBrowserFlowAsync(string provider, string? linkToken = null, CancellationToken cancellationToken = default) => run();
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────

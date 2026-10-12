@@ -1,0 +1,4 @@
+tools/dev-profiles.ps1
+tools/android-emulator.ps1
+tools/telemetry.ps1
+.vscode/tasks.json

@@ -1,9 +1,9 @@
 using Microsoft.EntityFrameworkCore;
-using Perezosoft.Api.Tests.Infrastructure;
-using Perezosoft.Core.Entities;
-using Perezosoft.Infrastructure.Inbox;
+using Vuelto.Api.Tests.Infrastructure;
+using Vuelto.Core.Entities;
+using Vuelto.Infrastructure.Inbox;
 
-namespace Perezosoft.Api.Tests.Inbox;
+namespace Vuelto.Api.Tests.Inbox;
 
 /// <summary>
 /// Drives JOBS-2 (ADR-007): the inbox gives inbound at-least-once deliveries exactly-once handling.

@@ -1,0 +1,406 @@
+# Epic `REPORTS` — Category analysis & CSV export
+
+> Registered epic key: **REPORTS**. Port slice **P8** (ADR-V001): the two read-only reporting features,
+> re-homed from donor stories **US-043** (category analysis) and **US-044** (CSV export) plus the **WU-4**
+> money-correctness fixes (A3 month window from the last week's end date, B5 four-decimal rate) —
+> `vuelto-legacy/docs/stories/`. Decision context: ADR-V004 (dual currency), ADR-V005 (anchor-window
+> months), ADR-V006 (frozen amounts, never recomputed), platform ADR-010 (files behind signed links),
+> `FEATURES.md` §16–17.
+
+Shared period rule (both stories): `month_id` **or** `from` + `to` (`yyyy-MM-dd`, inclusive) — never both,
+never neither. A month's period is its anchor window: first week start → **the last week's end date**
+(never `WeekCount × 7`, which over-counts next-month rows for anchors that clamp to the calendar month).
+400 codes: `period_required`, `period_ambiguous`, `period_incomplete`, `period_invalid`. An unknown or
+another household's `month_id` is a uniform **404**. Any member may read.
+
+### REPORTS-1 — Analyse spend by category
+
+> 2026-09-07 (owner request): each entry also carries `transaction_count` — how many rows are behind the sum — shown as a `#` column in the tables (Table view), totalled in the Total row.
+
+**As a** household member reviewing spending patterns
+**I want** actual spend grouped by category within each spending class, for a month or any date range
+**So that** I can answer "how much did we spend on groceries last quarter?" beyond the current dashboard
+
+**Context / notes:** `GET /api/reports/category-analysis`. Only the spending classes appear — `budgeted`,
+`extraordinary`, `unplanned_essential`; `inflow` and `envelope_contribution` are not spending. Totals are
+the frozen per-transaction amounts, 2 dp. Zero-spend categories are absent; entries sort by name; names
+come from the **all-states** catalog so a deactivated category still labels its row. When the period is a
+**single month** (`month_id`), every `budgeted` entry also carries `budgeted_crc` / `budgeted_usd` — the
+sum of the active fixed + variable lines backing that category (null when none). A custom range omits them
+(`single_month: false`): a monthly budget does not multiply cleanly across arbitrary ranges. Pure calculation
+in Core (`CategoryAnalysisCalculator`); the slice handler only resolves the period and gathers rows.
+
+```gherkin
+Scenario: Spend grouped by class and category for a month
+  Given June 2026 (window May 28 – Jun 24) with Groceries budgeted ₡60,000 (one fixed line)
+  And transactions: Groceries budgeted ₡5,000 (May 28) + ₡3,000 (Jun 24), Dining extraordinary ₡2,000, an inflow ₡9,000, one on May 27 and one on Jun 25
+  When I GET /api/reports/category-analysis?month_id={id}
+  Then period is 2026-05-28 – 2026-06-24 and single_month is true
+  And budgeted has Groceries total_crc 8000 with budgeted_crc 60000; extraordinary has Dining 2000; unplanned_essential is empty
+  And the inflow and the two rows outside the window are not counted
+
+Scenario: A custom range never shows budgets
+  When I GET ?from=2026-01-01&to=2026-06-30
+  Then single_month is false and budgeted_crc / budgeted_usd are null on every entry
+
+Scenario: Period validation
+  When I GET with no period → 400 period_required; with month_id AND from → 400 period_ambiguous
+  When I GET with only from → 400 period_incomplete; with from > to or a non-ISO date → 400 period_invalid
+  When I GET with another household's month_id → 404
+
+Scenario: The Reports page
+  Given I am signed in and open Reports (nav)
+  Then the newest month loads: Budgeted (with "Budgeted (month)" and "Actual" columns, red over / green under, "—" without a line, totals row), Discretionary, Unplanned
+  When I switch to "Date range", pick From and To and Load → the range loads without budget columns
+  When I pick From after To → "From must not be after To" and nothing loads
+```
+
+### REPORTS-2 — Export the transactions of a period as CSV
+
+**As a** household member who analyses spending outside the app
+**I want** to download every transaction of the shown period as a CSV file
+**So that** I can open it in a spreadsheet, archive it, or share it
+
+**Context / notes:** `POST /api/reports/transactions/export` with the shared period rule plus optional
+`category_id` and `class` filters. The CSV (RFC 4180, UTF-8, CRLF) has the fixed columns `date, payee,
+category, class, amount_crc, amount_usd, exchange_rate_used, payment_method, bank, source`; amounts are plain
+decimals with two places and no symbol; the frozen rate keeps **four** places (NUMERIC(10,4)) so both
+amounts can be reproduced from it; dates are `yyyy-MM-dd`; rows are unpaginated and ordered date desc,
+created desc; an empty result is a header-only file, never a 404. **Delivery follows the platform's file
+seam (ADR-010):** the CSV is stored through `IFileStorage` under `exports/transactions/…/transactions-
+{today}.csv` and the response carries a 15-minute signed `download_url`, `file_name` and `row_count`. The
+pages hand that link to the shared `IFileDownloadLauncher` — a browser downloads it natively, the MAUI
+shells open the OS share sheet (NATIVE-3) — so one code path serves web and native. Today's date comes
+from the injected clock.
+
+```gherkin
+Scenario: The CSV of a month
+  Given June 2026 with rows on Jun 5 ("Older") and two on Jun 20 (saved five minutes apart), one in an inactive category
+  When I POST /api/reports/transactions/export?month_id={id}
+  Then 200 with download_url, file_name "transactions-<today>.csv", row_count 3
+  And GET download_url (no token needed — the link is the authorization) returns text/csv with Content-Disposition attachment; filename="transactions-<today>.csv"
+  And line 1 is the header, line 2 the later-saved Jun 20 row naming the inactive category, then the other Jun 20 row, then Jun 5
+  And a payee like Café, "El" Punto is quoted with doubled quotes; exchange_rate_used reads 500.0000
+
+Scenario: Filters and the empty file
+  When I add category_id → only that category; class=Extraordinary → normalized, only that class
+  When nothing matches → 200, row_count 0, header-only CSV
+
+Scenario: Isolation and validation
+  When another household has rows in the same period → they never appear
+  When the period is missing or ambiguous → the same 400 codes as the analysis; a foreign month_id → 404
+
+Scenario: Export buttons
+  Given I am on Reports with a period shown → "Export CSV" POSTs exactly that period and the download starts; "CSV ready — N rows"
+  Given I am on a month page → "Export CSV" exports that month the same way
+  When no month exists yet → the Reports export button is disabled
+```
+
+**Out of scope:** per-month budget grids across ranges (deferred by the donor too); PDF or Excel formats;
+scheduled/emailed reports.
+
+**Definition of done:** tests first; Core.Tests (`CategoryAnalysisCalculatorTests` — the donor
+`ReportServiceTests` re-homed as a pure calculation; `TransactionCsvWriterTests` — columns, 2/4 dp, quoting,
+header-only); Api.Tests slice on Postgres (period codes theory, anchor window incl. the first-of-month
+clamp, unknown/foreign not-found, analysis with names + budget, range without budget + isolation, export
+ordering/filters/header-only/isolation/stored key + link lifetime) + HTTP (401, 400, 404, analysis, export →
+anonymous download of the signed link with the exact CSV); bUnit (newest month + columns + tone, range
+validation + load, export POST + launcher, empty state, month-page export); no entity, no migration; Postman
+folder; QA-REP-01..02 + regenerated PDFs; EN/ES resx; nav entry; merged, app working.
+
+### REPORTS-3 — Charts for the category analysis *(owner request, 2026-09-04)* ✅
+
+**As a** household member
+**I want** to see the category analysis as pictures as well as numbers
+**So that** the shape of a month — what dominates, what is over budget — is visible at a glance
+
+**Context / notes:** presentation only — the report endpoint is unchanged. Charts are **inline SVG**
+components in `Shared.Ui/Components/Charts` (no JS library; same markup on web and MAUI; colours from
+Bootstrap tokens so dark mode follows; bUnit can assert every bar). A **View: Table / Chart** toggle
+and a **₡/$** switch sit in the period card, remembered **per device** (`appUi.getPref/setPref` in
+`js/ui.js`; never account data). Chart view: a **Spend by class** donut (budgeted / discretionary /
+unplanned, with shares) and one **horizontal bar chart per class**, largest first; on the budgeted
+class a line's budget is a muted track under the actual, which turns red past it — judged in the
+line's own currency, so a $-budgeted line carries a track only while the chart is in $. The total is
+printed under each chart. Tables are untouched.
+
+**Income vs spend donut** *(owner request, 2026-09-05)*: beside "Spend by class", a second donut measures
+the same three class slices against the **month's income** — the dashboard's own definition (both
+configured incomes at today's rate + inflows), now the shared `Core` `IncomeCalculator` so the two pages
+can never disagree — with a fourth, muted **Remaining** slice and the income in the hole. Overspent → no
+remaining slice and a red "Over income by X" line. The endpoint gains `income` (`{crc, usd}`): present
+for a single month with a resolvable rate, **null** for a date range (income is per month) or when the
+ADR-V006 chain is empty (the spend report never depends on the rate; the card then says so).
+
+**Income vs budget donut** *(owner request, same day)*: a third card — what the **active budget lines
+commit** of the income (`Budget lines`) and what is left **Uncommitted**; the plan exceeding the income →
+no uncommitted slice and a red "Budget exceeds income by X". Each line is single-currency (EXPENSES-1), so
+the endpoint converts them at the same resolved rate — the shared `Core` `BudgetTotals` (now also behind
+the dashboard's budget column) — and returns `budget_total` (`{crc, usd}`), null exactly when `income`
+is. The three donut cards share one row (a third each) in month mode; in range mode only "Spend by
+class" remains, at full width.
+
+```gherkin
+Scenario: Chart view draws the same rows
+  Given the July report is on screen as tables
+  When I click View → Chart
+  Then the budgeted class shows one bar per category, largest first, with a budget track where the line is ₡-budgeted
+  And an over-budget actual is red, the total is printed under the chart, and a donut splits the spend by class
+  When I click $ → the bars, totals and donut are in dollars, and only $-budgeted lines keep a track
+  When I reload → the view and currency are as I left them (this device only)
+
+Scenario: Income vs spend
+  Given July's income is ₡200,000 and ₡99,704.87 was spent
+  When I view July as charts
+  Then an "Income vs spend" donut shows the three class slices plus Remaining ₡100,295 with ₡200,000 in the hole
+  When the month's spend exceeds its income → the Remaining slice is gone and "Over income by ₡…" is shown in red
+  When no exchange rate can be resolved → the card says income needs today's rate; the spend donut still draws
+  When I switch to a date range → there is no income card (income is per month)
+
+Scenario: Income vs budget
+  Given July's income is ₡200,000 and the active lines add up to ₡150,000
+  When I view July as charts
+  Then an "Income vs budget" donut shows Budget lines ₡150,000 and Uncommitted ₡50,000 with ₡200,000 in the hole
+  When the lines add up to more than the income → the Uncommitted slice is gone and "Budget exceeds income by ₡…" is shown in red
+  And a $-budgeted line counts at today's rate, so the plan is one number in either currency
+```
+
+---
+
+### REPORTS-4 — Pace, month by month, and where the money leaves from *(owner request, 2026-09-05)* ✅
+
+**As a** household member
+**I want** to see whether this month is on pace, how the months compare, and which banks and payment
+methods the money leaves through
+**So that** the report answers "am I ahead or behind", "am I getting better" and "card or account"
+at a glance, not only "how much"
+
+**Context / notes:** three more chart cards, same inline-SVG family, same ₡/$ switch.
+- **Pace** (month mode): `LineChart` — cumulative spend as a step line through the days that had spend
+  (`spend_by_day` on the analysis response, single month only), the straight **plan** line from zero to
+  `budget_total` at the last day, a dashed **today** marker clamped to the window, red once the running
+  total passes the plan. Caption "{elapsed}% of the month elapsed · {spent}% of the plan spent". No
+  rate → the actual line still draws, no plan, and the card says why.
+- **Month by month** (month mode): new `GET /api/reports/months-trend?count=` (1–36, default 12) —
+  the household's last months by anchor date, oldest first, each with `spend` (the three expense
+  classes, frozen amounts) and `income` (the shared `IncomeCalculator` at today's rate; null when no
+  rate — `rate_available` says so). Drawn with the existing `BarChart`: spend on an **income track**,
+  red when a month overspent, legend relabelled Income / Spend / "Spent more than the income"
+  (`ActualLabel`/`BudgetLabel`/`OverLabel` parameters). The gap on each bar is that month's remaining.
+  Loaded only when Chart view is on. Pure `MonthTrendCalculator` in Core.
+- **Spend by bank** and **Card vs account** (any period): `by_bank` (largest first, all-states names;
+  a nameless bank reads "Unknown bank") and `by_method` (card, then account — fixed order so the colours
+  stay put) on the analysis response, from the same `CategoryAnalysisCalculator`. Two donuts under the
+  others; they follow a date range too, since they need no rate.
+
+```gherkin
+Scenario: Pace
+  Given July runs Jun 25 – Jul 29 with a ₡150,000 plan and spend on Jun 26, Jul 3 and Jul 20
+  When I view July as charts on Jul 15
+  Then the pace card shows three points on a step line, the plan line, a today marker at day 21
+  And the caption reads "60% of the month elapsed · 66% of the plan spent"
+  When today is after the month → "100% of the month elapsed"; when no rate → no plan line and the card says so
+
+Scenario: Month by month
+  Given May overspent (₡250,000 of ₡200,000) and June and July did not
+  When I view charts
+  Then "Month by month" has one bar per month, oldest first, spend on an income track, May in red
+  And with no rate the bars show spend only and the card says so
+
+Scenario: Where the money leaves from
+  Given July's spend was BAC ₡90,000 and a bank with no name ₡9,704.87, card ₡80,000 and account ₡19,704.87
+  When I view charts (month or date range)
+  Then "Spend by bank" lists BAC then Unknown bank, and "Card vs account" lists Credit card then Bank account
+```
+
+### REPORTS-5 — Budgeted vs spent by payment method *(owner question, 2026-09-08)* ✅
+
+**As a** household member
+**I want** to see how much of the month's plan is meant to be paid by credit card and how much from the
+bank account, against what actually left each way
+**So that** I know what the card statement and the account should absorb before the month ends
+
+**Context / notes:** two homes. On the **dashboard**, the bank × method table is grouped by payment method
+(card first) with a **subtotal row per method** and a grand total — no API change, the summary already
+carries every cell. In **Reports** chart view, "Budgeted vs spent, by payment method" sits under the
+Card vs account donut: one bar pair per method, the spend (frozen amounts) against the plan cut the same
+way (each line's own payment method, converted at today's rate like every budget figure — ADR-V019).
+Single month with a rate only; a date range has no plan. API: `budget_by_method[]` on the analysis
+(`BudgetTotals.PlannedByMethod`).
+
+```gherkin
+Scenario: The plan cut by payment method
+  Given June has a ₡60,000 Supermarket line paid by card and ₡8,000 spent on it by card
+  When I open Reports chart view for June
+  Then "Budgeted vs spent, by payment method" shows Credit card ₡8,000 against ₡60,000 and no Bank account bar
+  And GET /api/reports/category-analysis?month_id=… carries budget_by_method = [{ credit_card, 60000, 120 }]
+  When I switch to a date range
+  Then the bars are gone (budget_by_method is null) while the Card vs account donut stays
+```
+
+### REPORTS-6 — Spend by card *(CARDS-2, owner request 2026-09-08)* ✅
+
+**As** a household member, **I want** the period's spend cut by the card that paid, **so that** I can see how much went
+through each card, renewals included (a merged card keeps its history — CARDS-1).
+
+**Context / notes:** the same expense rows as the bank donuts (frozen amounts, any period), grouped by `card_id` through
+Core `CardSpend.Calculate` — largest first, the "no card" bucket last, all-states names. API: `by_card[]` on the analysis
+(`{ key: card id | "none", label, total_crc, total_usd }`). Chart view: **Spend by card** is a donut beside **Spend by
+bank** — both answer "which source", so they share a shape — and **Card vs account**, the taller card, sits below them
+across the full width with its donut and the budgeted-vs-spent bars side by side. Shown once a card has been used. The dashboard's **By card** table is the one-month
+twin (`summary.by_card[]` with a count per card).
+
+```gherkin
+Scenario: Spend by card
+  Given June has ₡8,000 on Allan's Visa and ₡2,000 with no card
+  When I open Reports chart view for June
+  Then "Spend by card" shows Allan's Visa ₡8,000 then No card ₡2,000
+  And GET /api/reports/category-analysis?month_id=… carries by_card = [{ <visa id>, "Allan's Visa", 8000, … }, { "none", "", 2000, … }]
+  And the dashboard's "By card" table lists the same two rows with their transaction counts and a Total
+```
+
+### REPORTS-7 — Generate a PDF report *(owner request, 2026-09-16)*
+
+**As a** household member
+**I want** a branded PDF of the report I am looking at — its figures, charts and tables, and the period's transactions
+**So that** I can keep, print or share the month without opening the app
+
+**Context / notes:** plan `docs/REPORTS_PDF_INCOME_PLAN.md`; decision record **ADR-V022**.
+- **Engine:** QuestPDF (Community licence), rendered server-side by the API; Nunito (OFL, static 400/600/700 cut from
+  the Google Fonts variable face) embedded, so the file looks the same wherever it is opened. Nunito carries ₡, so money
+  reads `₡1.500,00` (the owner's "CRC" fallback was not needed).
+- **API:** `POST /api/reports/pdf` with a JSON body — the period (`month_id` **or** `from` + `to`, the shared rule and
+  codes above), `display` (`CRC` | `USD` | `both`, default `both`), `chart_currency` (`CRC` | `USD`, default `CRC`),
+  `include_appendix` (default true), `language` (`en` | `es`, default: the language saved in the account settings — REPORTS-8) and `today` (the device date for the pace
+  marker; default the server's UTC date). An unknown value → 400 `invalid_request`. The PDF is stored through
+  `IFileStorage` behind the same 15-minute signed link as the CSV and delivered by `IFileDownloadLauncher`; the response
+  is `{ download_url, file_name, period, expires_in_seconds }` (the CSV export's shape without a row count), `file_name` =
+  `report-<from>_<to>.pdf`.
+- **Same numbers as the screen:** the document is built from the category-analysis result, the months trend and the
+  month's pending refunds — the very figures the Reports page shows — by a pure `ReportPdfModelBuilder` (tested without
+  QuestPDF). No rate → the income, budget and plan pieces are left out and the PDF says why, exactly like the page.
+- **Content, in order:** header (logo, household, period, generated-at, the buy/sell pair used); the four KPI tiles; pace
+  (month mode); spend by class; income vs spend and income vs budget (month mode, with a rate); month by month (month
+  mode); by bank; by card (once a card was used); card vs account with the budgeted-vs-spent bars; the category table per
+  class (budget and actual for the budgeted class of a month, red over / green under in the line's own currency); and the
+  **transaction appendix** on landscape pages — exactly the CSV export's rows for the period (same order, every column),
+  with localized class, method and source labels.
+- **Charts:** drawn as SVG by the PDF's own builders (`PdfCharts`) with the web charts' geometry and the light theme's
+  literal colours — the web components stay untouched (the UI library does not reference Core; ADR-V022 records why).
+- **UI:** a **PDF** button beside **Export CSV** opens a small dialog — "Include the transactions" (checked), the currency
+  and language it will use, and **Download**. (REPORTS-8 adds **Email me** to the same dialog.)
+
+```gherkin
+Scenario: Download the month as a PDF
+  Given June has a ₡60,000 Supermarket line and ₡15,750 of discretionary spend at BAC
+  When I press PDF on Reports for June and choose Download
+  Then POST /api/reports/pdf { month_id: June } answers 200 with a signed download_url and file_name "report-2026-05-28_2026-06-24.pdf"
+  And the downloaded file is a PDF whose text contains the household name, the period, "Discretionary", the category name and "₡15.750,00" in Spanish or "₡15,750.00" in English
+  And its appendix lists the same rows the CSV export lists for June
+
+Scenario: The PDF follows the screen
+  Given "Show in" is $ and the chart currency is $
+  When I download the PDF
+  Then the tiles, tables and appendix show dollars only, and the charts are drawn in dollars
+
+Scenario: Without the transactions
+  When I untick "Include the transactions" and download
+  Then the PDF has no appendix pages
+
+Scenario: No rate today
+  Given no exchange rate can be resolved
+  When I download June's PDF
+  Then it has the spend figures and tables, no income or budget donuts and no plan line, and it says the rate is unavailable
+
+Scenario: A date range
+  When I download the PDF for 2026-06-01 to 2026-06-30
+  Then it has no pace, income, budget or month-by-month pieces, and the category tables show spend only
+
+Scenario: Guard rails
+  When I ask with display "EUR" → 400 invalid_request
+  When I ask with both month_id and from/to → 400 period_ambiguous
+  When I ask for another household's month → 404
+  When I am not signed in → 401
+```
+
+### REPORTS-8 — Email me this report *(owner request, 2026-09-16)*
+
+**As a** household member
+**I want** the PDF I just configured sent to my own inbox
+**So that** the month's report sits in my mail with everything else I keep
+
+**Context / notes:** plan `docs/REPORTS_PDF_INCOME_PLAN.md` (A1–A3, A9); ADR-V022 (amended). Needs the platform's
+attachment seam (JOBS-4, perezosoft-platform #235), synced in this slice.
+- **API:** `POST /api/reports/pdf/email` — the REPORTS-7 body and rules (period, `display`, `chart_currency`,
+  `include_appendix`, `today`; same 400/404 codes). It renders the same PDF and queues **one** email through the
+  outbox to the **caller's own address** — no recipient field, so it can't be pointed at anyone else — with the PDF
+  attached (`report-<from>_<to>.pdf`, `application/pdf`) and a short branded body in the account's language: the
+  period, the household and the total spend. Answers **202** `{ sent_to, file_name, period }`. A file over the
+  10 MiB attachment limit → 400 `report_too_large` (drop the transactions and try again).
+- **Language (both endpoints, owner question):** the PDF and the email follow the **language saved in the account's
+  settings** (`User.Locale`; `es` → Spanish, anything else → English). An explicit `language` in the body still wins
+  (API callers); the app no longer sends one.
+- **Cap (A9):** at most **10 report emails per person per day** (fixed window, per user; 429 past it) so a loop can't
+  drain the free email quota. In-memory — a restart resets the count, which is acceptable for its purpose.
+- **UI:** the PDF dialog gains **Email me** beside Download; success says "Sent to {address}" and closes the dialog;
+  a 429 says the daily limit was reached; any other failure keeps the dialog open with an error.
+
+```gherkin
+Scenario: Email me the month
+  Given I am signed in as ana@example.com with Spanish saved in my settings
+  When I open the PDF dialog on Reports for June and press "Email me"
+  Then POST /api/reports/pdf/email answers 202 { sent_to: "ana@example.com", file_name: "report-2026-05-28_2026-06-24.pdf" }
+  And one email is queued to ana@example.com in Spanish, with that PDF attached, naming the period, the household and the total spend
+  And the page says "Enviado a ana@example.com"
+
+Scenario: The account's language, not the device's
+  Given my settings say Spanish
+  When I call POST /api/reports/pdf without a language
+  Then the PDF is in Spanish
+  When I call it with language "en"
+  Then the PDF is in English
+
+Scenario: The daily cap
+  Given I have emailed myself 10 reports today
+  When I press "Email me" again
+  Then the API answers 429 and the dialog says the daily limit was reached
+
+Scenario: Guard rails
+  When I am not signed in → 401
+  When I name another household's month → 404, and nothing is queued
+  When I send display "EUR" → 400 invalid_request, and nothing is queued
+```
+
+*Extended by INCOME-2 (2026-09-16, `docs/stories/income.md`):* for a single month with a rate the category analysis also returns `income_by_member` (the month's income cut by member, household, former members and inflows); the PDF prints it as an "Income by member" table (no chart — owner, 2026-09-17).
+
+### REPORTS-9 — Choose the transaction columns in the PDF *(owner request, 2026-09-17)*
+
+**As a** household member
+**I want** to pick which columns the PDF's transactions table prints
+**So that** I can get a leaner appendix when I don't need every detail
+
+**Context / notes:** ADR-V022 (amended).
+- **API:** both PDF endpoints accept `appendix_columns` — any of `category`, `class`, `amount`, `rate`, `method`,
+  `bank`, `source`, `card`, `notes`, in any order and case; the appendix prints them in its usual order. **Date and
+  payee always print** (a row means nothing without them; sending them is allowed and changes nothing). Absent, or
+  every column named, is the full appendix as before. An unknown key → 400 `invalid_request` naming it. `amount` is
+  the "show in" side(s), as before.
+- **UI:** under "Include the transactions" the dialog lists the nine columns as checkboxes, **all ticked each time it
+  opens**, with "Date and payee always print"; unticking the transactions hides the list and sends no columns. Download
+  and Email me send the same choice.
+
+```gherkin
+Scenario: A leaner appendix
+  Given the PDF dialog is open with "Include the transactions" ticked
+  Then all nine columns are ticked
+  When I untick Exchange rate, Source, Card and Class and download
+  Then the appendix prints Date, Payee, Category, the amounts, Payment method, Bank and Notes, in that order
+
+Scenario: The API's rules
+  When I send appendix_columns ["notes", "AMOUNT"]
+  Then the appendix prints Date, Payee, the amounts and Notes
+  When I send appendix_columns []
+  Then it prints Date and Payee only
+  When I send appendix_columns ["tip"]
+  Then I receive 400 invalid_request naming "tip", and nothing is rendered
+```

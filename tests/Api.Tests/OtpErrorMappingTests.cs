@@ -1,6 +1,6 @@
-using Perezosoft.Api.Services;
+using Vuelto.Api.Services;
 
-namespace Perezosoft.Api.Tests;
+namespace Vuelto.Api.Tests;
 
 /// <summary>
 /// The OTP verify endpoint must not leak whether an email has an OUTSTANDING code: a junk-code

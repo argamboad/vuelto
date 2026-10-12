@@ -3,11 +3,11 @@ using Bunit;
 using Bunit.TestDoubles;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
-using Perezosoft.Shared.Ui.Layout;
-using Perezosoft.Ui.Tests.Infrastructure;
+using Vuelto.Shared.Ui.Layout;
+using Vuelto.Ui.Tests.Infrastructure;
 using Xunit;
 
-namespace Perezosoft.Ui.Tests;
+namespace Vuelto.Ui.Tests;
 
 /// <summary>
 /// v3 audit UX-2 (T39): the locale-mismatch reload must not loop. When the culture store is readable but

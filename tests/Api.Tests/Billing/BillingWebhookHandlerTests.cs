@@ -1,17 +1,17 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
-using Perezosoft.Api.Services;
-using Perezosoft.Api.Tests.Infrastructure;
-using Perezosoft.Core.Abstractions;
-using Perezosoft.Core.Billing;
-using Perezosoft.Core.Entities;
-using Perezosoft.Infrastructure.Billing;
-using Perezosoft.Infrastructure.Inbox;
-using Perezosoft.Infrastructure.Persistence;
-using Perezosoft.Infrastructure.Repositories;
+using Vuelto.Api.Services;
+using Vuelto.Api.Tests.Infrastructure;
+using Vuelto.Core.Abstractions;
+using Vuelto.Core.Billing;
+using Vuelto.Core.Entities;
+using Vuelto.Infrastructure.Billing;
+using Vuelto.Infrastructure.Inbox;
+using Vuelto.Infrastructure.Persistence;
+using Vuelto.Infrastructure.Repositories;
 
-namespace Perezosoft.Api.Tests.Billing;
+namespace Vuelto.Api.Tests.Billing;
 
 /// <summary>
 /// Drives BILLING-3 (ADR-006): the webhook is what actually grants access. Verifies signature
@@ -25,7 +25,7 @@ public class BillingWebhookHandlerTests(PostgresFixture fixture) : PostgresTestB
     [Fact]
     public async Task SubscriptionActivated_FlipsTenantToActivePlan()
     {
-        var tenant = Guid.CreateVersion7();
+        var tenant = await NewTenantAsync();
 
         Assert.Equal(WebhookResult.Applied, await HandleAsync(Event(tenant, SubscriptionStatus.Active)));
 
@@ -39,7 +39,7 @@ public class BillingWebhookHandlerTests(PostgresFixture fixture) : PostgresTestB
     [Fact]
     public async Task DuplicateEvent_IsIdempotent_NoDoubleApply()
     {
-        var tenant = Guid.CreateVersion7();
+        var tenant = await NewTenantAsync();
         var evt = Event(tenant, SubscriptionStatus.Active);
 
         Assert.Equal(WebhookResult.Applied, await HandleAsync(evt));
@@ -52,7 +52,7 @@ public class BillingWebhookHandlerTests(PostgresFixture fixture) : PostgresTestB
     [Fact]
     public async Task InvalidSignature_IsRejected_NothingApplied()
     {
-        var tenant = Guid.CreateVersion7();
+        var tenant = await NewTenantAsync();
 
         Assert.Equal(WebhookResult.InvalidSignature, await HandleAsync(Event(tenant, SubscriptionStatus.Active), signature: "bad"));
 
@@ -63,7 +63,7 @@ public class BillingWebhookHandlerTests(PostgresFixture fixture) : PostgresTestB
     [Fact]
     public async Task CanceledSubscription_FailsClosedToFree()
     {
-        var tenant = Guid.CreateVersion7();
+        var tenant = await NewTenantAsync();
         await HandleAsync(Event(tenant, SubscriptionStatus.Active, eventId: "evt_1"));
         Assert.True(await EntitledAsync(tenant));
 
@@ -80,7 +80,7 @@ public class BillingWebhookHandlerTests(PostgresFixture fixture) : PostgresTestB
         // and re-establish provider linkage. From that point the staff comp/revert endpoints 409 again
         // (proven by Staff_CompOrRevert_ProviderManagedSubscription_Returns409) — Stripe is the source
         // of truth for real money, and a past comp must not leave a backdoor around it.
-        var tenant = Guid.CreateVersion7();
+        var tenant = await NewTenantAsync();
         await using (var seed = Fixture.CreateContext(tenant))
         {
             seed.Set<Subscription>().Add(new Subscription
@@ -103,9 +103,50 @@ public class BillingWebhookHandlerTests(PostgresFixture fixture) : PostgresTestB
     }
 
     [Fact]
+    public async Task Webhook_ForUnknownTenant_IsIgnored_ClaimedButNothingWritten()
+    {
+        // v4 T24 (LB-BILL-23, R129): a signed event names a tenant id, and the handler entered it unchecked. A
+        // dissolved household's Stripe subscription still emits customer.subscription.deleted (billing.cancel is
+        // queued at dissolve), so the event re-created a Subscription row — Stripe ids and all — for a tenant that
+        // no longer exists: no FK blocks it, RLS allows it (the handler entered that tenant), and no dissolve will
+        // ever run for it again, so the ids stayed forever outside export and erasure. Now: warn, claim, write nothing.
+        var gone = Guid.CreateVersion7(); // never seeded — the shape a dissolved tenant leaves behind
+
+        Assert.Equal(WebhookResult.Ignored, await HandleAsync(Event(gone, SubscriptionStatus.Canceled, eventId: "evt_gone")));
+
+        await using var read = Fixture.CreateContext();
+        Assert.Empty(await read.Set<Subscription>().IgnoreQueryFilters().Where(s => s.TenantId == gone).ToListAsync());
+        // The claim committed: the provider's redelivery is a Duplicate, not a second warning.
+        Assert.Equal(WebhookResult.Duplicate, await HandleAsync(Event(gone, SubscriptionStatus.Canceled, eventId: "evt_gone")));
+    }
+
+    [Fact]
+    public async Task SignedFixture_WithAnUnmappedPrice_CreatesNoProjection() // v4 T46, through the real Stripe parser
+    {
+        var tenant = await NewTenantAsync();
+        var (payload, signature) = StripeBillingProviderTests.SignedSubscriptionEventFor(tenant, priceId: "price_not_configured");
+        var provider = new Vuelto.Infrastructure.Billing.StripeBillingProvider(Microsoft.Extensions.Options.Options.Create(
+            new Vuelto.Infrastructure.Billing.StripeSettings
+            {
+                WebhookSecret = StripeBillingProviderTests.FixtureSecret,
+                Prices = new Dictionary<string, string> { [PlanKeys.Pro] = "price_pro" },
+            }));
+
+        var current = new HttpCurrentTenant(new HttpContextAccessor());
+        await using var db = NewContext(current);
+        var handler = new BillingWebhookHandler(provider, new EfInbox(db, TimeProvider.System), new EfRepository<Subscription>(db),
+            new TenantRepository(db), current, new EfUnitOfWork(db), BuildNotifier(db), TimeProvider.System);
+
+        Assert.Equal(WebhookResult.Ignored, await handler.HandleAsync(payload, signature, default));
+
+        await using var read = Fixture.CreateContext(tenant);
+        Assert.Empty(await read.Set<Subscription>().ToListAsync()); // acknowledged, nothing applied — no "active Free" row
+    }
+
+    [Fact]
     public async Task Applied_OnlyVisibleToItsOwnTenant()
     {
-        var tenant = Guid.CreateVersion7();
+        var tenant = await NewTenantAsync();
         await HandleAsync(Event(tenant, SubscriptionStatus.Active));
 
         await using var other = Fixture.CreateContext(Guid.CreateVersion7());
@@ -124,7 +165,7 @@ public class BillingWebhookHandlerTests(PostgresFixture fixture) : PostgresTestB
         await HandleAsync(Event(tenant, SubscriptionStatus.PastDue, eventId: "evt_b"));
 
         await using var read = Fixture.CreateContext(tenant);
-        var notes = await read.Set<Notification>().Where(n => n.UserId == ownerId).ToListAsync();
+        var notes = await read.Set<Notification>().Where(n => n.UserId == ownerId && n.Kind != BillingNotifications.ActivatedKind).ToListAsync();
         var note = Assert.Single(notes);
         Assert.Equal(BillingNotifications.PastDueKind, note.Kind);
     }
@@ -143,7 +184,7 @@ public class BillingWebhookHandlerTests(PostgresFixture fixture) : PostgresTestB
         await HandleAsync(Event(tenant, status, eventId: "evt_cold"));
 
         await using var read = Fixture.CreateContext(tenant);
-        Assert.Empty(await read.Set<Notification>().Where(n => n.UserId == ownerId).ToListAsync());
+        Assert.Empty(await read.Set<Notification>().Where(n => n.UserId == ownerId && n.Kind != BillingNotifications.ActivatedKind).ToListAsync());
     }
 
     [Fact]
@@ -158,7 +199,7 @@ public class BillingWebhookHandlerTests(PostgresFixture fixture) : PostgresTestB
         await HandleAsync(Event(tenant, SubscriptionStatus.Canceled, eventId: "evt_b"));
 
         await using var read = Fixture.CreateContext(tenant);
-        var note = Assert.Single(await read.Set<Notification>().Where(n => n.UserId == ownerId).ToListAsync());
+        var note = Assert.Single(await read.Set<Notification>().Where(n => n.UserId == ownerId && n.Kind != BillingNotifications.ActivatedKind).ToListAsync());
         Assert.Equal(BillingNotifications.CanceledKind, note.Kind);
     }
 
@@ -172,7 +213,53 @@ public class BillingWebhookHandlerTests(PostgresFixture fixture) : PostgresTestB
         await HandleAsync(Event(tenant, SubscriptionStatus.Active, eventId: "evt_b")); // still active
 
         await using var read = Fixture.CreateContext(tenant);
-        Assert.Empty(await read.Set<Notification>().Where(n => n.UserId == ownerId).ToListAsync());
+        Assert.Empty(await read.Set<Notification>().Where(n => n.UserId == ownerId && n.Kind != BillingNotifications.ActivatedKind).ToListAsync());
+    }
+
+    // --- activation notice: the mirror image of dunning ---
+
+    [Fact]
+    public async Task SubscriptionActivated_NotifiesOwnerOnce_WithPlanAndRenewal()
+    {
+        var tenant = Guid.CreateVersion7();
+        var ownerId = await SeedOwnerAsync(tenant);
+
+        await HandleAsync(Event(tenant, SubscriptionStatus.Active, eventId: "evt_a"));
+        await HandleAsync(Event(tenant, SubscriptionStatus.Active, eventId: "evt_b")); // a renewal is not news
+
+        await using var read = Fixture.CreateContext(tenant);
+        var note = Assert.Single(await read.Set<Notification>().Where(n => n.UserId == ownerId).ToListAsync());
+        Assert.Equal(BillingNotifications.ActivatedKind, note.Kind);
+        Assert.Contains("Pro plan is active", note.Body);
+        Assert.Contains("renews on", note.Body);
+    }
+
+    [Fact]
+    public async Task Resubscribe_AfterCancel_NotifiesActivationAgain()
+    {
+        var tenant = Guid.CreateVersion7();
+        var ownerId = await SeedOwnerAsync(tenant);
+
+        await HandleAsync(Event(tenant, SubscriptionStatus.Active, eventId: "evt_a"));
+        await HandleAsync(Event(tenant, SubscriptionStatus.Canceled, eventId: "evt_b"));
+        await HandleAsync(Event(tenant, SubscriptionStatus.Active, eventId: "evt_c"));
+
+        await using var read = Fixture.CreateContext(tenant);
+        var kinds = (await read.Set<Notification>().Where(n => n.UserId == ownerId).OrderBy(n => n.CreatedAt).ToListAsync()).Select(n => n.Kind).ToList();
+        Assert.Equal([BillingNotifications.ActivatedKind, BillingNotifications.CanceledKind, BillingNotifications.ActivatedKind], kinds);
+    }
+
+    [Fact]
+    public async Task TrialConvertingToActive_IsNotAnnouncedTwice()
+    {
+        var tenant = Guid.CreateVersion7();
+        var ownerId = await SeedOwnerAsync(tenant);
+
+        await HandleAsync(Event(tenant, SubscriptionStatus.Trialing, eventId: "evt_a")); // the trial is the activation
+        await HandleAsync(Event(tenant, SubscriptionStatus.Active, eventId: "evt_b"));
+
+        await using var read = Fixture.CreateContext(tenant);
+        Assert.Single(await read.Set<Notification>().Where(n => n.UserId == ownerId).ToListAsync());
     }
 
     // --- recency guard (v2 audit LOGIC-B1): out-of-order/redelivered events must not regress state ---
@@ -180,7 +267,7 @@ public class BillingWebhookHandlerTests(PostgresFixture fixture) : PostgresTestB
     [Fact]
     public async Task StaleOutOfOrderEvent_DoesNotClobberNewerStatus()
     {
-        var tenant = Guid.CreateVersion7();
+        var tenant = await NewTenantAsync();
         var older = EventEpoch.AddMinutes(10);
         var newer = EventEpoch.AddMinutes(20);
 
@@ -202,7 +289,7 @@ public class BillingWebhookHandlerTests(PostgresFixture fixture) : PostgresTestB
         // v3 LB-BILL-1: Stripe's Created is whole-second, so two DISTINCT events in the same second must
         // both apply — the recency guard rejects only STRICTLY older (<), not <=. Exact redelivery is caught
         // by the inbox (by EventId), so this can't double-apply the same event.
-        var tenant = Guid.CreateVersion7();
+        var tenant = await NewTenantAsync();
         var sameInstant = EventEpoch.AddMinutes(10);
 
         Assert.Equal(WebhookResult.Applied, await HandleAsync(Event(tenant, SubscriptionStatus.Trialing, "evt_created", sameInstant)));
@@ -228,7 +315,7 @@ public class BillingWebhookHandlerTests(PostgresFixture fixture) : PostgresTestB
         await HandleAsync(Event(tenant, SubscriptionStatus.PastDue, "evt_stale", t1));
 
         await using var read = Fixture.CreateContext(tenant);
-        Assert.Single(await read.Set<Notification>().Where(n => n.UserId == ownerId).ToListAsync());
+        Assert.Single(await read.Set<Notification>().Where(n => n.UserId == ownerId && n.Kind != BillingNotifications.ActivatedKind).ToListAsync());
     }
 
     // --- helpers ---
@@ -254,6 +341,7 @@ public class BillingWebhookHandlerTests(PostgresFixture fixture) : PostgresTestB
             new FakeBillingProvider(),
             new EfInbox(db, TimeProvider.System),
             new EfRepository<Subscription>(db),
+            new TenantRepository(db),
             current,
             new EfUnitOfWork(db),
             BuildNotifier(db),
@@ -268,6 +356,16 @@ public class BillingWebhookHandlerTests(PostgresFixture fixture) : PostgresTestB
             new NotificationService(
                 new EfRepository<Notification>(db), new EfRepository<NotificationPreference>(db),
                 new UserRepository(db), new NoopEmailSender(), TimeProvider.System));
+
+    /// <summary>A tenant that exists — the handler refuses to write for one that doesn't (v4 T24).</summary>
+    private async Task<Guid> NewTenantAsync()
+    {
+        var tenant = Guid.CreateVersion7();
+        await using var db = Fixture.CreateContext(tenant);
+        db.Set<Tenant>().Add(new Tenant { Id = tenant, Name = "T", CreatedAt = DateTimeOffset.UtcNow });
+        await db.SaveChangesAsync();
+        return tenant;
+    }
 
     private async Task<Guid> SeedOwnerAsync(Guid tenant)
     {

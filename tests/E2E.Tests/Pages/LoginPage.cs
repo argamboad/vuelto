@@ -1,6 +1,6 @@
 using Microsoft.Playwright;
 
-namespace Perezosoft.E2E.Tests.Pages;
+namespace Vuelto.E2E.Tests.Pages;
 
 /// <summary>Page object for the login screen (selectors via stable data-testid hooks).</summary>
 public class LoginPage(IPage page) : BasePage(page)

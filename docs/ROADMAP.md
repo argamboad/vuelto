@@ -122,7 +122,8 @@ bring-up + a `docs/DEPLOYMENT.md` runbook; **DEPLOY-3** the deploy pipeline (dev
 with a post-deploy smoke gate; main → prod behind environment approval) + a staging section in the QA
 plan. Free-tier trade-offs are recorded decisions, not surprises (instance sleep pauses the outbox —
 staging-acceptable, never prod; real SMTP means email QA cases stay manual on staging).
-**DEPLOY is now ✅ COMPLETE** (all three slices; staging live + auto-deploy with a version-gated smoke).
+**DEPLOY is now ✅ COMPLETE** (all three slices; staging live + a CI deploy with a version-gated smoke — auto on
+GitHub then, a Forgejo `deploy=staging` dispatch since ADR-028).
 
 ## NATIVE — full MAUI parity (planned 2026-07-02) → ✅ COMPLETE (2026-07-14)
 

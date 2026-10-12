@@ -1,9 +1,9 @@
 using Microsoft.EntityFrameworkCore;
-using Perezosoft.Api.Tests.Infrastructure;
-using Perezosoft.Core.Entities;
-using Perezosoft.Infrastructure.Repositories;
+using Vuelto.Api.Tests.Infrastructure;
+using Vuelto.Core.Entities;
+using Vuelto.Infrastructure.Repositories;
 
-namespace Perezosoft.Api.Tests;
+namespace Vuelto.Api.Tests;
 
 /// <summary>
 /// <see cref="TenantRepository.WipeDataAsync"/> must target exactly the argument tenant

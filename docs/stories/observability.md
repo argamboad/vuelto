@@ -38,7 +38,10 @@ new dependency; Serilog/OTel-logs is a documented swap-in). Tests `tests/Api.Tes
 **Context / notes:** every log scope carries `tenant_id` (from the JWT `tenant_id` claim, via
 [`HttpCurrentTenant`](../../src/Api/Services/HttpCurrentTenant.cs)) and `user_id`. Enrichment comes
 from middleware that opens a logging scope per request. **No secrets/PII** beyond identifiers in log
-state (never tokens, never card data).
+state (never tokens, never card data, never an email address — log `{UserId}`; with `ParseStateValues`
+every placeholder is exported, and staging ships logs to a third-party store). The email half is held by
+`EnforcementGateTests.LogTemplates_NeverCarryAnEmailAddress` (v4 audit OBS-1, 2026-09-25); until then nine
+templates, one on every JWT issue, exported the user's email.
 
 **Acceptance criteria**
 
@@ -74,7 +77,22 @@ instrumentation). Request spans tagged with `tenant_id`/`user_id` via the AspNet
 **Exporter is config-gated:** OTLP when `OpenTelemetry:Otlp:Endpoint` is set; otherwise **nothing is
 exported** (clean dev console; spans still produced) unless `OpenTelemetry:ConsoleExporter=true`. Tests
 `tests/Api.Tests/Observability/TelemetryEnrichmentTests.cs` (span tags authed/anon). Packages:
-`OpenTelemetry.Extensions.Hosting` + AspNetCore/Http instrumentation + OTLP/Console exporters.
+`OpenTelemetry.Extensions.Hosting` + AspNetCore/Http/**Runtime** instrumentation + OTLP/Console exporters.
+Since v4 (T6/T42) the same wiring exports **logs** too and adds the runtime and Npgsql-pool meters; over
+`http/protobuf` the per-signal paths `/v1/traces`, `/v1/metrics` and `/v1/logs` are appended to the base
+endpoint, and `OtlpCollectorProbe` warns once when the collector cannot be reached. Drawn in
+`ARCHITECTURE.md` §11.
+
+**Fix (2026-09-05) — per-signal paths over `http/protobuf`.** The endpoint is the collector's **base**
+URL. The SDK appends `/v1/{signal}` only when the endpoint comes from its own
+`OTEL_EXPORTER_OTLP_ENDPOINT`; an endpoint set in code (our config gate) is used verbatim, so with
+`OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf` — what Grafana Cloud and most managed gateways require — a
+base URL received every signal at the bare path, the gateway answered 404 and the exporter dropped
+everything silently (found during this app's staging Grafana Cloud bring-up; platform PR #208, synced). `OtlpEndpoints.ForSignal`
+(`src/Api/Observability/`) now appends `/v1/traces` / `/v1/metrics` when that protocol is selected,
+honours a URL that already ends in `/v1/<signal>`, and leaves gRPC untouched
+(`tests/Api.Tests/Observability/OtlpEndpointsTests.cs`). `.env.example` documents the two SDK variables
+(`OTEL_EXPORTER_OTLP_PROTOCOL`, `OTEL_EXPORTER_OTLP_HEADERS`) next to the endpoint key.
 
 **As an** operator
 **I want** distributed traces and runtime metrics exported via OTLP

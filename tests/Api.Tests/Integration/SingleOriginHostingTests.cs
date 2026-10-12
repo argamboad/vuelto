@@ -2,9 +2,9 @@ using System.Net;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
-using Perezosoft.Api.Tests.Infrastructure;
+using Vuelto.Api.Tests.Infrastructure;
 
-namespace Perezosoft.Api.Tests.Integration;
+namespace Vuelto.Api.Tests.Integration;
 
 /// <summary>
 /// DEPLOY-1 (ADR-017): proves single-origin hosting against the REAL app routing. When enabled, the API

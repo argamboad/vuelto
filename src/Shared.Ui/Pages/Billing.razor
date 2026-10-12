@@ -1,4 +1,6 @@
 @page "/billing"
+@page "/billing/success"
+@page "/billing/cancel"
 @using System.Net.Http.Json
 @using System.Text.Json.Serialization
 @implements IDisposable
@@ -6,17 +8,27 @@
 @inject HttpClient Http
 @inject NavigationManager Nav
 @inject AppResumeNotifier Resume
+@inject TimeProvider Time
 @inject IStringLocalizer<AppStrings> Localizer
 
 <PageTitle>@Localizer["Billing_Title"]</PageTitle>
 
 <div class="billing-wrapper">
-    <h1 class="h4 fw-bold mb-1">@Localizer["Billing_Title"]</h1>
-    <p class="text-muted mb-4">@Localizer["Billing_Subtitle"]</p>
+    <PageHead Title="@Localizer["Billing_Title"]" Subtitle="@Localizer["Billing_Subtitle"]" />
 
     @if (!string.IsNullOrEmpty(_error))
     {
         <div class="alert alert-danger py-2" data-testid="billing-error">@_error</div>
+    }
+
+    @* The hosted checkout returns the user to /billing/success or /billing/cancel — this page, with a word about what happened. *@
+    @if (_checkout == "success")
+    {
+        <div class="alert alert-success py-2" data-testid="billing-checkout-success">@Localizer["Billing_CheckoutSuccess"]</div>
+    }
+    else if (_checkout == "cancel")
+    {
+        <div class="alert alert-secondary py-2" data-testid="billing-checkout-cancel">@Localizer["Billing_CheckoutCancelled"]</div>
     }
 
     @if (_loading)
@@ -39,11 +51,19 @@
                         <h2 class="h6 fw-bold mb-1">@Localizer["Billing_CurrentPlan"]</h2>
                         <div class="h5 mb-0 text-capitalize" data-testid="billing-plan">@Label($"Plan_{_summary.PlanKey}", _summary.PlanKey)</div>
                     </div>
-                    <span class="badge bg-info-subtle text-info-emphasis" data-testid="billing-status">@Label($"BillingStatus_{_summary.Status}", _summary.Status)</span>
+                    <StatusChip Tone="info" TestId="billing-status">@Label($"BillingStatus_{_summary.Status}", _summary.Status)</StatusChip>
                 </div>
+                @* A cancelled subscription's period end is the day it ENDED — never "renews" next to a free plan. *@
                 @if (_summary.CurrentPeriodEnd is { } end)
                 {
-                    <div class="small text-muted mt-2">@Localizer["Billing_RenewsOn", end.LocalDateTime.ToString("d")]</div>
+                    if (_summary.Status == CanceledStatus)
+                    {
+                        <div class="small text-muted mt-2" data-testid="billing-ended">@Localizer["Billing_EndedOn", end.LocalDateTime.ToString("d")]</div>
+                    }
+                    else
+                    {
+                        <div class="small text-muted mt-2" data-testid="billing-renews">@Localizer["Billing_RenewsOn", end.LocalDateTime.ToString("d")]</div>
+                    }
                 }
             </div>
         </div>
@@ -66,7 +86,9 @@
                     @Localizer["Billing_Upgrade"]
                 </button>
             }
-            @if (_summary.HasSubscription)
+            @* No portal for a cancelled subscription: there is nothing live to manage (and the provider customer may be
+               gone); Upgrade is the way back — it opens a fresh checkout. *@
+            @if (_summary.HasSubscription && _summary.Status != CanceledStatus)
             {
                 <button class="btn btn-outline-secondary" data-testid="billing-portal" disabled="@_busy" @onclick="OpenPortal">@Localizer["Billing_Manage"]</button>
             }
@@ -88,6 +110,13 @@
     // Plan keys mirror src/Core/Billing/PlanCatalog.cs (EXAMPLE plans — retune per app with the catalog).
     private const string FreePlanKey = "free";
     private const string UpgradePlanKey = "pro";
+    private const string CanceledStatus = "canceled";
+
+    /// <summary>"success" | "cancel" when the page is the provider's return address; null on a plain visit.</summary>
+    private string? _checkout;
+    private bool _disposed;
+    /// <summary>How long to wait before refetching after a successful checkout (the webhook lands a moment after the redirect). Tests shorten it.</summary>
+    [Parameter] public int RefreshDelayMs { get; set; } = 3000;
 
     private bool _loading = true;
     private bool _forbidden;
@@ -102,11 +131,41 @@
             Nav.NavigateTo("/login");
             return;
         }
+        // GATES-1 (ADR-027): with billing off the API has no /api/billing routes, so this page could only
+        // ever render errors. Leave before it renders anything — the link is hidden too, so arriving here
+        // means a bookmark or a typed URL.
+        // Only a definite "off" leaves: a probe that FAILED (null) is not a decision, and bouncing a paying
+        // owner home because the server was waking up reads as the page being gone (v4 audit UX-13).
+        if (await Auth.ProbeBillingAsync() == false)
+        {
+            Nav.NavigateTo("/");
+            return;
+        }
         // On native, checkout/portal open the system browser and the provider's redirect lands on
         // web — this page is still what the user returns to. Refresh on resume so the new plan
         // shows without a manual re-navigation (NATIVE-4, G2). Never fires on web.
         Resume.Resumed += OnAppResumed;
+        var path = new Uri(Nav.Uri).AbsolutePath.TrimEnd('/');
+        _checkout = path.EndsWith("/billing/success", StringComparison.OrdinalIgnoreCase) ? "success"
+            : path.EndsWith("/billing/cancel", StringComparison.OrdinalIgnoreCase) ? "cancel" : null;
         await LoadAsync();
+        if (_checkout == "success") _ = RefreshAfterCheckoutAsync();
+    }
+
+    /// <summary>
+    /// After a successful checkout the plan flips when the provider's webhook lands — usually seconds after the
+    /// redirect, sometimes before it. Refetch a couple of times (quietly, no spinner) so the page catches up on
+    /// its own instead of asking the user to reload.
+    /// </summary>
+    private async Task RefreshAfterCheckoutAsync()
+    {
+        for (var attempt = 0; attempt < 2 && !_disposed && _summary?.PlanKey == FreePlanKey; attempt++)
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(RefreshDelayMs), Time); // the injected clock (R148)
+            if (_disposed) return;
+            try { await InvokeAsync(async () => { await LoadAsync(quiet: true); StateHasChanged(); }); }
+            catch (ObjectDisposedException) { return; }
+        }
     }
 
     private void OnAppResumed() => _ = InvokeAsync(async () =>
@@ -115,11 +174,15 @@
         StateHasChanged();
     });
 
-    public void Dispose() => Resume.Resumed -= OnAppResumed;
-
-    private async Task LoadAsync()
+    public void Dispose()
     {
-        _loading = true;
+        _disposed = true;
+        Resume.Resumed -= OnAppResumed;
+    }
+
+    private async Task LoadAsync(bool quiet = false)
+    {
+        if (!quiet) _loading = true;
         try
         {
             var res = await Http.GetAsync("/api/billing");

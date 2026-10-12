@@ -1,4 +1,4 @@
-namespace Perezosoft.Shared.Ui.Auth;
+namespace Vuelto.Shared.Ui.Auth;
 
 /// <summary>
 /// Abstracts where the refresh token lives, the one thing that differs between hosts.

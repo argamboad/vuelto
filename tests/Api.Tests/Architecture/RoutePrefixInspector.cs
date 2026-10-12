@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace Perezosoft.Api.Tests.Architecture;
+namespace Vuelto.Api.Tests.Architecture;
 
 /// <summary>
 /// Pure route-prefix collector shared by the uniqueness gate (<c>RouteGroupPrefixes_AreUnique</c>) and the

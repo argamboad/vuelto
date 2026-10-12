@@ -1,8 +1,8 @@
 using System.Text.RegularExpressions;
 using Microsoft.Playwright;
-using Perezosoft.E2E.Tests.Pages;
+using Vuelto.E2E.Tests.Pages;
 
-namespace Perezosoft.E2E.Tests;
+namespace Vuelto.E2E.Tests;
 
 /// <summary>
 /// Billing seat-quota journey (E2E-2): the free plan's seat limit is reachable entirely from the
@@ -16,7 +16,6 @@ public class SeatQuotaJourneyTests : E2ETestBase
     // Free-plan SeatLimit from src/Core/Billing/PlanCatalog.cs ("EXAMPLE quotas — tune per app").
     // A fresh household starts with 1 seat used (the owner); if a downstream app retunes the
     // catalog, adjust this and the invite count follows.
-    private const int FreePlanSeatLimit = 3;
 
     private static readonly LocatorAssertionsToBeVisibleOptions Slow = new() { Timeout = 30_000 };
 
@@ -84,7 +83,7 @@ public class SeatQuotaJourneyTests : E2ETestBase
         var tenantId = Regex.Match(Page.Url, @"checkout/([0-9a-fA-F-]+)/pro").Groups[1].Value;
         await PostBillingWebhookAsync(tenantId, status: "active", occurredAt: DateTimeOffset.UtcNow.AddMinutes(-1));
 
-        // On Pro (10 seats), reserve more seats than Free allows: owner + 3 pending = 4 > 3.
+        // On Pro (10 seats), reserve more seats than Free allows: owner + FreePlanSeatLimit pending.
         await household.GotoAsync();
         var lateToken = "";
         for (var i = 1; i <= FreePlanSeatLimit; i++)

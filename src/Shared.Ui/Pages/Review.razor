@@ -1,0 +1,550 @@
+@page "/review"
+@using System.Globalization
+@using System.Net
+@using System.Net.Http.Json
+@using System.Text.Json.Serialization
+@using Vuelto.Shared.Ui.Auth
+@inject AuthService Auth
+@inject NavigationManager Nav
+@inject HttpClient Http
+@inject ReviewQueueNotifier ReviewQueue
+@inject IStringLocalizer<AppStrings> Localizer
+
+<PageTitle>@Localizer["Review_Title"]</PageTitle>
+
+@* EMAIL-6: the review queue (ADR-V010). A staged voucher is inert until confirmed here — the user decides the
+   category and class (prefilled from the household's merchant rules, never applied silently); the parsed fields
+   are shown read-only and open for editing only where the parser left a blank. Confirm books the transaction
+   through the same create as manual entry; discard drops the draft (the dedup tombstone stays). *@
+<div class="review-wrapper">
+    <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
+        <h1 class="h4 fw-bold mb-0">@Localizer["Review_Title"]</h1>
+        @if (_vouchers.Count > 0)
+        {
+            <span class="badge text-bg-primary" data-testid="review-count">@Localizer["Review_ToReview", _vouchers.Count]</span>
+        }
+        @* Pull fresh vouchers from every connected inbox without a trip to Settings (EMAIL-4's Sync now, for all). *@
+        <button class="btn btn-outline-primary btn-sm ms-auto" data-testid="review-sync-all" disabled="@(_busy || _syncing)" @onclick="SyncAllAsync">
+            @(_syncing ? Localizer["Email_Syncing"] : Localizer["Review_SyncAll"])
+        </button>
+    </div>
+    <p class="text-muted mb-3">@Localizer["Review_Subtitle"]</p>
+
+    @if (_notice is not null)
+    {
+        <div class="alert @(_noticeOk ? "alert-success" : "alert-danger") py-2" data-testid="review-notice">@_notice</div>
+    }
+
+    @* CARDS-3: a voucher can create a card silently — say so here, where the vouchers are, instead of letting
+       the automatic alias and the credit default sit wrong until someone happens to open the Cards page. *@
+    @if (_unnamedCards > 0)
+    {
+        <div class="alert alert-warning py-2 d-flex align-items-center justify-content-between flex-wrap gap-2" data-testid="review-cards-nudge">
+            <span>@Localizer["Review_CardsNeedNaming", _unnamedCards]</span>
+            <a class="btn btn-warning btn-sm" href="/cards">@Localizer["Review_CardsNeedNamingAction"]</a>
+        </div>
+    }
+
+    @if (_loading)
+    {
+        <div class="text-muted"><span class="spinner-border spinner-border-sm me-2"></span>@Localizer["Common_Loading"]</div>
+    }
+    else if (_vouchers.Count == 0)
+    {
+        <div class="card shadow-sm"><div class="card-body text-muted" data-testid="review-empty">@Localizer["Review_Empty"]</div></div>
+    }
+    else
+    {
+        @foreach (var v in _vouchers)
+        {
+            var blockers = Blockers(v);
+            var describedBy = $"consequence-{v.Id}-body";
+            <article class="draft" data-testid="review-voucher" aria-label="@DraftLabel(v)">
+
+                @* ---------------------------------------------------------------- the draft *@
+                <div class="draft-main">
+                    <header class="draft-head">
+                        <div>
+                            <div class="draft-merchant" data-testid="review-merchant">@(v.Merchant ?? Localizer["Review_UnknownMerchant"].Value)</div>
+                            <div class="draft-meta">
+                                @(v.Date?.ToString("d", CultureInfo.CurrentCulture) ?? "—") · @(v.TransactionType ?? "—") · @BankName(v.BankId)
+                                @if (v.CardLabel is { } card) { <span data-testid="review-card"> · @card</span> }
+                                @if (v.ReceivedAt is { } at) { <span> · @Localizer["Review_Received", at.ToLocalTime().ToString("g", CultureInfo.CurrentCulture)]</span> }
+                            </div>
+                        </div>
+                        <div class="draft-amount" data-testid="review-amount">@Money(v)</div>
+                    </header>
+
+                    @* The parser's blanks, named once at the top and pointed at by every input it explains. *@
+                    <MissingFieldsNotice TestId="review-missing" Id="@($"missing-{v.Id}")" Fields="ParserBlanks(v)" />
+
+                    <div class="draft-fields">
+                        <div class="draft-field">
+                            <label class="form-label">
+                                @Localizer["Tx_Category"]
+                                @if (v.SuggestedCategoryId is not null) { <span class="draft-rule" data-testid="review-suggested">@Localizer["Review_FromYourRule"]</span> }
+                            </label>
+                            <CategoryPicker TestId="review-category" Size="sm" Placeholder="@Localizer["Review_SelectCategory"].Value" Categories="_categories" @bind-Value="v.Form.CategoryId" OnCreated="AddCategory" />
+                        </div>
+
+                        @* Chips rather than a dropdown (the handout's control), and ALL THREE classes: picking
+                           Unplanned is what reveals the expected-refund switch, so dropping it would quietly
+                           remove the refund path from email-sourced transactions. *@
+                        <div class="draft-field">
+                            <SegmentedSwitch TestId="review-class" Label="@Localizer["Tx_Class"].Value" Options="ClassOptions()"
+                                             Value="@v.Form.TransactionClass" ValueChanged="@(c => v.Form.TransactionClass = c)" />
+                        </div>
+
+                        @if (v.CardAmbiguous)
+                        {
+                            @* #210 (ADR-V027): the bank hid part of the number (BN pagos print XXXXXXXXXXX8755X for a card ending
+                               7558), so the app asks instead of guessing — once: the answer is remembered for this pattern and
+                               preselected next time, where it can still be changed. "No card" books the payment without one. *@
+                            <div class="draft-field">
+                                <label class="form-label" for="review-card-pick-@v.Id">@Localizer["Review_CardWhich"]</label>
+                                <select class="form-select form-select-sm" id="review-card-pick-@v.Id" data-testid="review-card-pick" @bind="v.Form.CardChoice">
+                                    <option value="">@Localizer["Review_CardChoose"]</option>
+                                    @foreach (var c in _cards)
+                                    {
+                                        <option value="@c.Id">@c.Name</option>
+                                    }
+                                    <option value="@NoCard">@Localizer["Review_CardNone"]</option>
+                                </select>
+                                <div class="draft-hint" data-testid="review-card-hint">@(v.KnownCardId is null ? Localizer["Review_CardHint", v.CardLabel ?? ""] : Localizer["Review_CardRemembered"])</div>
+                            </div>
+                        }
+
+                        @if (TransactionClasses.CanCarryRefund(v.Form.TransactionClass))
+                        {
+                            @* Same as the manual form: an unplanned essential can carry an expected refund (LEDGER-3), and the block
+                               takes the same shape — the switch, then the amount (or %) beside a wide Refund notes box, real labels. *@
+                            <div class="draft-field draft-field-wide">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="review-refund-@v.Id" data-testid="review-refund-expected" @bind="v.Form.RefundExpected" />
+                                    <label class="form-check-label" for="review-refund-@v.Id">@Localizer["Tx_RefundExpected"]</label>
+                                </div>
+                                @if (v.Form.RefundExpected)
+                                {
+                                    <div class="draft-refund">
+                                        @* #202: an amount in the booked currency, typed directly or as a % of the purchase (ADR-V026). *@
+                                        <RefundAmountInput TestId="review-refund" @bind-Value="v.Form.RefundAmount" Purchase="@BookedAmount(v)" Currency="@BookedCurrency(v)"
+                                                           InputClass="form-control-sm" HintClass="draft-hint" />
+                                        <div>
+                                            <label class="form-label" for="review-refund-notes-@v.Id">@Localizer["Tx_RefundNotes"]</label>
+                                            <textarea class="form-control form-control-sm" id="review-refund-notes-@v.Id" rows="1" maxlength="250" data-testid="review-refund-notes"
+                                                      placeholder="@Localizer["Refund_NotesHint"]" @bind="v.Form.RefundNotes" @bind:event="oninput"></textarea>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+
+                        @* Open ONLY where the parser left a blank — everything else is the voucher's own data. *@
+                        @if (v.Missing("Merchant"))
+                        {
+                            <div class="draft-field">
+                                <label class="form-label" for="payee-@v.Id">@Localizer["Tx_Payee"]</label>
+                                <input class="form-control form-control-sm" id="payee-@v.Id" data-testid="review-payee" @bind="v.Form.Payee"
+                                       aria-describedby="@($"missing-{v.Id}")" aria-invalid="@(string.IsNullOrWhiteSpace(v.Form.Payee) ? "true" : null)"
+                                       data-blank="@(string.IsNullOrWhiteSpace(v.Form.Payee) ? "true" : null)" />
+                            </div>
+                        }
+                        @if (v.Missing("Amount") || v.Missing("Currency"))
+                        {
+                            <div class="draft-field draft-field-amount">
+                                <label class="form-label" for="amount-@v.Id">@Localizer["Tx_Amount"]</label>
+                                <div class="input-group input-group-sm">
+                                    <input type="number" step="0.01" min="0" class="form-control" id="amount-@v.Id" data-testid="review-amount-input" @bind="v.Form.Amount"
+                                           aria-describedby="@($"missing-{v.Id}")" aria-invalid="@(v.Form.Amount is not > 0 ? "true" : null)"
+                                           data-blank="@(v.Form.Amount is not > 0 ? "true" : null)" />
+                                    <select class="form-select" data-testid="review-currency" aria-label="@Localizer["Tx_Currency"]" @bind="v.Form.Currency">
+                                        <option value="CRC">₡</option>
+                                        <option value="USD">$</option>
+                                    </select>
+                                </div>
+                            </div>
+                        }
+                        @if (v.Missing("Date"))
+                        {
+                            <div class="draft-field">
+                                <label class="form-label" for="date-@v.Id">@Localizer["Tx_Date"]</label>
+                                <input type="date" class="form-control form-control-sm" id="date-@v.Id" data-testid="review-date" @bind="v.Form.Date"
+                                       aria-describedby="@($"missing-{v.Id}")" aria-invalid="@(v.Form.Date is null ? "true" : null)"
+                                       data-blank="@(v.Form.Date is null ? "true" : null)" />
+                            </div>
+                        }
+
+                        <div class="draft-field draft-field-wide">
+                            <label class="form-label" for="notes-@v.Id">@Localizer["Tx_Notes"]</label>
+                            <textarea class="form-control form-control-sm" id="notes-@v.Id" rows="2" maxlength="250" data-testid="review-notes" placeholder="@Localizer["Tx_NotesHint"]" @bind="v.Form.Notes"></textarea>
+                        </div>
+                    </div>
+
+                    <div class="form-check draft-remember">
+                        <input class="form-check-input" type="checkbox" id="remember-@v.Id" data-testid="review-remember" @bind="v.Form.RememberMerchant" disabled="@(v.Merchant is null)" />
+                        <label class="form-check-label" for="remember-@v.Id">@Localizer["Review_RememberMerchant"]</label>
+                    </div>
+                </div>
+
+                @* ---------------------------------------------------------------- what confirming will do *@
+                <ConsequencePanel TestId="review-consequence" BodyId="@describedBy" Eyebrow="@Localizer["Review_ConfirmingWill"]">
+                    <ChildContent>@Consequence(v, blockers)</ChildContent>
+                    <Actions>
+                        @* Disabled only while something required is EMPTY, and the panel above says which —
+                           the handout's rule: block visibly instead of failing on submit. *@
+                        <button class="btn btn-primary btn-sm" data-testid="review-confirm" aria-describedby="@describedBy"
+                                disabled="@(_busy || blockers.Count > 0)" @onclick="() => ConfirmAsync(v)">@Localizer["Review_Confirm"]</button>
+                        <button class="btn btn-outline-danger btn-sm" data-testid="review-discard" disabled="@_busy" @onclick="() => DiscardAsync(v)">@Localizer["Review_Discard"]</button>
+                    </Actions>
+                </ConsequencePanel>
+            </article>
+        }
+    }
+</div>
+
+@code {
+    private bool _loading = true;
+    private bool _busy;
+    private bool _syncing;
+    private string? _notice;
+    private bool _noticeOk;
+    private List<VoucherDto> _vouchers = new();
+    private List<CategoryOption> _categories = new();
+    private List<NamedDto> _banks = new();
+
+    /// <summary>A category created from any card's picker joins the shared list, so every card can pick it.</summary>
+    private void AddCategory(CategoryOption c) { if (_categories.All(x => x.Id != c.Id)) _categories.Add(c); }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _categories = await Http.GetFromJsonAsync<List<CategoryOption>>("/api/categories") ?? new();
+            _banks = await Http.GetFromJsonAsync<List<NamedDto>>("/api/banks") ?? new();
+            _vouchers = await Http.GetFromJsonAsync<List<VoucherDto>>("/api/pending-vouchers") ?? new();
+            // Its own call and its own catch: the nudge is a footnote, never a reason the queue fails to render.
+            // #210: the same list feeds the "which card?" picker on a voucher whose number the bank half-hid.
+            try { _cards = await Http.GetFromJsonAsync<List<CardDto>>("/api/cards") ?? new(); }
+            catch { _cards = new(); }
+            _unnamedCards = _cards.Count(c => c.AutoNamed);
+            foreach (var v in _vouchers) v.InitForm();
+            await ResolveMonthsAsync();
+        }
+        catch { Fail(Localizer["Review_LoadError"]); }
+        finally { _loading = false; }
+    }
+
+    private async Task ConfirmAsync(VoucherDto v)
+    {
+        if (string.IsNullOrEmpty(v.Form.CategoryId)) { Fail(Localizer["Review_CategoryRequired"]); return; }
+        if (v.CardAmbiguous && string.IsNullOrEmpty(v.Form.CardChoice)) { Fail(Localizer["Review_CardRequired"]); return; } // #210: ask, never guess
+        _busy = true; _notice = null;
+        try
+        {
+            // Overrides go only where the parser left a blank — everything else is the voucher's own data.
+            var body = new
+            {
+                category_id = v.Form.CategoryId,
+                transaction_class = v.Form.TransactionClass,
+                remember_merchant = v.Form.RememberMerchant,
+                notes = string.IsNullOrWhiteSpace(v.Form.Notes) ? null : v.Form.Notes.Trim(),
+                payee = v.Missing("Merchant") && !string.IsNullOrWhiteSpace(v.Form.Payee) ? v.Form.Payee : null,
+                original_amount = v.Missing("Amount") || v.Missing("Currency") ? v.Form.Amount : null,
+                currency = v.Missing("Amount") || v.Missing("Currency") ? v.Form.Currency : null,
+                transaction_date = v.Missing("Date") ? v.Form.Date : null,
+                refund_expected = TransactionClasses.CanCarryRefund(v.Form.TransactionClass) && v.Form.RefundExpected,
+                refund_amount = TransactionClasses.CanCarryRefund(v.Form.TransactionClass) && v.Form.RefundExpected ? v.Form.RefundAmount : null,
+                refund_notes = TransactionClasses.CanCarryRefund(v.Form.TransactionClass) && v.Form.RefundExpected && !string.IsNullOrWhiteSpace(v.Form.RefundNotes) ? v.Form.RefundNotes.Trim() : null,
+                // #210: the household's answer for a hidden number — a card (remembered for its pattern) or none at all.
+                card_id = v.CardAmbiguous && Guid.TryParse(v.Form.CardChoice, out var chosen) ? chosen : (Guid?)null,
+                skip_card = v.CardAmbiguous && v.Form.CardChoice == NoCard,
+            };
+            var res = await Http.PostAsJsonAsync($"/api/pending-vouchers/{v.Id}/confirm", body);
+            if (res.StatusCode == HttpStatusCode.Conflict) { Fail(Localizer["Review_NotPending"]); await ReloadAsync(); return; }
+            if (res.StatusCode == HttpStatusCode.BadRequest)
+            {
+                var err = await res.Content.ReadFromJsonAsync<ErrorDto>();
+                Fail(err?.Error == "exchange_rate_unavailable" ? Localizer["Review_RateUnavailable"] : err?.Message ?? Localizer["Review_ConfirmError"]);
+                return;
+            }
+            res.EnsureSuccessStatusCode();
+            var result = await res.Content.ReadFromJsonAsync<ConfirmDto>();
+            Ok(result?.Remembered == true ? Localizer["Review_ConfirmedRemembered"] : Localizer["Review_Confirmed"]);
+            ReviewQueue.NotifyChanged();
+            await ReloadAsync();
+        }
+        catch { Fail(Localizer["Review_ConfirmError"]); }
+        finally { _busy = false; }
+    }
+
+    private async Task DiscardAsync(VoucherDto v)
+    {
+        _busy = true; _notice = null;
+        try
+        {
+            var res = await Http.PostAsync($"/api/pending-vouchers/{v.Id}/discard", null);
+            if (res.StatusCode == HttpStatusCode.Conflict) { Fail(Localizer["Review_NotPending"]); await ReloadAsync(); return; }
+            res.EnsureSuccessStatusCode();
+            Ok(Localizer["Review_Discarded"]);
+            ReviewQueue.NotifyChanged();
+            await ReloadAsync();
+        }
+        catch { Fail(Localizer["Review_ConfirmError"]); }
+        finally { _busy = false; }
+    }
+
+    private string BankName(Guid? id) => _banks.FirstOrDefault(b => b.Id == id)?.Name ?? "—";
+
+    /// <summary>The three classes a staged voucher can be booked as, as chips rather than a dropdown.</summary>
+    private List<SegmentedOption> ClassOptions() =>
+    [
+        new("budgeted", Localizer["Tx_Budgeted"]),
+        new("extraordinary", Localizer["Tx_Extraordinary"]),
+        new("unplanned_essential", Localizer["Tx_Unplanned"]),
+    ];
+
+    /// <summary>Names the draft for a screen reader reaching the section — merchant and amount, not "article".</summary>
+    private string DraftLabel(VoucherDto v) => $"{v.Merchant ?? Localizer["Review_UnknownMerchant"].Value} {Money(v)}";
+
+    /// <summary>What the PARSER could not read — the amber notice. Distinct from <see cref="Blockers"/>, which is
+    /// what is still empty NOW: a blank the user has since filled leaves the notice but clears the block.</summary>
+    private List<string> ParserBlanks(VoucherDto v) => v.MissingFields
+        .Select(f => f.ToLowerInvariant() switch
+        {
+            "merchant" => Localizer["Tx_Payee"].Value,
+            "amount" or "currency" => Localizer["Tx_Amount"].Value,
+            "date" => Localizer["Tx_Date"].Value,
+            _ => f,
+        })
+        .Distinct()
+        .ToList();
+
+    /// <summary>Everything required that is still empty. Confirm is disabled exactly while this is non-empty.</summary>
+    private List<string> Blockers(VoucherDto v)
+    {
+        var missing = new List<string>();
+        if (string.IsNullOrEmpty(v.Form.CategoryId)) missing.Add(Localizer["Tx_Category"].Value);
+        if (v.Missing("Merchant") && string.IsNullOrWhiteSpace(v.Form.Payee)) missing.Add(Localizer["Tx_Payee"].Value);
+        if ((v.Missing("Amount") || v.Missing("Currency")) && v.Form.Amount is not > 0) missing.Add(Localizer["Tx_Amount"].Value);
+        if (v.Missing("Date") && v.Form.Date is null) missing.Add(Localizer["Tx_Date"].Value);
+        return missing;
+    }
+
+    /// <summary>
+    /// The redesign's fifth decision, in the one place it earns the most: say what the click will DO before it
+    /// happens. Blocked, it names what is still needed; otherwise it states the amount, the category, the class
+    /// and — the part that is not obvious from the row — which PAY-CYCLE MONTH the date lands in, which is
+    /// not always the calendar one.
+    ///
+    /// The handout's sentence also carries the week and the budget line's new total. Neither is reachable
+    /// without an API change this slice may not make: /api/months/resolve returns a month but no week, and the
+    /// summary's line rows carry a name with no category id, so a category cannot be matched to its line.
+    /// </summary>
+    private string Consequence(VoucherDto v, List<string> blockers)
+    {
+        if (blockers.Count > 0) return Localizer["Review_ConfirmingBlocked", string.Join(", ", blockers)];
+
+        var amount = MoneyForConfirm(v);
+        var category = _categories.FirstOrDefault(c => c.Id.ToString() == v.Form.CategoryId)?.Name ?? "—";
+        var className = ClassOptions().First(o => o.Value == v.Form.TransactionClass).Label;
+        var date = v.Missing("Date") ? v.Form.Date : v.Date;
+
+        var sentence = date is { } d && _months.TryGetValue(d, out var month)
+            ? Localizer["Review_ConfirmingWillBook", amount, category, className, month].Value
+            : Localizer["Review_ConfirmingWillBookNoMonth", amount, category, className].Value;
+        return LineImpact(v, date) is { } impact ? sentence + " " + impact : sentence;
+    }
+
+    /// <summary>
+    /// "Groceries: ₡8,000.00 spent of ₡60,000.00 planned — after this, ₡56,320.00" — for budgeted spending whose
+    /// category has a line in the month the date lands in. Only when the voucher's currency is the line's: the
+    /// queue holds no rate to convert with, and a guessed figure is worse than none.
+    /// </summary>
+    private string? LineImpact(VoucherDto v, DateOnly? date)
+    {
+        if (v.Form.TransactionClass != TransactionClasses.Budgeted || date is not { } d) return null;
+        if (!_monthIds.TryGetValue(d, out var monthId) || !_lines.TryGetValue(monthId, out var lines)) return null;
+        if (!Guid.TryParse(v.Form.CategoryId, out var cat) || !lines.TryGetValue(cat, out var line)) return null;
+        var editable = v.Missing("Amount") || v.Missing("Currency");
+        var amount = editable ? v.Form.Amount : v.Amount;
+        var currency = (editable ? v.Form.Currency : v.Currency) ?? "CRC";
+        if (amount is not > 0 || currency != (line.BudgetCurrency == "USD" ? "USD" : "CRC")) return null;
+        var crc = currency == "CRC";
+        var spent = crc ? line.Actual.Crc : line.Actual.Usd;
+        var planned = crc ? line.Budget.Crc : line.Budget.Usd;
+        string F(decimal x) => (crc ? "₡" : "$") + x.ToString("N2", CultureInfo.CurrentCulture);
+        return Localizer["Tx_LineImpact", line.Name, F(spent), F(planned), F(spent + amount.Value)];
+    }
+
+    /// <summary>The amount the confirm will actually send — the voucher's own, or the typed one where it was blank.</summary>
+    private static string MoneyForConfirm(VoucherDto v)
+    {
+        var editable = v.Missing("Amount") || v.Missing("Currency");
+        var amount = editable ? v.Form.Amount : v.Amount;
+        var currency = (editable ? v.Form.Currency : v.Currency) ?? "CRC";
+        return amount is { } a ? (currency == "USD" ? "$" : "₡") + a.ToString("N2", CultureInfo.CurrentCulture) : "—";
+    }
+
+    /// <summary>
+    /// date → pay-cycle month label. A month is resolved ONCE per distinct date and cached: a queue of eleven
+    /// vouchers from the same fortnight is one or two calls, not eleven. Best-effort — an unreachable resolve
+    /// simply drops the month clause rather than blocking the queue.
+    /// </summary>
+    private readonly Dictionary<DateOnly, string> _months = new();
+    /// <summary>date → the existing month's id, for the line lookup; a month that does not exist yet has no lines to add to.</summary>
+    private readonly Dictionary<DateOnly, Guid> _monthIds = new();
+    /// <summary>month id → its budget lines by category (fixed + variable), fetched once per month.</summary>
+    private readonly Dictionary<Guid, Dictionary<Guid, LineDto>> _lines = new();
+
+    private async Task ResolveMonthsAsync()
+    {
+        foreach (var date in _vouchers.Select(v => v.Date).Where(d => d is not null).Select(d => d!.Value).Distinct())
+        {
+            if (_months.ContainsKey(date)) continue;
+            try
+            {
+                var res = await Http.GetAsync($"/api/months/resolve?date={date:yyyy-MM-dd}");
+                if (!res.IsSuccessStatusCode) continue;
+                if (await res.Content.ReadFromJsonAsync<MonthResolveDto>() is { } m)
+                {
+                    var label = $"{CultureInfo.CurrentCulture.TextInfo.ToTitleCase(CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(m.MonthNumber))} {m.Year}";
+                    _months[date] = m.WeekNumber is { } w ? Localizer["Review_MonthWeek", label, w] : label;
+                    if (m.MonthId is { } id) { _monthIds[date] = id; await LoadLinesAsync(id); }
+                }
+            }
+            catch { /* the month clause is a courtesy, never a blocker */ }
+        }
+    }
+
+    private async Task LoadLinesAsync(Guid monthId)
+    {
+        if (_lines.ContainsKey(monthId)) return;
+        var lines = new Dictionary<Guid, LineDto>();
+        _lines[monthId] = lines;
+        try
+        {
+            var res = await Http.GetAsync($"/api/months/{monthId}/summary");
+            if (!res.IsSuccessStatusCode) return;
+            var summary = (await res.Content.ReadFromJsonAsync<SummaryEnvelopeDto>())?.Summary;
+            if (summary is null) return;
+            foreach (var l in summary.FixedExpenses.Concat(summary.VariableExpenses)) lines[l.CategoryId] = l;
+        }
+        catch { /* the line clause is a courtesy, never a blocker */ }
+    }
+
+    private sealed record MonthResolveDto(
+        [property: JsonPropertyName("month_id")] Guid? MonthId,
+        [property: JsonPropertyName("year")] int Year,
+        [property: JsonPropertyName("month_number")] int MonthNumber,
+        [property: JsonPropertyName("week_number")] int? WeekNumber = null);
+    private sealed record MoneyDto([property: JsonPropertyName("crc")] decimal Crc, [property: JsonPropertyName("usd")] decimal Usd);
+    private sealed record LineDto([property: JsonPropertyName("name")] string Name, [property: JsonPropertyName("budget")] MoneyDto Budget, [property: JsonPropertyName("actual")] MoneyDto Actual, [property: JsonPropertyName("budget_currency")] string BudgetCurrency = "CRC", [property: JsonPropertyName("category_id")] Guid CategoryId = default);
+    private sealed record SummaryDto([property: JsonPropertyName("fixed_expenses")] List<LineDto> FixedExpenses, [property: JsonPropertyName("variable_expenses")] List<LineDto> VariableExpenses);
+    private sealed record SummaryEnvelopeDto([property: JsonPropertyName("summary")] SummaryDto? Summary);
+
+    private static string Money(VoucherDto v) => v.Amount is { } a
+        ? (v.Currency == "USD" ? "$" : "₡") + a.ToString("N2", CultureInfo.CurrentCulture)
+        : "—";
+
+    /// <summary>The amount and currency the confirm will book — the voucher's own, or the typed ones where the parser left a blank.</summary>
+    private static decimal? BookedAmount(VoucherDto v) => v.Missing("Amount") || v.Missing("Currency") ? v.Form.Amount : v.Amount;
+    private static string? BookedCurrency(VoucherDto v) => v.Missing("Amount") || v.Missing("Currency") ? v.Form.Currency : v.Currency;
+
+    /// <summary>Sync every inbox, then reload the queue and the header badge. A dead inbox is reported, never fatal.</summary>
+    private async Task SyncAllAsync()
+    {
+        _syncing = true; _notice = null;
+        try
+        {
+            var res = await Http.PostAsync("/api/email/connections/sync", null);
+            res.EnsureSuccessStatusCode();
+            var r = (await res.Content.ReadFromJsonAsync<SyncAllDto>())!;
+            if (r.SyncedInboxes == 0 && r.NeedsReconsent == 0) { Fail(Localizer["Review_SyncNoInboxes"]); return; }
+            var summary = Localizer["Review_SyncResult", r.SyncedInboxes, r.Staged, r.Duplicates, r.Unrecognized].Value;
+            if (r.NeedsReconsent > 0) { Fail(summary + " " + Localizer["Review_SyncReconsent", r.NeedsReconsent].Value); }
+            else Ok(summary);
+            await ReloadAsync();
+            ReviewQueue.NotifyChanged();
+        }
+        catch { Fail(Localizer["Review_SyncError"]); }
+        finally { _syncing = false; }
+    }
+
+    private void Ok(string message) { _notice = message; _noticeOk = true; }
+    private void Fail(string message) { _notice = message; _noticeOk = false; }
+
+    private sealed class FormModel
+    {
+        public string? CategoryId { get; set; }
+        public string TransactionClass { get; set; } = "budgeted";
+        public bool RememberMerchant { get; set; }
+        public string? Notes { get; set; }
+        public bool RefundExpected { get; set; }
+        public decimal? RefundAmount { get; set; }
+        public string? RefundNotes { get; set; }
+        public string? Payee { get; set; }
+        public decimal? Amount { get; set; }
+        public string Currency { get; set; } = "CRC";
+        public DateOnly? Date { get; set; }
+        /// <summary>#210: "" not answered yet · a card id · "none".</summary>
+        public string CardChoice { get; set; } = "";
+    }
+
+
+    private sealed class VoucherDto
+    {
+        [JsonPropertyName("id")] public Guid Id { get; set; }
+        [JsonPropertyName("merchant")] public string? Merchant { get; set; }
+        [JsonPropertyName("amount")] public decimal? Amount { get; set; }
+        [JsonPropertyName("currency")] public string? Currency { get; set; }
+        [JsonPropertyName("date")] public DateOnly? Date { get; set; }
+        [JsonPropertyName("bank_id")] public Guid? BankId { get; set; }
+        [JsonPropertyName("card_number")] public string? CardNumber { get; set; }
+        [JsonPropertyName("card_brand")] public string? CardBrand { get; set; }
+        [JsonPropertyName("transaction_type")] public string? TransactionType { get; set; }
+        [JsonPropertyName("missing_fields")] public string[] MissingFields { get; set; } = [];
+        [JsonPropertyName("suggested_category_id")] public Guid? SuggestedCategoryId { get; set; }
+        [JsonPropertyName("suggested_class")] public string? SuggestedClass { get; set; }
+        [JsonPropertyName("received_at")] public DateTimeOffset? ReceivedAt { get; set; }
+        // #210: the API's one rule for the card ("VISA ····1234", or the printed pattern), whether to ask, and last time's answer.
+        [JsonPropertyName("card_label")] public string? CardLabel { get; set; }
+        [JsonPropertyName("card_ambiguous")] public bool CardAmbiguous { get; set; }
+        [JsonPropertyName("known_card_id")] public Guid? KnownCardId { get; set; }
+
+        [JsonIgnore] public FormModel Form { get; } = new();
+
+        public bool Missing(string field) => MissingFields.Contains(field, StringComparer.OrdinalIgnoreCase);
+
+        public void InitForm()
+        {
+            Form.CategoryId = SuggestedCategoryId?.ToString();
+            Form.TransactionClass = string.IsNullOrEmpty(SuggestedClass) ? "budgeted" : SuggestedClass;
+            Form.Payee = Merchant;
+            Form.Amount = Amount;
+            Form.Currency = Currency ?? "CRC";
+            Form.Date = Date;
+            Form.CardChoice = KnownCardId?.ToString() ?? "";
+        }
+    }
+
+    private sealed record NamedDto([property: JsonPropertyName("id")] Guid Id, [property: JsonPropertyName("name")] string Name);
+    private sealed record SyncAllDto(
+        [property: JsonPropertyName("synced_inboxes")] int SyncedInboxes,
+        [property: JsonPropertyName("needs_reconsent")] int NeedsReconsent,
+        [property: JsonPropertyName("staged")] int Staged,
+        [property: JsonPropertyName("duplicates")] int Duplicates,
+        [property: JsonPropertyName("unrecognized")] int Unrecognized);
+    private int _unnamedCards;
+    private sealed record CardDto([property: JsonPropertyName("id")] Guid Id, [property: JsonPropertyName("name")] string Name, [property: JsonPropertyName("auto_named")] bool AutoNamed);
+    private List<CardDto> _cards = new();
+    private const string NoCard = "none";
+    private sealed record ConfirmDto([property: JsonPropertyName("transaction_id")] Guid TransactionId, [property: JsonPropertyName("remembered")] bool Remembered);
+    private sealed record ErrorDto([property: JsonPropertyName("error")] string Error, [property: JsonPropertyName("message")] string Message);
+}

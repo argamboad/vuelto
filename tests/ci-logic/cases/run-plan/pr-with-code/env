@@ -1,0 +1,4 @@
+EVENT=pull_request
+CODE=true
+DEPLOY=
+DEVICES=

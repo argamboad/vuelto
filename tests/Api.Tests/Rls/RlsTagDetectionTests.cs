@@ -1,6 +1,6 @@
-using Perezosoft.Infrastructure.Persistence;
+using Vuelto.Infrastructure.Persistence;
 
-namespace Perezosoft.Api.Tests.Rls;
+namespace Vuelto.Api.Tests.Rls;
 
 /// <summary>
 /// Proves the cross-tenant tag detection (<see cref="RlsSessionInterceptor.HasLeadingCrossTenantTag"/>) is

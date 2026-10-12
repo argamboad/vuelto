@@ -1,11 +1,11 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Time.Testing;
-using Perezosoft.Api.Services;
-using Perezosoft.Api.Tests.Infrastructure;
-using Perezosoft.Core.Entities;
-using Perezosoft.Infrastructure.Repositories;
+using Vuelto.Api.Services;
+using Vuelto.Api.Tests.Infrastructure;
+using Vuelto.Core.Entities;
+using Vuelto.Infrastructure.Repositories;
 
-namespace Perezosoft.Api.Tests.PublicApi;
+namespace Vuelto.Api.Tests.PublicApi;
 
 /// <summary>
 /// Drives PUBAPI (ADR-015): tenant API keys. Create returns the raw key once and stores only its hash;
@@ -150,17 +150,17 @@ public class ApiKeyServiceTests(PostgresFixture fixture) : PostgresTestBase(fixt
     [Fact]
     public async Task List_IsTenantScoped()
     {
-        var mine = Guid.CreateVersion7();
-        var other = Guid.CreateVersion7();
-        await using (var db = Fixture.CreateContext(mine)) await Build(db).CreateAsync(Creator, "mine", null, null, default);
-        await using (var db = Fixture.CreateContext(other)) await Build(db).CreateAsync(Creator, "theirs", null, null, default);
+        var pair = await TwoTenants.SeedAsync(async tenant =>
+        {
+            await using var db = Fixture.CreateContext(tenant);
+            return (await Build(db).CreateAsync(Creator, $"key-{tenant}", null, null, default))!.Key.Id;
+        });
 
-        await using var read = Fixture.CreateContext(mine);
+        await using var read = Fixture.CreateContext(pair.Mine);
         var keys = await Build(read).ListAsync(default);
-        Assert.Single(keys);
-        Assert.Equal("mine", keys[0].Name);
+        Assert.Equal(pair.MineSeed, Assert.Single(keys).Id);
     }
 
-    private static ApiKeyService Build(Perezosoft.Infrastructure.Persistence.AppDbContext db, TimeProvider? clock = null) =>
+    private static ApiKeyService Build(Vuelto.Infrastructure.Persistence.AppDbContext db, TimeProvider? clock = null) =>
         new(new EfRepository<ApiKey>(db), new TokenGenerator(), new TokenHasher(), new TestCurrentTenant(), clock ?? TimeProvider.System);
 }

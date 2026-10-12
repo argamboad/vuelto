@@ -1,4 +1,4 @@
-namespace Perezosoft.Infrastructure.Files;
+namespace Vuelto.Infrastructure.Files;
 
 /// <summary>
 /// Settings for <see cref="S3FileStorage"/> (ADR-010), bound from <c>Storage:S3</c>. Because the impl
@@ -9,6 +9,8 @@ namespace Perezosoft.Infrastructure.Files;
 /// </summary>
 public sealed class S3StorageSettings
 {
+    public const string SectionName = "Storage:S3";
+
     /// <summary>Bucket name. When set, the S3 backend is selected.</summary>
     public string Bucket { get; set; } = "";
 

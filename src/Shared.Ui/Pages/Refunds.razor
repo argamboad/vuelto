@@ -1,0 +1,322 @@
+@page "/refunds"
+@using System.Globalization
+@using System.Net
+@using System.Net.Http.Json
+@using System.Text.Json.Serialization
+@using Microsoft.JSInterop
+@using Vuelto.Shared.Ui.Auth
+@inject AuthService Auth
+@inject NavigationManager Nav
+@inject HttpClient Http
+@inject IJSRuntime JS
+@inject IStringLocalizer<AppStrings> Localizer
+@inject DisplayCurrencyStore Display
+
+<PageTitle>@Localizer["Refunds_Title"]</PageTitle>
+
+@* #208 · every refund the household expects, across months: the ones still out lead (oldest purchase first, with how
+   long each has been pending), filtered by status, payee and purchase date, optionally grouped by payee, status or
+   month with each group's received / pending, and several pending ones can be marked received together — one deposit
+   that covered them. The status and grouping are remembered on this device. Totals come from the API and cover every
+   match; a group's subtotal is the sum of its rows. *@
+<div class="settings-wrapper refunds-page">
+    <PageHead Title="@Localizer["Refunds_Title"]" Subtitle="@Localizer["Refunds_Subtitle"]" />
+
+    <section class="refunds-filters">
+        <SegmentedSwitch TestId="refunds-status" Label="@Localizer["Refunds_Status"].Value" Options="StatusOptions()" Value="@_status" ValueChanged="SetStatusAsync" />
+        <div class="refunds-field">
+            <label class="form-label" for="refunds-payee">@Localizer["Tx_Payee"]</label>
+            <input class="form-control form-control-sm" id="refunds-payee" data-testid="refunds-payee" type="search" maxlength="200"
+                   placeholder="@Localizer["Refunds_PayeeHint"]" value="@_payee" @onchange="SetPayeeAsync" />
+        </div>
+        <div class="refunds-field">
+            <label class="form-label" for="refunds-from">@Localizer["Reports_From"]</label>
+            <input class="form-control form-control-sm" id="refunds-from" data-testid="refunds-from" type="date" value="@_from?.ToString("yyyy-MM-dd")" @onchange="e => SetDateAsync(e, from: true)" />
+        </div>
+        <div class="refunds-field">
+            <label class="form-label" for="refunds-to">@Localizer["Reports_To"]</label>
+            <input class="form-control form-control-sm" id="refunds-to" data-testid="refunds-to" type="date" value="@_to?.ToString("yyyy-MM-dd")" @onchange="e => SetDateAsync(e, from: false)" />
+        </div>
+        <SegmentedSwitch TestId="refunds-group" Label="@Localizer["Refunds_GroupBy"].Value" Options="GroupOptions()" Value="@_group" ValueChanged="SetGroupAsync" />
+    </section>
+
+    @if (_error is not null)
+    {
+        <div class="alert alert-danger" data-testid="refunds-error">@_error</div>
+    }
+    @if (_notice is not null)
+    {
+        <div class="alert alert-info" data-testid="refunds-notice">@_notice</div>
+    }
+
+    @if (_loading)
+    {
+        <div class="text-muted"><span class="spinner-border spinner-border-sm me-2"></span>@Localizer["Common_Loading"]</div>
+    }
+    else if (_list is { } list)
+    {
+        <p class="refund-totals" data-testid="refunds-totals">
+            <span>@Localizer["Refund_TotalReceived"] <Money TestId="refunds-received" Crc="list.Totals.Received.Crc" Usd="list.Totals.Received.Usd" Display="@_display" /></span>
+            <span>@Localizer["Refund_TotalPending"] <Money TestId="refunds-pending" Crc="list.Totals.Pending.Crc" Usd="list.Totals.Pending.Usd" Display="@_display" /></span>
+            <span class="refund-totals-expected">@Localizer["Refund_TotalExpected"] <Money TestId="refunds-expected" Crc="list.Totals.Expected.Crc" Usd="list.Totals.Expected.Usd" Display="@_display" /></span>
+        </p>
+        @if (list.Truncated)
+        {
+            <p class="text-muted small" data-testid="refunds-truncated">@Localizer["Refunds_Truncated", list.Refunds.Count]</p>
+        }
+
+        @if (_selected.Count > 0)
+        {
+            @* One deposit that covered several refunds: each still books its own inflow (ADR-V007), dated the same day. *@
+            <div class="refunds-bulk" data-testid="refunds-bulk">
+                <span>@Localizer["Refunds_Selected", _selected.Count]</span>
+                <label class="form-label mb-0" for="refunds-bulk-date">@Localizer["Refund_ReceivedDate"]</label>
+                <input type="date" class="form-control form-control-sm" id="refunds-bulk-date" data-testid="refunds-bulk-date"
+                       value="@_bulkDate.ToString("yyyy-MM-dd")" @onchange="SetBulkDate" />
+                <button class="btn btn-primary btn-sm" data-testid="refunds-bulk-receive" disabled="@_saving" @onclick="MarkSelectedReceivedAsync">@Localizer["Refunds_MarkSelected"]</button>
+                <button class="btn btn-outline-secondary btn-sm" disabled="@_saving" @onclick="() => _selected.Clear()">@Localizer["Common_Cancel"]</button>
+            </div>
+        }
+
+        @if (list.Refunds.Count == 0)
+        {
+            <p class="ledger-empty" data-testid="refunds-empty">@Localizer["Refunds_None"]</p>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table refunds-table">
+                    <thead>
+                        <tr>
+                            <th scope="col"><span class="visually-hidden">@Localizer["Refunds_Select"]</span></th>
+                            <th scope="col" class="col-wide">@Localizer["Tx_Date"]</th>
+                            <th scope="col">@Localizer["Tx_Payee"]</th>
+                            <th scope="col" class="col-wide">@Localizer["Refunds_Month"]</th>
+                            <th scope="col" class="text-end">@Localizer["Tx_Amount"]</th>
+                            <th scope="col" class="col-wide">@Localizer["Catalog_Status"]</th>
+                        </tr>
+                    </thead>
+                    @foreach (var group in Groups(list.Refunds))
+                    {
+                        <tbody>
+                            @if (_group != "none")
+                            {
+                                var sub = Subtotal(group.Rows);
+                                <tr class="refunds-group" data-testid="refunds-group-head" data-key="@group.Key">
+                                    <th scope="rowgroup" colspan="4">@group.Label <span class="count-pill">@group.Rows.Count</span></th>
+                                    <td class="text-end" colspan="2">
+                                        <span class="refunds-group-sub">@Localizer["Refund_TotalReceived"] @Show(sub.Received)</span>
+                                        <span class="refunds-group-sub">@Localizer["Refund_TotalPending"] @Show(sub.Pending)</span>
+                                    </td>
+                                </tr>
+                            }
+                            @foreach (var r in group.Rows)
+                            {
+                                <tr data-testid="refunds-row" data-id="@r.Id">
+                                    <td>
+                                        @if (r.Status != "received")
+                                        {
+                                            <input type="checkbox" class="form-check-input" data-testid="refunds-select" aria-label="@Localizer["Refunds_SelectFor", r.Payee]"
+                                                   checked="@_selected.Contains(r.Id)" @onchange="e => Toggle(r.Id, e)" />
+                                        }
+                                    </td>
+                                    <td class="text-nowrap col-wide">@r.TransactionDate.ToString("d", CultureInfo.CurrentCulture)</td>
+                                    <td>
+                                        <span class="tx-payee">@r.Payee</span>
+                                        @if (!string.IsNullOrWhiteSpace(r.Notes)) { <span class="tx-sub">@r.Notes</span> }
+                                        @* #209: on a phone the date, month and status columns fold into this line. *@
+                                        <span class="refunds-sub" aria-hidden="true">
+                                            @r.TransactionDate.ToString("d", CultureInfo.CurrentCulture) · <a href="/months/@r.MonthId" tabindex="-1">@MonthLabel(r)</a><br />
+                                            <span class="refunds-sub-chip" data-tone="@(r.Status == "received" ? "good" : "warn")">@StatusText(r)</span>
+                                            @if (r.PendingDays is { } subDays) { <span> · @Localizer["Refunds_PendingFor", subDays]</span> }
+                                        </span>
+                                    </td>
+                                    <td class="col-wide"><a href="/months/@r.MonthId">@MonthLabel(r)</a></td>
+                                    <td class="text-end"><Money Crc="r.AmountCrc" Usd="r.AmountUsd" Display="@_display" Size="row" TestId="refunds-amount" /></td>
+                                    <td class="col-wide">
+                                        <StatusChip Tone="@(r.Status == "received" ? "good" : "warn")" TestId="refunds-status-chip">@StatusText(r)</StatusChip>
+                                        @if (r.PendingDays is { } days)
+                                        {
+                                            <span class="refunds-age" data-testid="refunds-age" data-days="@days">@Localizer["Refunds_PendingFor", days]</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    }
+                </table>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private const string StatusPref = "refunds.status";
+    private const string GroupPref = "refunds.group";
+
+    private bool _loading = true;
+    private bool _saving;
+    private string? _error;
+    private string? _notice;
+    private string _display = MoneyDisplay.Both;
+    private string _status = "pending";
+    private string _group = "none";
+    private string _payee = "";
+    private DateOnly? _from;
+    private DateOnly? _to;
+    private DateOnly _bulkDate = DateOnly.FromDateTime(DateTime.Today);
+    private ListDto? _list;
+    private readonly HashSet<Guid> _selected = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
+        _display = await Display.LoadAsync();
+        _status = await PrefAsync(StatusPref, ["pending", "received", "all"], "pending");
+        _group = await PrefAsync(GroupPref, ["none", "payee", "status", "month"], "none");
+        await LoadAsync();
+    }
+
+    private async Task<string> PrefAsync(string key, string[] allowed, string fallback)
+    {
+        try { var v = await JS.InvokeAsync<string?>("appUi.getPref", key); return v is not null && allowed.Contains(v) ? v : fallback; }
+        catch { return fallback; } // no storage: the defaults
+    }
+
+    private async Task SavePrefAsync(string key, string value)
+    {
+        try { await JS.InvokeVoidAsync("appUi.setPref", key, value); } catch { /* preference only */ }
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true; _error = null;
+        try
+        {
+            var query = new List<string>();
+            if (_status != "all") query.Add($"status={_status}");
+            if (!string.IsNullOrWhiteSpace(_payee)) query.Add($"payee={Uri.EscapeDataString(_payee.Trim())}");
+            if (_from is { } f) query.Add($"from={f:yyyy-MM-dd}");
+            if (_to is { } t) query.Add($"to={t:yyyy-MM-dd}");
+            var res = await Http.GetAsync("/api/refunds" + (query.Count > 0 ? "?" + string.Join("&", query) : ""));
+            if (!res.IsSuccessStatusCode)
+            {
+                _error = (await res.Content.ReadFromJsonAsync<ErrorDto>())?.Message ?? Localizer["Refunds_LoadError"];
+                _list = null;
+                return;
+            }
+            _list = await res.Content.ReadFromJsonAsync<ListDto>();
+            _selected.IntersectWith(_list?.Refunds.Where(r => r.Status != "received").Select(r => r.Id) ?? []);
+        }
+        catch { _error = Localizer["Refunds_LoadError"]; _list = null; }
+        finally { _loading = false; }
+    }
+
+    private async Task SetStatusAsync(string status) { _status = status; await SavePrefAsync(StatusPref, status); await LoadAsync(); }
+    private async Task SetGroupAsync(string group) { _group = group; await SavePrefAsync(GroupPref, group); }
+    private async Task SetPayeeAsync(ChangeEventArgs e) { _payee = e.Value?.ToString() ?? ""; await LoadAsync(); }
+
+    private async Task SetDateAsync(ChangeEventArgs e, bool from)
+    {
+        DateOnly? d = DateOnly.TryParse(e.Value?.ToString(), CultureInfo.InvariantCulture, out var v) ? v : null;
+        if (from) _from = d; else _to = d;
+        await LoadAsync();
+    }
+
+    private void SetBulkDate(ChangeEventArgs e)
+    {
+        if (DateOnly.TryParse(e.Value?.ToString(), CultureInfo.InvariantCulture, out var d)) _bulkDate = d;
+    }
+
+    private void Toggle(Guid id, ChangeEventArgs e)
+    {
+        if (e.Value is true) _selected.Add(id); else _selected.Remove(id);
+    }
+
+    /// <summary>
+    /// Each selected refund flips through the ordinary guarded route (one inflow each, dated the deposit's day); a refund
+    /// that fails — bought after that day, or flipped elsewhere meanwhile — is reported and left pending.
+    /// </summary>
+    private async Task MarkSelectedReceivedAsync()
+    {
+        if (_list is null || _selected.Count == 0) return;
+        _saving = true; _notice = null; _error = null;
+        var ok = 0; var failed = new List<string>();
+        foreach (var r in _list.Refunds.Where(r => _selected.Contains(r.Id)).ToList())
+        {
+            try
+            {
+                var res = await Http.PutAsJsonAsync($"/api/refunds/{r.Id}", new { status = "received", received_date = _bulkDate.ToString("yyyy-MM-dd") });
+                if (res.IsSuccessStatusCode) ok++; else failed.Add(r.Payee);
+            }
+            catch { failed.Add(r.Payee); }
+        }
+        _selected.Clear();
+        _saving = false;
+        _notice = failed.Count == 0 ? Localizer["Refunds_MarkedReceived", ok] : Localizer["Refunds_MarkedSome", ok, string.Join(", ", failed)];
+        await LoadAsync();
+    }
+
+    private sealed record Group(string Key, string Label, List<RefundDto> Rows);
+
+    private IEnumerable<Group> Groups(List<RefundDto> rows) => _group switch
+    {
+        "payee" => rows.GroupBy(r => r.Payee.Trim(), StringComparer.CurrentCultureIgnoreCase).OrderBy(g => g.Key, StringComparer.CurrentCultureIgnoreCase)
+            .Select(g => new Group(g.Key, g.Key, g.ToList())),
+        "status" => rows.GroupBy(r => r.Status).OrderBy(g => g.Key == "received" ? 1 : 0)
+            .Select(g => new Group(g.Key, g.Key == "received" ? Localizer["Refund_Received"] : Localizer["Refund_Pending"], g.ToList())),
+        "month" => rows.GroupBy(r => (r.MonthYear ?? 0, r.MonthNumber ?? 0)).OrderBy(g => g.Key.Item1).ThenBy(g => g.Key.Item2)
+            .Select(g => new Group($"{g.Key.Item1:D4}-{g.Key.Item2:D2}", MonthLabel(g.First()), g.ToList())),
+        _ => [new Group("all", "", rows)],
+    };
+
+    private static (PairDto Received, PairDto Pending) Subtotal(List<RefundDto> rows) =>
+        (new(rows.Where(r => r.Status == "received").Sum(r => r.AmountCrc), rows.Where(r => r.Status == "received").Sum(r => r.AmountUsd)),
+         new(rows.Where(r => r.Status != "received").Sum(r => r.AmountCrc), rows.Where(r => r.Status != "received").Sum(r => r.AmountUsd)));
+
+    private string Show(PairDto p) => MoneyDisplay.Format(p.Crc, p.Usd, _display == MoneyDisplay.Both ? MoneyDisplay.Crc : _display);
+
+    private static string MonthLabel(RefundDto r) => r.MonthYear is { } y && r.MonthNumber is { } m
+        ? $"{CultureInfo.CurrentCulture.TextInfo.ToTitleCase(CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(m))} {y}"
+        : "—";
+
+    private string StatusText(RefundDto r) => r.Status == "received" && r.ReceivedDate is { } d
+        ? Localizer["Refund_ReceivedOn", d.ToString("d", CultureInfo.CurrentCulture)]
+        : r.Status == "received" ? Localizer["Refund_Received"] : Localizer["Refund_Pending"];
+
+    private List<SegmentedOption> StatusOptions() =>
+    [
+        new("pending", Localizer["Refund_Pending"]),
+        new("received", Localizer["Refund_Received"]),
+        new("all", Localizer["Refunds_All"]),
+    ];
+
+    private List<SegmentedOption> GroupOptions() =>
+    [
+        new("none", Localizer["Refunds_GroupNone"]),
+        new("payee", Localizer["Tx_Payee"]),
+        new("status", Localizer["Catalog_Status"]),
+        new("month", Localizer["Refunds_Month"]),
+    ];
+
+    private sealed record ListDto(
+        [property: JsonPropertyName("refunds")] List<RefundDto> Refunds,
+        [property: JsonPropertyName("totals")] TotalsDto Totals,
+        [property: JsonPropertyName("truncated")] bool Truncated = false);
+    private sealed record TotalsDto([property: JsonPropertyName("pending")] PairDto Pending, [property: JsonPropertyName("received")] PairDto Received, [property: JsonPropertyName("expected")] PairDto Expected);
+    private sealed record PairDto([property: JsonPropertyName("crc")] decimal Crc, [property: JsonPropertyName("usd")] decimal Usd);
+    private sealed record RefundDto(
+        [property: JsonPropertyName("id")] Guid Id,
+        [property: JsonPropertyName("month_id")] Guid MonthId,
+        [property: JsonPropertyName("payee")] string Payee,
+        [property: JsonPropertyName("transaction_date")] DateOnly TransactionDate,
+        [property: JsonPropertyName("amount_crc")] decimal AmountCrc,
+        [property: JsonPropertyName("amount_usd")] decimal AmountUsd,
+        [property: JsonPropertyName("status")] string Status,
+        [property: JsonPropertyName("received_date")] DateOnly? ReceivedDate = null,
+        [property: JsonPropertyName("notes")] string? Notes = null,
+        [property: JsonPropertyName("month_year")] int? MonthYear = null,
+        [property: JsonPropertyName("month_number")] int? MonthNumber = null,
+        [property: JsonPropertyName("pending_days")] int? PendingDays = null);
+    private sealed record ErrorDto([property: JsonPropertyName("error")] string Error, [property: JsonPropertyName("message")] string Message);
+}

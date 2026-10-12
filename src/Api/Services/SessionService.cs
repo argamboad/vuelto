@@ -1,17 +1,18 @@
-using Perezosoft.Api.Configuration;
-using Perezosoft.Api.Models;
-using Perezosoft.Core.Entities;
-using Perezosoft.Core.Repositories;
+using Vuelto.Api.Configuration;
+using Vuelto.Api.Models;
+using Vuelto.Core.Entities;
+using Vuelto.Core.Repositories;
 
-namespace Perezosoft.Api.Services;
+namespace Vuelto.Api.Services;
 
 /// <summary>
 /// An issued access session: the <see cref="TokenResponse"/> for the client plus the raw
 /// refresh token. The caller delivers the refresh token by transport — an HttpOnly cookie
 /// for the browser, or the response body (already on <see cref="TokenResponse.RefreshToken"/>)
-/// for a native client.
+/// for a native client. <paramref name="RefreshTokenId"/> is the new refresh token's row id, so a rotation
+/// can link the token it replaced to it (<see cref="IRefreshTokenService.TryMarkRotatedAsync"/>).
 /// </summary>
-public record AccessSession(TokenResponse Response, string RefreshToken);
+public record AccessSession(TokenResponse Response, string RefreshToken, Guid RefreshTokenId);
 
 /// <summary>
 /// Owns session establishment so the controller doesn't: issues the refresh token, resolves
@@ -25,9 +26,11 @@ public interface ISessionService
     /// Issues a refresh token + JWT access token for an authenticated user.
     /// <paramref name="native"/> selects refresh-token transport: true puts it on the response
     /// body; false leaves the body token null (the caller sets the cookie from
-    /// <see cref="AccessSession.RefreshToken"/>).
+    /// <see cref="AccessSession.RefreshToken"/>). <paramref name="sessionExpiresAt"/> is the presented
+    /// token's session end on a rotation (inherited by the successor); null starts a new session.
     /// </summary>
-    Task<AccessSession> IssueAsync(User user, string provider, string ipAddress, bool native, CancellationToken cancellationToken = default);
+    Task<AccessSession> IssueAsync(User user, string provider, string ipAddress, bool native,
+        DateTimeOffset? sessionExpiresAt = null, CancellationToken cancellationToken = default);
 
     /// <summary>Resolves the user's tenant id + name via their membership (null when none).</summary>
     Task<(Guid? Id, string? Name)> ResolveTenantAsync(Guid userId, CancellationToken cancellationToken = default);
@@ -39,9 +42,10 @@ public class SessionService(
     ITenantRepository tenants,
     IJwtSettings jwtSettings) : ISessionService
 {
-    public async Task<AccessSession> IssueAsync(User user, string provider, string ipAddress, bool native, CancellationToken cancellationToken = default)
+    public async Task<AccessSession> IssueAsync(User user, string provider, string ipAddress, bool native,
+        DateTimeOffset? sessionExpiresAt = null, CancellationToken cancellationToken = default)
     {
-        var issued = await refreshTokenService.IssueRefreshTokenAsync(user.Id, ipAddress, provider, cancellationToken);
+        var issued = await refreshTokenService.IssueRefreshTokenAsync(user.Id, ipAddress, provider, sessionExpiresAt, cancellationToken);
         var (tenantId, tenantName) = await ResolveTenantAsync(user.Id, cancellationToken);
 
         var accessToken = jwtTokenService.IssueAccessToken(
@@ -56,7 +60,7 @@ public class SessionService(
             RefreshToken = native ? issued.RawToken : null,
         };
 
-        return new AccessSession(response, issued.RawToken);
+        return new AccessSession(response, issued.RawToken, issued.Token.Id);
     }
 
     public async Task<(Guid? Id, string? Name)> ResolveTenantAsync(Guid userId, CancellationToken cancellationToken = default)

@@ -3,15 +3,16 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.RateLimiting;
-using Perezosoft.Api.Configuration;
-using Perezosoft.Api.Models;
-using Perezosoft.Api.Services;
-using Perezosoft.Core.Abstractions;
-using Perezosoft.Core.Entities;
-using Perezosoft.Infrastructure;
-using Perezosoft.Infrastructure.Email;
+using Vuelto.Api.Configuration;
+using Vuelto.Api.Models;
+using Vuelto.Api.Services;
+using Vuelto.Core.Abstractions;
+using Vuelto.Core.Entities;
+using Vuelto.Core.Repositories;
+using Vuelto.Infrastructure;
+using Vuelto.Infrastructure.Email;
 
-namespace Perezosoft.Api.Controllers;
+namespace Vuelto.Api.Controllers;
 
 /// <summary>
 /// Authentication controller for the OAuth → JWT + refresh-token flow.
@@ -23,6 +24,7 @@ public class AuthController(
     IUserService userService,
     ISessionService sessionService,
     IRefreshTokenService refreshTokenService,
+    IUnitOfWork unitOfWork,
     ICookieService cookieService,
     IClaimsExtractor claimsExtractor,
     IProviderEmailTrust providerEmailTrust,
@@ -96,7 +98,6 @@ public class AuthController(
             if (!string.IsNullOrEmpty(linkToken))
             {
                 var linkUserId = linkTokenService.Redeem(linkToken);
-                await HttpContext.SignOutAsync(ServiceCollectionExtensions.ExternalScheme);
 
                 if (linkUserId is null)
                     return Redirect($"{appSettings.ClientUrl}/settings?link_error=expired");
@@ -111,9 +112,6 @@ public class AuthController(
             var user = await userService.GetOrCreateUserAsync(email, providerUserId, provider,
                 claimsExtractor.ExtractDisplayName(User), EmailVerifiedForMerge(provider), cancellationToken);
 
-            // Sign the external carrier cookie out — its job is done.
-            await HttpContext.SignOutAsync(ServiceCollectionExtensions.ExternalScheme);
-
             // MFA step-up (MFA-2/3, ADR-012): a user with MFA enabled gets a signed challenge instead of
             // a session — bounce to the client's login step-up (which posts to /mfa/verify) rather than
             // completing sign-in here. Without MFA, issue the session exactly as before. Routing through
@@ -123,17 +121,30 @@ public class AuthController(
                 return Redirect($"{appSettings.ClientUrl}/login?mfa={Uri.EscapeDataString(challenge)}");
 
             cookieService.SetRefreshTokenCookie(Response, session!.RefreshToken, Request);
-            logger.LogInformation("OAuth callback successful for user: {Email} via {Provider}", email, provider);
+            logger.LogInformation("OAuth callback successful for user {UserId} via {Provider}", user.Id, provider);
             return Redirect($"{appSettings.ClientUrl}/auth-callback");
         }
         catch (UnverifiedEmailConflictException)
         {
             return Redirect($"{appSettings.ClientUrl}/login?error=email_unverified");
         }
+        catch (SignupNotAllowedException)
+        {
+            // GATES-2 (ADR-027): not a failure, a policy. Say so on the login page rather than dropping
+            // the person on the generic auth-error page, which reads as "the app is broken".
+            return Redirect($"{appSettings.ClientUrl}/login?error=signup_not_allowed");
+        }
         catch (Exception ex)
         {
             logger.LogError(ex, "OAuth callback failed");
             return Redirect($"{appSettings.ClientUrl}/auth-error");
+        }
+        finally
+        {
+            // Sign the external carrier cookie out whatever the outcome — its job is done. A refused signup used
+            // to redirect with the provider's identity still parked in it, so a later signup could complete
+            // without a fresh trip to the provider (v4 AUTH-12).
+            await HttpContext.SignOutAsync(ServiceCollectionExtensions.ExternalScheme);
         }
     }
 
@@ -142,11 +153,17 @@ public class AuthController(
     /// token is revoked and a new one issued. If an already-rotated (revoked) token is later
     /// replayed, that's treated as token theft — every session for the user is revoked and the
     /// event is audit-logged (the client sees the same generic error as any invalid token, so the
-    /// reuse signal isn't leaked). Transport depends on the client: the browser sends/receives the
-    /// token via the HttpOnly cookie; a native client (header <c>X-Native-Client: true</c>) sends it
+    /// reuse signal isn't leaked). Exception — the reuse grace window (<c>RefreshToken:ReuseGraceSeconds</c>,
+    /// default 60 s): a rotated-out token presented again that soon after its rotation, while its successor
+    /// is still live, is a benign race (two tabs, a lost response) and gets a fresh session with nothing
+    /// revoked — ONCE. The grace is spent on that presentation (logged at Warning with the user's running
+    /// count); a further presentation of the same token, inside the window or not, is reuse. Logout revokes
+    /// the successor, so a stale token can never undo it. Transport depends on
+    /// the client: the browser sends/receives the token via the HttpOnly cookie; a native client (header <c>X-Native-Client: true</c>) sends it
     /// in the body and gets the rotated token back in the body — it never had a cookie to begin with.
     /// </summary>
     [HttpPost("refresh")]
+    [EnableRateLimiting(RateLimiting.RefreshPolicy)]
     public async Task<IActionResult> Refresh(
         CancellationToken cancellationToken,
         [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] RefreshRequest? req = null)
@@ -159,31 +176,77 @@ public class AuthController(
                 return Unauthorized(new ErrorResponse("no_refresh_token", "Refresh token not found"));
 
             var inspection = await refreshTokenService.InspectRefreshTokenAsync(rawToken, cancellationToken);
-            if (inspection.Status == RefreshTokenStatus.Reuse)
+            var status = inspection.Status;
+            if (status == RefreshTokenStatus.Reuse)
             {
                 // Replay of a rotated-out token ⇒ assume theft: revoke every session for the user.
                 // Client still gets the generic error below, so the reuse signal isn't leaked.
                 await refreshTokenService.RevokeAllUserTokensAsync(inspection.Token!.UserId, cancellationToken);
                 logger.LogWarning("Refresh-token reuse detected for user {UserId}; revoked all sessions", inspection.Token.UserId);
             }
-            if (inspection.Status != RefreshTokenStatus.Valid)
+            if (status is not (RefreshTokenStatus.Valid or RefreshTokenStatus.RotatedWithinGrace))
                 return Unauthorized(new ErrorResponse("invalid_refresh_token", "Refresh token is invalid or expired"));
 
-            var validToken = inspection.Token!;
-            var user = await userService.GetUserByIdAsync(validToken.UserId, cancellationToken);
+            var presented = inspection.Token!;
+            var user = await userService.GetUserByIdAsync(presented.UserId, cancellationToken);
             if (user == null)
                 return Unauthorized(new ErrorResponse("user_not_found", "User not found"));
 
-            // Rotate: revoke the used token, then issue a fresh session.
-            await refreshTokenService.RevokeRefreshTokenAsync(validToken.Id, cancellationToken);
+            // From here to the commit is ONE transaction, serialized per user against revoke-all (v4 T54,
+            // TB-AUTH-30): the inspection above is a snapshot, and a "sign out everywhere" from another device, an
+            // erasure or the theft response to a replay can land after it. Each claim below re-checks under the
+            // user's chain lock that the inspection still holds, and a claim that fails returns before the commit,
+            // so the successor minted on a stale inspection never lands. A revoke-all that arrives once a claim
+            // holds the lock waits for the commit and then sees the successor too.
+            await using var rotation = await unitOfWork.BeginTransactionAsync(cancellationToken);
 
-            var session = await sessionService.IssueAsync(user, validToken.Provider, ClientIp, native, cancellationToken);
+            if (status == RefreshTokenStatus.RotatedWithinGrace
+                && !await refreshTokenService.TryConsumeGraceAsync(presented.Id, cancellationToken))
+            {
+                // Classified inside the window, but another presentation spent the grace first (a third tab, or a
+                // replay racing the forgiven one) — or a revoke-all killed the successor meanwhile. The grace is
+                // one-shot and the successor must be live, so this one is reuse: the theft response, committed.
+                await refreshTokenService.RevokeAllUserTokensAsync(presented.UserId, cancellationToken);
+                await rotation.CommitAsync(cancellationToken);
+                logger.LogWarning("Refresh-token reuse detected for user {UserId}; revoked all sessions", presented.UserId);
+                return Unauthorized(new ErrorResponse("invalid_refresh_token", "Refresh token is invalid or expired"));
+            }
+
+            // The successor inherits the session's end (RefreshToken:AbsoluteLifetimeDays, when set): a rotation
+            // renews the token, never the session.
+            var session = await sessionService.IssueAsync(user, presented.Provider, ClientIp, native, presented.SessionExpiresAt, cancellationToken);
+
+            if (status == RefreshTokenStatus.Valid)
+            {
+                // Rotate: revoke the used token and link it to the one just issued (RotatedAt + successor),
+                // which is what lets a racing second presentation of it be recognised as benign. Conditional:
+                // a token revoked since the inspection is not rotated, and the scope's disposal rolls the
+                // successor back — the same generic 401 as any dead token.
+                if (!await refreshTokenService.TryMarkRotatedAsync(presented.Id, session.RefreshTokenId, cancellationToken))
+                {
+                    logger.LogInformation("Token refresh refused for user {UserId}: the token was revoked during the refresh", presented.UserId);
+                    return Unauthorized(new ErrorResponse("invalid_refresh_token", "Refresh token is invalid or expired"));
+                }
+                logger.LogInformation("Token refreshed for user: {UserId}", presented.UserId);
+            }
+            else
+            {
+                // Benign race (ADR-002 addendum, 2026-09-18): the token was rotated seconds ago and its successor
+                // is still live — two tabs sharing the cookie, or a refresh whose response never arrived. Issue a
+                // fresh session and revoke NOTHING (not the successor either): both chains stay valid and rotate
+                // independently; an unused one simply expires. The grace was spent above (one-shot, 2026-09-28
+                // addendum); Warning, not Information, because a run of these on one account is the only trace a
+                // thief who keeps landing inside the window would leave.
+                logger.LogWarning(
+                    "Refresh token presented again within the rotation grace window for user {UserId}; issued a new session (grace use #{GraceUses} for this user)",
+                    presented.UserId, await refreshTokenService.CountGraceUsesAsync(presented.UserId, cancellationToken));
+            }
+
+            await rotation.CommitAsync(cancellationToken);
 
             // Web: rotate the cookie. Native: the rotated token is already on the body.
             if (!native)
                 cookieService.SetRefreshTokenCookie(Response, session.RefreshToken, Request);
-
-            logger.LogInformation("Token refreshed for user: {UserId}", validToken.UserId);
 
             return Ok(session.Response);
         }
@@ -196,9 +259,13 @@ public class AuthController(
     }
 
     /// <summary>
-    /// Revokes all refresh tokens for the session and deletes the cookie.
-    /// Identifies the user by the refresh cookie (not [Authorize]) so it works
-    /// even with an expired access token. Idempotent.
+    /// Revokes all refresh tokens for the user and deletes the cookie. Identifies the user by the refresh
+    /// token (not [Authorize]) so it works with an expired access token — and by ANY known refresh token
+    /// (R124): valid, expired, just rotated out or revoked. The keep-alive makes the rotated-out case routine
+    /// (a refresh in flight when the user clicks Sign out), and a device that slept past expiry still promises
+    /// "sign out everywhere"; resolving through the inspection instead of the live-token lookup is what keeps
+    /// both true. Only an unknown hash is a no-op. Idempotent; always 200, so it never reveals whether the
+    /// token was known.
     /// </summary>
     [HttpPost("logout")]
     public async Task<IActionResult> Logout(
@@ -211,11 +278,11 @@ public class AuthController(
             var rawToken = native ? req?.RefreshToken : cookieService.GetRefreshTokenFromCookies(Request);
             if (!string.IsNullOrEmpty(rawToken))
             {
-                var token = await refreshTokenService.ValidateRefreshTokenAsync(rawToken, cancellationToken);
-                if (token != null)
+                var inspection = await refreshTokenService.InspectRefreshTokenAsync(rawToken, cancellationToken);
+                if (inspection.Token is { } token)
                 {
                     await refreshTokenService.RevokeAllUserTokensAsync(token.UserId, cancellationToken);
-                    logger.LogInformation("User logout: {UserId}", token.UserId);
+                    logger.LogInformation("User logout: {UserId} (token was {TokenStatus})", token.UserId, inspection.Status);
                 }
             }
 
@@ -251,7 +318,7 @@ public class AuthController(
 
         var emailBody = BrandedEmail.MagicLink(link, passwordlessSettings.MagicLinkLifespanMinutes,
             BrandedEmail.ResolveCulture(req.Culture));
-        await emailSender.SendAsync(email, emailBody.Subject, emailBody.Html, emailBody.InlineImages, cancellationToken);
+        await emailSender.SendAsync(email, emailBody.Subject, emailBody.Html, emailBody.InlineImages, cancellationToken: cancellationToken);
 
         return Ok();
     }
@@ -263,7 +330,17 @@ public class AuthController(
     [HttpGet("magic-link/verify")]
     public async Task<IActionResult> VerifyMagicLink([FromQuery] string token, [FromQuery] string email, CancellationToken cancellationToken)
     {
-        var user = await passwordless.RedeemMagicLinkAsync(email, token, cancellationToken);
+        User? user;
+        try
+        {
+            user = await passwordless.RedeemMagicLinkAsync(email, token, cancellationToken);
+        }
+        catch (SignupNotAllowedException)
+        {
+            // GATES-2 (ADR-027). The link itself was fine — the address may simply not create an account
+            // here yet. The token is spent either way, which is fine: re-clicking would not help.
+            return Redirect($"{appSettings.ClientUrl}/login?error=signup_not_allowed");
+        }
         if (user is null)
             return Redirect($"{appSettings.ClientUrl}/login?error=invalid_link");
 
@@ -292,7 +369,7 @@ public class AuthController(
 
         var emailBody = BrandedEmail.Otp(code, passwordlessSettings.OtpLifespanMinutes,
             BrandedEmail.ResolveCulture(req.Culture));
-        await emailSender.SendAsync(email, emailBody.Subject, emailBody.Html, emailBody.InlineImages, cancellationToken);
+        await emailSender.SendAsync(email, emailBody.Subject, emailBody.Html, emailBody.InlineImages, cancellationToken: cancellationToken);
 
         return Ok();
     }
@@ -306,7 +383,19 @@ public class AuthController(
     [EnableRateLimiting(RateLimiting.PasswordlessVerifyPolicy)]
     public async Task<IActionResult> VerifyOtp([FromBody] OtpVerifyRequest req, CancellationToken cancellationToken)
     {
-        var result = await passwordless.RedeemOtpAsync(req.Email, req.Code, cancellationToken);
+        OtpResult result;
+        try
+        {
+            result = await passwordless.RedeemOtpAsync(req.Email, req.Code, cancellationToken);
+        }
+        catch (SignupNotAllowedException)
+        {
+            // GATES-2 (ADR-027): 403, not the 401 a wrong code gets. The code WAS correct; the deployment
+            // is not open to this address. Deliberately distinguishable, because the two call for
+            // completely different actions from the person reading it.
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new ErrorResponse("signup_not_allowed", "This deployment is in private testing and is not accepting new accounts."));
+        }
         if (result.Status != OtpStatus.Success || result.User is null)
         {
             // Collapse "no active code" and "wrong code" to one client error so the response can't

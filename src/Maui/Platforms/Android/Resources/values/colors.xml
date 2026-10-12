@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="colorPrimary">#6B8A72</color>
-    <color name="colorPrimaryDark">#465D4D</color>
-    <color name="colorAccent">#465D4D</color>
+    <!-- ¿Y el vuelto?'s indigo and its darkest shade (app.css tokens bs-primary and brand-dark). The status bar
+         itself is painted at runtime to follow the page's theme — see SystemBarColors in
+         AndroidSystemBarTheme.cs. -->
+    <color name="colorPrimary">#5A67D8</color>
+    <color name="colorPrimaryDark">#3A4178</color>
+    <color name="colorAccent">#5A67D8</color>
 </resources>

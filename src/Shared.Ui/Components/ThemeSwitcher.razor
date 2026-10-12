@@ -1,5 +1,5 @@
 @using System.Net.Http.Json
-@using Perezosoft.Shared.Ui.Auth
+@using Vuelto.Shared.Ui.Auth
 @implements IDisposable
 @inject IThemePersistence ThemePersistence
 @inject IJSRuntime JS
@@ -63,6 +63,12 @@
             {
                 var res = await Http.PutAsJsonAsync("/api/auth/theme", new { theme });
                 _syncFailed = !res.IsSuccessStatusCode;
+
+                // MainLayout's reconcile trusts the theme claim of the token in memory, and the Android app
+                // keeps that token across a WebView reload — so without this the next reload put the OLD
+                // theme back (2026-09-16). Remembered, not refreshed: a refresh here rotated the web's
+                // refresh cookie under a reload and signed the user out.
+                if (!_syncFailed) Auth.RememberTheme(theme);
             }
             catch { _syncFailed = true; }
         }

@@ -1,0 +1,681 @@
+@page "/dashboard"
+@page "/dashboard/{Id:guid}"
+@using System.Globalization
+@using System.Net
+@using System.Net.Http.Json
+@using System.Text.Json.Serialization
+@using Vuelto.Shared.Ui.Auth
+@inject AuthService Auth
+@inject NavigationManager Nav
+@inject HttpClient Http
+@inject IStringLocalizer<AppStrings> Localizer
+@inject IJSRuntime JS
+@inject DisplayCurrencyStore Display
+
+<PageTitle>@Localizer["Dash_Title"]</PageTitle>
+
+@* DASH-1 (ADR-V004/V006/V007), presented per SKIN-5. Actuals are frozen per transaction; projections use the
+   resolved rate; when no rate resolves the projections are blocked, never guessed.
+
+   The order is the redesign's first decision made literal: ONE VERDICT, then the pace, then the four-step
+   waterfall, then the detail. The arithmetic underneath is untouched — the same figures in the same order as
+   the eleven rows this replaces, which is the handout's own "do not change". *@
+<div class="dash-wrapper" data-testid="dash-page">
+    @if (_reviewCount > 0)
+    {
+        @* EMAIL-6: drafts waiting in the review queue — shown even before the first month exists. Amber means
+           "needs attention" here, never over-budget. *@
+        <div class="dash-banner" data-testid="dash-review-banner">
+            <span>@Localizer["Dash_ReviewBanner", _reviewCount]</span>
+            <a href="/review" data-testid="dash-review-link">@Localizer["Dash_ReviewLink"] →</a>
+        </div>
+    }
+    @if (_loading)
+    {
+        <div class="text-muted"><span class="spinner-border spinner-border-sm me-2"></span>@Localizer["Common_Loading"]</div>
+    }
+    else if (_months.Count == 0)
+    {
+        <div class="text-center py-5" data-testid="dash-empty">
+            <h1 class="h4 fw-bold mb-2">@Localizer["Dash_EmptyTitle"]</h1>
+            <p class="text-muted mb-3">@Localizer["Dash_EmptySubtitle"]</p>
+            <div class="mb-4"><ExchangeRateBadge /></div>
+            <a class="btn btn-primary" href="/transactions/new" data-testid="dash-new-tx">@Localizer["Months_NewTransaction"]</a>
+        </div>
+    }
+    else if (_dash is null)
+    {
+        <div class="alert alert-danger">@(_error ?? Localizer["Dash_LoadError"])</div>
+    }
+    else
+    {
+        <header class="dash-head">
+            <div class="dash-head-main">
+                <h1 data-testid="dash-title">@MonthLabel(_dash.Month.Year, _dash.Month.MonthNumber)</h1>
+                <p class="dash-subtitle">
+                    @Localizer["Month_Window", _dash.Month.WeekCount, _dash.Month.Week1StartDate.ToString("d", CultureInfo.CurrentCulture), _dash.Month.LastDay.ToString("d", CultureInfo.CurrentCulture)]
+                    <span class="dash-dot" aria-hidden="true">·</span>
+                    @Localizer["Dash_DayOfMonth", ElapsedDays(), TotalDays()]
+                </p>
+                <select class="form-select form-select-sm w-auto" data-testid="dash-month" @onchange="OnMonthSelected">
+                    @foreach (var m in _months)
+                    {
+                        <option value="@m.Id" selected="@(m.Id == _dash.Month.Id)">@MonthLabel(m.Year, m.MonthNumber)</option>
+                    }
+                </select>
+            </div>
+            <div class="dash-head-actions">
+                <ExchangeRateBadge />
+                @* ₡ · $ · both for every converted pair on the page; a budget line keeps its own currency. *@
+                <CurrencySwitch Value="@_display" ValueChanged="SetDisplayAsync" TestId="dash-cur" Label="@Localizer["Reports_ShowIn"].Value" />
+                <div class="dash-head-buttons">
+                    <a class="btn btn-outline-primary btn-sm" href="/months/@_dash.Month.Id">@Localizer["Dash_MonthDetails"]</a>
+                    <a class="btn btn-primary btn-sm" href="/transactions/new" data-testid="dash-new-tx">@Localizer["Months_NewTransaction"]</a>
+                </div>
+            </div>
+        </header>
+
+        @if (_dash.RateUnavailable || _dash.Summary is null)
+        {
+            <div class="alert alert-danger" data-testid="dash-rate-unavailable">@Localizer["Dash_RateUnavailable"]</div>
+        }
+        else
+        {
+            var s = _dash.Summary;
+            var verdict = Verdict(s);
+
+            <div class="row g-3">
+                @* ---------------------------------------------------------------- the verdict *@
+                <div class="col-12 col-lg-5">
+                    <VerdictHeader TestId="dash-verdict" Tone="@verdict.Tone" State="@verdict.State"
+                                   Caption="@Localizer["Dash_ForecastLeftLabel"]"
+                                   Explanation="@Localizer["Dash_ForecastExplainer"]">
+                        <Value>
+                            <Money Crc="s.ActualRemainder.Crc" Usd="s.ActualRemainder.Usd" Display="@_display" Size="display" TestId="dash-forecast" />
+                        </Value>
+                    </VerdictHeader>
+                </div>
+
+                @* ---------------------------------------------------------------- the pace *@
+                <div class="col-12 col-lg-7">
+                    <section class="dash-pace">
+                        <header>
+                            <h2>@Localizer["Dash_ThisMonth"]</h2>
+                            <span class="dash-pace-summary" data-testid="dash-pace-summary">
+                                @Localizer["Dash_PaceCommitted", CommittedPercent(s)] <span class="dash-dot" aria-hidden="true">·</span> @Localizer["Dash_MonthElapsed", ElapsedPercent()]
+                            </span>
+                        </header>
+                        <PaceBar TestId="dash-bar" Thick="true" Total="Side(s.IncomeTotal)" Segments="PaceSegments(s)" Marker="ElapsedPercent() / 100m" />
+                        <p class="dash-rate-note">@Localizer["Dash_RateNote"]</p>
+                    </section>
+                </div>
+
+                @* ---------------------------------------------------------------- the four steps *@
+                <div class="col-12">
+                    <WaterfallSteps TestId="dash-wf" Steps="Steps(s)" />
+                    @if (s.ActualRemainder.Crc < 0)
+                    {
+                        <p class="dash-overplan" data-testid="dash-wf-overplan">@Localizer["Dash_WfOverPlan"]</p>
+                    }
+                    @if (s.RefundsTotal.Crc != 0 || s.RefundsTotal.Usd != 0)
+                    {
+                        @* #208: the refundable figure on the forecast step leads to the refunds themselves. *@
+                        <p class="dash-refunds-link"><a href="/refunds" data-testid="dash-refunds-link">@Localizer["Refunds_SeeAll"]</a></p>
+                    }
+                </div>
+
+                @* ---------------------------------------------------------------- envelopes, only when due
+                   Owner decision (2026-09-11): envelopes are carved OUT of expenses, so they never belong in a
+                   "where it went" breakdown. They are conditional by design — the five_week_months cadence
+                   exists so a bucket surfaces in the months it is due — so this is a strip that appears when
+                   there is something to act on and is absent otherwise, which is one fewer section to read. *@
+                @if (s.EnvelopeReminders.Count > 0)
+                {
+                    <div class="col-12">
+                        <section class="dash-envelopes" data-testid="dash-envelopes">
+                            <h2>@Localizer["Dash_Envelopes"]</h2>
+                            <ul>
+                                @foreach (var e in s.EnvelopeReminders)
+                                {
+                                    <li>
+                                        <span class="dash-env-name">@e.Name</span>
+                                        <span class="dash-env-bar" aria-hidden="true"><span style="width: @Pct(EnvelopeFill(e))"></span></span>
+                                        <span class="dash-env-money">@Localizer["Dash_Contributed"]: @Show(e.ContributedThisMonth)</span>
+                                        <span class="dash-env-money">@Localizer["Dash_Remaining"]: @Show(e.Remaining)</span>
+                                    </li>
+                                }
+                            </ul>
+                        </section>
+                    </div>
+                }
+
+                @* ---------------------------------------------------------------- the two line lists *@
+                <div class="col-12 col-lg-6">
+                    <BudgetLineList TestId="dash-fixed" CollapseKey="dashboard.fixed" Title="@Localizer["Budget_Fixed"]" Rows="LineRows(s.FixedExpenses)"
+                                    Summary="@ListSummary(s.FixedExpenses)" SummaryOver="@ListOver(s.FixedExpenses)" />
+                </div>
+                <div class="col-12 col-lg-6">
+                    <BudgetLineList TestId="dash-variable" CollapseKey="dashboard.variable" Title="@Localizer["Budget_Variable"]" Rows="LineRows(s.VariableExpenses)"
+                                    Summary="@ListSummary(s.VariableExpenses)" SummaryOver="@ListOver(s.VariableExpenses)" />
+                </div>
+
+                @* ---------------------------------------------------------------- one panel, four cuts *@
+                <div class="col-12">
+                    <BreakdownPanel TestId="dash-breakdown" CollapseKey="dashboard.breakdown" Title="@Localizer["Dash_WhereItWent"]"
+                                    Options="BreakdownOptions()" Value="@_breakdown" ValueChanged="@(v => _breakdown = v)">
+                        @switch (_breakdown)
+                        {
+                            case "week": @WeekView(s); break;
+                            case "bank": @BankView(s); break;
+                            case "card": @CardView(s); break;
+                            default: @UnbudgetedView(s); break;
+                        }
+                    </BreakdownPanel>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    [Parameter] public Guid? Id { get; set; }
+
+    private bool _loading = true;
+    private string? _error;
+    private int _reviewCount;
+    private List<MonthDto> _months = new();
+    private DashDto? _dash;
+
+    /// <summary>Which cut of the spend the panel is showing. Local UI state only — no refetch (build notes).</summary>
+    private string _breakdown = "week";
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
+        await LoadDisplayAsync();
+        try
+        {
+            try
+            {
+                var count = await Http.GetAsync("/api/pending-vouchers/count");
+                _reviewCount = count.IsSuccessStatusCode ? (await count.Content.ReadFromJsonAsync<CountDto>())?.Count ?? 0 : 0;
+            }
+            catch { _reviewCount = 0; } // the banner is a courtesy, never a blocker
+            _months = await Http.GetFromJsonAsync<List<MonthDto>>("/api/months") ?? new();
+            if (_months.Count == 0) return;
+            var id = Id is { } given && _months.Any(m => m.Id == given) ? given : _months[0].Id; // newest first
+            await LoadAsync(id);
+        }
+        catch { _error = Localizer["Dash_LoadError"]; }
+        finally { _loading = false; }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!_loading && Id is { } id && _dash is not null && _dash.Month.Id != id) await LoadAsync(id);
+    }
+
+    private async Task LoadAsync(Guid id)
+    {
+        try
+        {
+            var res = await Http.GetAsync($"/api/months/{id}/summary");
+            if (res.StatusCode == HttpStatusCode.NotFound) { _dash = null; _error = Localizer["Month_NotFound"]; return; }
+            res.EnsureSuccessStatusCode();
+            _dash = await res.Content.ReadFromJsonAsync<DashDto>();
+        }
+        catch { _dash = null; _error = Localizer["Dash_LoadError"]; }
+    }
+
+    private void OnMonthSelected(ChangeEventArgs e)
+    {
+        if (Guid.TryParse(e.Value?.ToString(), out var id)) Nav.NavigateTo($"/dashboard/{id}");
+    }
+
+    // ---------------------------------------------------------------- the verdict
+
+    /// <summary>
+    /// Derived on every render, never stored (build notes). Pace is what has actually been SPENT against
+    /// income; "committed" (spent + still planned) is a separate figure reported beside the bar, and is
+    /// deliberately not what decides the state — a month can be heavily committed and still on track.
+    /// </summary>
+    private (string Tone, string State) Verdict(SummaryDto s)
+    {
+        if (Side(s.ActualRemainder) <= 0) return ("bad", Localizer["Dash_Verdict_Over"]);
+        return SpentPercent(s) <= ElapsedPercent()
+            ? ("good", Localizer["Dash_Verdict_OnTrack"])
+            : ("warn", Localizer["Dash_Verdict_AtRisk"]);
+    }
+
+    private decimal SpentPercent(SummaryDto s) => Percent(Side(s.ExpensesTotal), Side(s.IncomeTotal));
+
+    private decimal CommittedPercent(SummaryDto s) => Percent(Side(s.ExpensesTotal) + Side(s.PendingBudgeted), Side(s.IncomeTotal));
+
+    private static decimal Percent(decimal part, decimal whole) => whole <= 0 ? 0 : Math.Round(100m * part / whole);
+
+    // ---------------------------------------------------------------- the pace bar
+
+    /// <summary>
+    /// Left to right: the three class spends, what is still planned, then the forecast. Hatching on "still
+    /// planned" is the one meaning it carries anywhere in the app — money planned, not yet spent.
+    /// Each legend entry carries the AMOUNT beside its share, in whatever currency "Show in" is set to
+    /// (owner decision, 2026-09-11): the class split is this app's spine, and a percentage of a bar is a
+    /// weaker instrument than an amount when the question is whether to cut back.
+    /// </summary>
+    private List<PaceSegment> PaceSegments(SummaryDto s) =>
+    [
+        new(Legend(Localizer["Tx_Budgeted"], s.SpentBudgeted), Side(s.SpentBudgeted), "primary"),
+        new(Legend(Localizer["Tx_Extraordinary"], s.SpentExtraordinary), Side(s.SpentExtraordinary), "accent"),
+        new(Legend(Localizer["Tx_Unplanned"], s.SpentUnplanned), Side(s.SpentUnplanned), "warn"),
+        new(Legend(Localizer["Dash_BarPlanned"], s.PendingBudgeted), Side(s.PendingBudgeted), "muted", Hatched: true),
+        new(Legend(Localizer["Dash_BarForecast"], s.ActualRemainder), Math.Max(0m, Side(s.ActualRemainder)), "good"),
+    ];
+
+    /// <summary>
+    /// "Budgeted ₡368,923" — a legend entry names its class and its money. With "both" the amounts stay
+    /// INLINE rather than stacked: a five-entry legend that stacked would be three lines tall, and a legend
+    /// chip is not a money cell.
+    /// </summary>
+    private string Legend(string label, MoneyDto m) => $"{label} {MoneyDisplay.Format(m.Crc, m.Usd, _display)}";
+
+    // ---------------------------------------------------------------- the four steps
+
+    /// <summary>
+    /// The same arithmetic as the eleven-row waterfall, in the same order, as four steps: income, less what
+    /// has been spent, less what is still planned, equals the forecast. Nothing here is a new calculation.
+    /// </summary>
+    private List<WaterfallStep> Steps(SummaryDto s) =>
+    [
+        new("", Localizer["Dash_WfIncome"], IncomeMoney(s.IncomeTotal), IncomeSub(s)),
+        new("−", Localizer["Dash_WfSpent"], SpentMoney(s.ExpensesTotal)),
+        new("−", Localizer["Dash_WfPlanned"], PlannedMoney(s.PendingBudgeted)),
+        new("=", Localizer["Dash_WfForecast"], ForecastMoney(s.ActualRemainder), RefundSub(s),
+            Side(s.ActualRemainder) < 0 ? "bad" : "good"),
+    ];
+
+    // One fragment per step so each money carries a literal test id (R149).
+    private RenderFragment IncomeMoney(MoneyDto m) => __builder =>
+    {
+        <Money Crc="m.Crc" Usd="m.Usd" Display="@_display" Size="step" TestId="dash-wf-income" />
+    };
+    private RenderFragment SpentMoney(MoneyDto m) => __builder =>
+    {
+        <Money Crc="m.Crc" Usd="m.Usd" Display="@_display" Size="step" TestId="dash-wf-spent" />
+    };
+    private RenderFragment PlannedMoney(MoneyDto m) => __builder =>
+    {
+        <Money Crc="m.Crc" Usd="m.Usd" Display="@_display" Size="step" TestId="dash-wf-planned" />
+    };
+    private RenderFragment ForecastMoney(MoneyDto m) => __builder =>
+    {
+        <Money Crc="m.Crc" Usd="m.Usd" Display="@_display" Size="step" TestId="dash-wf-forecast" />
+    };
+
+    /// <summary>Inflows (realized refunds, sales) are folded into income — say so, or the figure looks wrong.</summary>
+    private string? IncomeSub(SummaryDto s)
+    {
+        var inflows = s.IncomeInflows;
+        return inflows.Crc == 0 && inflows.Usd == 0 ? null : Localizer["Dash_WfIncomeOther"] + ": " + Show(inflows);
+    }
+
+    /// <summary>Expected refunds are NOT in the forecast (ADR-V007) — the one place that has to keep saying so.</summary>
+    /// <summary>Expected refunds are named on the step they are NOT counted in — with their amount, the way the Income step names inflows.</summary>
+    private string? RefundSub(SummaryDto s) =>
+        s.RefundsTotal.Crc == 0 && s.RefundsTotal.Usd == 0 ? null
+            : Localizer["Dash_WfRefundsExpected"] + ": " + Show(s.RefundsTotal) + " — " + Localizer["Dash_RefundsNote"];
+
+    // ---------------------------------------------------------------- the line lists
+
+    private List<BudgetLineRow> LineRows(List<LineDto> lines) => lines.Select(l =>
+    {
+        var over = OverTone(l.Budget, l.Actual, l.BudgetCurrency) == "text-danger";
+        var budget = _display == MoneyDisplay.Both ? Show(l.Budget) : MoneyDisplay.Native(l.Budget.Crc, l.Budget.Usd, l.BudgetCurrency);
+        return new BudgetLineRow(l.Name, budget, Delta(l.Budget, l.Actual), Fill(l.Budget, l.Actual), over);
+    }).ToList();
+
+    /// <summary>The signed distance from plan — the question a household asks, where three columns made you subtract.</summary>
+    private string Delta(MoneyDto budget, MoneyDto actual)
+    {
+        var d = new MoneyDto(actual.Crc - budget.Crc, actual.Usd - budget.Usd);
+        var sign = Side(d) > 0 ? "+" : Side(d) < 0 ? "−" : "";
+        return sign + MoneyDisplay.Format(Math.Abs(d.Crc), Math.Abs(d.Usd), _display);
+    }
+
+    private decimal Fill(MoneyDto budget, MoneyDto actual) =>
+        Side(budget) <= 0 ? (Side(actual) > 0 ? 1m : 0m) : Side(actual) / Side(budget);
+
+    private string? ListSummary(List<LineDto> lines)
+    {
+        if (lines.Count == 0) return null;
+        var budget = Sum(lines.Select(l => l.Budget));
+        var actual = Sum(lines.Select(l => l.Actual));
+        var d = new MoneyDto(actual.Crc - budget.Crc, actual.Usd - budget.Usd);
+        var amount = MoneyDisplay.Format(Math.Abs(d.Crc), Math.Abs(d.Usd), _display);
+        return Side(d) > 0 ? Localizer["Dash_LinesOverPlan", amount] : Localizer["Dash_LinesUnderPlan", amount];
+    }
+
+    private bool ListOver(List<LineDto> lines) =>
+        lines.Count > 0 && Side(Sum(lines.Select(l => l.Actual))) > Side(Sum(lines.Select(l => l.Budget)));
+
+    // ---------------------------------------------------------------- the breakdown panel
+
+    /// <summary>
+    /// Four cuts of the same spend. "Unbudgeted" is the old Other-spending card (owner decision,
+    /// 2026-09-11): categories with actuals and no budget line ARE where money went, so they belong here
+    /// rather than as a card of their own.
+    /// </summary>
+    private List<SegmentedOption> BreakdownOptions() =>
+    [
+        new("week", Localizer["Dash_ByWeek"]),
+        new("bank", Localizer["Dash_ByBank"]),
+        new("card", Localizer["Dash_ByCard"]),
+        new("other", Localizer["Dash_Unbudgeted"]),
+    ];
+
+    /// <summary>
+    /// #209: a money pair in a breakdown cell. One currency reads as before; "both" keeps "₡x · $y" on a wide screen and
+    /// stacks ₡ over $ on a phone (the CSS hides the middot there), so four money columns fit a 375-pixel screen.
+    /// </summary>
+    private RenderFragment Pair(MoneyDto m) => __builder =>
+    {
+        if (_display != MoneyDisplay.Both)
+        {
+            <span class="text-nowrap">@Show(m)</span>
+        }
+        else
+        {
+            <span class="dash-pair"><span class="text-nowrap">@MoneyDisplay.Format(m.Crc, m.Usd, MoneyDisplay.Crc)</span><span class="dash-pair-sep"> · </span><span class="dash-pair-alt text-nowrap">@MoneyDisplay.Format(m.Crc, m.Usd, MoneyDisplay.Usd)</span></span>
+        }
+    };
+
+    private RenderFragment WeekView(SummaryDto s) => __builder =>
+    {
+        <div class="table-responsive">
+            <table class="table table-sm dash-table">
+                <thead><tr><th>@Localizer["Dash_Week"]</th><th class="text-end">@Localizer["Tx_Budgeted"]</th><th class="text-end">@Localizer["Tx_Extraordinary"]</th><th class="text-end">@Localizer["Tx_Unplanned"]</th><th class="text-end dash-week-sum">@Localizer["Dash_Total"]</th></tr></thead>
+                <tbody>
+                    @foreach (var w in s.WeeklyBudgeted)
+                    {
+                        var extra = s.WeeklyExtraordinary.FirstOrDefault(x => x.WeekNumber == w.WeekNumber);
+                        var unplanned = s.WeeklyUnplanned?.FirstOrDefault(x => x.WeekNumber == w.WeekNumber); // #211
+                        // The week's whole spend — the three classes added (owner, 2026-10-09).
+                        var weekTotal = Sum([w.Total, extra?.Total ?? new MoneyDto(0, 0), unplanned?.Total ?? new MoneyDto(0, 0)]);
+                        <tr data-testid="dash-week-row">
+                            <td>
+                                @Localizer["Month_Week", w.WeekNumber] <span class="dash-meta">@w.StartDate.ToString("d", CultureInfo.CurrentCulture) – @w.EndDate.ToString("d", CultureInfo.CurrentCulture)</span>
+                                @* On a phone the Total column folds in here — five money columns don't fit 375 pixels. *@
+                                <span class="dash-week-sum-sub"><span class="dash-week-sum-label">@Localizer["Dash_Total"]</span>@Pair(weekTotal)</span>
+                            </td>
+                            <td class="text-end">@Pair(w.Total)</td>
+                            <td class="text-end">@Pair(extra?.Total ?? new MoneyDto(0, 0))</td>
+                            <td class="text-end">@Pair(unplanned?.Total ?? new MoneyDto(0, 0))</td>
+                            <td class="text-end fw-semibold dash-week-sum" data-testid="dash-week-sum">@Pair(weekTotal)</td>
+                        </tr>
+                    }
+                    <tr class="fw-semibold" data-testid="dash-week-total">
+                        <td>
+                            @Localizer["Dash_Total"]
+                            <span class="dash-week-sum-sub">@Pair(Sum([.. s.WeeklyBudgeted.Select(w => w.Total), .. s.WeeklyExtraordinary.Select(w => w.Total), .. (s.WeeklyUnplanned ?? []).Select(w => w.Total)]))</span>
+                        </td>
+                        <td class="text-end">@Pair(Sum(s.WeeklyBudgeted.Select(w => w.Total)))</td>
+                        <td class="text-end">@Pair(Sum(s.WeeklyExtraordinary.Select(w => w.Total)))</td>
+                        <td class="text-end">@Pair(Sum((s.WeeklyUnplanned ?? []).Select(w => w.Total)))</td>
+                        <td class="text-end dash-week-sum">@Pair(Sum([.. s.WeeklyBudgeted.Select(w => w.Total), .. s.WeeklyExtraordinary.Select(w => w.Total), .. (s.WeeklyUnplanned ?? []).Select(w => w.Total)]))</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    };
+
+    @* Owner, 2026-09-14: a budget line names no bank, so the plan-vs-spent comparison sits on the method axis
+       (Card / Bank account, always both rows) and the bank table below is actuals only — which card or account
+       actually carried the month. *@
+    private RenderFragment BankView(SummaryDto s) => __builder =>
+    {
+        <div class="table-responsive">
+            <table class="table table-sm dash-table dash-method">
+                <thead><tr><th>@Localizer["Dash_ByMethod"]</th><th class="text-end">@Localizer["Dash_Budgeted"]</th><th class="text-end">@Localizer["Dash_Actual"]</th></tr></thead>
+                <tbody>
+                    @foreach (var m in s.MethodBreakdown ?? [])
+                    {
+                        <tr data-testid="dash-method-row">
+                            <td>@(m.PaymentMethod == "bank_account" ? Localizer["Tx_BankAccount"] : Localizer["Tx_CreditCard"])</td>
+                            <td class="text-end">@Pair(m.Budget)</td>
+                            <td class="text-end @OverTone(m.Budget, m.Actual)">@Pair(m.Actual)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm dash-table">
+                <thead><tr><th>@Localizer["Tx_Bank"]</th><th>@Localizer["Tx_PaymentMethod"]</th><th class="text-end">@Localizer["Dash_Actual"]</th></tr></thead>
+                <tbody>
+                    @foreach (var b in s.BankMethodBreakdown)
+                    {
+                        <tr data-testid="dash-bank-row">
+                            <td>@b.BankName</td>
+                            <td>@(b.PaymentMethod == "bank_account" ? Localizer["Tx_BankAccount"] : Localizer["Tx_CreditCard"])</td>
+                            <td class="text-end">@Pair(b.Actual)</td>
+                        </tr>
+                    }
+                    <tr class="fw-semibold" data-testid="dash-banks-total">
+                        <td colspan="2">@Localizer["Dash_Total"]</td>
+                        <td class="text-end">@Pair(Sum(s.BankMethodBreakdown.Select(b => b.Actual)))</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    };
+
+    private RenderFragment CardView(SummaryDto s) => __builder =>
+    {
+        var byCard = s.ByCard ?? new List<CardSpendDto>();
+        var total = Side(Sum(byCard.Select(c => c.Actual)));
+        <div class="table-responsive">
+            <table class="table table-sm dash-table">
+                <thead><tr><th>@Localizer["Tx_Card"]</th><th class="text-end">@Localizer["Dash_Actual"]</th><th class="text-end">@Localizer["Dash_Share"]</th></tr></thead>
+                <tbody>
+                    @foreach (var c in byCard)
+                    {
+                        <tr data-testid="dash-card-row">
+                            <td>
+                                @c.CardName
+                                <span class="dash-meta" data-testid="dash-card-meta">
+                                    @(c.Kind is null
+                                        ? Localizer["Dash_CardCount", c.Count]
+                                        : Localizer["Dash_CardMeta", c.Kind == "debit" ? Localizer["Cards_KindDebit"] : Localizer["Cards_KindCredit"], c.Count])
+                                </span>
+                            </td>
+                            <td class="text-end text-nowrap">@Show(c.Actual)</td>
+                            <td class="text-end" data-testid="dash-card-share">@Share(Side(c.Actual), total)</td>
+                        </tr>
+                    }
+                    <tr class="fw-semibold">
+                        <td>@Localizer["Dash_Total"]</td>
+                        <td class="text-end text-nowrap">@Show(Sum(byCard.Select(c => c.Actual)))</td>
+                        <td class="text-end">@Share(total, total)</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    };
+
+    private RenderFragment UnbudgetedView(SummaryDto s) => __builder =>
+    {
+        @if (s.OtherSpending.Count == 0)
+        {
+            <p class="dash-empty-view">@Localizer["Dash_NoLines"]</p>
+        }
+        else
+        {
+            <p class="dash-meta-block">@Localizer["Dash_OtherSpendingHint"]</p>
+            @* Grouped by what kind of money it is (owner decision, 2026-09-14): Discretionary, then Unplanned, then
+               "marked budgeted, no line" — the catalog smell — only when it occurs. A category whose money came in
+               two classes sits once per group with that group's amount, so the subtotals and the total all add up. *@
+            <div class="table-responsive">
+                <table class="table table-sm dash-table">
+                    <thead><tr><th>@Localizer["Tx_Category"]</th><th class="text-end">@Localizer["Dash_Actual"]</th></tr></thead>
+                    <tbody>
+                        @foreach (var group in UnbudgetedGroups(s.OtherSpending))
+                        {
+                            <tr class="dash-other-group" data-testid="dash-other-group" data-class="@group.Class">
+                                <th scope="rowgroup">@Localizer[group.LabelKey]</th>
+                                <th scope="rowgroup" class="text-end text-nowrap">@Show(Sum(group.Rows.Select(r => r.Actual)))</th>
+                            </tr>
+                            @foreach (var r in group.Rows)
+                            {
+                                <tr data-testid="dash-other-row">
+                                    <td>@r.CategoryName</td>
+                                    <td class="text-end text-nowrap">@Show(r.Actual)</td>
+                                </tr>
+                            }
+                        }
+                        <tr class="fw-semibold" data-testid="dash-other-total">
+                            <td>@Localizer["Dash_Total"]</td>
+                            <td class="text-end text-nowrap">@Show(Sum(s.OtherSpending.Select(o => o.Actual)))</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        }
+    };
+
+    // ---------------------------------------------------------------- unbudgeted grouping
+
+    private sealed record UnbudgetedGroup(string Class, string LabelKey, List<(string CategoryName, MoneyDto Actual)> Rows);
+
+    // Discretionary first (the money you chose to spend), Unplanned second (the money you had to), and last the
+    // rows classed Budgeted in a category no line covers — which is a line missing from the catalog, not a class of
+    // spending, hence its own wording. Inside a group the biggest category comes first, as the summary sorts.
+    private static readonly (string Class, string LabelKey)[] UnbudgetedOrder =
+    [
+        (TransactionClasses.Extraordinary, "Tx_Extraordinary"),
+        (TransactionClasses.UnplannedEssential, "Tx_Unplanned"),
+        (TransactionClasses.Budgeted, "Dash_BudgetedNoLine"),
+    ];
+
+    private static IEnumerable<UnbudgetedGroup> UnbudgetedGroups(IEnumerable<OtherDto> other)
+    {
+        var byClass = other.SelectMany(o => (o.ByClass ?? []).Select(k => (k.Class, o.CategoryName, k.Actual)))
+            .ToLookup(x => x.Class);
+        foreach (var (cls, key) in UnbudgetedOrder)
+        {
+            var rows = byClass[cls].OrderByDescending(x => x.Actual.Crc).ThenBy(x => x.CategoryName, StringComparer.Ordinal)
+                .Select(x => (x.CategoryName, x.Actual)).ToList();
+            if (rows.Count > 0) yield return new UnbudgetedGroup(cls, key, rows);
+        }
+    }
+
+    // ---------------------------------------------------------------- shared helpers
+
+    /// <summary>The page's side: dollars when the page shows dollars, colones otherwise.</summary>
+    private decimal Side(MoneyDto v) => _display == MoneyDisplay.Usd ? v.Usd : v.Crc;
+
+    /// <summary>The page's "show in" (MoneyDisplay): ₡, $, or both sides.</summary>
+    private string _display = MoneyDisplay.Both;
+    private string Show(MoneyDto m) => MoneyDisplay.Format(m.Crc, m.Usd, _display);
+
+    private static string Share(decimal part, decimal total) => total == 0 ? "—" : (part / total).ToString("P0", CultureInfo.CurrentCulture);
+
+    private static string Pct(decimal fill) =>
+        (Math.Clamp(fill, 0m, 1m) * 100m).ToString("0.##", CultureInfo.InvariantCulture) + "%";
+
+    private decimal EnvelopeFill(EnvelopeDto e) =>
+        Side(e.AnnualTarget) <= 0 ? 0m : Side(e.ContributedThisMonth) / Side(e.AnnualTarget);
+
+    private async Task SetDisplayAsync(string display)
+    {
+        _display = display;
+        await Display.SaveAsync(display); // device + account (ADR-V020)
+    }
+
+    private async Task LoadDisplayAsync() => _display = await Display.LoadAsync();
+
+    /// <summary>The device's date — drives the pace marker and the verdict. Overridable for tests.</summary>
+    [Parameter] public DateOnly Today { get; set; } = DateOnly.FromDateTime(DateTime.Today);
+
+    private int TotalDays() => _dash?.Month is { } m ? m.LastDay.DayNumber - m.Week1StartDate.DayNumber + 1 : 0;
+
+    private int ElapsedDays()
+    {
+        if (_dash?.Month is not { } m) return 0;
+        return Math.Clamp(Today.DayNumber - m.Week1StartDate.DayNumber + 1, 0, TotalDays());
+    }
+
+    /// <summary>Whole-percent share of the month's days behind us (today included), clamped to 0–100.</summary>
+    private decimal ElapsedPercent()
+    {
+        var total = TotalDays();
+        return total == 0 ? 0 : Math.Round(100m * ElapsedDays() / total);
+    }
+
+    /// <summary>Over/under in the line's OWN currency: a budget is set on one side and the other side is a
+    /// projection at today's rate, so a $2.99 line paid at $2.99 must never turn red because its colón
+    /// projection differs by a few colones from the frozen rate of the purchase. For converted pairs no side
+    /// is native: red only when the actual is over on BOTH sides, so rate rounding alone never paints red.</summary>
+    private static string OverTone(MoneyDto budget, MoneyDto actual, string? currency = null)
+    {
+        if (budget.Crc == 0 && budget.Usd == 0) return "";
+        var over = currency switch
+        {
+            "USD" => actual.Usd > budget.Usd,
+            "CRC" => actual.Crc > budget.Crc,
+            _ => actual.Crc > budget.Crc && actual.Usd > budget.Usd,
+        };
+        return over ? "text-danger" : "text-success";
+    }
+
+    /// <summary>Column totals — the sum of exactly the rows shown (each side in its own currency).</summary>
+    private static MoneyDto Sum(IEnumerable<MoneyDto> values) => values.Aggregate(new MoneyDto(0, 0), (acc, m) => new MoneyDto(acc.Crc + m.Crc, acc.Usd + m.Usd));
+
+    private static string MonthLabel(int year, int month) =>
+        $"{CultureInfo.CurrentCulture.TextInfo.ToTitleCase(CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(month))} {year}";
+
+    private sealed record MonthDto([property: JsonPropertyName("id")] Guid Id, [property: JsonPropertyName("year")] int Year, [property: JsonPropertyName("month_number")] int MonthNumber);
+    private sealed record MoneyDto([property: JsonPropertyName("crc")] decimal Crc, [property: JsonPropertyName("usd")] decimal Usd);
+    private sealed record LineDto([property: JsonPropertyName("name")] string Name, [property: JsonPropertyName("budget")] MoneyDto Budget, [property: JsonPropertyName("actual")] MoneyDto Actual, [property: JsonPropertyName("budget_currency")] string BudgetCurrency = "CRC");
+    private sealed record WeekDto([property: JsonPropertyName("week_number")] int WeekNumber, [property: JsonPropertyName("start_date")] DateOnly StartDate, [property: JsonPropertyName("end_date")] DateOnly EndDate, [property: JsonPropertyName("total")] MoneyDto Total);
+    private sealed record EnvelopeDto([property: JsonPropertyName("name")] string Name, [property: JsonPropertyName("annual_target")] MoneyDto AnnualTarget, [property: JsonPropertyName("contributed_this_month")] MoneyDto ContributedThisMonth, [property: JsonPropertyName("remaining")] MoneyDto Remaining, [property: JsonPropertyName("cadence")] string Cadence);
+    private sealed record OtherDto([property: JsonPropertyName("category_name")] string CategoryName, [property: JsonPropertyName("actual")] MoneyDto Actual, [property: JsonPropertyName("by_class")] List<OtherClassDto>? ByClass = null);
+    private sealed record OtherClassDto([property: JsonPropertyName("class")] string Class, [property: JsonPropertyName("actual")] MoneyDto Actual);
+    private sealed record BankDto([property: JsonPropertyName("bank_id")] Guid? BankId, [property: JsonPropertyName("bank_name")] string BankName, [property: JsonPropertyName("payment_method")] string PaymentMethod, [property: JsonPropertyName("actual")] MoneyDto Actual);
+    private sealed record MethodDto([property: JsonPropertyName("payment_method")] string PaymentMethod, [property: JsonPropertyName("budget")] MoneyDto Budget, [property: JsonPropertyName("actual")] MoneyDto Actual);
+    private sealed record SummaryDto(
+        [property: JsonPropertyName("income_inflows")] MoneyDto IncomeInflows,
+        [property: JsonPropertyName("income_total")] MoneyDto IncomeTotal,
+        [property: JsonPropertyName("expenses_card")] MoneyDto ExpensesCard,
+        [property: JsonPropertyName("expenses_account")] MoneyDto ExpensesAccount,
+        [property: JsonPropertyName("expenses_total")] MoneyDto ExpensesTotal,
+        [property: JsonPropertyName("expenses_remainder")] MoneyDto ExpensesRemainder,
+        [property: JsonPropertyName("spent_budgeted")] MoneyDto SpentBudgeted,
+        [property: JsonPropertyName("spent_extraordinary")] MoneyDto SpentExtraordinary,
+        [property: JsonPropertyName("spent_unplanned")] MoneyDto SpentUnplanned,
+        [property: JsonPropertyName("fixed_expenses")] List<LineDto> FixedExpenses,
+        [property: JsonPropertyName("variable_expenses")] List<LineDto> VariableExpenses,
+        [property: JsonPropertyName("other_spending")] List<OtherDto> OtherSpending,
+        [property: JsonPropertyName("weekly_budgeted")] List<WeekDto> WeeklyBudgeted,
+        [property: JsonPropertyName("weekly_extraordinary")] List<WeekDto> WeeklyExtraordinary,
+        [property: JsonPropertyName("current_balance")] MoneyDto CurrentBalance,
+        [property: JsonPropertyName("remainder_for_debts")] MoneyDto RemainderForDebts,
+        [property: JsonPropertyName("pending_budgeted")] MoneyDto PendingBudgeted,
+        [property: JsonPropertyName("actual_remainder")] MoneyDto ActualRemainder,
+        [property: JsonPropertyName("unplanned_essential_total")] MoneyDto UnplannedEssentialTotal,
+        [property: JsonPropertyName("refunds_total")] MoneyDto RefundsTotal,
+        [property: JsonPropertyName("envelope_reminders")] List<EnvelopeDto> EnvelopeReminders,
+        [property: JsonPropertyName("bank_method_breakdown")] List<BankDto> BankMethodBreakdown,
+        [property: JsonPropertyName("by_card")] List<CardSpendDto>? ByCard = null,
+        [property: JsonPropertyName("method_breakdown")] List<MethodDto>? MethodBreakdown = null,
+        [property: JsonPropertyName("weekly_unplanned")] List<WeekDto>? WeeklyUnplanned = null); // #211
+    private sealed record CardSpendDto([property: JsonPropertyName("card_id")] Guid? CardId, [property: JsonPropertyName("card_name")] string CardName, [property: JsonPropertyName("actual")] MoneyDto Actual, [property: JsonPropertyName("count")] int Count, [property: JsonPropertyName("kind")] string? Kind = null);
+    private sealed record DashMonthDto([property: JsonPropertyName("id")] Guid Id, [property: JsonPropertyName("year")] int Year, [property: JsonPropertyName("month_number")] int MonthNumber, [property: JsonPropertyName("week_count")] int WeekCount, [property: JsonPropertyName("week1_start_date")] DateOnly Week1StartDate, [property: JsonPropertyName("last_day")] DateOnly LastDay);
+    private sealed record DashDto(
+        [property: JsonPropertyName("month")] DashMonthDto Month,
+        [property: JsonPropertyName("exchange_rate")] decimal? ExchangeRate,
+        [property: JsonPropertyName("exchange_rate_buy")] decimal? ExchangeRateBuy,
+        [property: JsonPropertyName("rate_source")] string? RateSource,
+        [property: JsonPropertyName("rate_as_of")] DateTimeOffset? RateAsOf,
+        [property: JsonPropertyName("rate_unavailable")] bool RateUnavailable,
+        [property: JsonPropertyName("summary")] SummaryDto? Summary);
+    private sealed record CountDto([property: JsonPropertyName("count")] int Count);
+}

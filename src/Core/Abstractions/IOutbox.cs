@@ -1,4 +1,4 @@
-namespace Perezosoft.Core.Abstractions;
+namespace Vuelto.Core.Abstractions;
 
 /// <summary>
 /// Enqueues a side effect onto the transactional outbox. The message is staged on the current
@@ -15,6 +15,6 @@ public interface IOutbox
 {
     /// <param name="type">Handler discriminator (e.g. <c>"email"</c>).</param>
     /// <param name="payload">Opaque JSON understood by the matching handler.</param>
-    /// <param name="tenantId">Optional owning tenant — context for the handler, not a scoping key.</param>
+    /// <param name="tenantId">Optional owning tenant — not a query-filter key, but what lets that tenant's dissolve remove the row.</param>
     Task EnqueueAsync(string type, string payload, Guid? tenantId = null, CancellationToken cancellationToken = default);
 }

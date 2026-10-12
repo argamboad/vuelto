@@ -3,9 +3,9 @@ using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
-using Perezosoft.Api.Services;
+using Vuelto.Api.Services;
 
-namespace Perezosoft.Api.Authentication;
+namespace Vuelto.Api.Authentication;
 
 public sealed class ApiKeyAuthenticationOptions : AuthenticationSchemeOptions;
 

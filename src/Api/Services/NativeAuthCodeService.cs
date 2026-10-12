@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Caching.Memory;
 
-namespace Perezosoft.Api.Services;
+namespace Vuelto.Api.Services;
 
 /// <summary>The identity carried by a redeemed native-auth code.</summary>
 public readonly record struct NativeAuthGrant(Guid UserId, string Provider);

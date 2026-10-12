@@ -6,9 +6,9 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Perezosoft.Api.Configuration;
+using Vuelto.Api.Configuration;
 
-namespace Perezosoft.Api.Tests.Hosting;
+namespace Vuelto.Api.Tests.Hosting;
 
 /// <summary>
 /// DEPLOY-1 (ADR-017): the reverse-proxy correctness gate. Exercises <see cref="ProxyForwardingExtensions"/>

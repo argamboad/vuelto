@@ -1,6 +1,6 @@
-using Perezosoft.Core.Entities;
+using Vuelto.Core.Entities;
 
-namespace Perezosoft.Core.Repositories;
+namespace Vuelto.Core.Repositories;
 
 /// <summary>Tenant invitations.</summary>
 public interface ITenantInvitationRepository
@@ -11,10 +11,29 @@ public interface ITenantInvitationRepository
     Task<TenantInvitation?> GetByIdUnscopedAsync(Guid id, CancellationToken cancellationToken = default);
 
     /// <summary>Pending invites for a tenant, newest first.</summary>
+    /// <summary>
+    /// Every invitation still in the Pending status — lapsed ones included, so the owner sees them and can
+    /// revoke or regenerate them. NOT the seat count: that is <see cref="CountValidForTenantAsync"/>.
+    /// </summary>
     Task<List<TenantInvitation>> GetPendingForTenantAsync(Guid tenantId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// How many invitations still reserve a seat at <paramref name="now"/>: <see cref="TenantInvitation.ValidAt"/>,
+    /// i.e. pending AND not yet expired (v4 T34, R127). A lapsed pending invite reserves nothing.
+    /// </summary>
+    Task<int> CountValidForTenantAsync(Guid tenantId, DateTimeOffset now, CancellationToken cancellationToken = default);
 
     /// <summary>An existing pending invite for (tenant, email), if any (dedup).</summary>
     Task<TenantInvitation?> GetPendingByEmailAsync(Guid tenantId, string email, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Every still-valid invitation addressed to <paramref name="email"/>, across all tenants (GATES-2).
+    /// Cross-tenant by necessity: the signup gate runs before the caller has an account, let alone a
+    /// tenant, so there is no scope to read within. "Valid" means pending and not yet expired at
+    /// <paramref name="now"/> — an accepted, revoked or lapsed invitation is not a standing pass for the
+    /// address it named.
+    /// </summary>
+    Task<List<TenantInvitation>> GetValidByEmailAcrossTenantsAsync(string email, DateTimeOffset now, CancellationToken cancellationToken = default);
 
     /// <summary>Lookup by the hashed token (any status — caller validates). Pass the hash, not the raw token.</summary>
     Task<TenantInvitation?> GetByTokenHashAsync(string tokenHash, CancellationToken cancellationToken = default);

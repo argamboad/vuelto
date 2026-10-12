@@ -1,6 +1,6 @@
 using Microsoft.Playwright;
 
-namespace Perezosoft.E2E.Tests.Pages;
+namespace Vuelto.E2E.Tests.Pages;
 
 /// <summary>Page object for the invitation-accept page (/join?token=… or manual code entry).</summary>
 public class JoinPage(IPage page) : BasePage(page)
@@ -18,7 +18,7 @@ public class JoinPage(IPage page) : BasePage(page)
     public ILocator CodeError => Page.GetByTestId("join-code-error");
 
     public Task GotoWithTokenAsync(string token) =>
-        Page.GotoAsync($"{Path}?token={Uri.EscapeDataString(token)}");
+        BlazorBoot.GotoAsync(Page, $"{Path}?token={Uri.EscapeDataString(token)}");
 
     /// <summary>The native path (parity gap G5): open bare /join and paste the emailed code.</summary>
     public async Task JoinWithCodeAsync(string token)

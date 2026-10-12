@@ -1,6 +1,6 @@
 using Microsoft.Playwright;
 
-namespace Perezosoft.E2E.Tests.Pages;
+namespace Vuelto.E2E.Tests.Pages;
 
 /// <summary>Page object for the account settings screen — drives the MFA (TOTP) enrollment card.</summary>
 public class SettingsPage(IPage page) : BasePage(page)

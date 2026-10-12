@@ -1,4 +1,4 @@
-namespace Perezosoft.Core.Abstractions;
+namespace Vuelto.Core.Abstractions;
 
 /// <summary>
 /// Records semantic audit events for the current tenant (OBS-4, ADR-008). The tenant is stamped

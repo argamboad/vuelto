@@ -1,27 +1,30 @@
 using Microsoft.EntityFrameworkCore;
-using Perezosoft.Core.Abstractions;
-using Perezosoft.Core.Entities;
-using Perezosoft.Core.Repositories;
+using Microsoft.Extensions.Logging;
+using Vuelto.Core.Abstractions;
+using Vuelto.Core.Entities;
+using Vuelto.Core.Repositories;
 
-namespace Perezosoft.Api.Services;
+namespace Vuelto.Api.Services;
 
 public enum WebhookResult { Applied, Duplicate, Ignored, InvalidSignature }
 
 /// <summary>
 /// Applies inbound billing webhooks to the tenant's <see cref="Subscription"/> projection (BILLING-3,
 /// ADR-006). The flow is: <b>verify signature</b> → <b>dedup via the inbox</b> (ADR-007) →
-/// <b>EnterTenant</b> (ADR-003) → <b>upsert</b> through the normal tenant-scoped path. The inbox claim
-/// and the projection write commit in one transaction, so a redelivery re-processes only if the apply
-/// failed. Completing checkout grants nothing — THIS is what flips entitlements.
+/// <b>the tenant exists?</b> (v4 T24, R129) → <b>EnterTenant</b> (ADR-003) → <b>upsert</b> through the normal
+/// tenant-scoped path. The inbox claim and the projection write commit in one transaction, so a redelivery
+/// re-processes only if the apply failed. Completing checkout grants nothing — THIS is what flips entitlements.
 /// </summary>
 public sealed class BillingWebhookHandler(
     IBillingProvider provider,
     IInbox inbox,
     IRepository<Subscription> subscriptions,
+    ITenantRepository tenants,
     ITenantContext tenantContext,
     IUnitOfWork unitOfWork,
     IBillingNotifier billingNotifier,
-    TimeProvider clock)
+    TimeProvider clock,
+    ILogger<BillingWebhookHandler>? logger = null)
 {
     public async Task<WebhookResult> HandleAsync(string payload, string? signature, CancellationToken cancellationToken = default)
     {
@@ -47,6 +50,18 @@ public sealed class BillingWebhookHandler(
             return WebhookResult.Duplicate;
         }
 
+        // The signature proves the event is Stripe's, not that the tenant it names still exists (v4 T24, R129):
+        // a dissolved household's subscription is cancelled at the provider AFTER its row is gone, and the
+        // customer.subscription.deleted that follows would re-create the projection — Stripe ids and all — for
+        // a tenant nothing will ever export, erase or dissolve again. Claim it (the redelivery is a Duplicate),
+        // say so, write nothing.
+        if (await tenants.GetByIdAsync(evt.TenantId, cancellationToken) is null)
+        {
+            logger?.LogWarning("Billing webhook {EventId} names tenant {TenantId}, which does not exist (dissolved?): claimed and ignored", evt.EventId, evt.TenantId);
+            await transaction.CommitAsync(cancellationToken);
+            return WebhookResult.Ignored;
+        }
+
         // No JWT here — enter the (signature-authenticated) tenant so the write is stamped + scoped
         // by the normal interceptor/filter, not the cross-tenant escape hatch (ADR-003).
         bool applied;
@@ -58,7 +73,10 @@ public sealed class BillingWebhookHandler(
             // failed payment or a cancellation. Only fire on an *applied* event (a stale/out-of-order
             // event is a no-op, so it must not re-notify); same-status redeliveries don't re-notify.
             if (applied)
+            {
+                await MaybeNotifyActivationAsync(evt, previousStatus, cancellationToken);
                 await MaybeNotifyDunningAsync(evt, previousStatus, cancellationToken);
+            }
             await transaction.CommitAsync(cancellationToken); // claim + projection + notification commit atomically
         }
 
@@ -114,6 +132,21 @@ public sealed class BillingWebhookHandler(
 
         await subscriptions.SaveChangesAsync(cancellationToken);
         return (true, previousStatus);
+    }
+
+    /// <summary>
+    /// The mirror image of dunning: notify the owner when the status transitions INTO a granting state — the
+    /// first activation after checkout, or a resubscribe after a cancellation / lapse. A renewal (active →
+    /// active) and a trial converting (trialing → active) are not news; same-status redeliveries don't fire.
+    /// </summary>
+    private async Task MaybeNotifyActivationAsync(BillingWebhookEvent evt, string? previousStatus, CancellationToken cancellationToken)
+    {
+        if (!SubscriptionStatus.IsGranting(evt.Status) || SubscriptionStatus.IsGranting(previousStatus))
+            return;
+
+        var (title, body) = BillingNotifications.Activated(evt.PlanKey, evt.CurrentPeriodEnd);
+        await billingNotifier.NotifyOwnerAsync(evt.TenantId, BillingNotifications.ActivatedKind, title, body, cancellationToken);
+        await subscriptions.SaveChangesAsync(cancellationToken); // flush the staged notification within the tx
     }
 
     private async Task MaybeNotifyDunningAsync(BillingWebhookEvent evt, string? previousStatus, CancellationToken cancellationToken)

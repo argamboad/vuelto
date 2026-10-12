@@ -1,7 +1,7 @@
-using Perezosoft.Api.Authentication;
-using Perezosoft.Core.Abstractions;
+using Vuelto.Api.Authentication;
+using Vuelto.Core.Abstractions;
 
-namespace Perezosoft.Api.Services;
+namespace Vuelto.Api.Services;
 
 /// <summary>
 /// Resolves <see cref="ICurrentImpersonation"/> from the authenticated principal's

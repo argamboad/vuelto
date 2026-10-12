@@ -1,6 +1,6 @@
-using Perezosoft.Shared.Ui.Auth;
+using Vuelto.Shared.Ui.Auth;
 
-namespace Perezosoft.Maui.Auth;
+namespace Vuelto.Maui.Auth;
 
 /// <summary>
 /// <see cref="IOAuthResumeStore"/> over MAUI <see cref="Preferences"/>, so the OAuth

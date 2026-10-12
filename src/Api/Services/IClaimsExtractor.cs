@@ -1,6 +1,6 @@
 using System.Security.Claims;
 
-namespace Perezosoft.Api.Services;
+namespace Vuelto.Api.Services;
 
 /// <summary>
 /// Extracts user identity claims from an authenticated principal.

@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 
-namespace Perezosoft.Infrastructure.Persistence;
+namespace Vuelto.Infrastructure.Persistence;
 
 /// <summary>
 /// Carries the ambient tenant to the database for the row-level-security backstop (ADR-020) by

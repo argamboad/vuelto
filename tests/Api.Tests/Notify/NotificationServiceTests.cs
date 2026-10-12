@@ -1,12 +1,12 @@
 using Microsoft.EntityFrameworkCore;
-using Perezosoft.Api.Services;
-using Perezosoft.Api.Tests.Infrastructure;
-using Perezosoft.Core.Abstractions;
-using Perezosoft.Core.Entities;
-using Perezosoft.Infrastructure.Persistence;
-using Perezosoft.Infrastructure.Repositories;
+using Vuelto.Api.Services;
+using Vuelto.Api.Tests.Infrastructure;
+using Vuelto.Core.Abstractions;
+using Vuelto.Core.Entities;
+using Vuelto.Infrastructure.Persistence;
+using Vuelto.Infrastructure.Repositories;
 
-namespace Perezosoft.Api.Tests.Notify;
+namespace Vuelto.Api.Tests.Notify;
 
 /// <summary>
 /// NOTIFY-1 (ADR-013): the per-user notification center. NotifyAsync stages an in-app row (commits with

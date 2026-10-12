@@ -1,4 +1,4 @@
-namespace Perezosoft.Core.Repositories;
+namespace Vuelto.Core.Repositories;
 
 /// <summary>
 /// A transactional boundary spanning several repository writes.

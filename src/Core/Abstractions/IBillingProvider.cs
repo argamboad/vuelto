@@ -1,4 +1,4 @@
-namespace Perezosoft.Core.Abstractions;
+namespace Vuelto.Core.Abstractions;
 
 /// <summary>
 /// Abstraction over the payment provider (ADR-006), mirroring <c>IEmailSender</c>'s Core-abstraction

@@ -1,4 +1,4 @@
-namespace Perezosoft.Core.Entities;
+namespace Vuelto.Core.Entities;
 
 /// <summary>
 /// A user's TOTP multi-factor state (MFA-1, ADR-012). One row per user. The TOTP secret is stored

@@ -1,8 +1,8 @@
 using System.Net;
-using Perezosoft.Ui.Tests.Infrastructure;
+using Vuelto.Ui.Tests.Infrastructure;
 using Xunit;
 
-namespace Perezosoft.Ui.Tests;
+namespace Vuelto.Ui.Tests;
 
 /// <summary>
 /// v3 audit TB-UI backfill (T45c) — the AuthService contracts the whole client hangs off:
@@ -91,8 +91,10 @@ public class AuthServiceTests : ComponentTestBase
     }
 
     [Fact]
-    public async Task Impersonation_IsClaimDriven_AndStopRestoresTheStaffIdentity()
+    public async Task Impersonation_IsEnteredAndLeftExplicitly_AndStopRestoresTheStaffIdentity()
     {
+        // v4 T31 (R125): impersonation is a STATE the client enters and leaves, not a claim read off whatever
+        // token is current — a claim read went silent the moment the token expired.
         await SignInAsync(name: "Staff Member");
         Assert.False(Auth.IsImpersonating);
 

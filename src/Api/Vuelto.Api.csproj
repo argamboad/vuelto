@@ -1,0 +1,49 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <GenerateLocalPorts>true</GenerateLocalPorts> <!-- LocalPorts.* from local-ports.props (Arch A10) -->
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>c0339958-6cea-40c1-8433-087f53b886e7</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="DotNetEnv" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+    <!-- Serve the published Blazor WASM client single-origin (DEPLOY-1, ADR-017): UseBlazorFrameworkFiles. -->
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="OpenTelemetry.Exporter.Console" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Http" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" />
+    <PackageReference Include="Otp.NET" />
+    <PackageReference Include="QuestPDF" />
+    <PackageReference Include="Swashbuckle.AspNetCore" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Core\Vuelto.Core.csproj" />
+    <ProjectReference Include="..\Infrastructure\Vuelto.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <!-- REPORTS-7: the PDF typeface (Nunito, SIL OFL 1.1, licence beside the files) and the light-background brand lockup,
+       linked from the UI library's brand folder so the brand keeps a single source file. -->
+  <ItemGroup>
+    <EmbeddedResource Include="Features/Reports/Pdf/Assets/Nunito-Regular.ttf" LogicalName="Vuelto.Reports.Pdf.Nunito-Regular.ttf" />
+    <EmbeddedResource Include="Features/Reports/Pdf/Assets/Nunito-SemiBold.ttf" LogicalName="Vuelto.Reports.Pdf.Nunito-SemiBold.ttf" />
+    <EmbeddedResource Include="Features/Reports/Pdf/Assets/Nunito-Bold.ttf" LogicalName="Vuelto.Reports.Pdf.Nunito-Bold.ttf" />
+    <EmbeddedResource Include="../Shared.Ui/wwwroot/brand/lockup_light.svg" Link="Features/Reports/Pdf/Assets/lockup_light.svg" LogicalName="Vuelto.Reports.Pdf.lockup_light.svg" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Vuelto.Api.Tests" />
+  </ItemGroup>
+
+</Project>

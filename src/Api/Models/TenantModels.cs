@@ -1,8 +1,8 @@
 using System.Text.Json.Serialization;
-using Perezosoft.Core.Entities;
-using Perezosoft.Core.Repositories;
+using Vuelto.Core.Entities;
+using Vuelto.Core.Repositories;
 
-namespace Perezosoft.Api.Models;
+namespace Vuelto.Api.Models;
 
 public record RenameTenantRequest
 {

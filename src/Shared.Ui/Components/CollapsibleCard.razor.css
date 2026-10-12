@@ -1,0 +1,67 @@
+/* #205 · the heading row: the card's own heading first, the collapsed summary after it, the toggle at the end. */
+.ccard-head {
+    display: flex;
+    align-items: center;
+    gap: 6px 10px;
+}
+
+.ccard-head-main {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.ccard-summary {
+    flex: 0 1 auto;
+    color: var(--ink-2);
+    font-size: .8125rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ccard-toggle {
+    flex: 0 0 auto;
+    display: inline-grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--ink-2);
+    cursor: pointer;
+}
+
+.ccard-toggle:hover {
+    background: var(--rail);
+}
+
+.ccard-toggle:focus-visible {
+    outline: 2px solid var(--bs-primary);
+    outline-offset: 2px;
+}
+
+.ccard-toggle svg {
+    transition: transform .15s ease;
+}
+
+.ccard[data-collapsed] .ccard-toggle svg {
+    transform: rotate(-90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ccard-toggle svg {
+        transition: none;
+    }
+}
+
+/* The card's heading sits in the row now: its bottom margin would push the toggle off-centre, so the body takes the gap. */
+.ccard-head-main ::deep h2,
+.ccard-head-main ::deep > div {
+    margin-bottom: 0 !important;
+}
+
+.ccard-body {
+    margin-top: .5rem;
+}

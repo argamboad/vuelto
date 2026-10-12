@@ -32,7 +32,7 @@
 **Prerequisites (external, before any code):**
 - A **Stripe account** (test mode is enough to build and ship the whole epic — no real charges).
 - The **Stripe CLI** installed for local webhook forwarding (`stripe listen --forward-to
-  https://localhost:7160/api/billing/webhook`) and event simulation (`stripe trigger`).
+  https://localhost:7260/api/billing/webhook`) and event simulation (`stripe trigger`).
 - A defined **plan catalog** — at least Free + one paid tier — with Stripe Product/Price ids. The
   plan catalog is code/config, **not** tenant data (see ADR-006).
 - The **outbox/inbox** slice (`JOBS-1`/`JOBS-2`) merged first — webhook idempotency rides on it.
@@ -255,7 +255,7 @@ Scenario: Cancellation propagates via webhook
 > → **402 `seat_limit_reached`** (Household invite UI shows an upgrade message). **Metered usage** =
 > `TryConsumeAsync(key)` against a monthly `UsageCounter` (per `{tenant, key, yyyy-MM}` — self-resetting,
 > no sweep job); returns false without incrementing at the cap. Limits are `PlanCatalog` example data
-> (Free seats=3/export=3, Pro seats=10/export=100); **null/absent = unlimited** so it's inert until set.
+> (Free seats=5 — raised from 3 by GATES-1, ADR-027 — /export=3, Pro seats=10/export=100); **null/absent = unlimited** so it's inert until set.
 > Tests: `tests/Api.Tests/Billing/QuotaServiceTests.cs` (seat boundaries incl. pending-invite counting +
 > upgrade; usage within/at-limit/unlimited/month-reset; invite-flow 402). `TryConsumeAsync` is the seam —
 > call it at any metered action (e.g. an export) to enforce a per-month cap.
@@ -321,6 +321,23 @@ sweep is a scheduled job (JOBS-3).
 > **without fabricating a status** (Stripe stays source of truth; entitlements already fail closed on a
 > lapsed period). Tests: `BillingWebhookHandlerTests` (past-due notifies once; no-change doesn't) +
 > `SubscriptionLapseSweepJobTests` (nudge-once + stamp; in-period ignored).
+>
+> **Addendum (2026-09-28, v4 T24 — R129):** the webhook handler looks the tenant up **after the inbox claim
+> and before `EnterTenant`**: a dissolved household's provider subscription is cancelled after its rows are
+> gone, and the `customer.subscription.deleted` that follows re-created the projection — Stripe ids and all —
+> for a tenant no export, erasure or dissolve would ever reach again. Now claimed (a redelivery is a
+> `Duplicate`), logged at Warning, nothing written. `BillingWebhookHandlerTests.Webhook_ForUnknownTenant_*`;
+> `ArchitectureTests.EnterTenant_WithARequestSuppliedTenantId_ChecksTheTenantExists` classifies every
+> `EnterTenant` site by where its id comes from.
+>
+> **Addendum (2026-09-28, v4 T43 — R133):** each tenant's nudge and stamp are **one transaction**
+> (`IUnitOfWork`). The owner's email copy is enqueued by `OutboxEmailSender` with a SaveChanges of its own
+> before the stamp, so without it a stamp that failed left the nudge committed and re-sent it every six
+> hours until a stamp landed — invisible to the job tests, which used a no-op sender. They now run the real
+> outbox sender (`EnforcementGateTests.JobTests_UseTheRealOutboxEmailSender` holds every `*JobTests`
+> to that) and inject the fault at the repository: `StampFailure_AfterTheNotification_LeavesNeither`.
+> With the billing gate off (GATES-1) the sweep returns at once — there is no billing page to send the owner
+> to — `BillingOff_LapsedSubscription_IsNotNudged`.
 
 **Acceptance criteria**
 
@@ -425,7 +442,8 @@ accepting invitations issued while the tenant was on a bigger plan
 
 **Context / notes:** BILLING-5 enforces seats only at invitation **creation** (pending invites
 reserve seats, so the cap holds while the plan is stable). But nothing sweeps pending invites on a
-downgrade and `AcceptAsync` never re-checked — so Pro (10 seats) → invite 7 → drop to Free (3)
+downgrade and `AcceptAsync` never re-checked — so Pro (10 seats) → invite 7 → drop to Free (3 seats then;
+raised to 5 by GATES-1)
 left 7 valid invites that could each still join, actively growing the tenant past its cap
 (found 2026-07-14 while reasoning about the ADR-021 comp/revert writes; applies equally to real
 Stripe downgrades). The accept itself is **seat-neutral** — the joiner consumes the seat their

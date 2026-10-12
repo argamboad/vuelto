@@ -1,6 +1,6 @@
 using Microsoft.JSInterop;
 
-namespace Perezosoft.Shared.Ui;
+namespace Vuelto.Shared.Ui;
 
 /// <summary>
 /// Web implementation: a same-tab navigation. Because signed files are served with

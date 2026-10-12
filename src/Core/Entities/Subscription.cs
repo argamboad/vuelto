@@ -1,4 +1,4 @@
-namespace Perezosoft.Core.Entities;
+namespace Vuelto.Core.Entities;
 
 /// <summary>
 /// A tenant's billing subscription — a local **projection** of the payment provider's state (Stripe is

@@ -86,6 +86,7 @@ sequenceDiagram
     participant LR as LoginTokenRepository
     participant ML as MfaLoginService
     participant SS as SessionService
+    participant SG as SignupGate
     C->>RL: POST otp/send (policy passwordless, per-IP)
     RL->>AC: SendOtp
     AC->>PS: IssueOtpAsync
@@ -99,6 +100,11 @@ sequenceDiagram
     PS->>LR: GetLatestActive + constant-time hash verify
     PS->>LR: TryConsumeAsync - atomic single-use claim
     PS->>PS: GetOrCreateByEmailAsync - account created HERE
+    opt no account yet for this email
+        PS->>SG: IsAllowedAsync (via UserService.CreateUserWithTenantAsync)
+        SG-->>AC: refused - SignupNotAllowedException
+        AC-->>C: 403 signup_not_allowed (GATES-2 - no account, no session)
+    end
     AC->>ML: CompleteOrChallengeAsync
     alt MFA enabled
         ML-->>AC: challenge (no session)
@@ -113,7 +119,12 @@ Divergences: wrong code → server-side atomic `AttemptCount+1`, re-check agains
 window total; at the cap the code is consumed (burned) and `too_many_attempts` returned. `Invalid`
 and `Expired` collapse to one client error `invalid_code` (no OTP-existence oracle). Losing an
 atomic-consume race → treated as expired. Verify budget = `max(send limit, OtpMaxAttempts + 5)`
-so the 401 lockout wins the race against a 429.
+so the 401 lockout wins the race against a 429. A malformed address is refused at send with
+`400 invalid_email`. **Signup green list (GATES-2, ADR-027):** when `Signup:AllowedEmails` /
+`AllowedDomains` is set and the code belongs to an address with no account, `SignupGate` admits it only if
+it is on the list or holds a valid invitation into a household whose owner is; otherwise verify answers
+`403 signup_not_allowed`. The code is already consumed by then, and send still answered 200 — refusing at
+send would tell a stranger which addresses have accounts. An existing account is never asked.
 
 ## 4. Magic-link sign-in
 
@@ -134,6 +145,8 @@ sequenceDiagram
     AC->>PS: RedeemMagicLinkAsync - hash lookup, atomic TryConsume
     alt invalid or already consumed
         AC-->>C: redirect /login?error=invalid_link
+    else new address refused by SignupGate (GATES-2)
+        AC-->>C: redirect /login?error=signup_not_allowed
     else MFA enabled
         AC-->>C: redirect /login?mfa={challenge}
     else success
@@ -143,7 +156,8 @@ sequenceDiagram
 
 Divergences: email-client prefetch / double-click both reach redemption having seen an unconsumed
 row — the atomic claim lets exactly one win. The JWT is never in a URL; the SPA at
-`/auth-callback` calls refresh to obtain it. Note: this GET endpoint carries no
+`/auth-callback` calls refresh to obtain it. Send refuses a malformed address with `400 invalid_email`.
+The signup green list applies exactly as in flow 3, as a redirect instead of a 403. Note: this GET endpoint carries no
 `[EnableRateLimiting]` attribute (the token's 64-byte entropy is the defense) — see the
 findings list in the repo's task report if that surprises you.
 
@@ -169,9 +183,11 @@ sequenceDiagram
         AC->>US: LinkLoginAsync - attach provider to signed-in account
         AC-->>B: redirect /settings?linked=google (NO session issued)
     else sign-in
-        AC->>US: GetOrCreateUserAsync (verified-email merge policy)
+        AC->>US: GetOrCreateUserAsync (verified-email merge policy, SignupGate for a new account)
         AC->>Ext: SignOutAsync - discard carrier cookie
-        alt MFA enabled
+        alt new address refused by SignupGate (GATES-2)
+            AC-->>B: redirect /login?error=signup_not_allowed
+        else MFA enabled
             AC-->>B: redirect /login?mfa={challenge}
         else
             AC-->>B: set refresh cookie + redirect /auth-callback
@@ -182,7 +198,9 @@ sequenceDiagram
 Divergences: unsupported provider / missing claims / any exception → redirect `/auth-error`
 (never a 500). Same-email merge is fail-closed: it requires the provider's `email_verified`
 claim OR a provider on the `IProviderEmailTrust` allowlist; otherwise
-`/login?error=email_unverified`. Native shells use `NativeAuthController` instead: the callback
+`/login?error=email_unverified`. A new address the signup green list does not admit (flow 3) →
+`/login?error=signup_not_allowed`; on the native path the callback's deep link carries the same code in
+place of the single-use code. Native shells use `NativeAuthController` instead: the callback
 mints a **single-use code** (tokens never touch the URL), exchanged at `POST native/exchange`
 for the session with the refresh token in the body.
 
@@ -234,22 +252,67 @@ sequenceDiagram
     participant SS as SessionService
     C->>AC: POST refresh (cookie for web, body for native)
     AC->>RS: InspectRefreshTokenAsync (hash lookup WITHOUT revoked filter)
+    Note over RS: revoked hash - RotatedWithinGrace if rotated at most 60 s ago AND successor live AND grace unspent, else Reuse
     alt status Reuse (revoked hash presented again)
         AC->>RR: RevokeAllForUserAsync - kill every session
         AC-->>C: generic 401 invalid_refresh_token (no signal leak)
     else status Unknown or Expired
         AC-->>C: generic 401
-    else Valid
-        AC->>RS: RevokeRefreshTokenAsync (old token - rotation)
-        AC->>SS: IssueAsync - new refresh token + new JWT
-        Note over SS: tenant re-resolved on every rotation - tenant moves propagate here
+    else RotatedWithinGrace or Valid
+        Note over AC: one transaction from here to the commit, serialized per user against revoke-all (v4 T54)
+        alt RotatedWithinGrace (benign race - two tabs, lost response)
+            AC->>RR: TryMarkGraceUsedAsync - under the chain lock, conditional UPDATE where GraceUsedAt is null AND the successor is live
+            alt returns false (grace already spent by a racing replay, or a revoke-all killed the successor meanwhile)
+                AC->>RR: RevokeAllForUserAsync, commit - reclassified as Reuse
+                AC-->>C: generic 401
+            end
+            AC->>SS: IssueAsync - new refresh token + new JWT
+            Note over AC: revokes NOTHING - both chains stay valid, the unused one expires - logged as a Warning with the user's grace count
+        else Valid
+            AC->>SS: IssueAsync - new refresh token + new JWT
+            Note over SS: tenant re-resolved on every rotation - tenant moves propagate here
+            AC->>RS: TryMarkRotatedAsync - under the chain lock, conditional UPDATE where the old token is still live (revoked + RotatedAt + ReplacedByTokenId = new)
+            alt returns false (a logout, an erasure or the theft response revoked it since the inspection)
+                Note over AC: no commit - the successor rolls back
+                AC-->>C: generic 401
+            end
+        end
+        Note over AC: commit
         AC-->>C: new cookie (web) / new body token (native)
     end
 ```
 
-Divergences: revoke uses a tracked load-then-flip (not `ExecuteUpdate`) deliberately, so the
-inspection read stays consistent. The hourly cleanup job deletes only **expired** rows —
+Divergences: the reuse grace window (ADR-002 addendum 2026-09-18, `RefreshToken:ReuseGraceSeconds`,
+default 60, 0 = strict) needs a LIVE successor — logout and revoke-all revoke it, so a stale tab can
+never undo a sign-out; only rotation stamps `RotatedAt`, so a token revoked any other way is always
+reuse. The grace is **one-shot** (addendum 2026-09-28): `GraceUsedAt` is stamped by a conditional
+set-based update before the session is issued, so of two replays racing inside the window exactly one is
+forgiven and the other trips the theft response. Logout uses the same inspection (R124): any known token —
+valid, expired, rotated-out, revoked — names its owner and the whole family is revoked; only an unknown hash
+is a no-op, so a sign-out clicked while a refresh is in flight still ends the session the refresh minted. The successor is read untracked, so a set-based revoke in the same context can't be masked.
+Rotation issues first and links second, so a failed issue leaves the presented token usable instead of
+signing the user out. The issue and the link are one transaction (v4 T54, TB-AUTH-30): the inspection is a
+snapshot, and a revoke-all landing after it — "sign out everywhere" from another device, an erasure, the
+theft response — used to leave the freshly minted successor live. Now the mark and the grace claim are
+conditional, set-based updates taken under a per-user **chain lock** (a Postgres advisory lock held for the
+rest of the transaction) that revoke-all takes too: the revoke-all either goes first, and the claim fails
+and the successor rolls back, or waits for the commit and revokes the successor as well. The single revoke
+(`RevokeAsync`) stays a tracked load-then-flip so the inspection read in the same scope stays consistent;
+the set-based writers mirror their result onto the tracked copy for the same reason. The hourly cleanup job deletes only **expired** rows —
 revoked-but-unexpired hashes are kept because they are what makes reuse detection work.
+
+Error codes: no cookie and no body token → `401 no_refresh_token`; unknown, expired, reused or
+lost-the-race → the one generic `401 invalid_refresh_token`; a token whose user no longer exists (erased
+since) → `401 user_not_found`; anything unexpected → `500 refresh_failed`, which the client treats as
+"keep the session and try again", unlike the 401s. Logout answers 200 for any token, known or not; only an
+unexpected failure surfaces, as `500 logout_failed`.
+
+Client side (ADR-002 addendum 2026-09-22): `AuthService` calls this endpoint on four occasions — once at
+startup (retried after 2/5/10/15 s while the server is unreachable), from a timer a minute before the
+access token expires, from the bearer handler when a request finds the token inside that window or
+expired, and when the app returns to the foreground. Concurrent callers share one in-flight call. Only a
+401/400/403 clears the session (and native's stored token); a 5xx, 429, timeout or network failure keeps
+it and tries again.
 
 ## 8. Billing webhook (Stripe → subscription projection)
 
@@ -273,6 +336,7 @@ sequenceDiagram
     alt already claimed
         WH-->>S: 200 Duplicate (provider stops retrying)
     else fresh event
+        WH->>DB: tenant exists? - a dissolved tenant's late event is claimed + Ignored, nothing written (v4 T24)
         WH->>TC: EnterTenant(evt.TenantId) - signature IS the authentication
         WH->>DB: upsert, only if strictly newer than last_event_at
         opt left active/trialing (dunning)
@@ -324,9 +388,13 @@ sequenceDiagram
     end
 ```
 
-Divergences: any failure in T2 → rollback of every staged row, then attempt bookkeeping in a
-separate transaction: `attempt_count++`, backoff `10s × 2^(n−1)`, dead-letter at 5 (terminal — no
-automatic replay). SMTP send in T3 is a non-transactional external effect inside a DB
+Divergences: the attempt is accounted for at the **claim** (v4 T38): the claim transaction does
+`attempt_count++` and books `next_attempt_at = now + 10s × 2^(n−1)` (exponent clamped) and commits before
+the handler runs, then re-locks the row for the handler; any failure in T2 → rollback of every staged row,
+then best-effort bookkeeping in a separate transaction: the error text (rune-safe truncation) and
+dead-letter at 5 or on a permanent failure (terminal — no automatic replay; `processed_at` stamped and the
+payload cleared, as on success — v4 audit H7). A row claimed with its attempts already spent is
+dead-lettered at the claim without running the handler. SMTP send in T3 is a non-transactional external effect inside a DB
 transaction: a crash between send and commit re-sends the email (documented, accepted).
 Per-tenant `announce` (not announce-all) fans out synchronously inside one request transaction
 instead.
@@ -347,13 +415,13 @@ sequenceDiagram
     OB->>WOH: dispatcher claims message
     WOH->>WOH: load subscription cross-tenant - missing/disabled = silent done
     WOH->>WOH: Unprotect signing secret (Data Protection)
-    WOH->>WS: SendAsync - SSRF guard re-checked at send time (DNS rebinding)
+    WOH->>WS: SendAsync - SSRF guard re-checked at send AND at connect (pinned), no redirects, no proxy
     WS->>R: POST, HMAC X-Webhook-Signature + X-Webhook-Id, 10s timeout
     alt 2xx
         WOH->>OB: stage WebhookDelivery(success) - commits with sent flip
     else non-2xx / transport error
         WOH->>WOH: write WebhookDelivery(failure) via a FRESH context - survives the rollback
-        WOH->>OB: throw - outbox retry/backoff/dead-letter
+        WOH->>OB: throw - outbox retry/backoff/dead-letter (a refused URL: dead-letter at once)
     end
 ```
 
@@ -398,7 +466,9 @@ sequenceDiagram
 Divergences: leave by a non-owner just removes the membership + re-homes. Erasure of a plain
 member records `account.erased` in the surviving tenant and does **not** re-home (the account is
 going away). A third dissolve trigger: accepting an invitation as a solo owner dissolves the old
-tenant only when every contributor reports it empty (`HasDataAsync` false). The Stripe cancel is
+tenant only when every contributor reports it empty (`HasDataAsync` false) — through the same
+`TenantDissolutionService`, so its API keys, webhooks, metering and Stripe subscription (none of which count as
+content) go with it; it was once a raw `Tenants.Remove` that orphaned them (v4 audit H5). The Stripe cancel is
 post-commit and idempotent (already-canceled errors swallowed).
 
 ## 12. Line-level walkthrough — OTP verify (the sign-in hot path)

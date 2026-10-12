@@ -48,7 +48,7 @@ tenancy, the global tenant query filter, email, persistence); features bolt on a
 - `<Feature>Endpoints.cs` — a minimal-API group registered via
   **`app.MapTenantFeatureGroup("/api/<feature>")`** (NOT a raw
   `MapGroup(...).RequireAuthorization(...)` — the helper applies the shared `AuthPolicies.TenantApi`
-  policy so a slice can't forget auth), called from `app.Map<Feature>()` in `Program.cs`. Gate
+  policy so a slice can't forget auth), called from `app.Map<Feature>()` in `AppComposition.MapAppEndpoints`. Gate
   individual endpoints with the **`.RequirePermission(Permission.X)`** (→ 403; ADR-009) and
   **`.RequireEntitlement(...)`** (→ 402; ADR-006) endpoint filters as needed. Features are minimal-API
   groups; the platform stays controllers.
@@ -67,26 +67,62 @@ method, author a bespoke per-entity repository (use `IRepository<T>`), use `Igno
 (banned in `src/Api/Features/**` — use `IRepository<T>.QueryAllTenants()`), or inline UI in the Web
 app (UI components go in the Shared.Ui RCL).
 
-**Add-a-slice mechanical checklist:**
-1. **Entity** → `src/Core/Entities/<Entity>.cs`, implementing `ITenantScoped`.
-2. **DbSet + config** → add the `DbSet<>` to `AppDbContext` and any `IEntityTypeConfiguration`.
-3. **Migration** → `dotnet ef migrations add Add<Entity>` (in `src/Infrastructure/Persistence/Migrations/`).
-4. **RLS policy — same migration** (ADR-020, v3 audit TR-4): `dotnet ef migrations add` scaffolds
-   **no RLS DDL**, so append the new table's policy to the migration you just created —
-   `migrationBuilder.Sql(...)` with the statements from `RlsDdl.StatementsFor` (copy the shape from
-   the platform's RLS migration; `Down` drops the policy + disables RLS). The
-   `RlsMigrationGateTests` parity gate fails CI on any `ITenantScoped` table whose policy didn't
-   arrive by migration — this step is why it stays green.
-5. **DI wiring** → register the handler/services (`Add*`) and map the group (`app.Map<Feature>()`) in
-   `Program.cs`.
-6. **Contributor** → register the `ITenantDataContributor` (all four members) in DI.
-7. **Fixture reset** → add the new table(s) to the test fixture's reset/truncate list.
-8. **UI** → nav entry + component in the Shared.Ui RCL, and add the resx (`.resx`) strings (EN/ES).
-   **Namespace your keys per feature** (`Notes_Title`, `Notes_Empty`, …) — `AppStrings.resx` is one
-   shared file, and unprefixed keys (`Title`, `Empty`) collide across slices (v3 audit / Phase-4 obs).
+**Add-a-slice mechanical checklist** — measured, not estimated: the v4 audit built a real slice by this
+recipe and logged every existing file it had to touch (ADV-P4-17). Each step names the gate that fails
+CI when it is skipped, and `EnforcementGateTests.AddASliceChecklist_NamesEveryArtifactAGateForces`
+(R158) holds this list to those gates, so a new gate cannot force an edit the checklist never mentions.
+1. **Entity** → `src/Core/Entities/<Entity>.cs`, implementing `ITenantScoped` — or `ISharedOrTenantScoped` when
+   its rows are either shared (`TenantId` null) or one tenant's (Arch A4; then step 3 uses
+   `RlsDdl.SharedOrTenantStatementsFor`, and the four `<Entity>_SharedOrTenant_*` facet tests replace the canary
+   entry of step 5). A slice **cannot declare
+   its own `Permission`**: the enum and `RolePermissions` live in Core (ADR-009's coarse capabilities) —
+   reuse one, or add it to Core in its own commit.
+2. **DbSet + config** → add the `DbSet<>` to `src/Infrastructure/Persistence/AppDbContext.App.cs` (the app's half of
+   the partial context — `AppDbContext.cs` is the platform's and is not edited; Arch A1) and any
+   `IEntityTypeConfiguration` (discovered from the assembly, no registration).
+3. **Migration + RLS policy, one migration** (ADR-020, v3 audit TR-4): `dotnet ef migrations add
+   Add<Entity>` scaffolds **no RLS DDL**, so append the new table's policy to the migration it just
+   created — `migrationBuilder.Sql(...)` with the statements from `RlsDdl.StatementsFor` (copy the shape
+   from the platform's RLS migration; `Down` drops the policy + disables RLS). Gate:
+   `RlsMigrationGateTests` fails on any `ITenantScoped` table whose policy did not arrive by migration.
+4. **`docs/DATA_MODEL.md`** → an entry for the entity (fields, relationships, derived rules). Gate:
+   `EveryEntity_IsDocumentedInDataModel`.
+5. **Tenant-axis canary** → add `nameof(<Entity>)` to `DissolutionHandled` in
+   `tests/Api.Tests/App/AppAllowlists.cs` (the app's entries in the platform's gates; `ArchitectureTests.cs` is
+   the platform's and is not edited) once step 7's contributor covers it. Gate:
+   `EveryTenantOwnedEntity_IsWiredIntoTenantDissolution` — every tenant-owned entity must be reachable
+   by dissolve and export, and the canary is where you say which contributor does it.
+6. **DI wiring** → register the handler/services in `AppComposition.AddAppServices` and map the group
+   (`app.Map<Feature>()`) in `AppComposition.MapAppEndpoints` — both in `src/Api/AppComposition.cs`, the app's
+   half of composition — behind the slice's `Enabled` setting. Only `AppComposition.cs` may reference
+   `Features.*` (R8 as amended by R159, `OnlyAppComposition_ReferencesFeatureNamespaces_FromOutsideFeatures`);
+   `Program.cs` is the platform's, calls those two methods once, and is never edited for a slice.
+7. **Writer** → the slice that owns the entity is the only one that writes it (Arch A8, R162): add
+   `[nameof(<Entity>)] = "<Slice>"` to `EntityWriters` in `tests/Api.Tests/App/AppAllowlists.cs`. Another slice
+   reads it (`Query()`), or calls a Core contract the owner implements — never its repository's writing members.
+   Gate: `EveryEntity_HasOneWritingSlice`.
+8. **Contributor** → register the `ITenantDataContributor` (all four members) in the same `AddAppServices`, and
+   add it to `AppTestComposition.Contributors` (`tests/Api.Tests/App/`) so the accept-and-dissolve tests consult
+   it as production does. Work that must run after migrations (a catalog seed) is an `IStartupTask`, registered
+   there too; `Program.cs` runs every registered task after `Migrate()`.
+9. **Postman** → a numbered folder in `docs/postman/Vuelto.postman_collection.json` with one request
+   per endpoint (ADR-023). Gate: `PostmanParityTests` — it sees the slice's routes only while the slice is
+   switched ON in the harness, so turn it on there before trusting a green run.
+10. **`.env.example`** → the slice's `<Feature>__Enabled=false` line (and any other key it reads) in the
+   CONFIGURATION REFERENCE block. Gate: `ConfigKeys_ReadInCode_AreDocumented`.
+11. **UI** → nav entry + component in the Shared.Ui RCL, and the resx (`.resx`) strings (EN/ES).
+    **Namespace your keys per feature** (`Notes_Title`, `Notes_Empty`, …) — `AppStrings.resx` is one
+    shared file, and unprefixed keys (`Title`, `Empty`) collide across slices (v3 audit / Phase-4 obs).
+    Gate: `ResourceParityTests` fails on a key without a `<Feature>_` prefix, declared twice, or missing
+    from a language; a duplicate also fails `dotnet build` (MSB3568 is promoted to an error, v4 T9).
+
+There is no fixture step: `PostgresFixture.ResetAsync` derives its table list from the EF model (v2
+TR-3), so a new entity is reset automatically — the old "add the table to the truncate list" step was
+dead for two audits before the measurement caught it.
 
 **Reference:** `src/Api/Features/Notes` is a complete, working example (marked "🗑️ DELETE-ME").
-Copy its shape; delete it when you ship your first real feature.
+Copy its shape; delete it when you ship your first real feature — by the recipe in `docs/NEW_APP_GUIDE.md`
+("Removing the Notes sample"): an app migration drops the table, no platform migration is touched (Arch A6).
 
 ## User stories
 
@@ -168,19 +204,14 @@ PR title = a Conventional Commit line, ideally referencing the story:
      rotate weekly; an SDK/Xcode rollout can land *between* the branch run and the merge
      (2026-07-14: NU1004 locked-mode restore + an Xcode/workload mismatch, from one SDK patch).
      The fix playbook lives in `CLAUDE.md` → Tech stack.
-  2. **Develop-only jobs** — the Apple builds/smokes run only on develop pushes (the
-     `native-paths` gate; macOS bills 10×), so an Apple-affecting change is first *proven* by the
-     post-merge run. Watch that run to completion; don't stack the next merge onto an unverified
-     one.
-- **Recommended repo setting:** GitHub branch protection on `develop` requiring the `build-test`
-  and `e2e` status checks (Settings → Branches → Add rule, or
-  `gh api repos/{owner}/{repo}/branches/develop/protection`). This makes "merge before CI
-  finishes" impossible at the platform level instead of relying on habit. (Not enabled by
-  default in this template — it needs repo admin and blocks solo-maintainer hotfix pushes to
-  develop, so opt in per deployment.)
-- After merging, `deploy-staging` only runs off a fully green develop run — a red develop
-  silently **freezes staging** at the last good commit, so a broken develop is not a
-  "fix it later" state.
+  2. **Device legs run on request** (ADR-031) — a pull request runs the web gates only; the MAUI builds
+     and native smokes run from *Run workflow* → `devices`. A change that can affect the MAUI app
+     (`src/Maui`, `src/Shared.Ui`, build props, the SDK pin) is not proven by its PR: run the device
+     legs before a release, and now and then.
+- **No branch protection** (ADR-031): the repo is private on GitHub Free, which has none, by decision —
+  so wait for a pull request's run to finish green before merging it.
+- A merge runs nothing; a deploy is a manual *Run workflow* (`deploy` = staging/prod) that re-runs every
+  web gate on that branch first and deploys only if they pass (ADR-031).
 
 ### PR template
 Stored at `.github/pull_request_template.md` (auto-loaded by GitHub). Contents:
@@ -250,7 +281,7 @@ without a test that drove it.
 - Run against the full stack: `docker compose up -d`, then start the API and Web. OTP-based
   tests read codes from **Mailpit**, so the API must send to Mailpit (the dev default) — see
   **`tests/E2E.Tests/README.md`** for the exact commands (incl. overriding a real-SMTP `.env`).
-- Base URL defaults to `https://localhost:7008`; override with `PLAYWRIGHT_BASE_URL`.
+- Base URL defaults to `https://localhost:7108`; override with `PLAYWRIGHT_BASE_URL`.
 
 ### First-time Playwright setup
 ```sh

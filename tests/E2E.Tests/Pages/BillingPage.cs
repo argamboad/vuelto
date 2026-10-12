@@ -1,6 +1,6 @@
 using Microsoft.Playwright;
 
-namespace Perezosoft.E2E.Tests.Pages;
+namespace Vuelto.E2E.Tests.Pages;
 
 /// <summary>Page object for the billing page — plan, seats, upgrade/portal actions.</summary>
 public class BillingPage(IPage page) : BasePage(page)

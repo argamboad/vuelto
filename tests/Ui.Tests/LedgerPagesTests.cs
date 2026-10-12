@@ -1,0 +1,467 @@
+using System.Net;
+using Bunit;
+using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.DependencyInjection;
+using Vuelto.Shared.Ui.Pages;
+using Vuelto.Ui.Tests.Infrastructure;
+using Xunit;
+
+namespace Vuelto.Ui.Tests;
+
+/// <summary>LEDGER-1/2 pages: the transaction form posts the wire payload and announces the month; the month page lists, edits income, and deletes with confirmation.</summary>
+public class LedgerPagesTests : ComponentTestBase
+{
+    private const string MonthId = "aaaaaaaa-0000-0000-0000-000000000001";
+    private const string CatId = "bbbbbbbb-0000-0000-0000-000000000002";
+    private const string BankId = "cccccccc-0000-0000-0000-000000000003";
+    private const string TxId = "dddddddd-0000-0000-0000-000000000004";
+    private const string CardId = "eeeeeeee-0000-0000-0000-000000000005";
+    private const string RefundId = "ffffffff-0000-0000-0000-000000000006";
+
+    private void StubCatalogs()
+    {
+        Http.On(HttpMethod.Get, "/api/categories", $$"""[{"id":"{{CatId}}","name":"Groceries","is_active":true}]""");
+        Http.On(HttpMethod.Get, "/api/banks", $$"""[{"id":"{{BankId}}","name":"Cash","is_active":true}]""");
+        Http.On(HttpMethod.Get, "/api/cards", $$"""[{"id":"{{CardId}}","name":"VISA-1234","brand":"VISA","last4":"1234","bank_id":null,"is_active":true,"auto_named":true,"kind":"debit"}]""");
+        Http.On(HttpMethod.Get, "/api/envelopes", "[]");
+        Http.On(HttpMethod.Get, "/api/exchange-rate", """{"rate":510.45,"source":"live","as_of":"2026-09-03T12:00:00+00:00"}""");
+        Http.On(HttpMethod.Get, "/api/months/resolve", """{"month_id":null,"year":2026,"month_number":7,"is_new":true}""");
+    }
+
+    [Fact]
+    public async Task NewTransaction_PrefillsTheRate_AnnouncesTheMonth_PostsThePayload_AndNavigatesToTheMonth()
+    {
+        await SignInAsync();
+        StubCatalogs();
+        Http.On(HttpMethod.Post, "/api/transactions", $$"""{"id":"{{TxId}}","month_id":"{{MonthId}}","payee":"AutoMercado","bank_id":"{{BankId}}","payment_method":"credit_card","original_amount":50000,"currency":"CRC","transaction_date":"2026-07-10","category_id":"{{CatId}}","exchange_rate_used":510.45,"transaction_type":"budgeted","source":"manual","envelope_id":null}""", HttpStatusCode.Created);
+
+        var cut = Render<TransactionForm>();
+
+        cut.WaitForAssertion(() => Assert.Equal("510.45", cut.Find("[data-testid='tx-rate']").GetAttribute("value")));
+        Assert.Contains("Tx_GoesToNew[July 2026]", cut.Find("[data-testid='tx-resolve']").TextContent);
+
+        cut.Find("[data-testid='tx-payee']").Input("AutoMercado");
+        cut.Find("[data-testid='tx-amount-field-input']").Change("50000");
+        cut.Find("[data-testid='tx-category']").Change(CatId);
+        cut.Find("[data-testid='tx-bank']").Change(BankId);
+        cut.Find("[data-testid='tx-save']").Click();
+
+        cut.WaitForAssertion(() => Assert.EndsWith($"/months/{MonthId}", Services.GetRequiredService<NavigationManager>().Uri));
+        var post = Assert.Single(Http.Requests, r => r.Method == HttpMethod.Post && r.RequestUri!.AbsolutePath == "/api/transactions");
+        var body = await post.Content!.ReadAsStringAsync();
+        Assert.Contains("\"payee\":\"AutoMercado\"", body);
+        Assert.Contains("\"original_amount\":50000", body);
+        Assert.Contains("\"currency\":\"CRC\"", body);
+        Assert.Contains($"\"category_id\":\"{CatId}\"", body);
+        Assert.Contains($"\"bank_id\":\"{BankId}\"", body);
+        Assert.Contains("\"exchange_rate\":510.45", body);
+        Assert.Contains("\"transaction_type\":\"budgeted\"", body);
+    }
+
+    [Fact]
+    public async Task NewTransaction_MissingBank_IsRefusedLocally_WithoutARequest()
+    {
+        await SignInAsync();
+        StubCatalogs();
+
+        var cut = Render<TransactionForm>();
+        cut.WaitForElement("[data-testid='tx-save']");
+        cut.Find("[data-testid='tx-payee']").Input("AutoMercado");
+        cut.Find("[data-testid='tx-amount-field-input']").Change("100");
+        cut.Find("[data-testid='tx-category']").Change(CatId);
+        cut.Find("[data-testid='tx-save']").Click();
+
+        Assert.Contains("Tx_Validation_Bank", cut.WaitForElement("[data-testid='tx-error']").TextContent);
+        Assert.DoesNotContain(Http.Requests, r => r.Method == HttpMethod.Post && r.RequestUri!.AbsolutePath == "/api/transactions");
+    }
+
+    [Fact]
+    public async Task NewTransaction_PrefillsTheSideForTheCurrency_AndKeepsATypedRate()
+    {
+        // ADR-V019: colones default → the buy side (a ₡ purchase is worth dollars at compra); switching to USD → the sell
+        // side (a $ purchase costs colones at venta). A rate the member typed is never overwritten by a currency change.
+        await SignInAsync();
+        StubCatalogs();
+        Http.On(HttpMethod.Get, "/api/exchange-rate", """{"rate":453.69,"buy":448.27,"sell":453.69,"source":"live","as_of":"2026-09-07T12:00:00+00:00"}""");
+
+        var cut = Render<TransactionForm>();
+
+        cut.WaitForAssertion(() => Assert.Equal("448.27", cut.Find("[data-testid='tx-rate']").GetAttribute("value")));
+        cut.Find("[data-testid='tx-amount-field-currency-option'][data-currency='USD']").Change(true);
+        Assert.Equal("453.69", cut.Find("[data-testid='tx-rate']").GetAttribute("value"));
+        cut.Find("[data-testid='tx-amount-field-currency-option'][data-currency='CRC']").Change(true);
+        Assert.Equal("448.27", cut.Find("[data-testid='tx-rate']").GetAttribute("value"));
+
+        cut.Find("[data-testid='tx-rate']").Change("460");
+        cut.Find("[data-testid='tx-amount-field-currency-option'][data-currency='USD']").Change(true);
+        Assert.Equal("460", cut.Find("[data-testid='tx-rate']").GetAttribute("value"));
+    }
+
+    [Fact]
+    public async Task MonthRefunds_ShowTheNote_AndTheInlineEditPutsIt()
+    {
+        // LEDGER-4: why it is expected (claim number and all — one field since 2026-09-14), edited where the refund already is.
+        await SignInAsync();
+        StubCatalogs();
+        Http.On(HttpMethod.Get, $"/api/months/{MonthId}", $$"""{"id":"{{MonthId}}","year":2026,"month_number":7,"week_count":5,"week1_start_date":"2026-06-25","income_rows":[{"id":"eeeeeeee-0000-0000-0000-000000000001","income_line_id":"ffffffff-0000-0000-0000-000000000001","label":"Primary","member_user_id":null,"currency":"USD","amount":3750,"planned_amount":3750}],"weeks":[{"week_number":1,"start_date":"2026-06-25","end_date":"2026-07-01"}]}""");
+        Http.On(HttpMethod.Get, $"/api/months/{MonthId}/transactions", "[]");
+        Http.On(HttpMethod.Get, $"/api/months/{MonthId}/refunds", $$"""
+            {"refunds":[{"id":"{{RefundId}}","payee":"Clinic","transaction_date":"2026-07-10","percentage":50,"amount_crc":25000,"amount_usd":50,"status":"pending","notes":"CASE-2026-4471, lent to Diego"}],"totals":null}
+            """);
+        Http.On(HttpMethod.Put, $"/api/refunds/{RefundId}/details", $$"""{"id":"{{RefundId}}","payee":"Clinic","transaction_date":"2026-07-10","percentage":50,"amount_crc":25000,"amount_usd":50,"status":"pending","notes":""}""");
+
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"http://localhost/months/{MonthId}");
+        var cut = Render<MonthDetail>(p => p.Add(x => x.Id, Guid.Parse(MonthId)));
+
+        cut.WaitForAssertion(() => Assert.Equal("CASE-2026-4471, lent to Diego", cut.Find("[data-testid='refund-note']").GetAttribute("title")));
+        Assert.DoesNotContain("refund-case", cut.FindAll("[data-testid]").Select(e => e.GetAttribute("data-testid")));        // no Case No. column: it lives in the notes
+        Assert.DoesNotContain("Refund_CaseNumber", cut.Find("[data-testid='month-refund-table']").TextContent);
+
+        cut.Find("[data-testid='refund-edit']").Click();
+        Assert.DoesNotContain("refund-case-input", cut.FindAll("[data-testid]").Select(e => e.GetAttribute("data-testid")));
+        Assert.Contains("Tx_RefundNotes", cut.Find("[data-testid='refund-edit-row']").TextContent); // the same label the transaction form uses
+        cut.Find("[data-testid='refund-notes-input']").Input("  ");   // blank clears
+        cut.Find("[data-testid='refund-details-save']").Click();
+
+        cut.WaitForAssertion(() => Assert.Single(Http.Requests, r => r.Method == HttpMethod.Put && r.RequestUri!.AbsolutePath.EndsWith("/details")));
+        var body = await Http.Requests.Single(r => r.Method == HttpMethod.Put && r.RequestUri!.AbsolutePath.EndsWith("/details")).Content!.ReadAsStringAsync();
+        Assert.DoesNotContain("case_number", body);
+        Assert.Contains("\"notes\":null", body);
+    }
+
+    [Fact]
+    public async Task NewTransaction_NotesAreOptional_TrimmedOnTheWire_AndCounted()
+    {
+        await SignInAsync();
+        StubCatalogs();
+
+        var cut = Render<TransactionForm>();
+        cut.WaitForAssertion(() => Assert.Equal("510.45", cut.Find("[data-testid='tx-rate']").GetAttribute("value")));
+        Assert.Equal("0/250", cut.Find("[data-testid='tx-notes-count']").TextContent.Trim());
+
+        cut.Find("[data-testid='tx-payee']").Input("AutoMercado");
+        cut.Find("[data-testid='tx-amount-field-input']").Change("50000");
+        cut.Find("[data-testid='tx-category']").Change(CatId);
+        cut.Find("[data-testid='tx-bank']").Change(BankId);
+        cut.Find("[data-testid='tx-notes']").Input("  Stocking up before the trip ");
+        Assert.Equal("30/250", cut.Find("[data-testid='tx-notes-count']").TextContent.Trim());
+        cut.Find("[data-testid='tx-save']").Click();
+
+        cut.WaitForAssertion(() => Assert.Single(Http.Requests, r => r.Method == HttpMethod.Post && r.RequestUri!.AbsolutePath == "/api/transactions"));
+        var body = await Http.Requests.Single(r => r.Method == HttpMethod.Post && r.RequestUri!.AbsolutePath == "/api/transactions").Content!.ReadAsStringAsync();
+        Assert.Contains("\"notes\":\"Stocking up before the trip\"", body);
+    }
+
+    [Fact]
+    public async Task NewTransaction_CardIsOptional_AndAPickedOneIsPosted()
+    {
+        // CARDS-1: "No card" by default (cash, transfers); a picked card rides on the payload.
+        await SignInAsync();
+        StubCatalogs();
+        Http.On(HttpMethod.Post, "/api/transactions", $$"""{"id":"{{TxId}}","month_id":"{{MonthId}}","payee":"AutoMercado","bank_id":"{{BankId}}","card_id":"{{CardId}}","payment_method":"credit_card","original_amount":50000,"currency":"CRC","transaction_date":"2026-07-10","category_id":"{{CatId}}","exchange_rate_used":510.45,"transaction_type":"budgeted","source":"manual","envelope_id":null}""", HttpStatusCode.Created);
+
+        var cut = Render<TransactionForm>();
+        cut.WaitForAssertion(() => Assert.Equal("510.45", cut.Find("[data-testid='tx-rate']").GetAttribute("value")));
+        Assert.Equal("", cut.Find("[data-testid='tx-card']").GetAttribute("value") ?? "");
+        Assert.Contains("VISA-1234", cut.Find("[data-testid='tx-card']").TextContent);
+
+        cut.Find("[data-testid='tx-payee']").Input("AutoMercado");
+        cut.Find("[data-testid='tx-amount-field-input']").Change("50000");
+        cut.Find("[data-testid='tx-category']").Change(CatId);
+        cut.Find("[data-testid='tx-bank']").Change(BankId);
+        cut.Find("[data-testid='tx-card']").Change(CardId);
+        Assert.Equal("bank_account", cut.Find("[data-testid='tx-method']").GetAttribute("value")); // CARDS-3: a debit card spends the account
+        cut.Find("[data-testid='tx-save']").Click();
+
+        cut.WaitForAssertion(() => Assert.Single(Http.Requests, r => r.Method == HttpMethod.Post && r.RequestUri!.AbsolutePath == "/api/transactions"));
+        var body = await Http.Requests.Single(r => r.Method == HttpMethod.Post && r.RequestUri!.AbsolutePath == "/api/transactions").Content!.ReadAsStringAsync();
+        Assert.Contains($"\"card_id\":\"{CardId}\"", body);
+    }
+
+    [Fact]
+    public async Task NewTransaction_RateUnavailable_ShowsTheHint_AndRequiresARate()
+    {
+        await SignInAsync();
+        StubCatalogs();
+        Http.On(HttpMethod.Get, "/api/exchange-rate", """{"error":"exchange_rate_unavailable","message":"none"}""", HttpStatusCode.ServiceUnavailable);
+
+        var cut = Render<TransactionForm>();
+
+        cut.WaitForAssertion(() => Assert.Contains("Tx_RateUnavailable", cut.Find("[data-testid='tx-rate-hint']").TextContent));
+        cut.Find("[data-testid='tx-payee']").Input("X");
+        cut.Find("[data-testid='tx-amount-field-input']").Change("100");
+        cut.Find("[data-testid='tx-category']").Change(CatId);
+        cut.Find("[data-testid='tx-bank']").Change(BankId);
+        cut.Find("[data-testid='tx-save']").Click();
+        Assert.Contains("Tx_Validation_Rate", cut.WaitForElement("[data-testid='tx-error']").TextContent);
+    }
+
+    [Fact]
+    public async Task EditTransaction_LoadsTheRow_FreezesTheRate_AndPuts()
+    {
+        await SignInAsync();
+        StubCatalogs();
+        Http.On(HttpMethod.Get, $"/api/transactions/{TxId}", $$"""{"id":"{{TxId}}","month_id":"{{MonthId}}","payee":"AutoMercado","bank_id":"{{BankId}}","payment_method":"credit_card","original_amount":50000,"currency":"CRC","transaction_date":"2026-07-10","category_id":"{{CatId}}","exchange_rate_used":500,"transaction_type":"budgeted","source":"manual","envelope_id":null}""");
+        Http.On(HttpMethod.Put, $"/api/transactions/{TxId}", $$"""{"id":"{{TxId}}","month_id":"{{MonthId}}","payee":"Fresh Market","bank_id":"{{BankId}}","payment_method":"credit_card","original_amount":50000,"currency":"CRC","transaction_date":"2026-07-10","category_id":"{{CatId}}","exchange_rate_used":500,"transaction_type":"budgeted","source":"manual","envelope_id":null}""");
+
+        var cut = Render<TransactionForm>(p => p.Add(x => x.Id, Guid.Parse(TxId)));
+
+        cut.WaitForAssertion(() => Assert.Equal("AutoMercado", cut.Find("[data-testid='tx-payee']").GetAttribute("value")));
+        Assert.True(cut.Find("[data-testid='tx-rate']").HasAttribute("disabled"));
+        Assert.Contains("Tx_RateFrozen", cut.Find("[data-testid='tx-rate-hint']").TextContent);
+
+        cut.Find("[data-testid='tx-payee']").Input("Fresh Market");
+        cut.Find("[data-testid='tx-save']").Click();
+
+        cut.WaitForAssertion(() => Assert.EndsWith($"/months/{MonthId}", Services.GetRequiredService<NavigationManager>().Uri));
+        var put = Assert.Single(Http.Requests, r => r.Method == HttpMethod.Put);
+        var body = await put.Content!.ReadAsStringAsync();
+        Assert.Contains("\"payee\":\"Fresh Market\"", body);
+        Assert.DoesNotContain("exchange_rate", body); // the rate is frozen — never sent on edit
+    }
+
+    [Fact]
+    public async Task MonthDetail_ListsWeeksIncomeAndTransactions_DeletesWithConfirmation_AndLeavesWhenTheMonthIsGone()
+    {
+        await SignInAsync();
+        Http.On(HttpMethod.Get, $"/api/months/{MonthId}", $$"""{"id":"{{MonthId}}","year":2026,"month_number":7,"week_count":5,"week1_start_date":"2026-06-25","income_rows":[{"id":"eeeeeeee-0000-0000-0000-000000000002","income_line_id":"ffffffff-0000-0000-0000-000000000002","label":"Primary","member_user_id":null,"currency":"USD","amount":3750,"planned_amount":3750},{"id":"eeeeeeee-0000-0000-0000-000000000003","income_line_id":"ffffffff-0000-0000-0000-000000000003","label":"Secondary","member_user_id":null,"currency":"CRC","amount":312500,"planned_amount":312500}],"weeks":[{"week_number":1,"start_date":"2026-06-25","end_date":"2026-07-01"},{"week_number":2,"start_date":"2026-07-02","end_date":"2026-07-08"},{"week_number":3,"start_date":"2026-07-09","end_date":"2026-07-15"},{"week_number":4,"start_date":"2026-07-16","end_date":"2026-07-22"},{"week_number":5,"start_date":"2026-07-23","end_date":"2026-07-29"}]}""");
+        Http.On(HttpMethod.Get, $"/api/months/{MonthId}/transactions", $$"""[{"id":"{{TxId}}","payee":"AutoMercado","transaction_date":"2026-07-10","category_name":"Groceries","bank_name":"Cash","payment_method":"credit_card","transaction_type":"budgeted","amount_crc":50000,"amount_usd":100,"source":"manual"}]""");
+        Http.On(HttpMethod.Delete, $"/api/transactions/{TxId}", "", HttpStatusCode.NoContent);
+
+        var cut = Render<MonthDetail>(p => p.Add(x => x.Id, Guid.Parse(MonthId)));
+
+        cut.WaitForAssertion(() => Assert.Contains("July 2026", cut.Find("[data-testid='month-title']").TextContent));
+        Assert.Equal(5, cut.Find("[data-testid='month-weeks']").Children.Length);
+        Assert.Equal(["3750", "312500"], cut.FindAll("[data-testid='month-inc-amount']").Select(i => i.GetAttribute("value")));
+        Assert.Equal(["Primary", "Secondary"], cut.FindAll("[data-testid='month-inc-label']").Select(i => i.GetAttribute("value")));
+        var row = Assert.Single(cut.FindAll("[data-testid='month-tx-row']"));
+        Assert.Contains("AutoMercado", row.TextContent);
+        Assert.Contains("Groceries", row.TextContent);
+        Assert.Contains("Tx_Budgeted", row.TextContent);
+
+        // Delete is two clicks; the first only arms the confirm button.
+        cut.Find("[data-testid='month-tx-delete']").Click();
+        Assert.DoesNotContain(Http.Requests, r => r.Method == HttpMethod.Delete);
+        Http.On(HttpMethod.Get, $"/api/months/{MonthId}", """{"error":"not_found","message":"month not found"}""", HttpStatusCode.NotFound); // it was the last transaction
+        cut.Find("[data-testid='month-tx-confirm']").Click();
+
+        cut.WaitForAssertion(() => Assert.EndsWith("/months", Services.GetRequiredService<NavigationManager>().Uri));
+        Assert.Single(Http.Requests, r => r.Method == HttpMethod.Delete && r.RequestUri!.AbsolutePath == $"/api/transactions/{TxId}");
+    }
+
+    [Fact]
+    public async Task NewTransaction_CanCreateACategoryInline_AndSavesWithIt()
+    {
+        const string NewCatId = "bbbbbbbb-0000-0000-0000-000000000009";
+        await SignInAsync();
+        StubCatalogs();
+        Http.On(HttpMethod.Post, "/api/categories", $$"""{"id":"{{NewCatId}}","name":"Viajes","is_active":true}""", HttpStatusCode.Created);
+        Http.On(HttpMethod.Post, "/api/transactions", $$"""{"id":"{{TxId}}","month_id":"{{MonthId}}","payee":"Hotel","bank_id":"{{BankId}}","payment_method":"credit_card","original_amount":80000,"currency":"CRC","transaction_date":"2026-07-10","category_id":"{{NewCatId}}","exchange_rate_used":510.45,"transaction_type":"budgeted","source":"manual","envelope_id":null}""", HttpStatusCode.Created);
+
+        var cut = Render<TransactionForm>();
+        cut.WaitForAssertion(() => Assert.Equal("510.45", cut.Find("[data-testid='tx-rate']").GetAttribute("value")));
+
+        cut.Find("[data-testid='tx-category-new']").Click();
+        cut.Find("[data-testid='tx-category-new-name']").Input("Viajes");
+        cut.Find("[data-testid='tx-category-new-save']").Click();
+
+        // The new category is in the list and selected; the form saves with it.
+        cut.WaitForAssertion(() => Assert.Equal(NewCatId, cut.Find("[data-testid='tx-category']").GetAttribute("value")));
+        Assert.Contains(cut.FindAll("[data-testid='tx-category'] option"), o => o.GetAttribute("value") == NewCatId && o.TextContent == "Viajes");
+        cut.Find("[data-testid='tx-payee']").Input("Hotel");
+        cut.Find("[data-testid='tx-amount-field-input']").Change("80000");
+        cut.Find("[data-testid='tx-bank']").Change(BankId);
+        cut.Find("[data-testid='tx-save']").Click();
+
+        cut.WaitForAssertion(() => Assert.EndsWith($"/months/{MonthId}", Services.GetRequiredService<NavigationManager>().Uri));
+        var post = Assert.Single(Http.Requests, r => r.Method == HttpMethod.Post && r.RequestUri!.AbsolutePath == "/api/transactions");
+        Assert.Contains($"\"category_id\":\"{NewCatId}\"", await post.Content!.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task MonthDetail_SortsByAnyHeader_AndFiltersByDatePayeeCategoryBankAndClass()
+    {
+        await SignInAsync();
+        Http.On(HttpMethod.Get, $"/api/months/{MonthId}", $$"""{"id":"{{MonthId}}","year":2026,"month_number":7,"week_count":5,"week1_start_date":"2026-06-25","income_rows":[],"weeks":[{"week_number":1,"start_date":"2026-06-25","end_date":"2026-07-29"}]}""");
+        Http.On(HttpMethod.Get, $"/api/months/{MonthId}/transactions", """
+            [{"id":"dddddddd-0000-0000-0000-000000000001","payee":"Uber","transaction_date":"2026-07-20","category_name":"Transport","bank_name":"BAC","card_name":"VISA-1234","notes":"Airport run, reimbursed by work","payment_method":"credit_card","transaction_type":"extraordinary","amount_crc":5000,"amount_usd":10,"source":"manual"},
+             {"id":"dddddddd-0000-0000-0000-000000000002","payee":"AutoMercado","transaction_date":"2026-07-10","category_name":"Groceries","bank_name":"Cash","payment_method":"credit_card","transaction_type":"budgeted","amount_crc":50000,"amount_usd":100,"source":"manual"},
+             {"id":"dddddddd-0000-0000-0000-000000000003","payee":"Café Britt","transaction_date":"2026-07-02","category_name":"Groceries","bank_name":"BAC","payment_method":"bank_account","transaction_type":"unplanned_essential","amount_crc":8000,"amount_usd":16,"source":"email"}]
+            """);
+
+        var cut = Render<MonthDetail>(p => p.Add(x => x.Id, Guid.Parse(MonthId)));
+        cut.WaitForAssertion(() => Assert.Equal(3, cut.FindAll("[data-testid='month-tx-row']").Count));
+        string[] Payees() => cut.FindAll("[data-testid='month-tx-payee']").Select(e => e.TextContent.Trim()).ToArray();
+
+        // Notes ride on the payee cell as an icon whose tooltip is the note; rows without one show nothing.
+        var note = Assert.Single(cut.FindAll("[data-testid='month-tx-note']"));
+        Assert.Equal("Airport run, reimbursed by work", note.GetAttribute("title"));
+        Assert.Equal("/transactions/dddddddd-0000-0000-0000-000000000001/edit", note.GetAttribute("href"));
+
+        // CARDS-1: the card column shows the alias; the card filter narrows to it.
+        Assert.Equal("VISA-1234", cut.FindAll("[data-testid='month-tx-card']")[0].TextContent.Trim());
+        cut.Find("[data-testid='month-tx-filter-card']").Change("VISA-1234");
+        Assert.Equal(["Uber"], Payees());
+        cut.Find("[data-testid='month-tx-filter-clear']").Click();
+        Assert.Equal(3, Payees().Length);
+
+        // Default: newest first (the API's order). Date header flips it.
+        Assert.Equal(["Uber", "AutoMercado", "Café Britt"], Payees());
+        Assert.Equal("descending", cut.Find("[data-testid='month-tx-sort'][data-sort='date']").ParentElement!.GetAttribute("aria-sort"));
+        cut.Find("[data-testid='month-tx-sort'][data-sort='date']").Click();
+        Assert.Equal(["Café Britt", "AutoMercado", "Uber"], Payees());
+
+        // Names sort A→Z first, then flip; category ties keep date order.
+        cut.Find("[data-testid='month-tx-sort'][data-sort='payee']").Click();
+        Assert.Equal(["AutoMercado", "Café Britt", "Uber"], Payees());
+        cut.Find("[data-testid='month-tx-sort'][data-sort='payee']").Click();
+        Assert.Equal(["Uber", "Café Britt", "AutoMercado"], Payees());
+        cut.Find("[data-testid='month-tx-sort'][data-sort='category']").Click();
+        Assert.Equal(["AutoMercado", "Café Britt", "Uber"], Payees()); // Groceries (Jul 10, Jul 2), then Transport
+        cut.Find("[data-testid='month-tx-sort'][data-sort='bank']").Click();
+        Assert.Equal(["Uber", "Café Britt", "AutoMercado"], Payees()); // BAC (Jul 20, Jul 2), then Cash
+        cut.Find("[data-testid='month-tx-sort'][data-sort='class']").Click();
+        Assert.Equal("ascending", cut.Find("[data-testid='month-tx-sort'][data-sort='class']").ParentElement!.GetAttribute("aria-sort"));
+
+        // Filters narrow the same rows; the count says how many survived; Clear restores everything.
+        Assert.Contains("Month_FilterCount[3, 3]", cut.Find("[data-testid='month-tx-count']").TextContent);
+        Assert.True(cut.Find("[data-testid='month-tx-filter-clear']").HasAttribute("disabled"));
+        cut.Find("[data-testid='month-tx-filter-payee']").Input("caf");
+        Assert.Equal(["Café Britt"], Payees());
+        Assert.Contains("Month_FilterCount[1, 3]", cut.Find("[data-testid='month-tx-count']").TextContent);
+        cut.Find("[data-testid='month-tx-filter-payee']").Input("");
+        cut.Find("[data-testid='month-tx-filter-category']").Change("Groceries");
+        Assert.Equal(2, cut.FindAll("[data-testid='month-tx-row']").Count);
+        cut.Find("[data-testid='month-tx-filter-bank']").Change("BAC");
+        Assert.Equal(["Café Britt"], Payees());
+        cut.Find("[data-testid='month-tx-filter-class']").Change("budgeted"); // Groceries + BAC + budgeted → nothing
+        Assert.Empty(cut.FindAll("[data-testid='month-tx-row']"));
+        Assert.Contains("Month_NoMatch", cut.Find("[data-testid='month-tx-nomatch']").TextContent);
+        cut.Find("[data-testid='month-tx-filter-clear']").Click();
+        Assert.Equal(3, cut.FindAll("[data-testid='month-tx-row']").Count);
+        cut.Find("[data-testid='month-tx-filter-from']").Change("2026-07-05");
+        cut.Find("[data-testid='month-tx-filter-to']").Change("2026-07-15");
+        Assert.Equal(["AutoMercado"], Payees());
+    }
+
+    [Fact]
+    public async Task MonthDetail_ReloadsWhenTheRouteIdChanges()
+    {
+        // A link from one month page to another (e.g. a refund's "booked in another month — view", ADR-V017)
+        // keeps the component alive with a new Id — the page must fetch the new month, not keep the old one.
+        const string OtherId = "aaaaaaaa-0000-0000-0000-000000000007";
+        await SignInAsync();
+        Http.On(HttpMethod.Get, $"/api/months/{MonthId}", $$"""{"id":"{{MonthId}}","year":2026,"month_number":6,"week_count":4,"week1_start_date":"2026-05-28","income_rows":[{"id":"eeeeeeee-0000-0000-0000-000000000004","income_line_id":"ffffffff-0000-0000-0000-000000000004","label":"Primary","member_user_id":null,"currency":"USD","amount":3000,"planned_amount":3000}],"weeks":[{"week_number":1,"start_date":"2026-05-28","end_date":"2026-06-03"}]}""");
+        Http.On(HttpMethod.Get, $"/api/months/{MonthId}/transactions", "[]");
+        Http.On(HttpMethod.Get, $"/api/months/{OtherId}", $$"""{"id":"{{OtherId}}","year":2026,"month_number":7,"week_count":5,"week1_start_date":"2026-06-25","income_rows":[{"id":"eeeeeeee-0000-0000-0000-000000000005","income_line_id":"ffffffff-0000-0000-0000-000000000005","label":"Primary","member_user_id":null,"currency":"USD","amount":3750,"planned_amount":3750}],"weeks":[{"week_number":1,"start_date":"2026-06-25","end_date":"2026-07-01"}]}""");
+        Http.On(HttpMethod.Get, $"/api/months/{OtherId}/transactions", "[]");
+
+        var cut = Render<MonthDetail>(p => p.Add(x => x.Id, Guid.Parse(MonthId)));
+        cut.WaitForElement("[data-testid='month-no-tx']");
+        Assert.Contains("June 2026", cut.Find("[data-testid='month-title']").TextContent);
+
+        cut.Render(p => p.Add(x => x.Id, Guid.Parse(OtherId)));
+
+        cut.WaitForAssertion(() => Assert.Contains("July 2026", cut.Find("[data-testid='month-title']").TextContent));
+        Assert.Single(Http.Requests, r => r.Method == HttpMethod.Get && r.RequestUri!.AbsolutePath == $"/api/months/{OtherId}");
+    }
+
+    [Fact]
+    public async Task MonthDetail_IncomeCard_ListsInflows_AndTheLinkFiltersToThem()
+    {
+        await SignInAsync();
+        Http.On(HttpMethod.Get, $"/api/months/{MonthId}", $$"""{"id":"{{MonthId}}","year":2026,"month_number":7,"week_count":5,"week1_start_date":"2026-06-25","income_rows":[{"id":"eeeeeeee-0000-0000-0000-000000000006","income_line_id":"ffffffff-0000-0000-0000-000000000006","label":"Primary","member_user_id":null,"currency":"USD","amount":3750,"planned_amount":3750}],"weeks":[{"week_number":1,"start_date":"2026-06-25","end_date":"2026-07-01"},{"week_number":2,"start_date":"2026-07-02","end_date":"2026-07-29"}]}""");
+        Http.On(HttpMethod.Get, $"/api/months/{MonthId}/transactions", $$"""
+            [{"id":"{{TxId}}","payee":"AutoMercado","transaction_date":"2026-07-10","category_name":"Groceries","bank_name":"Cash","payment_method":"credit_card","transaction_type":"budgeted","amount_crc":50000,"amount_usd":100,"source":"manual"},
+             {"id":"dddddddd-0000-0000-0000-000000000002","payee":"Garage sale","transaction_date":"2026-07-12","category_name":"Other","bank_name":"Cash","payment_method":"bank_account","transaction_type":"inflow","amount_crc":30000,"amount_usd":60,"source":"manual"},
+             {"id":"dddddddd-0000-0000-0000-000000000003","payee":"Refund","transaction_date":"2026-07-15","category_name":"Other","bank_name":"Cash","payment_method":"bank_account","transaction_type":"inflow","amount_crc":20000,"amount_usd":40,"source":"refund_realization"}]
+            """);
+
+        var cut = Render<MonthDetail>(p => p.Add(x => x.Id, Guid.Parse(MonthId)));
+
+        cut.WaitForElement("[data-testid='month-income-other']");
+        Assert.Contains("₡50,000.00 · $100.00", cut.Find("[data-testid='month-income-other']").TextContent); // the two inflows, frozen amounts
+        cut.Find("[data-testid='month-cur-usd']").Click(); // #207: it follows the page's ₡ · $ · both like every other pair
+        cut.WaitForAssertion(() => Assert.DoesNotContain("₡", cut.Find("[data-testid='month-income-other']").TextContent));
+        Assert.Contains("Month_OtherIncomeShow[2]", cut.Find("[data-testid='month-income-other-show']").TextContent);
+        Assert.Equal(3, cut.FindAll("[data-testid='month-tx-row']").Count);
+
+        cut.Find("[data-testid='month-income-other-show']").Click();
+
+        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("[data-testid='month-tx-row']").Count));
+        Assert.All(cut.FindAll("[data-testid='month-tx-row']"), r => Assert.Contains("Tx_Inflow", r.TextContent));
+    }
+
+    [Fact]
+    public async Task MonthDetail_EditsTheIncomeRows_AndPutsTheWholeList()
+    {
+        // INCOME-1: correct a snapshotted row (its planned figure shows), drop another, add a one-off, save the list.
+        // The one-off is the income of whoever adds it — the signed-in member.
+        await SignInAsync();
+        const string Salary = "eeeeeeee-0000-0000-0000-00000000aaa1";
+        const string Son = "eeeeeeee-0000-0000-0000-00000000aaa2";
+        const string Member = "aaaaaaaa-0000-0000-0000-00000000aaa9";
+        Http.On(HttpMethod.Get, $"/api/months/{MonthId}", $$"""
+            {"id":"{{MonthId}}","year":2026,"month_number":6,"week_count":4,"week1_start_date":"2026-05-28","weeks":[{"week_number":1,"start_date":"2026-05-28","end_date":"2026-06-03"}],
+             "income_rows":[{"id":"{{Salary}}","income_line_id":"ffffffff-0000-0000-0000-00000000aaa1","label":"Salary","member_user_id":"{{Member}}","currency":"USD","amount":2000,"planned_amount":2000},
+                            {"id":"{{Son}}","income_line_id":"ffffffff-0000-0000-0000-00000000aaa2","label":"Son","member_user_id":null,"currency":"CRC","amount":600000,"planned_amount":600000}]}
+            """);
+        Http.On(HttpMethod.Get, $"/api/months/{MonthId}/transactions", "[]");
+        Http.On(HttpMethod.Put, $"/api/months/{MonthId}/income", $$"""
+            {"id":"{{MonthId}}","year":2026,"month_number":6,"week_count":4,"week1_start_date":"2026-05-28","weeks":null,
+             "income_rows":[{"id":"{{Salary}}","income_line_id":"ffffffff-0000-0000-0000-00000000aaa1","label":"Salary","member_user_id":"{{Member}}","currency":"USD","amount":1800,"planned_amount":2000},
+                            {"id":"eeeeeeee-0000-0000-0000-00000000aaa3","income_line_id":null,"label":"Sold the bike","member_user_id":null,"currency":"CRC","amount":150000,"planned_amount":null}]}
+            """);
+
+        var cut = Render<MonthDetail>(p => p.Add(x => x.Id, Guid.Parse(MonthId)));
+
+        cut.WaitForElement("[data-testid='month-no-tx']");
+        Assert.Equal(2, cut.FindAll("[data-testid='month-inc-row']").Count);
+        Assert.Empty(cut.FindAll("[data-testid='month-inc-planned']")); // untouched rows don't repeat their plan
+
+        cut.FindAll("[data-testid='month-inc-amount']")[0].Change("1800");
+        Assert.Contains("Month_IncomePlanned[$2,000.00]", cut.Find("[data-testid='month-inc-planned']").TextContent);
+        cut.FindAll("[data-testid='month-inc-remove']")[1].Click();
+        cut.Find("[data-testid='month-inc-add']").Click();
+        Assert.Contains("Month_IncomeOneOff", cut.FindAll("[data-testid='month-inc-row']")[1].TextContent);
+
+        // A nameless row is refused on the page, before any request.
+        cut.Find("[data-testid='month-inc-save']").Click();
+        Assert.Contains("Month_IncomeLabelRequired", cut.Find("[data-testid='month-error']").TextContent);
+        Assert.DoesNotContain(Http.Requests, r => r.Method == HttpMethod.Put);
+
+        cut.FindAll("[data-testid='month-inc-label']")[1].Change("Sold the bike");
+        cut.FindAll("[data-testid='month-inc-cur']")[1].Change("CRC");
+        cut.FindAll("[data-testid='month-inc-amount']")[1].Change("150000");
+        cut.Find("[data-testid='month-inc-save']").Click();
+
+        cut.WaitForElement("[data-testid='month-notice']");
+        var put = Assert.Single(Http.Requests, r => r.Method == HttpMethod.Put);
+        var body = await put.Content!.ReadAsStringAsync();
+        Assert.Equal(
+            $$"""{"rows":[{"id":"{{Salary}}","label":"Salary","member_user_id":"{{Member}}","currency":"USD","amount":1800},{"id":null,"label":"Sold the bike","member_user_id":"{{Auth.UserId}}","currency":"CRC","amount":150000}]}""",
+            body);
+        // The saved rows come back from the response: the one-off now has an id and no plan.
+        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("[data-testid='month-inc-row']").Count));
+        Assert.Contains("Month_IncomeOneOff", cut.FindAll("[data-testid='month-inc-row']")[1].TextContent);
+    }
+
+    [Fact]
+    public async Task Months_ListsNewestFirst_OrTheEmptyState()
+    {
+        await SignInAsync();
+        Http.On(HttpMethod.Get, "/api/months", $$"""[{"id":"{{MonthId}}","year":2026,"month_number":7,"week_count":5,"week1_start_date":"2026-06-25"},{"id":"eeeeeeee-0000-0000-0000-000000000005","year":2026,"month_number":6,"week_count":4,"week1_start_date":"2026-05-28"}]""");
+
+        var cut = Render<Months>();
+
+        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("[data-testid='month-row']").Count));
+        var rows = cut.FindAll("[data-testid='month-row']");
+        Assert.Contains("July 2026", rows[0].TextContent);
+        Assert.Contains("Months_Weeks[5]", rows[0].TextContent);
+        Assert.Contains("June 2026", rows[1].TextContent);
+
+        Http.On(HttpMethod.Get, "/api/months", "[]");
+        var empty = Render<Months>();
+        empty.WaitForElement("[data-testid='months-empty']");
+    }
+}

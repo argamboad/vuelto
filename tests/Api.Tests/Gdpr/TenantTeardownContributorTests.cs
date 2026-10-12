@@ -1,12 +1,12 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
-using Perezosoft.Api.Services;
-using Perezosoft.Api.Tests.Infrastructure;
-using Perezosoft.Core.Entities;
-using Perezosoft.Infrastructure.Persistence;
-using Perezosoft.Infrastructure.Repositories;
+using Vuelto.Api.Services;
+using Vuelto.Api.Tests.Infrastructure;
+using Vuelto.Core.Entities;
+using Vuelto.Infrastructure.Persistence;
+using Vuelto.Infrastructure.Repositories;
 
-namespace Perezosoft.Api.Tests.Gdpr;
+namespace Vuelto.Api.Tests.Gdpr;
 
 /// <summary>
 /// Behavioral proof for LB-TEN-1: the three contributors that close the tenant-teardown holes actually
@@ -88,6 +88,42 @@ public class TenantTeardownContributorTests(PostgresFixture fixture) : PostgresT
         Assert.Single(await AllOf<WebhookSubscription>(read).Where(s => s.TenantId == other).ToListAsync());
         Assert.Single(await read.Set<WebhookDelivery>().Where(d => d.TenantId == other).ToListAsync());
         _ = targetSub; // subscription id retained for readability; assertions key off TenantId
+    }
+
+    [Fact]
+    public async Task HouseholdExport_LeavesOutQueuePayloads_AndWebhookDeliveryBodiesAndErrors()
+    {
+        // v4 audit T25: across EVERY platform contributor, the export carries what the household owns — not the
+        // plumbing that moved it. A queued email (recipient, attachment), a delivery's request body and the
+        // error text of a failed delivery never appear, so a future "include pending" export cannot leak them
+        // without this test changing.
+        var tenant = Guid.CreateVersion7();
+        var subId = await SeedWebhookAsync(tenant, url: "https://target.example/hook", encryptedSecret: "ENC", deliveryBody: "{\"x\":\"DELIVERY-BODY\"}");
+        await using (var seed = Fixture.CreateContext(tenant))
+        {
+            seed.Set<WebhookDelivery>().Add(new WebhookDelivery
+            {
+                TenantId = tenant, SubscriptionId = subId, EventType = WebhookEvents.Ping, EventId = "failed-1",
+                Body = "{\"x\":\"FAILED-BODY\"}", Success = false, Error = "DELIVERY-ERROR-TEXT", CreatedAt = DateTimeOffset.UtcNow,
+            });
+            seed.Set<OutboxMessage>().Add(new OutboxMessage
+            {
+                Type = Vuelto.Infrastructure.Email.OutboxEmailSender.MessageType, TenantId = tenant,
+                Payload = "{\"To\":\"QUEUED-RECIPIENT@x.com\"}", CreatedAt = DateTimeOffset.UtcNow, NextAttemptAt = DateTimeOffset.UtcNow,
+            });
+            await seed.SaveChangesAsync();
+        }
+
+        await using var db = Fixture.CreateContext(tenant);
+        var parts = new List<object?>();
+        foreach (var contributor in new ServiceHarness(db).Contributors())
+            parts.Add(await contributor.ExportAsync(tenant));
+        var json = JsonSerializer.Serialize(parts);
+
+        Assert.Contains("https://target.example/hook", json); // probe: the export is not simply empty
+
+        foreach (var leaked in new[] { "DELIVERY-BODY", "FAILED-BODY", "DELIVERY-ERROR-TEXT", "QUEUED-RECIPIENT" })
+            Assert.DoesNotContain(leaked, json);
     }
 
     // --- helpers ---

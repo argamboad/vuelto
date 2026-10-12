@@ -1,14 +1,15 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Perezosoft.Api.Models;
-using Perezosoft.Api.Services;
-using Perezosoft.Core.Abstractions;
-using Perezosoft.Core.Billing;
-using Perezosoft.Core.Entities;
-using Perezosoft.Core.Repositories;
+using Vuelto.Api.Models;
+using Vuelto.Api.Configuration;
+using Vuelto.Api.Services;
+using Vuelto.Core.Abstractions;
+using Vuelto.Core.Billing;
+using Vuelto.Core.Entities;
+using Vuelto.Core.Repositories;
 
-namespace Perezosoft.Api.Controllers;
+namespace Vuelto.Api.Controllers;
 
 /// <summary>
 /// Platform-staff back-office (ADMIN-1, ADR-014): read-only cross-tenant inspection. The global tenant
@@ -32,6 +33,7 @@ public class AdminController(
     IRefreshTokenService refreshTokens,
     IOutbox outbox,
     IUnitOfWork unitOfWork,
+    BillingSettings billing,
     ILogger<AdminController> logger,
     TimeProvider clock) : AdminApiControllerBase(staff)
 {
@@ -113,6 +115,11 @@ public class AdminController(
     [HttpPut("tenants/{id:guid}/subscription")]
     public async Task<IActionResult> SetSubscription(Guid id, [FromBody] AdminSetSubscriptionRequest request, CancellationToken cancellationToken)
     {
+        // Part of the billing surface (GATES-1, ADR-027; v4 T45): while the gate is off nobody holds Pro, staff
+        // included — the action does not exist, before the staff check, exactly like the billing routes.
+        if (!billing.Enabled)
+            return NotFound();
+
         var (staffUserId, denied) = await RequireStaffAsync(cancellationToken);
         if (denied is not null)
             return denied;
@@ -175,6 +182,9 @@ public class AdminController(
     [HttpDelete("tenants/{id:guid}/subscription")]
     public async Task<IActionResult> RemoveSubscription(Guid id, CancellationToken cancellationToken)
     {
+        if (!billing.Enabled)
+            return NotFound(); // gated with the comp (v4 T45)
+
         var (staffUserId, denied) = await RequireStaffAsync(cancellationToken);
         if (denied is not null)
             return denied;

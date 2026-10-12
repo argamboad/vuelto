@@ -1,8 +1,8 @@
 using System.Text.Json;
-using Perezosoft.Core.Abstractions;
-using Perezosoft.Core.Entities;
+using Vuelto.Core.Abstractions;
+using Vuelto.Core.Entities;
 
-namespace Perezosoft.Infrastructure.Email;
+namespace Vuelto.Infrastructure.Email;
 
 /// <summary>
 /// Outbox handler for <c>"email"</c> messages: deserializes the payload and performs the real SMTP
@@ -16,12 +16,15 @@ namespace Perezosoft.Infrastructure.Email;
 public sealed class EmailOutboxHandler(IEmailSender smtpSender) : IOutboxHandler
 {
     public string Type => OutboxEmailSender.MessageType;
+    public bool DissolvesWithItsTenant => true; // the household's mail: recipient, body, attachments
+    public bool KeepsPayloadWhenDone => false;
 
     public async Task HandleAsync(OutboxMessage message, CancellationToken cancellationToken = default)
     {
         var payload = JsonSerializer.Deserialize<EmailOutboxPayload>(message.Payload)
             ?? throw new InvalidOperationException($"Outbox message {message.Id} has an unreadable email payload.");
 
-        await smtpSender.SendAsync(payload.To, payload.Subject, payload.HtmlBody, payload.InlineImages, cancellationToken);
+        await smtpSender.SendAsync(payload.To, payload.Subject, payload.HtmlBody, payload.InlineImages,
+            payload.Attachments, cancellationToken);
     }
 }

@@ -1,9 +1,9 @@
 using Microsoft.EntityFrameworkCore;
-using Perezosoft.Core.Entities;
-using Perezosoft.Core.Repositories;
-using Perezosoft.Infrastructure.Persistence;
+using Vuelto.Core.Entities;
+using Vuelto.Core.Repositories;
+using Vuelto.Infrastructure.Persistence;
 
-namespace Perezosoft.Infrastructure.Repositories;
+namespace Vuelto.Infrastructure.Repositories;
 
 /// <summary>EF Core implementation of <see cref="ITenantInvitationRepository"/>.</summary>
 public class TenantInvitationRepository(AppDbContext db) : ITenantInvitationRepository
@@ -22,11 +22,18 @@ public class TenantInvitationRepository(AppDbContext db) : ITenantInvitationRepo
         await db.TenantInvitations.IgnoreQueryFilters().TagWith(RlsTags.CrossTenant)
             .FirstOrDefaultAsync(i => i.Id == id, cancellationToken);
 
+    // Status-only by design: lapsed invites stay in the owner's list (to revoke or regenerate); they just don't count.
     public async Task<List<TenantInvitation>> GetPendingForTenantAsync(Guid tenantId, CancellationToken cancellationToken = default) =>
         await db.TenantInvitations
             .Where(i => i.TenantId == tenantId && i.Status == InvitationStatuses.Pending)
             .OrderByDescending(i => i.CreatedAt)
             .ToListAsync(cancellationToken);
+
+    public async Task<int> CountValidForTenantAsync(Guid tenantId, DateTimeOffset now, CancellationToken cancellationToken = default) =>
+        await db.TenantInvitations
+            .Where(i => i.TenantId == tenantId)
+            .Where(TenantInvitation.ValidAt(now))
+            .CountAsync(cancellationToken);
 
     public async Task<TenantInvitation?> GetPendingByEmailAsync(Guid tenantId, string email, CancellationToken cancellationToken = default)
     {
@@ -37,6 +44,19 @@ public class TenantInvitationRepository(AppDbContext db) : ITenantInvitationRepo
             i.TenantId == tenantId
             && i.Status == InvitationStatuses.Pending
             && i.InvitedEmail == normalized, cancellationToken);
+    }
+
+    // Pre-ACCOUNT lookup (GATES-2): the signup gate asks this before the caller exists, so there is no
+    // tenant to scope to — hence the cross-tenant hatch, tagged so the RLS backstop (ADR-020) sanctions
+    // it per query. Read-only and never composed with a set-based write (RLS-4). InvitedEmail is stored
+    // normalized, so normalize in C# rather than emitting a per-row ToLower().
+    public async Task<List<TenantInvitation>> GetValidByEmailAcrossTenantsAsync(string email, DateTimeOffset now, CancellationToken cancellationToken = default)
+    {
+        var normalized = email.Trim().ToLowerInvariant();
+        return await db.TenantInvitations.IgnoreQueryFilters().TagWith(RlsTags.CrossTenant)
+            .Where(i => i.InvitedEmail == normalized)
+            .Where(TenantInvitation.ValidAt(now)) // the one validity rule (R127): the accept reads the same one
+            .ToListAsync(cancellationToken);
     }
 
     // Pre-membership lookup: the accepting user is not yet in the invitation's tenant

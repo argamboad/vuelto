@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.HttpOverrides;
 
-namespace Perezosoft.Api.Configuration;
+namespace Vuelto.Api.Configuration;
 
 /// <summary>
 /// DEPLOY-1 (ADR-017): reverse-proxy correctness, config-gated. When the app runs behind a

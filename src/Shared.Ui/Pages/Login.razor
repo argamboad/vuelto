@@ -2,7 +2,7 @@
 @using System.Globalization
 @using System.Net.Http.Json
 @using System.Text.Json.Serialization
-@using Perezosoft.Shared.Ui.Auth
+@using Vuelto.Shared.Ui.Auth
 @inject AuthService Auth
 @inject NavigationManager Nav
 @inject HttpClient Http
@@ -10,15 +10,40 @@
 
 <PageTitle>@Localizer["Login_Title"]</PageTitle>
 
-<div class="login-wrapper">
-    <div class="login-card card shadow-sm">
-        <div class="card-body p-4 p-md-5">
+@* SKIN-3 · the split sign-in. Brand and promise on the indigo panel at lg and up; the four authentication
+   paths on the form pane, which IS the card — there is no card shell around it. Below lg the panel drops out
+   entirely and the lockup moves above the heading, so the phone screen is form-first.
 
-            <div class="text-center mb-4">
-                <img src="_content/Perezosoft.Shared.Ui/brand/lockup_light_1520.png" alt="Perezosoft"
-                     class="login-lockup mb-3" />
-                <h1 class="h5 fw-bold mb-0">@Localizer["Login_Title"]</h1>
-                <p class="text-muted small mt-1">@Localizer["Login_Subtitle"]</p>
+   The panel is aria-hidden: it is marketing copy, and announcing it would only delay reaching the form. The
+   tab order therefore starts at the first provider button.
+
+   Every control below keeps its markup, its order and its data-testid. Four of those ids — login-email,
+   login-send-otp, login-otp-code, login-verify-otp — are how SEVEN E2E journey files sign in on their way to
+   testing something else, so breaking one turns most of that suite red rather than just this screen. *@
+<div class="login-split">
+
+    <aside class="login-brand" aria-hidden="true">
+        @* Always on indigo, in BOTH themes, so this is the light-on-transparent lockup and it deliberately
+           does NOT take the .login-lockup class — that class is the one app.css swaps per theme. *@
+        <img src="_content/Vuelto.Shared.Ui/brand/lockup_dark_1520.png" alt="" class="login-brand-lockup" />
+        <div class="login-promise">
+            <h2>@Localizer["Login_PromiseHeadline"]</h2>
+            <p>@Localizer["Login_PromiseBody"]</p>
+        </div>
+        <p class="login-region">@Localizer["Login_Region"]</p>
+    </aside>
+
+    <div class="login-pane">
+        <div class="login-form">
+
+            @* Below lg only — the panel is gone there, so the mark comes back above the heading. Keeps the
+               .login-lockup class so app.css's existing per-theme swap rule still applies to it. *@
+            <img src="_content/Vuelto.Shared.Ui/brand/lockup_light_1520.png" alt="¿Y el vuelto?"
+                 class="login-lockup" />
+
+            <div class="login-heading">
+                <h1>@Localizer["Login_Title"]</h1>
+                <p>@Localizer["Login_Subtitle"]</p>
             </div>
 
             @if (!string.IsNullOrEmpty(Error))
@@ -31,6 +56,15 @@
                  via AuthService and stays in the app. -->
             @if (_providers.Contains("google") || _providers.Contains("microsoft"))
             {
+                @* Native, browser out: say so and offer a way back — the Windows loopback wait is five minutes
+                   and an abandoned tab used to hold the app for all of it (2026-09-14). *@
+                @if (_oauthBusy)
+                {
+                    <p class="login-oauth-waiting" data-testid="login-oauth-waiting">
+                        <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>@Localizer["Login_OAuthWaiting"]
+                        <button type="button" class="btn btn-link btn-sm p-0 ms-1" data-testid="login-oauth-cancel" @onclick="CancelOAuth">@Localizer["Common_Cancel"]</button>
+                    </p>
+                }
                 <div class="d-grid gap-2">
                     @if (_providers.Contains("google"))
                     {
@@ -173,9 +207,11 @@
                 <button class="btn btn-link btn-sm mt-2 p-0" @onclick="Reset">@Localizer["Login_UseDifferentEmail"]</button>
             }
 
-            <div class="d-flex justify-content-center gap-2 mt-4">
-                <div style="max-width:170px;width:100%"><LanguageSwitcher /></div>
-                <div style="max-width:130px;width:100%"><ThemeSwitcher /></div>
+            @* Side by side at every width (build notes). Unauthenticated, so both write device-local
+               storage only — there is no user row to reconcile against until sign-in. *@
+            <div class="login-prefs">
+                <div><LanguageSwitcher /></div>
+                <div><ThemeSwitcher /></div>
             </div>
 
         </div>
@@ -198,6 +234,9 @@
         "external_failed" => Localizer["Login_ErrExternalFailed"],
         "email_unverified" => Localizer["Login_ErrEmailUnverified"],
         "invalid_link" => Localizer["Login_ErrInvalidLink"],
+        // GATES-2 (ADR-027): OAuth and magic link both land here after a refused signup. It is policy,
+        // not breakage, so it must not fall through to the catch-all below.
+        "signup_not_allowed" => Localizer["Login_ErrSignupNotAllowed"],
         _ => Localizer["Login_ErrSomethingWrong"]
     };
 
@@ -349,6 +388,11 @@
             {
                 System.Net.HttpStatusCode.Unauthorized => await OtpErrorAsync(res),
                 System.Net.HttpStatusCode.TooManyRequests => Localizer["Login_ErrTooManyRequests"],
+                // GATES-2 (ADR-027): the code was right; the deployment is not open to this address. A
+                // 401's "incorrect or expired" would send them hunting for a typo that isn't there.
+                // Mapped by the API's own error body, not by the status alone (R112): a proxy's or a WAF's
+                // 403 is not a signup refusal and must not be explained as one.
+                System.Net.HttpStatusCode.Forbidden => await ForbiddenErrorAsync(res),
                 _ => Localizer["Login_ErrVerificationFailed"],
             };
         }
@@ -364,6 +408,14 @@
         try { code = (await res.Content.ReadFromJsonAsync<ApiError>())?.Error; }
         catch { /* no/again-unreadable body → fall through to the generic message */ }
         return Localizer[AuthErrorCopy.OtpErrorKey(code)];
+    }
+
+    private async Task<string> ForbiddenErrorAsync(HttpResponseMessage res)
+    {
+        string? code = null;
+        try { code = (await res.Content.ReadFromJsonAsync<ApiError>())?.Error; }
+        catch { /* an HTML or empty body: not ours */ }
+        return Localizer[code == "signup_not_allowed" ? "Login_ErrSignupNotAllowed" : "Login_ErrVerificationFailed"];
     }
 
     private async Task VerifyMfa()
@@ -402,14 +454,16 @@
     }
 
     private bool _oauthBusy;
+    private CancellationTokenSource? _oauthCts;
 
     private async Task SignInWithOAuth(string provider)
     {
         _error = null;
         _oauthBusy = true;
+        _oauthCts = new CancellationTokenSource();
         try
         {
-            var result = await Auth.SignInWithOAuthAsync(provider);
+            var result = await Auth.SignInWithOAuthAsync(provider, _oauthCts.Token);
             if (result.Status == SignInStatus.Success)
             {
                 Nav.NavigateTo("/");
@@ -423,10 +477,20 @@
                 _mode = Mode.MfaChallenge;
                 return;
             }
-            _error = Localizer["Login_ErrOAuthCancelled"];
+            // A deliberate Cancel is not an error; only an unexplained return is.
+            if (!_oauthCts.IsCancellationRequested)
+                _error = Localizer["Login_ErrOAuthCancelled"];
         }
-        finally { _oauthBusy = false; }
+        finally
+        {
+            _oauthBusy = false;
+            _oauthCts.Dispose();
+            _oauthCts = null;
+        }
     }
+
+    /// <summary>Stops waiting on the browser: the loopback listener / WebAuthenticator wait returns null and the buttons come back.</summary>
+    private void CancelOAuth() => _oauthCts?.Cancel();
 
     private async Task OnOtpKeyDown(KeyboardEventArgs e)
     {

@@ -1,8 +1,8 @@
 using Microsoft.EntityFrameworkCore;
-using Perezosoft.Api.Tests.Infrastructure;
-using Perezosoft.Infrastructure.Repositories;
+using Vuelto.Api.Tests.Infrastructure;
+using Vuelto.Infrastructure.Repositories;
 
-namespace Perezosoft.Api.Tests;
+namespace Vuelto.Api.Tests;
 
 /// <summary>
 /// The generic repository exposes two deliberately distinct read surfaces: <c>Query()</c> is
@@ -16,23 +16,19 @@ public class RepositoryScopingTests(PostgresFixture fixture) : PostgresTestBase(
     [Fact]
     public async Task Query_IsTenantScoped_QueryAllTenants_SeesEveryTenant()
     {
-        var tenantA = Guid.CreateVersion7();
-        var tenantB = Guid.CreateVersion7();
-
-        await using (var seed = Fixture.CreateContext())
+        var pair = await TwoTenants.SeedAsync(async tenant =>
         {
-            seed.Set<TestWidget>().Add(new TestWidget { Id = Guid.CreateVersion7(), TenantId = tenantA, Name = "A" });
-            seed.Set<TestWidget>().Add(new TestWidget { Id = Guid.CreateVersion7(), TenantId = tenantB, Name = "B" });
+            await using var seed = Fixture.CreateContext();
+            seed.Set<TestWidget>().Add(new TestWidget { Id = Guid.CreateVersion7(), TenantId = tenant, Name = $"{tenant}" });
             await seed.SaveChangesAsync();
-        }
+        });
 
-        await using var asA = Fixture.CreateContext(tenantA);
+        await using var asA = Fixture.CreateContext(pair.Mine);
         var repo = new EfRepository<TestWidget>(asA);
 
         // Scoped surface: only the current tenant's row.
         var scoped = await repo.Query().ToListAsync();
-        Assert.Single(scoped);
-        Assert.Equal(tenantA, scoped[0].TenantId);
+        Assert.Equal(pair.Mine, Assert.Single(scoped).TenantId);
 
         // Escape hatch: every tenant's rows.
         var all = await repo.QueryAllTenants().ToListAsync();

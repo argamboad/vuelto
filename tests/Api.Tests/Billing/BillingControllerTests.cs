@@ -1,17 +1,17 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Perezosoft.Api.Controllers;
-using Perezosoft.Api.Models;
-using Perezosoft.Api.Services;
-using Perezosoft.Api.Tests.Infrastructure;
-using Perezosoft.Core.Billing;
-using Perezosoft.Core.Entities;
-using Perezosoft.Infrastructure.Billing;
-using Perezosoft.Infrastructure.Persistence;
-using Perezosoft.Infrastructure.Repositories;
+using Vuelto.Api.Controllers;
+using Vuelto.Api.Models;
+using Vuelto.Api.Services;
+using Vuelto.Api.Tests.Infrastructure;
+using Vuelto.Core.Billing;
+using Vuelto.Core.Entities;
+using Vuelto.Infrastructure.Billing;
+using Vuelto.Infrastructure.Persistence;
+using Vuelto.Infrastructure.Repositories;
 
-namespace Perezosoft.Api.Tests.Billing;
+namespace Vuelto.Api.Tests.Billing;
 
 /// <summary>
 /// BILLING-2 owner gate on the platform <see cref="BillingController"/>: only the tenant <b>owner</b>
@@ -131,7 +131,7 @@ public class BillingControllerTests(PostgresFixture fixture) : PostgresTestBase(
         Assert.Equal("none", summary.Status);
         Assert.False(summary.HasSubscription);
         Assert.Equal(1, summary.Seats.Used);           // just the owner
-        Assert.Equal(3, summary.Seats.Limit);          // free-plan example quota
+        Assert.Equal(PlanCatalog.Get(PlanKeys.Free).SeatLimit, summary.Seats.Limit); // the catalog's Free quota, not a copy of it
     }
 
     [Fact]
@@ -165,7 +165,7 @@ public class BillingControllerTests(PostgresFixture fixture) : PostgresTestBase(
         var ok = Assert.IsType<OkObjectResult>(await controller.Summary(default));
         var summary = Assert.IsType<BillingSummaryResponse>(ok.Value);
         Assert.Equal(PlanKeys.Free, summary.PlanKey);  // lapsed → fail-closed
-        Assert.Equal(3, summary.Seats.Limit);
+        Assert.Equal(PlanCatalog.Get(PlanKeys.Free).SeatLimit, summary.Seats.Limit);
         Assert.True(summary.HasSubscription);          // portal still reachable to fix payment
     }
 

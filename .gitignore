@@ -1,5 +1,8 @@
-# Local dev environment — never commit secrets
+# Local dev environment — never commit secrets.
+# `.env` alone does NOT match names like `myapp-staging.env`, so match any *.env too
+# (`.env.example` is unaffected — it ends in .example — and stays committed).
 .env
+*.env
 
 # .NET build output
 bin/
@@ -22,3 +25,24 @@ node_modules/
 
 # MAUI lockfile — excluded by design (NATIVE-1): platform-conditional restore makes it churn
 src/Maui/packages.lock.json
+
+# personal dev seed (owner-only, never committed)
+my-seed.sql
+
+# Azurite (local Azure Storage emulator) state files written at the repo root by the VS Code extension
+__azurite_db_*.json
+__blobstorage__/
+__queuestorage__/
+
+# Native installables (tools/publish-native.ps1 and DEPLOYMENT §9 both publish here)
+out/
+
+# VS Code: launch.json + tasks.json are shared (F5 API + Web, Android tasks); per-user preferences stay local
+.vscode/settings.json
+
+# Signing material (v4 audit NAT-15, R104): a keystore or certificate IS the app's identity. Keep it
+# outside the repo; these patterns are the net under that habit.
+*.jks
+*.keystore
+*.p12
+*.pfx

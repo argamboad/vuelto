@@ -1,7 +1,7 @@
 #if MACCATALYST && DEBUG
-using Perezosoft.Shared.Ui.Auth;
+using Vuelto.Shared.Ui.Auth;
 
-namespace Perezosoft.Maui.Auth;
+namespace Vuelto.Maui.Auth;
 
 /// <summary>
 /// Mac Catalyst Debug-only <see cref="ISessionStore"/>. Local Debug builds are ad-hoc
@@ -17,7 +17,7 @@ public sealed class DebugFileSessionStore : ISessionStore
 {
     private static readonly string FilePath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "perezosoft-debug-session");
+        "vuelto-debug-session");
 
     public bool UsesBodyTransport => true;
 

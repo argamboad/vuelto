@@ -1,4 +1,4 @@
-namespace Perezosoft.Api.Tests.Architecture;
+namespace Vuelto.Api.Tests.Architecture;
 
 /// <summary>
 /// Proves the route-uniqueness collector (<see cref="RoutePrefixInspector"/>) actually detects the collision

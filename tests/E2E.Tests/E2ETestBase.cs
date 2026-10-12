@@ -3,9 +3,10 @@ using System.Text.Json;
 using Microsoft.Playwright;
 using Microsoft.Playwright.NUnit;
 using NUnit.Framework;
-using Perezosoft.E2E.Tests.Pages;
+using NUnit.Framework.Interfaces;
+using Vuelto.E2E.Tests.Pages;
 
-namespace Perezosoft.E2E.Tests;
+namespace Vuelto.E2E.Tests;
 
 /// <summary>
 /// Base for E2E tests. Drives a real browser against the running Web app.
@@ -19,18 +20,25 @@ public abstract class E2ETestBase : PageTest
 {
     // Resolution order: the runsettings TestRunParameter wins (so `-- TestRunParameters...` /
     // playwright.runsettings actually take effect), then the environment variable, then the Web
-    // app's https launch profile (https://localhost:7008).
+    // app's https launch profile (local-ports.props, through the generated LocalPorts).
     protected static string BaseUrl =>
         TestContext.Parameters.Get("PLAYWRIGHT_BASE_URL")
         ?? Environment.GetEnvironmentVariable("PLAYWRIGHT_BASE_URL")
-        ?? "https://localhost:7008";
+        ?? LocalPorts.WebHttpsUrl;
 
     // The API's own origin, for tests that simulate an external caller (e.g. the billing-provider
     // webhook). Defaults to the API's https launch profile; CI overrides to its single-origin base.
     protected static string ApiBaseUrl =>
         TestContext.Parameters.Get("E2E_API_BASE_URL")
         ?? Environment.GetEnvironmentVariable("E2E_API_BASE_URL")
-        ?? "https://localhost:7160";
+        ?? LocalPorts.ApiHttpsUrl;
+
+    /// <summary>
+    /// The Free plan's seat cap, as the journeys see it in the UI. The ONE copy in this project (v4 audit T47,
+    /// R88) — the browser tests cannot reference the API's assemblies, so
+    /// <c>CatalogNumbersTests</c> in Api.Tests reads this line and fails when it differs from <c>PlanCatalog</c>.
+    /// </summary>
+    protected const int FreePlanSeatLimit = 5;
 
     /// <summary>HttpClient for API calls made by tests themselves (accepts the dev self-signed cert).</summary>
     protected static HttpClient NewApiClient() => new(new HttpClientHandler
@@ -85,7 +93,7 @@ public abstract class E2ETestBase : PageTest
         await login.GotoAsync();
         await Assertions.Expect(login.Email).ToBeVisibleAsync(new() { Timeout = 30_000 });
         await login.SignInWithOtpAsync(email);
-        await Assertions.Expect(page.GetByTestId("sign-out")).ToBeVisibleAsync(new() { Timeout = 30_000 });
+        await Assertions.Expect(page.GetByTestId("user-menu")).ToBeVisibleAsync(new() { Timeout = 30_000 });
     }
 
     /// <summary>Clears Mailpit, signs the user in, and lands on the Household page.</summary>
@@ -113,6 +121,20 @@ public abstract class E2ETestBase : PageTest
         var join = new JoinPage(memberPage);
         await join.GotoWithTokenAsync(token);
         await Assertions.Expect(join.Success).ToBeVisibleAsync(new() { Timeout = 30_000 });
+    }
+
+    /// <summary>Keep the browser console of the main page from its first line (BlazorBoot watches secondary
+    /// pages from their first navigation).</summary>
+    [SetUp]
+    public void WatchBrowserConsole() => BlazorBoot.Watch(Page);
+
+    /// <summary>A red journey prints what the browser saw — the only way to tell a dead Blazor boot from
+    /// a real regression after the fact.</summary>
+    [TearDown]
+    public void ReportBrowserConsoleOnFailure()
+    {
+        if (TestContext.CurrentContext.Result.Outcome.Status == TestStatus.Failed)
+            TestContext.Out.WriteLine($"Browser console of {Page.Url}:\n{BlazorBoot.ConsoleOf(Page)}");
     }
 
     protected static string UniqueEmail(string role) => $"e2e-{role}-{Guid.NewGuid():N}@example.com";

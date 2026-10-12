@@ -1,4 +1,4 @@
-namespace Perezosoft.Infrastructure.Scheduling;
+namespace Vuelto.Infrastructure.Scheduling;
 
 /// <summary>Tuning for <c>ScheduledJobsHost</c>. Defaults suit the in-process baseline.</summary>
 public sealed class ScheduledJobsOptions

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TestRun xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Results>
+    <UnitTestResult testName="Ns.A.Alpha_Journey" outcome="Passed" duration="00:00:12.5000000">
+      <Output><StdOut>[blazor-boot] attempt 1 failed: the loader died</StdOut></Output>
+    </UnitTestResult>
+    <UnitTestResult testName="Ns.A.Bravo_Journey" outcome="Failed" duration="00:00:03.0000000" />
+  </Results>
+  <ResultSummary outcome="Failed"><Output><StdOut>[blazor-boot] attempt 1 failed: the loader died</StdOut></Output></ResultSummary>
+</TestRun>

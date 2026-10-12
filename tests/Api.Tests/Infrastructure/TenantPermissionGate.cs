@@ -6,10 +6,10 @@ using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.DependencyInjection;
-using Perezosoft.Api.Authentication;
-using Perezosoft.Core.Repositories;
+using Vuelto.Api.Authentication;
+using Vuelto.Core.Repositories;
 
-namespace Perezosoft.Api.Tests.Infrastructure;
+namespace Vuelto.Api.Tests.Infrastructure;
 
 /// <summary>
 /// Runs the <see cref="RequireTenantPermissionAttribute"/> that guards a controller action, exactly as
@@ -34,7 +34,7 @@ public static class TenantPermissionGate
         // The principal carries the JWT tenant_id — authz resolves membership for that tenant (LB-ADM-3).
         var user = new ClaimsPrincipal(new ClaimsIdentity(
             [new Claim(ClaimTypes.NameIdentifier, callerUserId.ToString()),
-             new Claim(Perezosoft.Api.Services.JwtClaims.TenantId, callerTenantId.ToString())],
+             new Claim(Vuelto.Api.Services.JwtClaims.TenantId, callerTenantId.ToString())],
             authenticationType: "test"));
         var httpContext = new DefaultHttpContext { RequestServices = services, User = user };
 

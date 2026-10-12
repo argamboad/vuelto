@@ -1,4 +1,4 @@
-namespace Perezosoft.Api.Services;
+namespace Vuelto.Api.Services;
 
 /// <summary>
 /// Builds the two URLs in the native OAuth round-trip, in one testable place. Both carry an optional

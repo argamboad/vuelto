@@ -2,7 +2,7 @@
 # Uses the built-in ruleset, plus an allowlist for values that are DELIBERATELY in the repo and are not
 # real credentials: the committed example env file and test-only fixture secrets. .env itself is
 # gitignored and never committed, so real secrets never reach the scanner.
-title = "perezosoft-platform gitleaks config"
+title = "vuelto-platform gitleaks config"
 
 [extend]
 useDefault = true

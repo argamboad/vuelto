@@ -2,20 +2,27 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
-using Perezosoft.Api.Services;
-using Perezosoft.Api.Tests.Infrastructure;
-using Perezosoft.Core.Billing;
-using Perezosoft.Core.Entities;
-using Perezosoft.Infrastructure.Persistence;
-using Perezosoft.Infrastructure.Repositories;
+using Vuelto.Api.Configuration;
+using Vuelto.Api.Services;
+using Vuelto.Api.Tests.Infrastructure;
+using Vuelto.Core.Billing;
+using Vuelto.Core.Entities;
+using Vuelto.Core.Repositories;
+using Vuelto.Infrastructure.Email;
+using Vuelto.Infrastructure.Outbox;
+using Vuelto.Infrastructure.Persistence;
+using Vuelto.Infrastructure.Repositories;
 
-namespace Perezosoft.Api.Tests.Billing;
+namespace Vuelto.Api.Tests.Billing;
 
 /// <summary>
 /// Drives BILLING-6 (ADR-006/007): the scheduled lapse sweep. A subscription still marked active/trialing
 /// whose paid period ended (no webhook) gets the owner a **one-time** "expired" nudge; the sweep records
 /// that it notified (<c>LapseNotifiedAt</c>) so a second run is a no-op, and it never touches an
 /// in-period subscription. Cross-tenant scan via <c>QueryAllTenants</c>, notify inside <c>EnterTenant</c>.
+/// The sweep runs with the REAL outbox email sender (v4 T43, R133): the owner's email copy is a SaveChanges
+/// of its own mid-way through the nudge, which is exactly what a no-op sender hid — the notification committed
+/// before the stamp, and a stamp that failed after it re-nudged the owner every six hours.
 /// </summary>
 [Collection(PostgresCollection.Name)]
 public class SubscriptionLapseSweepJobTests(PostgresFixture fixture) : PostgresTestBase(fixture)
@@ -29,10 +36,11 @@ public class SubscriptionLapseSweepJobTests(PostgresFixture fixture) : PostgresT
 
         await RunSweepAsync(clock);
 
-        // Owner nudged exactly once, and the stamp recorded.
+        // Owner nudged exactly once — the in-app row AND the email on the outbox — and the stamp recorded.
         await using var read = Fixture.CreateContext(tenant);
         var note = Assert.Single(await read.Set<Notification>().Where(n => n.UserId == ownerId).ToListAsync());
         Assert.Equal(BillingNotifications.LapsedKind, note.Kind);
+        Assert.Single(await read.Set<OutboxMessage>().Where(m => m.Type == OutboxEmailSender.MessageType && m.TenantId == tenant).ToListAsync());
         var sub = await read.Set<Subscription>().SingleAsync();
         Assert.NotNull(sub.LapseNotifiedAt);
 
@@ -133,22 +141,81 @@ public class SubscriptionLapseSweepJobTests(PostgresFixture fixture) : PostgresT
         Assert.Single(await readHealthy.Set<Notification>().Where(n => n.UserId == ownerId).ToListAsync());
     }
 
+    [Fact]
+    public async Task LapseSweep_NotificationAndStamp_AreOneTransaction()
+    {
+        // v4 T43 (LB-BILL-24, R133), fault half landed by T54 (TB-BILL-33): the owner's email copy is enqueued by
+        // OutboxEmailSender with a SaveChanges of its own, BEFORE the stamp. Without one transaction around the
+        // pair, a stamp that failed left the notification (and the email) committed, and the next sweep — six
+        // hours later — sent them again, for as long as the stamp kept failing. The fault is the database's own
+        // (the seam fails the stamp's UPDATE the way a disconnect would), and nothing of the nudge survives.
+        var tenant = Guid.CreateVersion7();
+        var clock = new FakeTimeProvider(new DateTimeOffset(2026, 7, 1, 0, 0, 0, TimeSpan.Zero));
+        var ownerId = await SeedAsync(tenant, SubscriptionStatus.Active, periodEnd: clock.GetUtcNow().AddDays(-1));
+        var faults = new DbFaultInjector().FailCommand(sql => sql.Contains("UPDATE \"Subscriptions\""), reason: "the stamp did not land");
+
+        await RunSweepAsync(clock, faults: faults);
+
+        Assert.Equal(1, faults.Fired);
+        await using var read = Fixture.CreateContext(tenant);
+        Assert.Empty(await read.Set<Notification>().Where(n => n.UserId == ownerId).ToListAsync());
+        Assert.Empty(await read.Set<OutboxMessage>().Where(m => m.TenantId == tenant).ToListAsync());
+        Assert.Null((await read.Set<Subscription>().SingleAsync()).LapseNotifiedAt);
+
+        // The SHAPE, not only the outcome: the notification, its email copy and the stamp all sit inside ONE
+        // transaction — nothing committed between the BEGIN and the fault (the two-commit shape that hid here).
+        // The rollback itself is the scope's disposal, which EF does not route through the interceptor.
+        var trace = faults.Trace;
+        var inside = trace.Skip(trace.ToList().FindLastIndex(e => e == "BEGIN") + 1).ToList();
+        Assert.Contains(inside, e => e.Contains("INSERT INTO \"Notifications\""));
+        Assert.Contains(inside, e => e.Contains("INSERT INTO \"OutboxMessages\""));
+        Assert.Contains(inside, e => e.Contains("UPDATE \"Subscriptions\""));
+        Assert.DoesNotContain("COMMIT", inside);
+
+        // ...and the next sweep, with the fault gone, delivers exactly one nudge.
+        faults.Disarm();
+        await RunSweepAsync(clock);
+        await using var read2 = Fixture.CreateContext(tenant);
+        Assert.Single(await read2.Set<Notification>().Where(n => n.UserId == ownerId).ToListAsync());
+        Assert.Single(await read2.Set<OutboxMessage>().Where(m => m.TenantId == tenant).ToListAsync());
+    }
+
+    [Fact]
+    public async Task BillingOff_LapsedSubscription_IsNotNudged()
+    {
+        // v4 T43 (BILL-5): with the billing gate off (GATES-1) there is no billing page to "resubscribe from" —
+        // the route is not even built — yet a subscription row left over from before the gate was closed still
+        // lapses. The sweep does nothing in that mode: no nudge, no email, and no stamp either (nothing happened).
+        var tenant = Guid.CreateVersion7();
+        var clock = new FakeTimeProvider(new DateTimeOffset(2026, 7, 1, 0, 0, 0, TimeSpan.Zero));
+        var ownerId = await SeedAsync(tenant, SubscriptionStatus.Active, periodEnd: clock.GetUtcNow().AddDays(-1));
+
+        await RunSweepAsync(clock, billingEnabled: false);
+
+        await using var read = Fixture.CreateContext(tenant);
+        Assert.Empty(await read.Set<Notification>().Where(n => n.UserId == ownerId).ToListAsync());
+        Assert.Empty(await read.Set<OutboxMessage>().Where(m => m.TenantId == tenant).ToListAsync());
+        Assert.Null((await read.Set<Subscription>().SingleAsync()).LapseNotifiedAt);
+    }
+
     // --- helpers ---
 
-    private async Task RunSweepAsync(TimeProvider clock)
+    private async Task RunSweepAsync(TimeProvider clock, bool billingEnabled = true, DbFaultInjector? faults = null)
     {
         var ctx = new HttpCurrentTenant(new HttpContextAccessor()); // no ambient tenant; job enters each
-        await using var db = new AppDbContext(
-            new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(Fixture.ConnectionString).Options, ctx);
+        await using var db = Fixture.CreateTestContext(ctx, faults);
 
+        // The real app-facing sender (ADR-007): the email copy rides the outbox and flushes the context itself.
+        var emailSender = new OutboxEmailSender(new EfOutbox(db, clock), db, ctx);
         var notifier = new BillingNotifier(
             new TenantRepository(db),
             new NotificationService(
                 new EfRepository<Notification>(db), new EfRepository<NotificationPreference>(db),
-                new UserRepository(db), new NoopEmailSender(), clock));
+                new UserRepository(db), emailSender, clock));
 
         var job = new SubscriptionLapseSweepJob(
-            new EfRepository<Subscription>(db), ctx, notifier, clock, NullLogger<SubscriptionLapseSweepJob>.Instance);
+            new EfRepository<Subscription>(db), ctx, notifier, new EfUnitOfWork(db),
+            new BillingSettings { Enabled = billingEnabled }, clock, NullLogger<SubscriptionLapseSweepJob>.Instance);
 
         await job.RunAsync();
     }

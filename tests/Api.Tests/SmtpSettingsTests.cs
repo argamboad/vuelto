@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Configuration;
-using Perezosoft.Infrastructure.Email;
+using Vuelto.Infrastructure.Email;
 
-namespace Perezosoft.Api.Tests;
+namespace Vuelto.Api.Tests;
 
 /// <summary>
 /// Security posture of the SMTP TLS options (QA fix slice, 2026-07-06 Apple pass): revocation

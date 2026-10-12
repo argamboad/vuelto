@@ -1,11 +1,11 @@
 using System.Net.Mail;
-using Perezosoft.Api.Configuration;
-using Perezosoft.Core.Abstractions;
-using Perezosoft.Core.Entities;
-using Perezosoft.Core.Repositories;
-using Perezosoft.Infrastructure.Email;
+using Vuelto.Api.Configuration;
+using Vuelto.Core.Abstractions;
+using Vuelto.Core.Entities;
+using Vuelto.Core.Repositories;
+using Vuelto.Infrastructure.Email;
 
-namespace Perezosoft.Api.Services;
+namespace Vuelto.Api.Services;
 
 public enum InviteCreateStatus { Created, InvalidEmail, AlreadyMember, SeatLimitReached }
 
@@ -64,6 +64,7 @@ public class TenantInvitationService(
     IApplicationSettings appSettings,
     IInvitationSettings invitationSettings,
     IEnumerable<ITenantDataContributor> dataContributors,
+    ITenantDissolutionService dissolution,
     IQuotaService quota,
     ITenantContext tenantContext,
     TimeProvider clock,
@@ -177,10 +178,9 @@ public class TenantInvitationService(
         var invitation = await invitations.GetByTokenHashAsync(tokenHash, cancellationToken);
         var now = clock.GetUtcNow();
 
-        // Unknown / revoked / accepted / past-expiry → invalid (don't leak which).
-        if (invitation == null
-            || invitation.Status != InvitationStatuses.Pending
-            || invitation.ExpiresAt <= now)
+        // Unknown / revoked / accepted / expired → invalid (don't leak which). The one validity rule (R127) —
+        // the same the signup gate's query ran, so the two agree at the expiry instant.
+        if (invitation == null || !invitation.IsValidAt(now))
             return AcceptStatus.InvalidToken;
 
         var membership = await tenants.GetMembershipAsync(userId, cancellationToken);
@@ -246,8 +246,13 @@ public class TenantInvitationService(
                 return AcceptStatus.InvalidToken;
         }
 
+        // Through the dissolution sequence, never a raw delete (v4 audit H5, R123): the old tenant can only get
+        // here holding rows its contributors don't count as content — API keys, webhooks, metering, a Stripe
+        // subscription — and only their WipeAsync removes those (and queues the provider cancel). A bare
+        // Tenants.Remove left them orphaned, and an orphaned API key still authenticated. Same transaction, so
+        // a lost accept race rolls the dissolve back with the membership move.
         if (dissolveOld)
-            await tenants.DeleteTenantAsync(oldTenantId, cancellationToken);
+            await dissolution.DissolveAsync(oldTenantId, cancellationToken);
 
         await scope.CommitAsync(cancellationToken);
 
@@ -273,13 +278,13 @@ public class TenantInvitationService(
             // Invites go out in the inviter's saved language (the recipient may have no account).
             var inviter = await userService.GetUserByIdAsync(inviterUserId, cancellationToken);
             var emailBody = BrandedEmail.Invitation(joinUrl, rawToken, BrandedEmail.ResolveCulture(inviter?.Locale));
-            await emailSender.SendAsync(email, emailBody.Subject, emailBody.Html, emailBody.InlineImages, cancellationToken);
+            await emailSender.SendAsync(email, emailBody.Subject, emailBody.Html, emailBody.InlineImages, cancellationToken: cancellationToken);
         }
         catch (Exception ex)
         {
             // Delivery is best-effort — the owner can still share the raw token returned
             // in the API response.
-            logger.LogWarning(ex, "Failed to send invitation email to {Email}", email);
+            logger.LogWarning(ex, "Failed to send the invitation email from user {InviterUserId}", inviterUserId);
         }
     }
 }

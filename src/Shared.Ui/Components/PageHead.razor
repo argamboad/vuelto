@@ -1,0 +1,24 @@
+@* SKIN-11 · the one page head. Every redesigned screen opens the same way — the title in the display scale,
+   a muted subtitle, the primary action on the right, wrapping under on phone — and the fourteen screens the
+   handout never drew get it from here rather than from twelve hand-rolled copies. *@
+<header class="page-head">
+    <div class="page-head-main">
+        <h1>@Title</h1>
+        @if (!string.IsNullOrWhiteSpace(Subtitle))
+        {
+            <p class="page-subtitle" data-testid="page-subtitle">@Subtitle</p>
+        }
+    </div>
+    @if (ChildContent is not null)
+    {
+        <div class="page-head-actions" data-testid="page-head-actions">@ChildContent</div>
+    }
+</header>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+    [Parameter] public string? Subtitle { get; set; }
+
+    /// <summary>The page's primary actions — buttons and links, right-aligned on desktop.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

@@ -2,9 +2,9 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using Microsoft.IdentityModel.Tokens;
-using Perezosoft.Api.Configuration;
+using Vuelto.Api.Configuration;
 
-namespace Perezosoft.Api.Services;
+namespace Vuelto.Api.Services;
 
 /// <summary>
 /// Issues and validates JWT access tokens for API access.
@@ -73,7 +73,7 @@ public class JwtTokenService(IJwtSettings settings, TimeProvider clock, ILogger<
         );
 
         var jwt = new JwtSecurityTokenHandler().WriteToken(token);
-        logger.LogInformation("JWT issued for user {Email} (id: {UserId})", email, userId);
+        logger.LogInformation("JWT issued for user {UserId}", userId);
 
         return jwt;
     }

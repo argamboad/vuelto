@@ -1,8 +1,8 @@
 using System.Text.Json;
-using Perezosoft.Core.Abstractions;
-using Perezosoft.Core.Entities;
+using Vuelto.Core.Abstractions;
+using Vuelto.Core.Entities;
 
-namespace Perezosoft.Infrastructure.Billing;
+namespace Vuelto.Infrastructure.Billing;
 
 /// <summary>The outbox payload for canceling a subscription at the provider (BILLING-7).</summary>
 public sealed record BillingCancelPayload(string StripeSubscriptionId);
@@ -18,6 +18,8 @@ public sealed class BillingCancelOutboxHandler(IBillingProvider provider) : IOut
 {
     public const string MessageType = "billing.cancel";
     public string Type => MessageType;
+    public bool DissolvesWithItsTenant => false; // queued BY the dissolve — it must still cancel the Stripe subscription
+    public bool KeepsPayloadWhenDone => false;
 
     public async Task HandleAsync(OutboxMessage message, CancellationToken cancellationToken = default)
     {

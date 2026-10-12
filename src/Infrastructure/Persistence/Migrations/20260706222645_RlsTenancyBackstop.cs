@@ -2,7 +2,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace Perezosoft.Infrastructure.Persistence.Migrations
+namespace Vuelto.Infrastructure.Persistence.Migrations
 {
     /// <summary>
     /// ADR-020: row-level security as the DB-level second tenancy wall. Enables + FORCEs RLS and
@@ -21,12 +21,14 @@ namespace Perezosoft.Infrastructure.Persistence.Migrations
     /// </summary>
     public partial class RlsTenancyBackstop : Migration
     {
-        // Frozen output of RlsDdl.StatementsFor for the ITenantScoped tables as of 2026-07-06.
+        // Frozen output of RlsDdl.StatementsFor for the ITenantScoped tables as of 2026-07-06 — minus the DELETE-ME sample's
+        // table (Arch A6, 2026-10-07): "Notes" left this list so that no platform migration names the sample; its policy
+        // comes from the sample's own NotesSampleRlsPolicy migration. A database that ran this migration with "Notes" in
+        // the list is unchanged (the sample migration re-creates the policy idempotently); a fresh database gets it there.
         private static readonly string[] Tables =
         [
             "ApiKeys",
             "AuditEvents",
-            "Notes",
             "Subscriptions",
             "TenantInvitations",
             "UsageCounters",

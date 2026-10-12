@@ -1,8 +1,8 @@
 using System.Net;
 using Microsoft.Extensions.Logging.Abstractions;
-using Perezosoft.Shared.Ui.Auth;
+using Vuelto.Shared.Ui.Auth;
 
-namespace Perezosoft.Core.Tests.Auth;
+namespace Vuelto.Core.Tests.Auth;
 
 /// <summary>
 /// The native OTP verify path must surface the server's lockout signal (too_many_attempts) rather

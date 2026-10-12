@@ -1,6 +1,7 @@
-using Perezosoft.Core.Abstractions;
+using System.Net;
+using Vuelto.Core.Abstractions;
 
-namespace Perezosoft.Api.Tests.Infrastructure;
+namespace Vuelto.Api.Tests.Infrastructure;
 
 /// <summary>
 /// Permissive <see cref="IOutboundUrlGuard"/> for tests that aren't exercising the SSRF guard itself —
@@ -15,4 +16,8 @@ public sealed class AllowAllUrlGuard : IOutboundUrlGuard
         ValueTask.FromResult(
             Uri.TryCreate(url, UriKind.Absolute, out var uri)
             && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps));
+
+    // Any address a name resolves to, so a real connection can still be made to a loopback test server.
+    public async ValueTask<IPAddress[]> ResolveAllowedAsync(string host, CancellationToken cancellationToken = default) =>
+        IPAddress.TryParse(host.Trim('[', ']'), out var literal) ? [literal] : await Dns.GetHostAddressesAsync(host, cancellationToken);
 }

@@ -378,6 +378,26 @@ Scenario: Native smoke runs on every push
 
 ### NATIVE-8 — Android: signed AAB/APK in CI
 
+> **2026-09-28 — the Release guards, and a Release leg in CI (v4 audit T50 — NAT-13/14/18, LB-NAT-1/2;
+> R103/R141).** The three Release-only checks moved from the csproj into `src/Maui/ReleaseGuards.targets`
+> under one condition (`!= 'Debug'`): `ApiBaseUrl` trimmed, `https://`, origin-only; the APK signed through
+> `apksigner` with the store key or a debug keystore found on any host (error when none — no more silent
+> v1-only route on a Mac); the HTTPS-only network config. A workload-free MSBuild probe
+> (`EnforcementGateTests.ReleaseGuards_RefuseBadInputs_AndPassGoodOnes`) runs a table of good and bad inputs.
+> `native-release-android` (a device leg since ADR-031: *Run workflow* → `devices` = android / all)
+> publishes Release with a throwaway store key, requires `Verified using
+> v2/v3`, and proves an `ApiBaseUrl`-less Release build fails. `tools/publish-native.ps1` throws unless
+> apksigner verified the APK and finds the SDK through `ANDROID_HOME`. The real signing key stays
+> downstream (ADR-024).
+
+> **2026-10-03 — what shipped since this audit and was not written here (v4 audit T53).** The Android
+> status bar follows the page's theme (`ISystemBarTheme` + `SystemBarThemeSync`, fed by `theme.js`'s watcher);
+> the bfcache guard (`bfcache-guard.js`) is loaded by both hosts and is a no-op in the WebView; a Release APK is
+> signed through `apksigner` (v2+v3) behind `ReleaseGuards.targets`, and app data is no longer backed up off
+> the device. `theme.js` now defines `window.appTheme` before it registers any listener and falls back to
+> `addListener`, so an old WebView without `MediaQueryList.addEventListener` still applies the saved theme;
+> `unwatch` clears only the watcher that asks. `tests/js-logic/` runs the three bootstraps with `node --test`.
+
 **Context / notes (decisions scoped 2026-07-07):** the keystore IS the app's identity — updates only
 install over the same signature, so losing it is unrecoverable and it never enters git (base64 →
 repo secrets + an offline backup; ADR-001 discipline). Generated once locally with `keytool`.
@@ -559,3 +579,30 @@ don't automate (7) before the app is verified working (6); distribution (8–11)
   other native-only features are **beyond parity** and explicitly out of scope here (own future epics).
 - **Web-first still holds** — new features land + prove on web first (golden rule 5); this epic keeps
   native *caught up*, it doesn't invert the order.
+
+### NATIVE-13 — Windows saves a download through Save As *(owner request, 2026-10-09 · #204)* ✅
+
+**As** someone using the Windows app, **I want** a PDF or CSV download to ask where to save it, **so that** it lands in
+the folder I choose instead of a share flyout made for phones.
+
+**Context / notes:** `ShareFileDownloadLauncher` keeps the share sheet on Android, iOS and the Mac; on Windows it opens
+the WinUI `FileSavePicker` (parented to the app's window — an unpackaged app must pass its HWND), starting in Downloads,
+the server's filename suggested and its extension the only file type; Cancel saves nothing. The same launcher serves
+the CSV export, the report PDF and the data export. Building it surfaced a pre-existing break: the Windows target
+failed with CS0103 `LocalPorts` because WinUI's `XamlPreCompile` compiles before the platform's `GenerateLocalPorts`
+runs. A stopgap in `Vuelto.Maui.csproj` ran that target first until the platform fixed the root cause
+(perezosoft-platform#379: `GenerateLocalPorts` also runs before `XamlPreCompile`, held by `LocalPortsTests`), ported
+in #214.
+Verified by building the Windows and Android targets; the dialog itself is a desktop QA step (QA-DSK-10) — the CI
+Windows leg runs only on request (*Run workflow → devices*, billed).
+
+```gherkin
+Scenario: Save a report PDF on Windows
+  Given the Windows app on Reports
+  When I download the PDF
+  Then a Save As dialog opens in Downloads, suggesting report-<from>_<to>.pdf
+  When I pick a folder and save
+  Then the PDF is there
+  When I download again and cancel
+  Then nothing is saved and no error shows
+```

@@ -1,8 +1,8 @@
-using Perezosoft.Core.Abstractions;
-using Perezosoft.Core.Entities;
-using Perezosoft.Infrastructure.Persistence;
+using Vuelto.Core.Abstractions;
+using Vuelto.Core.Entities;
+using Vuelto.Infrastructure.Persistence;
 
-namespace Perezosoft.Infrastructure.Outbox;
+namespace Vuelto.Infrastructure.Outbox;
 
 /// <summary>
 /// EF implementation of <see cref="IOutbox"/>. Stages an <see cref="OutboxMessage"/> on the shared

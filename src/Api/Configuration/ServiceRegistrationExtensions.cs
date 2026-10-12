@@ -1,9 +1,9 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Perezosoft.Api.Services;
-using Perezosoft.Core.Abstractions;
+using Vuelto.Api.Services;
+using Vuelto.Core.Abstractions;
 
-namespace Perezosoft.Api.Configuration;
+namespace Vuelto.Api.Configuration;
 
 /// <summary>
 /// Per-epic service-registration extensions (DEBT-3). The flat DI block that used to live in
@@ -16,6 +16,8 @@ public static class ServiceRegistrationExtensions
     public static IServiceCollection AddAuthServices(this IServiceCollection services)
     {
         services.AddScoped<IUserService, UserService>();
+        // GATES-2 (ADR-027): decides who may create an account. Scoped — it reads invitations + memberships.
+        services.AddScoped<ISignupGate, SignupGate>();
         services.AddScoped<IJwtTokenService, JwtTokenService>();
         services.AddScoped<IRefreshTokenService, RefreshTokenService>();
         services.AddScoped<ISessionService, SessionService>();
@@ -95,7 +97,7 @@ public static class ServiceRegistrationExtensions
         // Platform-staff admin surface (ADMIN, ADR-014). Staff is an out-of-band config allowlist; the admin
         // endpoints gate on it per-request. Cross-tenant reads use EnterTenant / non-scoped tables — the global
         // filter is never loosened.
-        services.Configure<PlatformAdminSettings>(config.GetSection("Admin"));
+        services.Configure<PlatformAdminSettings>(config.GetSection(PlatformAdminSettings.SectionName));
         services.AddScoped<IPlatformStaffService, PlatformStaffService>();
         return services;
     }
@@ -121,6 +123,8 @@ public static class ServiceRegistrationExtensions
         // scheduled sweep that nudges once when a paid period lapses without a webhook.
         services.AddScoped<IBillingNotifier, BillingNotifier>();
         services.AddScoped<IScheduledJob, SubscriptionLapseSweepJob>();
+        // Says at startup when the gate is off but Stripe-managed rows linger (v4 T46): resolution is gate-blind.
+        services.AddHostedService<BillingPostureCheck>();
         // Billing checkout orchestration (BILLING-2), behind the platform BillingController. The
         // IBillingProvider (Stripe or fake) is registered in AddInfrastructure.
         services.AddScoped<IBillingService, BillingService>();

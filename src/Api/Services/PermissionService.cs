@@ -1,10 +1,10 @@
 using Microsoft.AspNetCore.Http;
-using Perezosoft.Api.Authentication;
-using Perezosoft.Core.Abstractions;
-using Perezosoft.Core.Authorization;
-using Perezosoft.Core.Repositories;
+using Vuelto.Api.Authentication;
+using Vuelto.Core.Abstractions;
+using Vuelto.Core.Authorization;
+using Vuelto.Core.Repositories;
 
-namespace Perezosoft.Api.Services;
+namespace Vuelto.Api.Services;
 
 /// <summary>
 /// Resolves the authenticated caller's tenant membership (by the <see cref="ClaimTypes.NameIdentifier"/>

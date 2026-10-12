@@ -1,4 +1,4 @@
-namespace Perezosoft.Api.Tests.Architecture;
+namespace Vuelto.Api.Tests.Architecture;
 
 /// <summary>
 /// Proves the tenant-hatch scanner (<see cref="TenantHatchGuard"/>) catches the cases the v3 audit flagged:

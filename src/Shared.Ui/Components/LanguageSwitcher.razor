@@ -1,6 +1,6 @@
 @using System.Globalization
 @using System.Net.Http.Json
-@using Perezosoft.Shared.Ui.Auth
+@using Vuelto.Shared.Ui.Auth
 @inject ICulturePersistence CulturePersistence
 @inject NavigationManager Nav
 @inject HttpClient Http
@@ -8,7 +8,7 @@
 @inject IStringLocalizer<AppStrings> Localizer
 
 <select class="form-select form-select-sm lang-switcher" value="@_current" data-testid="language-switcher"
-        @onchange="OnChange" aria-label="@Localizer["Language"]">
+        @onchange="OnChange" aria-label="@Localizer["Common_Language"]">
     @foreach (var c in Cultures)
     {
         <option value="@c.Code">@c.Name</option>
@@ -50,6 +50,12 @@
             {
                 var res = await Http.PutAsJsonAsync("/api/auth/locale", new { locale = code });
                 if (!res.IsSuccessStatusCode) { _syncFailed = true; return; }
+
+                // Remembered BEFORE the reload below. MainLayout's reconcile trusts the locale claim of the
+                // token in memory, and the Android app keeps that token across the reload — so it read the
+                // old language, saved it back and reloaded again (2026-09-16). Remembered, not refreshed:
+                // a refresh rotated the web's refresh cookie while the reload was already under way.
+                Auth.RememberLocale(code);
             }
             catch { _syncFailed = true; return; }
         }

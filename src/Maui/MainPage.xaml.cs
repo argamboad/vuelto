@@ -1,4 +1,4 @@
-namespace Perezosoft.Maui;
+namespace Vuelto.Maui;
 
 public partial class MainPage : ContentPage
 {

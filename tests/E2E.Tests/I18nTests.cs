@@ -1,7 +1,7 @@
 using Microsoft.Playwright;
-using Perezosoft.E2E.Tests.Pages;
+using Vuelto.E2E.Tests.Pages;
 
-namespace Perezosoft.E2E.Tests;
+namespace Vuelto.E2E.Tests;
 
 /// <summary>
 /// v2 audit B8-5: localization end-to-end. Switching the language selector re-renders the UI in the
@@ -67,7 +67,7 @@ public class I18nTests : E2ETestBase
         await secondPage.WaitForFunctionAsync(
             "() => localStorage.getItem('app_culture') === 'es'",
             null, new() { Timeout = 30_000 });
-        await secondPage.GotoAsync("/settings");
+        await BlazorBoot.GotoAsync(secondPage, "/settings");
         await Expect(secondPage.GetByTestId("language-switcher")).ToHaveValueAsync("es", new() { Timeout = 30_000 });
     }
 }
