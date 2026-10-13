@@ -7,5 +7,6 @@ block   run-plan               .github/workflows/ci.yml
 block   qa-runlog-guard        .github/workflows/ci.yml
 block   e2e-shard              .github/workflows/ci.yml
 block   slowest-journeys       .github/workflows/ci.yml
+block   release-plan           .github/workflows/release.yml
 script  qa-runlog-append-only  .github/scripts/qa-runlog-append-only.sh
 exempt  e2e-shard "shard " unreachable: at least 10 journeys dealt into the shards always leaves every shard some

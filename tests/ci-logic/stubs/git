@@ -17,6 +17,7 @@ case "${1:-}" in
   push)       echo "STUB git push $2 $3"; [ "${FAKE_GIT_PUSH:-ok}" = ok ] ;;
   fetch)      echo "STUB git fetch ${*:2}" >&2; [ "${FAKE_GIT_FETCH:-ok}" = ok ] ;;
   merge-base) [ "${FAKE_GIT_ANCESTOR:-yes}" = yes ] ;;
+  tag)        [ "${2:-}" = --list ] && printf '%s\n' ${FAKE_GIT_TAGS:-} ;;  # the repo's tags, one per line
   show)       [ -n "${FAKE_GIT_SHOW:-}" ] && [ -f "$FAKE_GIT_SHOW" ] && cat "$FAKE_GIT_SHOW" ;;
   *)          echo "stub git: no fake for: $all" >&2; exit 97 ;;
 esac

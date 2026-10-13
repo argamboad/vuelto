@@ -4,7 +4,7 @@
     "platform commit this repo is synced to. PlatformOwnershipTests compares this repo against it. Do not edit by hand."
   ],
   "platform": "argamboad/perezosoft-platform",
-  "commit": "fead6d04dc77ada3c65a21848022d1fc1b76a80e",
+  "commit": "c2542776057467a529d1fe2011615059e22fc41a",
   "files": [
     {
       "path": ".config/dotnet-tools.json",
@@ -19,7 +19,7 @@
     {
       "path": ".env.example",
       "class": "adapts",
-      "hash": "cef01b56d00f8e8b9a0c77484cfbaab488019caa72facad6a084a42e87f07b73"
+      "hash": "7e88f1cf928ef34a3fa0d9eb266c444e95a24d88639752dc64eca723943904e3"
     },
     {
       "path": ".gitattributes",
@@ -49,7 +49,7 @@
     {
       "path": ".github/workflows/ci.yml",
       "class": "adapts",
-      "hash": "62edc211e68ee66f962cf5008ba56a36cc0a70eeb8c2f95758f0ec7bc4b4ddab"
+      "hash": "fdb955a4c0f14138dfd793c18241c5f99cc8c1784034e82e53f34f87c3777845"
     },
     {
       "path": ".github/workflows/postman-sync.yml",
@@ -72,6 +72,16 @@
       "hash": "27184aa67beb76c4610c6355bb38bef4cdd970c517d2b59b2f62dd11d1b9746b"
     },
     {
+      "path": "build/PlatformSource.props",
+      "class": "platform",
+      "hash": "9fa8e723d63cf7fa561f00f688d352ce9675047a59292d64b4f0324e9888d073"
+    },
+    {
+      "path": "build/PlatformSource.targets",
+      "class": "platform",
+      "hash": "d877e09c795c8ffddf768bd4fb0407e8ac4867a81e465d92e29c3671af33ab19"
+    },
+    {
       "path": "CLAUDE.md",
       "class": "adapts",
       "hash": "86dd445abd2007b389279374c557f54cd4cca1d645c3d2eb07098f619628b160"
@@ -84,12 +94,17 @@
     {
       "path": "Directory.Build.props",
       "class": "platform",
-      "hash": "7fca032863169609cf61d661251a82dd44c107813459c32795f413d31f291195"
+      "hash": "1385191665dffa0cbc7795b3389215326fcc57c1afc61b6a257bf6c8911349c9"
+    },
+    {
+      "path": "Directory.Build.targets",
+      "class": "platform",
+      "hash": "d422bf17677bd4a67d82e91c72d757ff394d60ce925fe737a2a713cc8f62cad5"
     },
     {
       "path": "Directory.Packages.props",
       "class": "adapts",
-      "hash": "b0f125656ce5c466737e4ef1ad1bd102ca5fe5f1d8fa3c6dce3100af97b125c2"
+      "hash": "3fc21e4236ef4c3b95640980585ac2249154c375012d3f76fce2cc45acd8efce"
     },
     {
       "path": "docker-compose.yml",
@@ -104,7 +119,7 @@
     {
       "path": "Dockerfile",
       "class": "adapts",
-      "hash": "75b3560f5800e117c53400482cf7f065bdb10d6c26f83009fdc541866621f7f7"
+      "hash": "d86758da4739f29476caeba13d36aa0a86e41b993a8d764735822d3efcce5301"
     },
     {
       "path": "docs/ARCHITECTURE.md",
@@ -524,12 +539,12 @@
     {
       "path": "docs/DECISIONS.md",
       "class": "adapts",
-      "hash": "e70a03c7ae07d54668d2fc089568e2254acd985f9dac6e820216b1df8beb805d"
+      "hash": "ee32294f015140576f405731f490207bc3cc784970a9e355ae52e82be8195818"
     },
     {
       "path": "docs/DEPLOYMENT.md",
       "class": "adapts",
-      "hash": "4cc81f26d91b01913033b65c7003f75530904b55275ce8cc9b8834f335f513a3"
+      "hash": "f84257045e2fb1b4379764456e97707b74a8cfac4fbfc7a89dc42d8923923d68"
     },
     {
       "path": "docs/FEATURES.md",
@@ -569,7 +584,7 @@
     {
       "path": "docs/NEW_APP_GUIDE.md",
       "class": "adapts",
-      "hash": "117886b2c6992b8bbbf5d5ab946057e054be5b8e9d33efc2bee43648702be644"
+      "hash": "0c3a2b2a7859e2a5f1fa8e3cc0ef19933aafcb1df05caa7f0cb222dc97627122"
     },
     {
       "path": "docs/OVERVIEW.md",
@@ -579,7 +594,7 @@
     {
       "path": "docs/PLATFORM_BACKLOG.md",
       "class": "adapts",
-      "hash": "e0f926980c7be845258d02386512ce57dfd1d0b4d6eb5b922b51a7800d239932"
+      "hash": "cb782fefd04f5dfb194346bd777e3a90fe759675c48ef74d870711dff247b283"
     },
     {
       "path": "docs/postman/Perezosoft.local.postman_environment.json",
@@ -794,7 +809,7 @@
     {
       "path": "docs/tutorial/COVERAGE.md",
       "class": "adapts",
-      "hash": "53d52e809b9bfe4b082878ba6dad564d17f4c3c112e1a7075af3d136d32afe59"
+      "hash": "16cc547345dbcb88158042b52879d428e9e1c037bbba03bc501892a24244838a"
     },
     {
       "path": "docs/tutorial/diagrams/arch-auth-server.png",
@@ -1014,7 +1029,7 @@
     {
       "path": "docs/tutorial/gen_coverage.py",
       "class": "adapts",
-      "hash": "b318824dc151044b84b44f27330da58cd0957d8581bef0a848bbe07502411968"
+      "hash": "687bc8f69e65b3df99f220d688ea9c3a03340961d71ce8469e87b58a80da53f6"
     },
     {
       "path": "docs/tutorial/gen_diagrams.py",
@@ -1289,7 +1304,7 @@
     {
       "path": "docs/WAYS_OF_WORKING.md",
       "class": "adapts",
-      "hash": "b6350929e2105f44a6d150fe4cf1fae702e23084291ef03eb8a0e77e090ebda9"
+      "hash": "0529166646b1e6684017cd69ba8ff2daa74148273d7ede2b99380a0e50f9972a"
     },
     {
       "path": "global.json",
@@ -1302,6 +1317,11 @@
       "hash": "4ae40dce0e325cabee4408b952d275a5aab3f13ca9b9102dbf7738b3f2a51e59"
     },
     {
+      "path": "nuget.config",
+      "class": "platform",
+      "hash": "7a772c0a45fcd5e330d5e8c6f3b7086707cc4253aacd21313b2c17228b4d4538"
+    },
+    {
       "path": "Perezosoft.slnx",
       "class": "adapts",
       "hash": "7f74f8ff4624120ea337a5e3042cc583f74d8ccef16af0a05f558567c5fd80bf"
@@ -1309,7 +1329,7 @@
     {
       "path": "platform-ownership.json",
       "class": "platform",
-      "hash": "ba227c64f4f29b4da77176e6d9e071c127080ee0a525a7bb98d2e192a83f1937"
+      "hash": "9ac7262aa0c09765022a15527d80aff6e8ef547e46e6022c5a03ab4c0bfebed6"
     },
     {
       "path": "platform-schema.json",
@@ -3899,7 +3919,7 @@
     {
       "path": "tests/Api.Tests/Architecture/PlatformOwnership.cs",
       "class": "platform",
-      "hash": "5a96ee6dbb46b44d50931e1550e4feaf809e22604d8c128ca66617858a789c56"
+      "hash": "93f68bb5e2bc8adef08f7493c2fb42463a197eacc6c96672a3f54d7e7bb53051"
     },
     {
       "path": "tests/Api.Tests/Architecture/RoutePrefixInspector.cs",
@@ -4069,7 +4089,7 @@
     {
       "path": "tests/Api.Tests/CiWorkflowTests.cs",
       "class": "platform",
-      "hash": "0083a198b051ae83851ee43ad9cc739f4b1ffce6592db7856b56614d299839b6"
+      "hash": "5edca57660fad6bd892d785d4dfb994b00d1a2fd8644a2d80734c49a98464b60"
     },
     {
       "path": "tests/Api.Tests/ClaimsExtractorTests.cs",
@@ -4124,7 +4144,7 @@
     {
       "path": "tests/Api.Tests/EnforcementGateTests.cs",
       "class": "platform",
-      "hash": "f9f82e5ded898f5e46559270be45fb5d8023044a2808dcea9239c798184fc5bd"
+      "hash": "b2b924f181cba398a6686df89ee58e71c1a8124d65f53a772066bef57955b306"
     },
     {
       "path": "tests/Api.Tests/EnterTenantScopingTests.cs",
@@ -4494,12 +4514,17 @@
     {
       "path": "tests/Api.Tests/PlatformOwnershipTests.cs",
       "class": "platform",
-      "hash": "e21809433dabb652f6d913699a02bba74d8906e388530bbdc5dcd47a7c4dcf06"
+      "hash": "883fd80b7d2051997805a3054b10402781092bdf6eb642087cdbe8468825a702"
     },
     {
       "path": "tests/Api.Tests/PlatformSchemaTests.cs",
       "class": "platform",
       "hash": "300e4b14abfe4092f11ce303669afb931250752ce8b36739f99cb18b66be5dbc"
+    },
+    {
+      "path": "tests/Api.Tests/PlatformSourceTests.cs",
+      "class": "platform",
+      "hash": "7a474a3243676c26bdc847160e4050a2c9da44e320fac72184b4e111b5cd6a71"
     },
     {
       "path": "tests/Api.Tests/ProviderEmailTrustTests.cs",
@@ -4762,6 +4787,11 @@
       "hash": "219133d3b41b05f3a3b2c39989705080db1e9d9faa77a7c3ad3f7982dce4b502"
     },
     {
+      "path": "tests/ci-logic/cases/changes-classifier/course-added-file/requires",
+      "class": "platform",
+      "hash": "d43ecdcc31cb4256b07efd921e1cd81df708250084681d5e7f4ee8b096f7524a"
+    },
+    {
       "path": "tests/ci-logic/cases/changes-classifier/course-backend-only-skips/env",
       "class": "platform",
       "hash": "d0a1f8824cd47cf226ab372ce0c32354441c226542efb68b6fdf8f0cb22cf878"
@@ -4802,6 +4832,11 @@
       "hash": "219133d3b41b05f3a3b2c39989705080db1e9d9faa77a7c3ad3f7982dce4b502"
     },
     {
+      "path": "tests/ci-logic/cases/changes-classifier/course-only/requires",
+      "class": "platform",
+      "hash": "d43ecdcc31cb4256b07efd921e1cd81df708250084681d5e7f4ee8b096f7524a"
+    },
+    {
       "path": "tests/ci-logic/cases/changes-classifier/course-quoted-file/env",
       "class": "platform",
       "hash": "d0a1f8824cd47cf226ab372ce0c32354441c226542efb68b6fdf8f0cb22cf878"
@@ -4820,6 +4855,11 @@
       "path": "tests/ci-logic/cases/changes-classifier/course-quoted-file/files/docs/tutorial/lessons/1.1-fixture.md",
       "class": "platform",
       "hash": "219133d3b41b05f3a3b2c39989705080db1e9d9faa77a7c3ad3f7982dce4b502"
+    },
+    {
+      "path": "tests/ci-logic/cases/changes-classifier/course-quoted-file/requires",
+      "class": "platform",
+      "hash": "d43ecdcc31cb4256b07efd921e1cd81df708250084681d5e7f4ee8b096f7524a"
     },
     {
       "path": "tests/ci-logic/cases/changes-classifier/doc-a-test-reads/env",
@@ -4915,6 +4955,31 @@
       "path": "tests/ci-logic/cases/changes-classifier/fail-open-no-base/expect",
       "class": "platform",
       "hash": "e3e270122f8d6765576737aa9a0502b27cb52727af314447b995e9e67c8ffde3"
+    },
+    {
+      "path": "tests/ci-logic/cases/changes-classifier/no-course-here/env",
+      "class": "platform",
+      "hash": "b0a7b9fb541236e628c4441c97b3e241ffc5586de6ec0448e84a2ace3b1ef172"
+    },
+    {
+      "path": "tests/ci-logic/cases/changes-classifier/no-course-here/expect",
+      "class": "platform",
+      "hash": "14dff6a7f68d3b96c59e4dc56258ed9a3e579a8cad8f793ab2acf7f228eaa20c"
+    },
+    {
+      "path": "tests/ci-logic/cases/changes-classifier/no-course-here/files/diff.txt",
+      "class": "platform",
+      "hash": "03d03a858903dcf79e4346e4f777d935ca88656c0a34c741fa64e611d41a12b6"
+    },
+    {
+      "path": "tests/ci-logic/cases/changes-classifier/no-course-here/files/docs/tutorial/lessons/1.1-fixture.md",
+      "class": "platform",
+      "hash": "219133d3b41b05f3a3b2c39989705080db1e9d9faa77a7c3ad3f7982dce4b502"
+    },
+    {
+      "path": "tests/ci-logic/cases/changes-classifier/no-course-here/without",
+      "class": "platform",
+      "hash": "296aff2628116bddcc376ae374325c3127aeafa4191c3b793e6b0da62d3a8182"
     },
     {
       "path": "tests/ci-logic/cases/changes-classifier/readme-any-case/env",
@@ -5424,7 +5489,7 @@
     {
       "path": "tests/ci-logic/run.py",
       "class": "platform",
-      "hash": "b85ba798706167d999988b357e225593f3d024e0ac3094d5051e8e7096f540c3"
+      "hash": "2de6e29e4e45be7b227308d7610b90f5e0cf20f80f49ee2ce8035ce20c56d1ce"
     },
     {
       "path": "tests/ci-logic/run.sh",
@@ -5444,12 +5509,12 @@
     {
       "path": "tests/ci-logic/stubs/git",
       "class": "platform",
-      "hash": "b6fe4d2ff9fd74802719550d12a07b89a7b97e753b0bbe393ddf3add9706e6c6"
+      "hash": "36816980a19f377f9bf3e46b67a08d25ca331c4dc16657ab04d53bc534eaec92"
     },
     {
       "path": "tests/ci-logic/targets",
       "class": "platform",
-      "hash": "3cffe66b811342d52dbccafbf0c1d45e7246d264ab222e31f3d35a3d90b95eca"
+      "hash": "80e9c6a68c7a4d6ad5b2f5b975a32b0abd6954613c08b9b9bbd981e21b7d8a48"
     },
     {
       "path": "tests/Core.Tests/Auth/ImpersonationIdentityTests.cs",
@@ -5859,7 +5924,7 @@
     {
       "path": "tools/port-platform.ps1",
       "class": "platform",
-      "hash": "33fbb2ba7e5d2ed9d783877732f9c7d9263120bdb5e9b63b29a5e09515e13a38"
+      "hash": "a8d399beeda26852130416a76f2f192cb727dceff1df39580269799a1612a654"
     },
     {
       "path": "tools/ports.ps1",

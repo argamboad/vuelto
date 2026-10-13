@@ -571,6 +571,33 @@ over OTLP to that collector, a **third-party processor** of whatever it receives
   as a data processor in the privacy policy. Leave the endpoint empty and nothing is exported; the host's own log
   stream (Render → Logs) still has the console copy.
 
+## 12. Releasing the platform packages (Pkg 2.3, ADR-034)
+
+The platform's packages (`Perezosoft.Platform.*`) publish to GitHub Packages (`https://nuget.pkg.github.com/argamboad/index.json`)
+only from **Actions → Release → Run workflow** (`.github/workflows/release.yml`; ADR-031: no push trigger, no schedule;
+about **5 billed minutes** a run). The workflow's own `GITHUB_TOKEN` publishes; no personal token is involved.
+
+| Input | What |
+|---|---|
+| `version` | Without the `v`: `1.0.0-alpha.1` (a prerelease, from `develop` or `main`), `1.0.0` (stable, from `main` only). It becomes the tag `v<version>`; a version is released once. |
+| `dry_run` | Packs only `tools/release/dry-run` (`Perezosoft.Platform.DryRun`) at a `-dry.` version (`0.0.1-dry.1`), pushes it, restores it back the way an app would, and writes the note to the run's summary. No tag, no GitHub release. |
+| `schema_change`, `register_change`, `breaking` | The three answers every release note gives (ADR-034 §7), filled into `.github/release-note-template.md`. |
+
+What a run does, in order: check the version, the branch and that the tag is new (the `release-plan` block, held by
+its ci-logic cases) → tag locally → `dotnet pack` every project with `<IsPackable>true</IsPackable>` (MinVer gives each
+exactly the tag's version; nothing else packs) → push the packages → push the tag → create the GitHub release (a
+prerelease for a `-` version). A push that fails leaves no tag. The workflow is dispatched from the default branch, `develop`
+(`main` is not involved).
+
+**Producer-only (Pkg 2.5).** `release.yml`, the note template, `tools/release/**`, its ci-logic cases and
+`platform-packages.props` are classed `producer` in `platform-ownership.json`: the platform publishes, an app never
+does, so the port tool never writes them downstream and the gates that read them run only in the platform.
+
+**After the first publish** (the dry run): on the package's page (github.com/argamboad?tab=packages → the package →
+*Package settings*), under **Manage Actions access**, add `jigger-jot` and `vuelto` with **Read**, so their CI can
+restore it with their own `GITHUB_TOKEN`. Apps and machines read the feed as the workspace README §7a says
+(`PLATFORM_PACKAGES_TOKEN` in `.env`). **Undo a dry run:** delete its versions on the package's page.
+
 ## Prod, later
 
 When a downstream app has real users, repeat §1–§5 as a second Render service fed from `main` (an

@@ -54,6 +54,31 @@ public class EnforcementGateTests
     }
 
     [Fact]
+    public void Dockerfile_CopiesEveryRootBuildFile_BeforeTheRestore() // Pkg 2.4: PR #429's docker-build failed on build/PlatformSource.props
+    {
+        // The image copies the solution-wide build files by name before `dotnet restore`, then only src/. A file the root
+        // Directory.Build.props/.targets imports but the Dockerfile does not copy builds everywhere except the image:
+        // CI's build-test passed and docker-build failed with MSB4019 when the local source switch added build/. So every
+        // root build file and every file they import is copied before the restore.
+        var root = RepoRoot();
+        var dockerfile = File.ReadAllText(Path.Combine(root, "Dockerfile")).ReplaceLineEndings("\n");
+        var build = dockerfile[..dockerfile.IndexOf("RUN dotnet restore", StringComparison.Ordinal)];
+        var copied = Regex.Matches(build, @"(?m)^COPY (?!--)(.+)$")
+            .SelectMany(m => m.Groups[1].Value.Split(' ', StringSplitOptions.RemoveEmptyEntries).SkipLast(1)) // the last word is the destination
+            .Select(p => p.TrimEnd('/'))
+            .ToList();
+
+        var needed = new List<string> { "Directory.Build.props", "Directory.Packages.props" };
+        if (File.Exists(Path.Combine(root, "Directory.Build.targets"))) needed.Add("Directory.Build.targets");
+        foreach (var file in needed.ToList())
+            foreach (Match m in Regex.Matches(File.ReadAllText(Path.Combine(root, file)), @"<Import\s+Project=""\$\(MSBuildThisFileDirectory\)([^""]+)"""))
+                needed.Add(m.Groups[1].Value.Replace('\\', '/'));
+
+        var missing = needed.Where(n => !copied.Any(c => n == c || n.StartsWith(c + "/", StringComparison.Ordinal))).ToList();
+        Assert.True(missing.Count == 0, "the Dockerfile does not copy, before `dotnet restore`, build files the root props/targets need: " + string.Join(", ", missing));
+    }
+
+    [Fact]
     public void Dockerfile_GivesTheAppUserAWritableStorageDir()
     {
         // Local-disk file storage (ADR-010) defaults to ./storage under the app base dir = /app/storage. The runtime
@@ -781,8 +806,15 @@ public class EnforcementGateTests
             Assert.True(targets.Any(t => t[0] == "block" && t[1] == block && t.Skip(2).Contains(file)),
                 $"{file} anchors `{block}` but tests/ci-logic/targets does not run it there");
 
+        // Downstream, a target over a producer-only file (the platform's release machinery, Pkg 2.5) has neither its file nor
+        // its cases; run.py skips it the same way. In the platform every target must have both.
+        var platform = Architecture.PlatformOwnership.IsThePlatform(root);
+        var rules = Architecture.PlatformOwnership.ParseRules(File.ReadAllText(Path.Combine(root, "platform-ownership.json")));
         foreach (var t in targets)
         {
+            if (!platform && t.Skip(2).All(f => !File.Exists(Path.Combine(root, f))
+                    && Architecture.PlatformOwnership.Classify(f, rules) == Architecture.PlatformOwnership.Class.Producer))
+                continue;
             var cases = Path.Combine(root, "tests", "ci-logic", "cases", t[1]);
             Assert.True(Directory.Exists(cases) && Directory.EnumerateDirectories(cases).Any(), $"target `{t[1]}` has no cases");
             foreach (var file in t.Skip(2))

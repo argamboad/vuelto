@@ -1,0 +1,10 @@
+<Project>
+
+  <!--
+    Imported by MSBuild after each project's own content. The local source switch's second half (Pkg 2.4, ADR-034):
+    with PlatformSource on, Perezosoft.Platform.* packages become project references to that checkout. A no-op in the
+    platform itself, which references no platform package. Later shipped by Perezosoft.Platform.Build (buildTransitive).
+  -->
+  <Import Project="$(MSBuildThisFileDirectory)build/PlatformSource.targets" />
+
+</Project>

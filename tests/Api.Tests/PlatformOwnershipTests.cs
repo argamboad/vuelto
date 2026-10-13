@@ -46,6 +46,37 @@ public class PlatformOwnershipTests(ITestOutputHelper output)
         Assert.Equal(Class.Adapts, Classify("tests/E2E.Tests/SessionJourneyTests.cs", rules));
         Assert.Equal(Class.Adapts, Classify(".github/workflows/ci.yml", rules));
         Assert.Equal(Class.Sample, Classify("src/Api/Features/Notes/NotesHandler.cs", rules));
+        // Pkg 2.5: the release machinery is the publisher's alone — never ported, never demanded downstream.
+        foreach (var producer in new[] { ".github/workflows/release.yml", ".github/release-note-template.md", "tools/release/dry-run/DryRun.cs",
+                                         "tests/ci-logic/cases/release-plan/dry-run/env", "platform-packages.props" })
+            Assert.Equal(Class.Producer, Classify(producer, rules));
+        // ...and the brand map never renames the platform's package ids or its feed key (ADR-034).
+        var keep = ParseKeep(File.ReadAllText(Path.Combine(root, "platform-ownership.json")));
+        Assert.Contains("Perezosoft.Platform.", keep);
+        Assert.Contains("key=\"vuelto\"", keep);
+    }
+
+    [Fact]
+    public void ProducerFiles_ExistInThePlatform_AndNowhereElseAreDemanded()
+    {
+        // The other half of the producer class: the platform must still carry every producer file its map names (the gates
+        // that read them skip only where they are absent, i.e. downstream), and a manifest never lists one.
+        var root = RepoRoot();
+        var rules = ParseRules(File.ReadAllText(Path.Combine(root, "platform-ownership.json")));
+        if (!IsThePlatform(root)) return;
+        var tracked = Git(root, "ls-files").Split('\n', StringSplitOptions.RemoveEmptyEntries).Select(l => l.Trim()).ToList();
+        Assert.Contains(tracked, p => Classify(p, rules) == Class.Producer && p == ".github/workflows/release.yml");
+        var manifest = Manifest((".github/workflows/release.yml", Class.Producer, "x"), ("src/Core/A.cs", Class.Platform, "a"));
+        var v = Evaluate(manifest, "abc", "abc", new Dictionary<string, string>(), Brand, Repo(("src/Core/A.cs", "a")));
+        Assert.Empty(v.Failures);                          // an absent producer file is never "a platform file this repo does not have"
+        Assert.Equal(1, v.PlatformFilesChecked);
+    }
+
+    [Fact]
+    public void LocalPath_KeepsTheKeepList()
+    {
+        Assert.Equal("tools/Acme.Tool/Perezosoft.Platform.Core.csproj",
+            LocalPath("tools/Vuelto.Tool/Perezosoft.Platform.Core.csproj", Brand, ["Perezosoft.Platform."]));
     }
 
     [Fact]
@@ -65,8 +96,9 @@ public class PlatformOwnershipTests(ITestOutputHelper output)
         var (manifestCommit, entries) = ParseManifest(File.ReadAllText(manifestPath));
         var divergences = ParseDivergences(File.ReadAllText(Path.Combine(root, "tests", "Api.Tests", "App", "PlatformDivergences.json")));
 
+        var keep = ParseKeep(File.ReadAllText(Path.Combine(root, "platform-ownership.json")));
         var verdict = Evaluate(entries, manifestCommit, stampCommit, divergences, brand,
-            local => File.Exists(Path.Combine(root, local)) ? File.ReadAllBytes(Path.Combine(root, local)) : null);
+            local => File.Exists(Path.Combine(root, local)) ? File.ReadAllBytes(Path.Combine(root, local)) : null, keep);
 
         output.WriteLine($"platform {manifestCommit[..7]}: {verdict.PlatformFilesChecked} platform files checked, {divergences.Count} allowlisted divergence(s), {verdict.AdaptsDrift.Count} adapts file(s) differ:");
         foreach (var d in verdict.AdaptsDrift) output.WriteLine("  adapts: " + d);
@@ -179,14 +211,16 @@ public class PlatformOwnershipTests(ITestOutputHelper output)
             { "rules": [
               { "glob": "src/Api/Features/**", "class": "app" },
               { "glob": "platform-stamp.json", "class": "app" },
+              { "glob": "src/Core/Release.yml", "class": "producer" },
               { "glob": "src/Core/**", "class": "platform" },
               { "glob": "src/Shared.Ui/**", "class": "adapts" },
               { "glob": "platform-ownership.json", "class": "platform" },
               { "glob": "README.md", "class": "adapts" },
-              { "glob": "logo.bin", "class": "adapts" } ] }
+              { "glob": "logo.bin", "class": "adapts" } ],
+              "keep": [ "Perezosoft.Platform.", "key=\"vuelto\"" ] }
             """;
         Write(platform, "platform-ownership.json", map);
-        Write(platform, "platform-stamp.json", """{ "platform": "p", "commit": null, "date": null, "brand": { "Vuelto": "Vuelto", "vuelto": "vuelto" } }""");
+        Write(platform, "platform-stamp.json", """{ "platform": "owner/perezosoft-platform", "commit": null, "date": null, "brand": { "Vuelto": "Vuelto", "vuelto": "vuelto" } }""");
         Write(platform, "src/Core/Vuelto.Core.csproj", "<Project>v1</Project>\n");
         Write(platform, "src/Core/Thing.cs", "namespace Vuelto.Core;\n\npublic class Thing\n{\n    public int A = 1;\n}\n");
         Write(platform, "src/Shared.Ui/Page.razor", "<h1>Vuelto</h1>\n<p>line two</p>\n<p>line three</p>\n");
@@ -202,12 +236,13 @@ public class PlatformOwnershipTests(ITestOutputHelper output)
         foreach (var f in Directory.EnumerateFiles(platform, "*", SearchOption.AllDirectories).Where(f => !f.Contains($"{Path.DirectorySeparatorChar}.git{Path.DirectorySeparatorChar}")))
         {
             var rel = Path.GetRelativePath(platform, f).Replace('\\', '/');
-            var target = Path.Combine(app, rel.Replace("Vuelto", "Acme").Replace("vuelto", "acme"));
+            if (rel.EndsWith("Release.yml", StringComparison.Ordinal)) continue; // producer: an app never has it
+            var target = Path.Combine(app, ToAcme(rel));
             Directory.CreateDirectory(Path.GetDirectoryName(target)!);
             if (rel == "logo.bin") File.Copy(f, target);
-            else File.WriteAllText(target, File.ReadAllText(f).Replace("Vuelto", "Acme").Replace("vuelto", "acme"));
+            else File.WriteAllText(target, ToAcme(File.ReadAllText(f)));
         }
-        Write(app, "platform-stamp.json", $$"""{ "platform": "p", "commit": "{{v1}}", "date": "2026-10-01", "brand": { "Vuelto": "Acme", "vuelto": "acme" } }""");
+        Write(app, "platform-stamp.json", $$"""{ "platform": "owner/perezosoft-platform", "commit": "{{v1}}", "date": "2026-10-01", "brand": { "Vuelto": "Acme", "vuelto": "acme" } }""");
         Write(app, "src/Shared.Ui/Page.razor", "<h1>Acme, the budget app</h1>\n<p>line two</p>\n<p>line three</p>\n");
         Write(app, "src/Api/Features/X/X.cs", "// the app's own slice\n");
         Directory.CreateDirectory(Path.Combine(app, "tools")); // the script locates the repo from tools/ unless -Repo is given
@@ -216,6 +251,13 @@ public class PlatformOwnershipTests(ITestOutputHelper output)
         // the sample-ish app file changes (must not reach the app), a binary changes.
         Write(platform, "src/Core/Thing.cs", "namespace Vuelto.Core;\n\npublic class Thing\n{\n    public int A = 2;\n    public int B = 3;\n}\n");
         Write(platform, "src/Core/Added.cs", "namespace Vuelto.Core;\n\npublic class Added;\n");
+        // Pkg 2.5: a platform package id and a feed key the brand map must never rename, and a producer-only file (the
+        // platform's release machinery) the port must never bring.
+        Write(platform, "src/Core/Feed.config", "<add key=\"vuelto\" /> <package pattern=\"Perezosoft.Platform.*\" /> Vuelto.Api vuelto-x\n");
+        Write(platform, "src/Core/Release.yml", "publishes Perezosoft.Platform.Core\n");
+        // A file that itself holds a private-use character (as this very test file once did) must not be corrupted by the
+        // guards the rename parks kept tokens behind.
+        Write(platform, "src/Core/Guarded.txt", (char)0xE000 + " and " + (char)0xE001 + " stay; Perezosoft.Platform.Core stays; Vuelto goes\n");
         Write(platform, "src/Shared.Ui/Page.razor", "<h1>Vuelto</h1>\n<p>line two</p>\n<p>line three, revised</p>\n");
         Write(platform, "src/Api/Features/X/X.cs", "// platform sample, changed\n");
         File.WriteAllBytes(Path.Combine(platform, "logo.bin"), [0x89, 0x50, 0, 9, 9]);
@@ -231,12 +273,16 @@ public class PlatformOwnershipTests(ITestOutputHelper output)
         Assert.Equal("<h1>Acme, the budget app</h1>\n<p>line two</p>\n<p>line three, revised</p>\n", Read(app, "src/Shared.Ui/Page.razor")); // both edits, no markers
         Assert.Equal("// the app's own slice\n", Read(app, "src/Api/Features/X/X.cs"));                                                 // app class: untouched
         Assert.Equal(new byte[] { 0x89, 0x50, 0, 9, 9 }, File.ReadAllBytes(Path.Combine(app, "logo.bin")));                              // binary, unchanged locally: taken
+        // The keep-list: the package id and the feed key stay the platform's; everything else is renamed as before.
+        Assert.Equal("<add key=\"vuelto\" /> <package pattern=\"Perezosoft.Platform.*\" /> Acme.Api acme-x\n", Read(app, "src/Core/Feed.config"));
+        Assert.False(File.Exists(Path.Combine(app, "src/Core/Release.yml")), "a producer-only file reached the app");          // producer: never ported
+        Assert.Equal((char)0xE000 + " and " + (char)0xE001 + " stay; Perezosoft.Platform.Core stays; Acme goes\n", Read(app, "src/Core/Guarded.txt"));
 
         var (stampCommit, brand) = ParseStamp(Read(app, "platform-stamp.json"));
         Assert.Equal(v2, stampCommit);
         var (manifestCommit, entries) = ParseManifest(Read(app, "tests/Api.Tests/App/platform-manifest.json"));
         Assert.Equal(v2, manifestCommit);
-        Assert.Equal(new[] { "README.md", "logo.bin", "platform-ownership.json", "src/Core/Added.cs", "src/Core/Vuelto.Core.csproj", "src/Core/Thing.cs", "src/Shared.Ui/Page.razor" }.Order(StringComparer.Ordinal), // the brand sets the order
+        Assert.Equal(new[] { "README.md", "logo.bin", "platform-ownership.json", "src/Core/Added.cs", "src/Core/Feed.config", "src/Core/Guarded.txt", "src/Core/Vuelto.Core.csproj", "src/Core/Thing.cs", "src/Shared.Ui/Page.razor" }.Order(StringComparer.Ordinal), // the brand sets the order; no producer entry
             entries.Select(e => e.Path).Order(StringComparer.Ordinal));
 
         // The gate over the ported app: the PowerShell hashes must match the C# hashes of the renamed files.
@@ -279,6 +325,15 @@ public class PlatformOwnershipTests(ITestOutputHelper output)
     }
 
     // ── helpers ──
+
+    // The first clone, as a rebrand that honours the keep-list (and the platform's repo name) would have written it. The
+    // guards are built in code: a literal private-use character in this file is exactly what tripped the port tool once.
+    private static readonly string G0 = ((char)0xF8F0).ToString(), G1 = ((char)0xF8F1).ToString(), G2 = ((char)0xF8F2).ToString();
+
+    private static string ToAcme(string text) => text
+        .Replace("perezosoft-platform", G0).Replace("Perezosoft.Platform.", G1).Replace("key=\"vuelto\"", G2)
+        .Replace("Vuelto", "Acme").Replace("vuelto", "acme")
+        .Replace(G0, "perezosoft-platform").Replace(G1, "Perezosoft.Platform.").Replace(G2, "key=\"vuelto\"");
 
     private static async Task<(int Exit, string Output)> RunToolAsync(string platform, string to, string repo, bool apply = true)
     {

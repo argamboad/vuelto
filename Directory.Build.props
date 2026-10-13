@@ -24,7 +24,23 @@
       ResourceParityTests.DuplicateResourceNames_FailTheBuild.
     -->
     <MSBuildWarningsAsErrors>$(MSBuildWarningsAsErrors);MSB3568</MSBuildWarningsAsErrors>
+    <!--
+      Packages (Pkg 2.3, ADR-034). Nothing packs unless its project says <IsPackable>true</IsPackable> (the SDK would pack
+      every class library). A packable project gets its version from the git tag v<version> through MinVer, and points
+      at this repo, which is what lets the release workflow's GITHUB_TOKEN publish it to GitHub Packages.
+    -->
+    <IsPackable Condition="'$(IsPackable)' == ''">false</IsPackable>
+    <MinVerTagPrefix>v</MinVerTagPrefix>
+    <MinVerDefaultPreReleaseIdentifiers>alpha.0</MinVerDefaultPreReleaseIdentifiers>
+    <RepositoryUrl>https://github.com/argamboad/perezosoft-platform</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <Authors>Vuelto</Authors>
   </PropertyGroup>
+
+  <!-- Items are evaluated after every property, so this sees the project's own IsPackable. -->
+  <ItemGroup Condition="'$(IsPackable)' == 'true'">
+    <PackageReference Include="MinVer" PrivateAssets="all" />
+  </ItemGroup>
 
   <!--
     The repo's local ports, stated once (Arch A10, #369): local-ports.props. A project that opts in with
@@ -35,6 +51,12 @@
     own that comes before CoreCompile.
   -->
   <Import Project="$(MSBuildThisFileDirectory)local-ports.props" />
+
+  <!--
+    The local source switch (Pkg 2.4, ADR-034): PLATFORM_SOURCE in .env, or -p:PlatformSource=…, builds an app against a
+    platform checkout instead of the packages. Decided here; the references are swapped in Directory.Build.targets.
+  -->
+  <Import Project="$(MSBuildThisFileDirectory)build/PlatformSource.props" />
 
   <!--
     The platform stamp travels with the API (Arch A2, R160): platform-stamp.json is copied beside the binaries of the

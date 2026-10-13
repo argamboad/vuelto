@@ -14,6 +14,11 @@ Case layout:
   files/   copied into the scratch directory (fixtures: diffs, QA plans, .trx files, API pages, ...)
   expect   `exit N`, then `+text` (must appear in the output) / `-text` (must not). The output includes the
            step's $GITHUB_OUTPUT after a `## GITHUB_OUTPUT` line.
+  requires repo paths the case needs, one per line; the case is skipped where one is absent (an app has no course)
+  without  repo paths left out of the case's scratch copy (only docs/tutorial/gen_coverage.py is ever copied in)
+
+Downstream (an app: its platform-stamp.json names a commit), a target whose files are all absent — the platform's
+producer-only release machinery (Pkg 2.5) — is skipped and said so; in the platform a missing file fails.
 
 Every `::error::` a target can print must be produced by at least one of its cases, or be listed as `exempt`
 in `targets` with the reason. Entry point: tests/ci-logic/run.sh; EnforcementGateTests.CiShellLogic_* runs it.
@@ -71,6 +76,18 @@ def copy_text_tree(src, dst):
             open(d, 'wb').write(data.replace(b'\r\n', b'\n'))
 
 
+def listed(case_dir, name):
+    """The repo paths a case lists in its `requires` / `without` file, one per line (none when the file is absent)."""
+    path = os.path.join(case_dir, name)
+    return [l.strip() for l in read(path).split('\n') if l.strip() and not l.startswith('#')] if os.path.exists(path) else []
+
+
+def is_the_platform():
+    """True in the platform itself (its stamp's commit is null): producer-only targets and course cases apply only here."""
+    stamp = os.path.join(ROOT, 'platform-stamp.json')
+    return os.path.exists(stamp) and re.search(r'"commit"\s*:\s*null', read(stamp)) is not None
+
+
 def run_case(kind, name, source, case_dir):
     work = tempfile.mkdtemp(prefix=f'ci-logic-{name}-')
     try:
@@ -78,8 +95,9 @@ def run_case(kind, name, source, case_dir):
             copy_text_tree(os.path.join(ROOT, scripts), os.path.join(work, scripts))
         # The classifier asks the course generator for its quoted files (Pkg 1.4); a case brings the lessons in files/.
         # A downstream app has no course, and its classifier never calls the generator.
+        # A case's `without` file names repo paths left out of its scratch copy (one runs as a repo with no course).
         generator = os.path.join(ROOT, 'docs', 'tutorial', 'gen_coverage.py')
-        if os.path.exists(generator):
+        if os.path.exists(generator) and 'docs/tutorial/gen_coverage.py' not in listed(case_dir, 'without'):
             os.makedirs(os.path.join(work, 'docs', 'tutorial'), exist_ok=True)
             open(os.path.join(work, 'docs', 'tutorial', 'gen_coverage.py'), 'wb').write(open(generator, 'rb').read())
         if os.path.isdir(os.path.join(case_dir, 'files')):
@@ -136,7 +154,12 @@ def error_patterns(text):
 def main():
     targets, exempt = parse_targets()
     total = failed = 0
+    platform = is_the_platform()
     for kind, name, sources in targets:
+        # Downstream, a target over producer-only files (the platform's release machinery, Pkg 2.5) has neither its file
+        # nor its cases: skipped, and said so. In the platform a missing file still fails (block() raises).
+        if not platform and not any(os.path.exists(os.path.join(ROOT, s)) for s in sources):
+            print(f'skip {name}: {", ".join(sources)} is the platform\'s alone (producer-only)'); continue
         case_root = os.path.join(HERE, 'cases', name)
         cases = sorted(d for d in os.listdir(case_root) if os.path.isdir(os.path.join(case_root, d))) if os.path.isdir(case_root) else []
         if not cases:
@@ -145,6 +168,11 @@ def main():
             text = block(source, name) if kind == 'block' else read(os.path.join(ROOT, source))
             outputs = []
             for case in cases:
+                # A case's `requires` file names repo paths it needs (the course cases need the course's generator):
+                # where one is absent — an app — the case is skipped, and said so.
+                missing = [p for p in listed(os.path.join(case_root, case), 'requires') if not os.path.exists(os.path.join(ROOT, p))]
+                if missing:
+                    print(f'skip {name}/{case}: this repo has no {", ".join(missing)}'); continue
                 total += 1
                 out, failures = run_case(kind, name, source, os.path.join(case_root, case))
                 outputs.append(out)

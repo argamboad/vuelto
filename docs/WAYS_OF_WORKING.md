@@ -230,6 +230,34 @@ Stored at `.github/pull_request_template.md` (auto-loaded by GitHub). Contents:
 <!-- anything reviewers/future-you should know -->
 ```
 
+## Platform and app together — the local source switch (Pkg 2.4, ADR-034)
+
+An app that references the platform as packages (`Perezosoft.Platform.*`) can build against a **platform checkout**
+instead, on the laptop: change platform code, build and run the app, step into the platform in the debugger — before
+anything is packed or released. In the app's `.env`:
+
+```
+PLATFORM_SOURCE=C:\Users\<you>\source\repos\Personal\perezosoft-platform
+```
+
+or once, on the command line: `dotnet build -p:PlatformSource=<path>`. Every platform package the app references
+becomes a project reference to that checkout (the build says so: `platform packages from SOURCE (…)`); nuget.org
+packages and the app's own projects are untouched. Comment the line out (or leave it empty) to go back to the
+packages. How it works: `build/PlatformSource.props` decides (reading only that one line of `.env`),
+`build/PlatformSource.targets` swaps the references using the checkout's own `platform-packages.props` — the map from
+each package id to the project that packs it, which `PlatformSourceTests` holds complete.
+
+- **The committed lockfile is safe.** While the switch is on, restore writes its lock to
+  `obj/platform-source.packages.lock.json` and never runs in locked mode; switch off and the committed
+  `packages.lock.json` is checked again, unchanged.
+- **The ids are the platform's in every app.** The port never renames `Perezosoft.Platform.*` or the feed key
+  `vuelto` (the ownership map's `keep` list, Pkg 2.5), so `nuget.config`'s source mapping and this switch both key
+  on the same ids downstream. The map itself (`platform-packages.props`) lives only in the platform: the switch reads
+  it from the checkout it points at.
+- **CI never sets it**, so a pull request always builds against the released packages. A platform change an app needs
+  ships as a release (DEPLOYMENT §12) before the app's PR can rely on it.
+- A path that is not a platform checkout fails the build, instead of quietly building against the packages.
+
 ## Testing strategy (TDD — constant)
 
 **Test-Driven Development is the default on every slice.** Write the failing test first; only

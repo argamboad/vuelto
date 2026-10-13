@@ -1,0 +1,2 @@
+# run as a repo with no course, wherever the harness runs
+docs/tutorial/gen_coverage.py

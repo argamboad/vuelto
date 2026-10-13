@@ -1,0 +1,23 @@
+<Project>
+  <!--
+    The local source switch, part 1 (Pkg 2.4, ADR-034 §7). On the laptop, an app can build against a platform CHECKOUT
+    instead of the published packages: every Perezosoft.Platform.* package becomes a project reference to that
+    checkout (part 2, PlatformSource.targets), so a platform change is tried in a real app — and debugged into —
+    before it is ever packed. Off unless asked for; CI never asks, so CI always builds what was released.
+
+    Turned on by, first match wins:
+      - dotnet build -p:PlatformSource=<path to the platform checkout>
+      - PLATFORM_SOURCE=<path> in the nearest .env above the project (the owner's rule: values live in .env, ADR-001)
+    Empty, or the line commented out, means off.
+  -->
+  <PropertyGroup Condition="'$(PlatformSource)' == ''">
+    <_PlatformSourceDotEnvDir>$([MSBuild]::GetDirectoryNameOfFileAbove('$(MSBuildProjectDirectory)', '.env'))</_PlatformSourceDotEnvDir>
+    <!-- One expression, so the .env text is never held in a property (properties land in binlogs; .env holds secrets). -->
+    <PlatformSource Condition="'$(_PlatformSourceDotEnvDir)' != ''">$([System.Text.RegularExpressions.Regex]::Match($([System.IO.File]::ReadAllText('$(_PlatformSourceDotEnvDir)/.env')), '(?m)^[ \t]*PLATFORM_SOURCE[ \t]*=[ \t]*"?([^"\r\n]*?)"?[ \t]*\r?$').Groups[1].Value)</PlatformSource>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(PlatformSource)' != ''">
+    <!-- A -p: value is a global property and cannot be reassigned, so the normalized path is a property of its own. -->
+    <_PlatformSourceDir>$([MSBuild]::EnsureTrailingSlash('$(PlatformSource)'))</_PlatformSourceDir>
+  </PropertyGroup>
+</Project>
