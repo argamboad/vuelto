@@ -4,7 +4,7 @@
     "platform commit this repo is synced to. PlatformOwnershipTests compares this repo against it. Do not edit by hand."
   ],
   "platform": "argamboad/perezosoft-platform",
-  "commit": "4541929ed5e996f283ff6b893687ed4aee0f8ada",
+  "commit": "fead6d04dc77ada3c65a21848022d1fc1b76a80e",
   "files": [
     {
       "path": ".config/dotnet-tools.json",
@@ -34,7 +34,7 @@
     {
       "path": ".github/pull_request_template.md",
       "class": "adapts",
-      "hash": "40c87a6e0d16dd601764105538113d6ac7f8528c428b9cd6f70011c6e8b7ebb8"
+      "hash": "6eff08af31620bd6481945b3a28c4a1114504d11b5e471dd5a92cb3b00c6d19c"
     },
     {
       "path": ".github/scripts/deploy-smoke.sh",
@@ -49,7 +49,7 @@
     {
       "path": ".github/workflows/ci.yml",
       "class": "adapts",
-      "hash": "511d73796ff4d9f1b2adffb02474b1a7dbc8ec51abcd563cbcc9d23a09281a22"
+      "hash": "62edc211e68ee66f962cf5008ba56a36cc0a70eeb8c2f95758f0ec7bc4b4ddab"
     },
     {
       "path": ".github/workflows/postman-sync.yml",
@@ -74,12 +74,12 @@
     {
       "path": "CLAUDE.md",
       "class": "adapts",
-      "hash": "fae695dbd333008bd7b545281d5978ca5f30e150e99a3fcf7878757acb574860"
+      "hash": "86dd445abd2007b389279374c557f54cd4cca1d645c3d2eb07098f619628b160"
     },
     {
       "path": "CONTRIBUTING.md",
       "class": "adapts",
-      "hash": "c275d57d5f421d29d81558922db66f84ed65dc419278c9e4551a9ed7629a79ff"
+      "hash": "cb715ba0d41a9c08da8a4b07bddda670d4e1061245d63df98b593a5f7bdcfce0"
     },
     {
       "path": "Directory.Build.props",
@@ -289,7 +289,7 @@
     {
       "path": "docs/audits/v4-2026-09/FOUNDATION_RULES_v3.md",
       "class": "platform",
-      "hash": "95c2d7ad1e62838f65287cac4e4ce7c768a4b9be014cb039a15a9f0f883cf0e3"
+      "hash": "b924381a9525f169602b8bcefcdf1adb1ccd7353414e0814c18478724ec80e95"
     },
     {
       "path": "docs/audits/v4-2026-09/FOUNDATION_RULES.md",
@@ -524,7 +524,7 @@
     {
       "path": "docs/DECISIONS.md",
       "class": "adapts",
-      "hash": "96c66a41c17e5a4288bce54a7f76ff4ca2f464103f268b011c3f461e740955ec"
+      "hash": "e70a03c7ae07d54668d2fc089568e2254acd985f9dac6e820216b1df8beb805d"
     },
     {
       "path": "docs/DEPLOYMENT.md",
@@ -569,7 +569,7 @@
     {
       "path": "docs/NEW_APP_GUIDE.md",
       "class": "adapts",
-      "hash": "35a56529d9424f0c85ca836526fec456511860ae956e3999756f89171d7084a6"
+      "hash": "117886b2c6992b8bbbf5d5ab946057e054be5b8e9d33efc2bee43648702be644"
     },
     {
       "path": "docs/OVERVIEW.md",
@@ -729,7 +729,7 @@
     {
       "path": "docs/stories/localci.md",
       "class": "adapts",
-      "hash": "a7a5cd6fcf74fa5aaad521ab33ba7671851d0b31d382a50fad34fc95e6335780"
+      "hash": "ffa9a07bb3a6dd4af82fc3d00ca0ced3321a8a6d516d4b26a833b1d15980591e"
     },
     {
       "path": "docs/stories/mfa.md",
@@ -769,7 +769,7 @@
     {
       "path": "docs/stories/test-toolchain.md",
       "class": "adapts",
-      "hash": "64d8c480dbad60efeb4c76dae6d7eb1bc9d3cb4130767281028b706e0425e661"
+      "hash": "e030f436f86c45576799161c5a57072dc63762cd607b104b4483a2ba4db45759"
     },
     {
       "path": "docs/stories/theme.md",
@@ -794,7 +794,7 @@
     {
       "path": "docs/tutorial/COVERAGE.md",
       "class": "adapts",
-      "hash": "bbcbee18ecc679040ff412365507fec2be86429716c9e61a6c9522caaa5fb92c"
+      "hash": "53d52e809b9bfe4b082878ba6dad564d17f4c3c112e1a7075af3d136d32afe59"
     },
     {
       "path": "docs/tutorial/diagrams/arch-auth-server.png",
@@ -1014,7 +1014,7 @@
     {
       "path": "docs/tutorial/gen_coverage.py",
       "class": "adapts",
-      "hash": "f81c9aaff006c0f1b613003f54dfe24fa0b7cc7cbbf849202bbca2c984e381e9"
+      "hash": "b318824dc151044b84b44f27330da58cd0957d8581bef0a848bbe07502411968"
     },
     {
       "path": "docs/tutorial/gen_diagrams.py",
@@ -1034,7 +1034,7 @@
     {
       "path": "docs/tutorial/lessons/0.2-a-reproducible-machine.md",
       "class": "adapts",
-      "hash": "4df6bd6eab4d140ad7948c3793bfb0c1ce9ac57e91ef2a925bc811424e25e300"
+      "hash": "5fc7858c14c778f7d3283647a948a726739b200f01a82373a33142d05ad9f64b"
     },
     {
       "path": "docs/tutorial/lessons/1.1-solution-projects-and-supply-chain.md",
@@ -1054,7 +1054,7 @@
     {
       "path": "docs/tutorial/lessons/1.4-configuration-and-the-options-pattern.md",
       "class": "adapts",
-      "hash": "b873298628dd840becf981eaf1d585c4b31053b83be7a6a868be8cba00cfa1d6"
+      "hash": "88cc7430ae81cffceb81bfb21f3d7f64b22558e58dcb6aaa31e547ba55560b71"
     },
     {
       "path": "docs/tutorial/lessons/1.5-the-error-envelope.md",
@@ -1064,7 +1064,7 @@
     {
       "path": "docs/tutorial/lessons/1.6-ci-from-commit-one.md",
       "class": "adapts",
-      "hash": "eead5047908d981c0efd4c0c35fc3ed0099d1a3dba26b231cd72850ba610aa4e"
+      "hash": "531a88cb60b70b2744c9774523e9585dd0c599266bcac5ee0fa6eee6c4fd1797"
     },
     {
       "path": "docs/tutorial/lessons/2.1-users-and-jwt-access-tokens.md",
@@ -1079,7 +1079,7 @@
     {
       "path": "docs/tutorial/lessons/2.3-email-i-the-iemailsender-seam.md",
       "class": "adapts",
-      "hash": "f4e3db6003dd372189cd0cac5173577083432ba1e3a650e537e6a94ebe8b1b18"
+      "hash": "0e49a7846af67e18961f5bfc4b20889e83c2e32cd55484ae20efe0234e3b877b"
     },
     {
       "path": "docs/tutorial/lessons/2.4-passwordless-magic-link-and-otp.md",
@@ -1119,7 +1119,7 @@
     {
       "path": "docs/tutorial/lessons/3.2-anatomy-of-a-vertical-slice.md",
       "class": "adapts",
-      "hash": "4a96b06c2d87c20d39b53c08144191a50e8796126099edbb7d9e923c5ad28aec"
+      "hash": "2bebbf66f59ec52b8e292dba6425a2a6842fd08b99d8ffbcb73477f5936020d4"
     },
     {
       "path": "docs/tutorial/lessons/3.3-injected-clocks-and-architecture-tests.md",
@@ -1139,12 +1139,12 @@
     {
       "path": "docs/tutorial/lessons/3.6-the-e2e-harness.md",
       "class": "adapts",
-      "hash": "73291f5da36868f092302fd9e4b73afd55c44a44283a4e405b1af409eb76d47f"
+      "hash": "0e8bf754cdf1869c3cd7122cf606794df96b967b06482f6d6c4a5951b6efb11b"
     },
     {
       "path": "docs/tutorial/lessons/3.7-build-your-own-slice.md",
       "class": "adapts",
-      "hash": "fa7f3638e9a3f9a78dc2140f588a99b57bb3b984ace28eac3bca7eae4a8da0df"
+      "hash": "8e0fbc3b7775fd0fa053c3624c115caf7478488ba6fd75ae910c7aedef11248d"
     },
     {
       "path": "docs/tutorial/lessons/4.1-the-transactional-outbox.md",
@@ -1179,7 +1179,7 @@
     {
       "path": "docs/tutorial/lessons/5.1-billing-abstraction-and-entitlements.md",
       "class": "adapts",
-      "hash": "937cc6791ecfa4d97d0034653a451fb51bc603ab80d28abbdae27fb04173e315"
+      "hash": "5179345560f861d266df05dc478b4a3ee5ca88a5c6f197d68e089d744b9d5560"
     },
     {
       "path": "docs/tutorial/lessons/5.2-stripe-checkout-webhook-portal.md",
@@ -1284,12 +1284,12 @@
     {
       "path": "docs/tutorial/PEREZOSOFT_COURSE.pdf",
       "class": "adapts",
-      "hash": "7bf9595d5cd44a142522c6392fc6ab31ae565d2ba00ecda169c53797cd5884e3"
+      "hash": "cf99e903a69f8817ec15b56d9f690cd5996eba13dddd9038a2934bd8c70d7a4f"
     },
     {
       "path": "docs/WAYS_OF_WORKING.md",
       "class": "adapts",
-      "hash": "a483d87b97c1fe6987023b9fcae79e64ed10e6d67868271cf4d67fb9f42789d5"
+      "hash": "b6350929e2105f44a6d150fe4cf1fae702e23084291ef03eb8a0e77e090ebda9"
     },
     {
       "path": "global.json",
@@ -1309,7 +1309,7 @@
     {
       "path": "platform-ownership.json",
       "class": "platform",
-      "hash": "c8dcced3881fcfa5f59c739ab93f1222b0f6c924e6daa4be41d436c1f6e5cc5b"
+      "hash": "ba227c64f4f29b4da77176e6d9e071c127080ee0a525a7bb98d2e192a83f1937"
     },
     {
       "path": "platform-schema.json",
@@ -4084,7 +4084,7 @@
     {
       "path": "tests/Api.Tests/Configuration/SettingsCatalog.cs",
       "class": "platform",
-      "hash": "ce92cdeb8dec53031ea3cf77592a159dfae7493885187f5f4fefed4d85d3d051"
+      "hash": "bbdaf4034c4f1545bbcccfe947777c7ea86c8265fd26419591630ace955326be"
     },
     {
       "path": "tests/Api.Tests/Configuration/SignupSettingsTests.cs",
@@ -4102,9 +4102,9 @@
       "hash": "e6dd78766d477dc4b3bb645a03d2f607a7ae239c5fe078e2d1f1ac7f5ff835e3"
     },
     {
-      "path": "tests/Api.Tests/DocAndConfigSyncTests.cs",
+      "path": "tests/Api.Tests/DocsAreTrueTests.cs",
       "class": "platform",
-      "hash": "7b846161bf126032bcb490b2e0a11ddc5cb52eb4075b4bc237cbd8c7a8724933"
+      "hash": "cfafbdb0ccc40793484839b07ea6b3f44de4570a78d423ddfdafe73c85f4dbbe"
     },
     {
       "path": "tests/Api.Tests/E2E/BlazorBootTests.cs",
@@ -4124,7 +4124,7 @@
     {
       "path": "tests/Api.Tests/EnforcementGateTests.cs",
       "class": "platform",
-      "hash": "a0f7906d7df9e12effc9b21503adc927077677858542edbacc1242d7f11cb96b"
+      "hash": "f9f82e5ded898f5e46559270be45fb5d8023044a2808dcea9239c798184fc5bd"
     },
     {
       "path": "tests/Api.Tests/EnterTenantScopingTests.cs",
@@ -4494,17 +4494,12 @@
     {
       "path": "tests/Api.Tests/PlatformOwnershipTests.cs",
       "class": "platform",
-      "hash": "d210862170a519197c61f4e17427665db8b94f8222f490cb0fb6e390c4d28c73"
+      "hash": "e21809433dabb652f6d913699a02bba74d8906e388530bbdc5dcd47a7c4dcf06"
     },
     {
       "path": "tests/Api.Tests/PlatformSchemaTests.cs",
       "class": "platform",
       "hash": "300e4b14abfe4092f11ce303669afb931250752ce8b36739f99cb18b66be5dbc"
-    },
-    {
-      "path": "tests/Api.Tests/PostmanParityDescriptionTests.cs",
-      "class": "platform",
-      "hash": "948fb9e89fbc029f816e55cebff85150268af872712ef89410047118603a76d2"
     },
     {
       "path": "tests/Api.Tests/ProviderEmailTrustTests.cs",
@@ -4597,11 +4592,6 @@
       "hash": "5c356b5cd9192f017d732db05ebe209696d614f9439b555b9ba20c410dcd23f7"
     },
     {
-      "path": "tests/Api.Tests/RulesEnforcement.cs",
-      "class": "platform",
-      "hash": "9f3a6fcf5307f564f4d1607413d06dfcd18fecbe31cbdc3cab33593f0179b5d2"
-    },
-    {
       "path": "tests/Api.Tests/Scheduling/ExpiredTokenCleanupJobTests.cs",
       "class": "platform",
       "hash": "84be7d2223fcbe18c2d75948af962eaa529a0e5c6c71b262d711e2a8002ea16e"
@@ -4659,7 +4649,7 @@
     {
       "path": "tests/Api.Tests/TestIdContractTests.cs",
       "class": "platform",
-      "hash": "c0812602444cb7b723e202cfe1e89e916fd3be7861e8d94632bf5cf418490d8b"
+      "hash": "c67af66f67a57484348e7120274d1d130713134e45de74e6c9cd7b4b1c50a0fe"
     },
     {
       "path": "tests/Api.Tests/TokenHasherTests.cs",
@@ -4747,6 +4737,91 @@
       "hash": "9da24614831c308827a1ae533ffea392c97638c261dd42bd0f5226baa136d16e"
     },
     {
+      "path": "tests/ci-logic/cases/changes-classifier/course-added-file/env",
+      "class": "platform",
+      "hash": "cdba588193f712e0322509bc9d31c18c9c3c8c1f11cea4d323921c24e7dc0520"
+    },
+    {
+      "path": "tests/ci-logic/cases/changes-classifier/course-added-file/expect",
+      "class": "platform",
+      "hash": "2857f74c0f1b56e1c92f4c28509b6261c68985bebbd3273e40fd6c70620aa399"
+    },
+    {
+      "path": "tests/ci-logic/cases/changes-classifier/course-added-file/files/added.txt",
+      "class": "platform",
+      "hash": "59f9a2411f09bc2167e56ea469da2e0069b4f3ea5ab46acc5bb80a002a364d09"
+    },
+    {
+      "path": "tests/ci-logic/cases/changes-classifier/course-added-file/files/diff.txt",
+      "class": "platform",
+      "hash": "93d07c8251d01c9481a0322725b356dee1ef6d8acf738bb5408418ac121058c3"
+    },
+    {
+      "path": "tests/ci-logic/cases/changes-classifier/course-added-file/files/docs/tutorial/lessons/1.1-fixture.md",
+      "class": "platform",
+      "hash": "219133d3b41b05f3a3b2c39989705080db1e9d9faa77a7c3ad3f7982dce4b502"
+    },
+    {
+      "path": "tests/ci-logic/cases/changes-classifier/course-backend-only-skips/env",
+      "class": "platform",
+      "hash": "d0a1f8824cd47cf226ab372ce0c32354441c226542efb68b6fdf8f0cb22cf878"
+    },
+    {
+      "path": "tests/ci-logic/cases/changes-classifier/course-backend-only-skips/expect",
+      "class": "platform",
+      "hash": "14dff6a7f68d3b96c59e4dc56258ed9a3e579a8cad8f793ab2acf7f228eaa20c"
+    },
+    {
+      "path": "tests/ci-logic/cases/changes-classifier/course-backend-only-skips/files/diff.txt",
+      "class": "platform",
+      "hash": "c5fb4e1526ef2232a87c99dde61a1a99dfa59207c56ba553039a173de7d5becc"
+    },
+    {
+      "path": "tests/ci-logic/cases/changes-classifier/course-backend-only-skips/files/docs/tutorial/lessons/1.1-fixture.md",
+      "class": "platform",
+      "hash": "219133d3b41b05f3a3b2c39989705080db1e9d9faa77a7c3ad3f7982dce4b502"
+    },
+    {
+      "path": "tests/ci-logic/cases/changes-classifier/course-only/env",
+      "class": "platform",
+      "hash": "d0a1f8824cd47cf226ab372ce0c32354441c226542efb68b6fdf8f0cb22cf878"
+    },
+    {
+      "path": "tests/ci-logic/cases/changes-classifier/course-only/expect",
+      "class": "platform",
+      "hash": "783d97488f9914f9833c452b4dbff3a2c1787fd58ad46fe31c2066cda15ddb25"
+    },
+    {
+      "path": "tests/ci-logic/cases/changes-classifier/course-only/files/diff.txt",
+      "class": "platform",
+      "hash": "c6a8f6b46dca344e1a877a6e0604f6145106fabe7fb35e3fb7ec57bfe4013318"
+    },
+    {
+      "path": "tests/ci-logic/cases/changes-classifier/course-only/files/docs/tutorial/lessons/1.1-fixture.md",
+      "class": "platform",
+      "hash": "219133d3b41b05f3a3b2c39989705080db1e9d9faa77a7c3ad3f7982dce4b502"
+    },
+    {
+      "path": "tests/ci-logic/cases/changes-classifier/course-quoted-file/env",
+      "class": "platform",
+      "hash": "d0a1f8824cd47cf226ab372ce0c32354441c226542efb68b6fdf8f0cb22cf878"
+    },
+    {
+      "path": "tests/ci-logic/cases/changes-classifier/course-quoted-file/expect",
+      "class": "platform",
+      "hash": "2857f74c0f1b56e1c92f4c28509b6261c68985bebbd3273e40fd6c70620aa399"
+    },
+    {
+      "path": "tests/ci-logic/cases/changes-classifier/course-quoted-file/files/diff.txt",
+      "class": "platform",
+      "hash": "ccc3a21e3450ab88383dddc4d27dd0bbb806cf839181c230fe42e9643654a0cc"
+    },
+    {
+      "path": "tests/ci-logic/cases/changes-classifier/course-quoted-file/files/docs/tutorial/lessons/1.1-fixture.md",
+      "class": "platform",
+      "hash": "219133d3b41b05f3a3b2c39989705080db1e9d9faa77a7c3ad3f7982dce4b502"
+    },
+    {
       "path": "tests/ci-logic/cases/changes-classifier/doc-a-test-reads/env",
       "class": "platform",
       "hash": "d0a1f8824cd47cf226ab372ce0c32354441c226542efb68b6fdf8f0cb22cf878"
@@ -4829,7 +4904,7 @@
     {
       "path": "tests/ci-logic/cases/changes-classifier/fail-open-base-gone/expect",
       "class": "platform",
-      "hash": "4f95616f7fd4788f87ed891284343d456d173bae00b97aec0257e3d14cd0b68c"
+      "hash": "e3e270122f8d6765576737aa9a0502b27cb52727af314447b995e9e67c8ffde3"
     },
     {
       "path": "tests/ci-logic/cases/changes-classifier/fail-open-no-base/env",
@@ -4839,7 +4914,7 @@
     {
       "path": "tests/ci-logic/cases/changes-classifier/fail-open-no-base/expect",
       "class": "platform",
-      "hash": "4f95616f7fd4788f87ed891284343d456d173bae00b97aec0257e3d14cd0b68c"
+      "hash": "e3e270122f8d6765576737aa9a0502b27cb52727af314447b995e9e67c8ffde3"
     },
     {
       "path": "tests/ci-logic/cases/changes-classifier/readme-any-case/env",
@@ -5349,7 +5424,7 @@
     {
       "path": "tests/ci-logic/run.py",
       "class": "platform",
-      "hash": "826251841190e00a88c0daa429f5d82f173ac6fa54c38e8c9e3870eedab57818"
+      "hash": "b85ba798706167d999988b357e225593f3d024e0ac3094d5051e8e7096f540c3"
     },
     {
       "path": "tests/ci-logic/run.sh",
@@ -5369,7 +5444,7 @@
     {
       "path": "tests/ci-logic/stubs/git",
       "class": "platform",
-      "hash": "f932daa10288c60f7bf95efa01a02ea6a199a184ef055f12adaaa1eb8e8534bd"
+      "hash": "b6fe4d2ff9fd74802719550d12a07b89a7b97e753b0bbe393ddf3add9706e6c6"
     },
     {
       "path": "tests/ci-logic/targets",
@@ -5719,7 +5794,7 @@
     {
       "path": "tests/Ui.Tests/Pages/RemainingControlsTests.cs",
       "class": "adapts",
-      "hash": "2755c40f9d42e9f52eb516260e255211b5a66759809c1101716d70b667975e7b"
+      "hash": "fc7d5f928356ef83d2962aff1c6a94afe70918ae84a24d1986d8708e3f0d2f42"
     },
     {
       "path": "tests/Ui.Tests/Perezosoft.Ui.Tests.csproj",

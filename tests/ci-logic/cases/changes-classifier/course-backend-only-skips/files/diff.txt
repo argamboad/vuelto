@@ -1,0 +1,3 @@
+src/Core/Entities/Tenant.cs
+src/Api/Mine.cs
+tests/Api.Tests/AuthTests.cs

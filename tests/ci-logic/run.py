@@ -76,6 +76,12 @@ def run_case(kind, name, source, case_dir):
     try:
         for scripts in ('.github/scripts',):  # what the blocks call
             copy_text_tree(os.path.join(ROOT, scripts), os.path.join(work, scripts))
+        # The classifier asks the course generator for its quoted files (Pkg 1.4); a case brings the lessons in files/.
+        # A downstream app has no course, and its classifier never calls the generator.
+        generator = os.path.join(ROOT, 'docs', 'tutorial', 'gen_coverage.py')
+        if os.path.exists(generator):
+            os.makedirs(os.path.join(work, 'docs', 'tutorial'), exist_ok=True)
+            open(os.path.join(work, 'docs', 'tutorial', 'gen_coverage.py'), 'wb').write(open(generator, 'rb').read())
         if os.path.isdir(os.path.join(case_dir, 'files')):
             copy_text_tree(os.path.join(case_dir, 'files'), work)
         stubs = os.path.join(work, '.stubs')

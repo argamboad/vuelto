@@ -48,7 +48,7 @@ beyond the adapter.
 - **Collections and fixtures** (`[CollectionDefinition]`, `ICollectionFixture<T>` — 2 definitions in `Api.Tests`)
   are unchanged in v3.
 - **bUnit** 2.x is framework-agnostic (`BunitContext`); `Ui.Tests` needs only the package and `OutputType` change.
-- **The gates that read test source** (`EveryMachineRule_NamesAStandingCheck`, `RuleIds_CitedInTests_AreFinalRules`,
+- **The gates that read test source** (`EveryMachineRule_NamesAStandingCheck`, `RuleIds_CitedInTests_AreFinalRules` — both retired by ADR-033 —
   the test-id contract) match method and class names, not attributes: unaffected.
 - **CI** runs `dotnet test`, which runs v3 projects as it runs v2 ones. No workflow change is expected; confirm
   the coverage collector still attaches (`coverlet.collector` is a VSTest data collector).

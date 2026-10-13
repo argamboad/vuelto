@@ -74,7 +74,8 @@ DI-registered contributors (R43), impersonation never reaches the staff gate and
 carry the acting principal (R45/R52), atomic single-use credentials + per-user second-factor caps
 (R47–R49), the outbound-URL SSRF scan (R76), the client component-test chassis (R70), the Postman
 parity gate (R74, ADR-023), one SDK pin source (R61), host `index.html` parity (R68), and
-doc-map/QA-count sync (R75) — see `tests/Api.Tests/EnforcementGateTests.cs` for the last three.
+QA-count sync (R75) — see `tests/Api.Tests/EnforcementGateTests.cs` and `DocsAreTrueTests.cs` for the last three
+(the doc-map half of R75 retired with ADR-033).
 
 > **Remaining v2 enforcement backlog** (tracked in `docs/audits/v2-2026-07/AUDIT_TASKS.md` B11, not yet
 > wired): CI doc-sync + config-key + secret scan, Central Package Management + lockfile + license scan,
@@ -85,18 +86,21 @@ doc-map/QA-count sync (R75) — see `tests/Api.Tests/EnforcementGateTests.cs` fo
 The v4 delta audit (post-Forgejo/GATES/JOBS-4; run on perezosoft-platform, where its reports live) consolidated the bar into
 **[`docs/audits/v4-2026-09/FOUNDATION_RULES_v3.md`](docs/audits/v4-2026-09/FOUNDATION_RULES_v3.md)**:
 **R1–R35 (v1.0) + R36–R76 (v2.0) carried, amended only as its §1 states, + R81–R158** with
-**R77–R80, R94, R138 and R156 retired** (a retired number is never reused). **That file is the Definition of
+**R77–R80, R94, R116, R117, R138 and R156 retired** (a retired number is never reused; v3.1, ADR-033, retired
+R116/R117 and the gates about process). **That file is the Definition of
 Solid** — read it before writing or modifying code; the two sections above are the historical layers it
-extends. Every `[machine]` rule names its standing check in
-[`tests/Api.Tests/RulesEnforcement.cs`](tests/Api.Tests/RulesEnforcement.cs) — or the tracker issue that
-still owes it — and `EnforcementGateTests.EveryMachineRule_NamesAStandingCheck` fails when the two drift.
+extends. Every `[machine]` rule names, in its own text, the test or CI step that holds it.
 Headline v4 additions, all enforced on develop: the refresh-grace is one-shot and the rotation is one
 transaction serialized against revoke-all (R81, ADR-002 addenda), outbox attempt accounting is durable at
 the claim and payloads are scrubbed when a row leaves `Pending` (R90/R91/R131), outbound webhooks never
 follow a redirect and pin their connection (R130), deploys are a manual dispatch behind every gate and no
 checkout keeps the job token (R98, ADR-031), every CI verdict block runs against fixtures (R136), Release builds are
 guarded in one `.targets` and CI verifies the APK signature (R103/R141), E2E boots retry only network
-deaths with a per-shard allowance (R109), cited rule ids are final (R116; the course gates R114/R115 run only in
-perezosoft-platform, where the course lives), and the add-a-slice checklist is held to the gates
-that force each step (R158). Rules whose check is still to be built are listed as pending in the manifest
-under the `v4 Later` milestone.
+deaths with a per-shard allowance (R109); the course gates R114/R115 run only in perezosoft-platform, where the
+course lives.
+
+**v3.1 (ADR-033, 2026-10-12): gates guard behaviour and truth, not process.** The rule-id manifest and the
+gates over the rules file, the PR template, the CLAUDE.md doc map, the add-a-slice checklist and deploy wording
+are retired; the doc-truth facts live in `tests/Api.Tests/DocsAreTrueTests.cs`; the test-id contract runs one
+way (a referenced id must exist). When something slips, add a test for the thing that slipped — never a rule
+about the rule.

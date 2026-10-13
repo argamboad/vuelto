@@ -37,7 +37,6 @@ public class PlatformOwnershipTests(ITestOutputHelper output)
         Assert.Equal(Class.App, Classify("src/Api/AppComposition.cs", rules));
         Assert.Equal(Class.App, Classify("src/Infrastructure/Persistence/AppDbContext.App.cs", rules));
         Assert.Equal(Class.App, Classify("tests/Api.Tests/App/AppAllowlists.cs", rules));
-        Assert.Equal(Class.App, Classify("tests/Api.Tests/RulesEnforcement.App.cs", rules));
         Assert.Equal(Class.App, Classify("src/Api/Features/Budget/BudgetHandler.cs", rules));
         Assert.Equal(Class.Platform, Classify("src/Api/Program.cs", rules));
         Assert.Equal(Class.Platform, Classify("src/Infrastructure/Persistence/AppDbContext.cs", rules));

@@ -10,7 +10,10 @@ case "${1:-}" in
               esac ;;
   rev-list)   echo "${FAKE_GIT_PARENTS:-}" ;;  # --parents -n 1 <sha>: "<sha> <parent>..."
   cat-file)   [ "${FAKE_GIT_BASE_EXISTS:-yes}" = yes ] ;;
-  diff)       cat "${FAKE_GIT_DIFF:-/dev/null}" ;;
+  diff)       case "$all" in
+                *--diff-filter=AD*) cat "${FAKE_GIT_DIFF_ADDED_DELETED:-/dev/null}" ;;  # the files added or deleted
+                *)                  cat "${FAKE_GIT_DIFF:-/dev/null}" ;;
+              esac ;;
   push)       echo "STUB git push $2 $3"; [ "${FAKE_GIT_PUSH:-ok}" = ok ] ;;
   fetch)      echo "STUB git fetch ${*:2}" >&2; [ "${FAKE_GIT_FETCH:-ok}" = ok ] ;;
   merge-base) [ "${FAKE_GIT_ANCESTOR:-yes}" = yes ] ;;

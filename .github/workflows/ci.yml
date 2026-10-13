@@ -401,7 +401,7 @@ jobs:
   #               classifier below), and a deploy run (it gates the deploy).
   #   android / windows / apple, buildmatrix
   #               the device legs a "Run workflow" asked for (devices input); never on a pull request.
-  # The classifier (code/native/maui/docs) answers "could this change have broken that?". It began as
+  # The classifier (code/native/maui/docs/course) answers "could this change have broken that?". It began as
   # `native-paths` for the Apple legs, then served every job so a docs-only change stopped billing ~30
   # minutes for markdown.
   #
@@ -415,6 +415,7 @@ jobs:
       native: ${{ steps.diff.outputs.native }}
       maui: ${{ steps.diff.outputs.maui }}
       docs: ${{ steps.diff.outputs.docs }}
+      course: ${{ steps.diff.outputs.course }}
       checks: ${{ steps.run.outputs.checks }}
       web: ${{ steps.run.outputs.web }}
       android: ${{ steps.run.outputs.android }}
@@ -441,6 +442,7 @@ jobs:
               echo "native=true"
               echo "maui=true"
               echo "docs=true"
+              echo "course=true"
             } >> "$GITHUB_OUTPUT"
             echo "::notice::Diff base unavailable — running every gate."
             exit 0
@@ -482,11 +484,30 @@ jobs:
           # build props, the SDK pin, ci.yml and the Android leg's license-scan inputs.
           maui=$(match "$nativefiles" '^(src/(Maui|Shared\.Ui)/|Directory\.Packages\.props|Directory\.Build\.props|global\.json|\.github/workflows/ci\.yml|\.config/dotnet-tools\.json|\.github/forbidden-licenses\.json)')
 
+          # The course check (Pkg 1.4): only when the course itself or a file one of its lessons quotes changed, or a
+          # file was added or deleted (COVERAGE.md maps every tracked file) — a backend edit the course does not quote
+          # cannot make it stale, so it no longer waits on the course. No course here (a downstream app): never. The
+          # generator cannot list its quotes: fail open.
+          course=false
+          if [ -f docs/tutorial/gen_coverage.py ]; then
+            if quoted=$(python3 docs/tutorial/gen_coverage.py --quoted-files); then
+              quoted=$(printf '%s' "$quoted" | tr -d '\r') # Python on Windows (the local harness) writes CRLF
+              course=$(match "$files" '^docs/tutorial/')
+              if [ "$course" = false ] && [ -n "$quoted" ] && printf '%s\n' "$files" | grep -qxF -- "$quoted"; then course=true; fi
+              # --no-renames: a rename is a delete plus an add, and both ends move the map.
+              if [ "$course" = false ] && [ -n "$(git -c core.quotePath=false diff --name-only --no-renames --diff-filter=AD "$BASE_SHA" "${{ github.sha }}")" ]; then course=true; fi
+            else
+              course=true
+              echo "::notice::The course's quoted-file list could not be read — running the course check."
+            fi
+          fi
+
           {
             echo "code=$code"
             echo "native=$native"
             echo "maui=$maui"
             echo "docs=$(match "$files" '^docs/')"
+            echo "course=$course"
           } >> "$GITHUB_OUTPUT"
 
           [ "$code" = "true" ] || echo "::notice::No code touched — build, test, e2e, docker and license gates skipped."

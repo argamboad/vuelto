@@ -438,6 +438,11 @@ sources for writing members (`AddAsync`, `Add`, `Update`, `Remove`, their range 
 chained from a query) on an injected repository; a write without a declared writer, a write by a slice other than the
 declared one, and a declaration nobody writes through all fail. Reads are free. The checklist gains a step (7, Writer).
 
+*Amendment (ADR-033, 2026-10-12, Pkg 1.5) — the checklist is kept by hand.* `AddASliceChecklist_NamesEveryArtifactAGateForces`
+and the rule-id manifest (`RulesEnforcement.cs` / `.App.cs`) are retired: the checklist in `WAYS_OF_WORKING.md` still
+names each step's gate, but no test holds the list to the gates. Each gate it names still fails the slice that skips
+its step, which is what the checklist was for.
+
 **ADR-005 — Apple Sign In fits the agnostic provider model; implementation DEFERRED, web-first. (2026-06-24)**
 A third OAuth provider (Apple) was assessed against the provider-agnostic auth stack (ADR-002). The
 verdict: the **backend absorbs it with small, mechanical additions** — `.AddApple(...)` in
@@ -2445,3 +2450,41 @@ together; `TestIdContractTests` and `ResourceParityTests` catch a half-done rena
 docs keep saying household. Ports of platform changes into an app that renamed are three-way merges with a second
 token pair, the same mechanism the brand rename already uses. ADR-C1/C2 (tenant ≠ user; tenant-scoped data) are
 untouched: this is vocabulary, not shape.
+
+**ADR-033 — Gates guard behaviour and truth, not process. (2026-10-12)**
+By the end of the v4 audit, about a third of the platform's gate layer checked the repo's own process instead of
+the product: a manifest that named a test for every `[machine]` rule, a gate that held the manifest to the rules
+file, a gate that the rule ids cited in tests were final, the PR template's checkboxes, the CLAUDE.md doc map and
+its course-reconcile bullet, the add-a-slice checklist against the gates, the wording of deploy sentences, and a
+two-way test-id contract with an analyzer for parameterised components. Each was added after a real slip, and
+each slip was real; but the gates cost 20–35 billed minutes a PR in upkeep, failed on edits that changed nothing a
+user or a reader relies on, and every one of them had to be ported to each app. Before the platform is packaged
+(the *Platform packaging* project, milestone M1 "Scissors", #389–#393), the layer is cut to what guards a
+behaviour or a document's truth. **Decided:**
+
+1. **Retired** (Pkg 1.1, #389): `RuleIds_CitedInTests_AreFinalRules`, `EveryMachineRule_NamesAStandingCheck` and the
+   manifest it read (`tests/Api.Tests/RulesEnforcement.cs` + the app's `RulesEnforcement.App.cs`),
+   `PrTemplate_CarriesTheRuleCheckboxes`, `ClaudeMdDocMap_ListsEveryDoc`, `ClaudeMd_CarriesTheCourseReconcileRule`,
+   `AddASliceChecklist_NamesEveryArtifactAGateForces`, both `DeployTriggerWording_*`, and
+   `TheTwoGatesThatCatchDocsMistakes_AreNeverCodeGated`. The tests the manifest pointed at stay, as ordinary named
+   tests; the PR template is a three-line checklist.
+2. **Kept, in one place** (Pkg 1.2, #390): every fact that compares a document with the code lives in
+   `DocsAreTrueTests` — entities in DATA_MODEL, config keys and settings sections in `.env.example`, compiled-in
+   limits, ARCHITECTURE and FLOWS naming real classes and error codes, the Postman descriptions naming each action's
+   error codes and gates, the QA case count, and the course gate's wiring. Postman parity, the QA PDFs and sign-off
+   sheet (`check_qa_artifacts.py`) and every behaviour, tenancy, RLS, schema, route, slice, ownership, pin, release
+   and CI-shape gate are unchanged.
+3. **The test-id contract runs one way** (Pkg 1.3, #391): an id a test or a QA case references must exist; an id
+   nothing references is not a failure, and the parameterised-component analyzer is gone (an id derived from a
+   caller's literal `TestId="x"` counts as existing).
+4. **The course check runs when it can find something** (Pkg 1.4, #392): when the course, a file a lesson quotes,
+   or the set of tracked files changed (the classifier's `course` output), failing open on an unknown diff.
+5. **FOUNDATION_RULES v3.1:** R116 and R117 retire (numbers never reused); R118 and R158 become `[review]`; R85,
+   R144, R149, R114 and R115 name their new mechanism; every number is kept for citation, and no gate parses the
+   file. The course-reconcile rule stays, as text, in CLAUDE.md's "Read before you act" and in the rules' coda.
+
+**The habit from here on:** a slip gets a test for the thing that slipped (the document that drifted, the code
+that misbehaved), never a rule about the rule or a gate on the process that let it through.
+*Consequences:* a doc map or checklist can drift without a red build, and is fixed when found; the course is
+reconciled once per milestone during packaging, not per commit. The apps take the same cut in their scissors port
+(jigger-jot and vuelto P.1), deleting their `RulesEnforcement.App.cs`.

@@ -5,7 +5,7 @@ namespace Vuelto.Api.Tests.Configuration;
 
 /// <summary>
 /// The app's settings classes, found by reflection, for the gates that must see every one of them: the config
-/// catalog (<c>DocAndConfigSyncTests</c>, v4 T6) and the empty-config posture (<see cref="ConfigPostureTests"/>, v4 T7).
+/// catalog (<c>DocsAreTrueTests</c>, v4 T6) and the empty-config posture (<see cref="ConfigPostureTests"/>, v4 T7).
 /// A class named <c>*Settings</c> is <b>section-bound</b> when it declares <c>public const string SectionName</c>;
 /// the <c>SettingsProvider</c> classes instead implement a Core <c>I*Settings</c> interface and are built key by key.
 /// </summary>

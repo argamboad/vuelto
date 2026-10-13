@@ -47,14 +47,15 @@ its seams; a generic gap goes upstream to `perezosoft-platform` first.
   the device legs (MAUI builds, native smokes) run from *Run workflow* → `devices`, and deploys from
   *Run workflow* → `deploy` (staging from develop, prod from main) behind every web gate. Every Actions minute
   is billed. Runbook: `docs/DEPLOYMENT.md` §6.
-- **Writing or modifying ANY code → `docs/audits/v4-2026-09/FOUNDATION_RULES_v3.md` (v3.0: R1–R35
-  from v1.0, R36–R76 from v2.0, R81–R158 minus the retired R94, R138 and R156; R77–R80 retired) is
+- **Writing or modifying ANY code → `docs/audits/v4-2026-09/FOUNDATION_RULES_v3.md` (v3.1: R1–R35
+  from v1.0, R36–R76 from v2.0, R81–R162 minus the retired R94, R116, R117, R138 and R156; R77–R80 retired) is
   binding.** It encodes the post-audit invariants (tenancy incl. the RLS backstop parity, second-factor/
   event replay, SSRF, fail-closed normalization, atomic quotas + single-use credentials, per-user AND
   per-tenant erasure completeness, injected clocks, slice boundaries, host parity, doc/Postman sync — and
   since v4: refresh-grace one-shot, durable outbox accounting, redirect-refusing webhooks, web-only PR CI with on-request device legs (ADR-031),
-  Release-build guards, the rule-id gate) as machine-enforced arch tests + CI gates;
-  `tests/Api.Tests/RulesEnforcement.cs` names the check behind every `[machine]` rule. Comply; if a task
+  Release-build guards) as machine-enforced arch tests + CI gates; each
+  `[machine]` rule names the test that holds it. Gates guard behaviour and the truth of documents, never
+  process (ADR-033): a slip gets a test for the thing that slipped. Comply; if a task
   seems to require violating a rule, stop and surface it. The frozen quality bar lives in `CONTRIBUTING.md`
   (v2.0 at `docs/audits/v3-2026-07/FOUNDATION_RULES_v2.md` and v1.0 at
   `docs/audits/v2-2026-07/FOUNDATION_RULES.md` remain as the historical layers).

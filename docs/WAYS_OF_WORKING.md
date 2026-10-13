@@ -69,8 +69,8 @@ app (UI components go in the Shared.Ui RCL).
 
 **Add-a-slice mechanical checklist** — measured, not estimated: the v4 audit built a real slice by this
 recipe and logged every existing file it had to touch (ADV-P4-17). Each step names the gate that fails
-CI when it is skipped, and `EnforcementGateTests.AddASliceChecklist_NamesEveryArtifactAGateForces`
-(R158) holds this list to those gates, so a new gate cannot force an edit the checklist never mentions.
+CI when it is skipped (R158). The list is kept by hand (ADR-033): when a new gate forces an edit, add its
+step here in the same PR.
 1. **Entity** → `src/Core/Entities/<Entity>.cs`, implementing `ITenantScoped` — or `ISharedOrTenantScoped` when
    its rows are either shared (`TenantId` null) or one tenant's (Arch A4; then step 3 uses
    `RlsDdl.SharedOrTenantStatementsFor`, and the four `<Entity>_SharedOrTenant_*` facet tests replace the canary
@@ -218,33 +218,16 @@ Stored at `.github/pull_request_template.md` (auto-loaded by GitHub). Contents:
 
 ```markdown
 ## Summary
-<what this PR does, in 1–3 sentences>
-
-## Related
-- Story: <STORY-ID> (link)
-- ADRs added/affected: <ADR numbers or "none">
-
-## Type
-- [ ] feat  [ ] fix  [ ] docs  [ ] refactor  [ ] test  [ ] chore  [ ] perf
-
-## Acceptance criteria
-- [ ] All Gherkin scenarios for the story pass
-- [ ] Edge / unhappy-path scenarios covered
+<!-- what this PR does, in 1–3 sentences; `Closes #N` per issue -->
 
 ## Checklist
-- [ ] Tests written first (TDD) — no production code without a failing test
-- [ ] Unit tests green (Core.Tests, Api.Tests)
-- [ ] E2E tests green (E2E.Tests) — happy + key unhappy paths covered
-- [ ] Vertical slice — app is in a working state
-- [ ] Tenant-scoping enforced (no cross-tenant leakage)
-- [ ] Core derived-rule logic unit-tested (if touched)
-- [ ] UI components added to Shared.Ui (not inline in Web)
-- [ ] No direct UI→DB access (goes through the API)
-- [ ] Latest stable deps; no preview packages
-- [ ] Docs updated (FEATURES / DATA_MODEL / DECISIONS) if behavior or decisions changed
+- [ ] Tests written first; the gates are green locally
+- [ ] Docs that describe what changed are updated in this PR — FEATURES / DATA_MODEL / DECISIONS,
+      the Postman collection for an API change, and the QA plan
+- [ ] App-exclusive or generic — the verdict is in the commit message
 
 ## Notes
-<anything reviewers/future-you should know>
+<!-- anything reviewers/future-you should know -->
 ```
 
 ## Testing strategy (TDD — constant)

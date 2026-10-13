@@ -24,7 +24,6 @@
     { "glob": "src/Api/AppComposition.cs", "class": "app" },
     { "glob": "src/Infrastructure/Persistence/AppDbContext.App.cs", "class": "app" },
     { "glob": "tests/Api.Tests/App/**", "class": "app" },
-    { "glob": "tests/Api.Tests/RulesEnforcement.App.cs", "class": "app" },
     { "glob": "tests/Ui.Tests/App/**", "class": "app" },
     { "glob": "platform-stamp.json", "class": "app" },
     { "glob": "platform-ownership.App.json", "class": "app" },
