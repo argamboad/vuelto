@@ -80,14 +80,23 @@ $target = Git-Text $Platform @('rev-parse', '--verify', "$To^{commit}")
 if (-not $target) { throw "'$To' is not a commit in $Platform" }
 if ($from -and $from -eq $target) { Write-Host "Already at platform $target. Nothing to port."; exit 0 }
 
-# The platform repo's own name ("perezosoft-platform") carries the brand token but is a name, not the brand: it is kept,
-# or every file that names the platform would read "<app>-platform" downstream.
+# Tokens the brand map never rewrites. The platform repo's own name ("perezosoft-platform") carries the brand token but is
+# a name, not the brand, or every file that names the platform would read "<app>-platform" downstream. And the map's
+# keep-list (Pkg 2.5, read below from the ownership map AT THE TARGET): the platform's package ids (Perezosoft.Platform.*)
+# and its feed key keep their names in every app (ADR-034). PlatformOwnership.LocalPath honours the same list.
 $keepName = ([string]$stamp['platform']).Split('/')[-1]
+$keepTokens = [System.Collections.Generic.List[string]]::new()
 function Rebrand([string]$text) {
-    $guard = [string][char]0xE000
-    if ($keepName) { $text = $text.Replace($keepName, $guard) }
+    # Each kept token is parked behind a private-use character the text does not already contain (a file may hold such
+    # characters itself: the ownership tests do), then restored after the brand map ran.
+    $guards = @{}
+    $c = 0xE000
+    foreach ($t in (@($keepName) + @($keepTokens) | Where-Object { $_ })) {
+        while ($text.Contains([string][char]$c)) { $c++ }
+        $g = [string][char]$c++; $guards[$g] = $t; $text = $text.Replace($t, $g)
+    }
     foreach ($k in ($brand.Keys | Sort-Object { $_.Length } -Descending)) { $text = $text.Replace($k, [string]$brand[$k]) }
-    if ($keepName) { $text = $text.Replace($guard, $keepName) }
+    foreach ($g in $guards.Keys) { $text = $text.Replace($g, $guards[$g]) }
     return $text
 }
 
@@ -104,7 +113,9 @@ function Glob-ToRegex([string]$glob) {
 }
 $mapJson = Git-Text $Platform @('show', "${target}:platform-ownership.json")
 if (-not $mapJson) { throw "the platform at $target has no platform-ownership.json (it predates Arch A2)" }
-$rules = @(($mapJson | ConvertFrom-Json).rules | ForEach-Object { [pscustomobject]@{ Regex = (Glob-ToRegex $_.glob); Class = $_.class } })
+$mapDoc = $mapJson | ConvertFrom-Json
+$rules = @($mapDoc.rules | ForEach-Object { [pscustomobject]@{ Regex = (Glob-ToRegex $_.glob); Class = $_.class } })
+if ($mapDoc.PSObject.Properties.Name -contains 'keep') { foreach ($k in $mapDoc.keep) { $keepTokens.Add([string]$k) } }
 function Classify([string]$path) {
     foreach ($r in $rules) { if ($r.Regex.IsMatch($path)) { return $r.Class } }
     return $null
@@ -153,6 +164,12 @@ try {
         $class = Classify $path
         if (-not $class) { $plan.Add([pscustomobject]@{ Verb = 'UNCLASSIFIED'; Path = $path }); continue }
         if ($class -eq 'app') { continue }
+        # Producer-only (Pkg 2.5): the publisher's release machinery. Never ported, never in the manifest. A copy an earlier
+        # port left here is reported for removal (the tool never deletes).
+        if ($class -eq 'producer') {
+            if (Test-Path (Join-Path $Repo (Rebrand $path))) { $plan.Add([pscustomobject]@{ Verb = 'producer-only: remove'; Path = (Rebrand $path) }) }
+            continue
+        }
         $theirs = Git-Bytes $Platform "${target}:$path"
         if ($class -in @('platform', 'adapts')) {
             # Hashed as this repo holds it: the platform's text after the rename, normalised with this repo's tokens. The
@@ -209,7 +226,7 @@ if (-not $Apply) {
 }
 
 foreach ($item in $plan) {
-    if ($item.Verb -in @('same', 'no-op', 'BINARY', 'UNCLASSIFIED', 'deleted upstream')) { continue }
+    if ($item.Verb -in @('same', 'no-op', 'BINARY', 'UNCLASSIFIED', 'deleted upstream', 'producer-only: remove')) { continue }
     $full = Join-Path $Repo $item.Path
     New-Item -ItemType Directory -Force (Split-Path -Parent $full) | Out-Null
     if ($item.PSObject.Properties.Name -contains 'Bytes' -and $null -ne $item.Bytes) {
@@ -239,10 +256,10 @@ $stampDoc['date'] = (Get-Date).ToString('yyyy-MM-dd')
 $stampDoc['brand'] = $brand
 [System.IO.File]::WriteAllText($stampPath, ($stampDoc | ConvertTo-Json -Depth 5), [System.Text.UTF8Encoding]::new($false))
 
-$conflicted = @($plan | Where-Object { $_.Verb -like 'CONFLICT*' -or $_.Verb -eq 'BINARY' -or $_.Verb -eq 'deleted upstream' })
+$conflicted = @($plan | Where-Object { $_.Verb -like 'CONFLICT*' -or $_.Verb -eq 'BINARY' -or $_.Verb -eq 'deleted upstream' -or $_.Verb -eq 'producer-only: remove' })
 Write-Host ("Wrote {0} file(s), the manifest ({1} entries) and the stamp ({2})." -f (@($plan | Where-Object { $_.Verb -in @('added', 'clean') -or $_.Verb -like 'CONFLICT*' }).Count), $manifest.Count, $target.Substring(0, 7))
 if ($conflicted.Count -gt 0) {
-    Write-Host ("{0} file(s) need a hand: resolve the <<<<<<< markers, copy the binaries, delete what the platform deleted." -f $conflicted.Count)
+    Write-Host ("{0} file(s) need a hand: resolve the <<<<<<< markers, copy the binaries, delete what the platform deleted and any producer-only copy." -f $conflicted.Count)
 }
 Write-Host 'Then build and run the tests: PlatformOwnershipTests holds this repo to the manifest.'
 exit 0

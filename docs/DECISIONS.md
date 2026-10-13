@@ -438,6 +438,11 @@ sources for writing members (`AddAsync`, `Add`, `Update`, `Remove`, their range 
 chained from a query) on an injected repository; a write without a declared writer, a write by a slice other than the
 declared one, and a declaration nobody writes through all fail. Reads are free. The checklist gains a step (7, Writer).
 
+*Amendment (ADR-033, 2026-10-12, Pkg 1.5) — the checklist is kept by hand.* `AddASliceChecklist_NamesEveryArtifactAGateForces`
+and the rule-id manifest (`RulesEnforcement.cs` / `.App.cs`) are retired: the checklist in `WAYS_OF_WORKING.md` still
+names each step's gate, but no test holds the list to the gates. Each gate it names still fails the slice that skips
+its step, which is what the checklist was for.
+
 **ADR-005 — Apple Sign In fits the agnostic provider model; implementation DEFERRED, web-first. (2026-06-24)**
 A third OAuth provider (Apple) was assessed against the provider-agnostic auth stack (ADR-002). The
 verdict: the **backend absorbs it with small, mechanical additions** — `.AddApple(...)` in
@@ -1279,7 +1284,8 @@ longer appears as an identifier anywhere — it survives only as the English wor
 *Rationale:* "Template" collided with ordinary English (docs, comments, third-party API names),
 making every downstream rename risky; "Perezosoft" is a made-up word, so standing up a new app is one
 unambiguous find/replace of `Perezosoft` → `<Brand>` per `docs/REBRANDING.md`.
-*Downstream convention:* apps clone-and-rebrand (fork-and-forget). Keeping `Perezosoft.*` namespaces
+*Downstream convention:* apps clone-and-rebrand (fork-and-forget) — **superseded by ADR-034 (2026-10-13): the
+platform ships as packages and a new app starts from a starter; the identity below stands.** Keeping `Perezosoft.*` namespaces
 in a downstream app (for clean upstream `git merge`) and extracting the platform as NuGet packages
 were both considered and deliberately left open — nothing in this rename forecloses either (see
 `docs/PLATFORM_BACKLOG.md`).
@@ -2445,3 +2451,123 @@ together; `TestIdContractTests` and `ResourceParityTests` catch a half-done rena
 docs keep saying household. Ports of platform changes into an app that renamed are three-way merges with a second
 token pair, the same mechanism the brand rename already uses. ADR-C1/C2 (tenant ≠ user; tenant-scoped data) are
 untouched: this is vocabulary, not shape.
+*Amendment (ADR-034, 2026-10-13):* once the API ships as packages, its routes and controllers keep "household" in
+every app; an app with another tenant noun renames the seeded UI (strings, pages, test ids, QA cases) only.
+
+**ADR-033 — Gates guard behaviour and truth, not process. (2026-10-12)**
+By the end of the v4 audit, about a third of the platform's gate layer checked the repo's own process instead of
+the product: a manifest that named a test for every `[machine]` rule, a gate that held the manifest to the rules
+file, a gate that the rule ids cited in tests were final, the PR template's checkboxes, the CLAUDE.md doc map and
+its course-reconcile bullet, the add-a-slice checklist against the gates, the wording of deploy sentences, and a
+two-way test-id contract with an analyzer for parameterised components. Each was added after a real slip, and
+each slip was real; but the gates cost 20–35 billed minutes a PR in upkeep, failed on edits that changed nothing a
+user or a reader relies on, and every one of them had to be ported to each app. Before the platform is packaged
+(the *Platform packaging* project, milestone M1 "Scissors", #389–#393), the layer is cut to what guards a
+behaviour or a document's truth. **Decided:**
+
+1. **Retired** (Pkg 1.1, #389): `RuleIds_CitedInTests_AreFinalRules`, `EveryMachineRule_NamesAStandingCheck` and the
+   manifest it read (`tests/Api.Tests/RulesEnforcement.cs` + the app's `RulesEnforcement.App.cs`),
+   `PrTemplate_CarriesTheRuleCheckboxes`, `ClaudeMdDocMap_ListsEveryDoc`, `ClaudeMd_CarriesTheCourseReconcileRule`,
+   `AddASliceChecklist_NamesEveryArtifactAGateForces`, both `DeployTriggerWording_*`, and
+   `TheTwoGatesThatCatchDocsMistakes_AreNeverCodeGated`. The tests the manifest pointed at stay, as ordinary named
+   tests; the PR template is a three-line checklist.
+2. **Kept, in one place** (Pkg 1.2, #390): every fact that compares a document with the code lives in
+   `DocsAreTrueTests` — entities in DATA_MODEL, config keys and settings sections in `.env.example`, compiled-in
+   limits, ARCHITECTURE and FLOWS naming real classes and error codes, the Postman descriptions naming each action's
+   error codes and gates, the QA case count, and the course gate's wiring. Postman parity, the QA PDFs and sign-off
+   sheet (`check_qa_artifacts.py`) and every behaviour, tenancy, RLS, schema, route, slice, ownership, pin, release
+   and CI-shape gate are unchanged.
+3. **The test-id contract runs one way** (Pkg 1.3, #391): an id a test or a QA case references must exist; an id
+   nothing references is not a failure, and the parameterised-component analyzer is gone (an id derived from a
+   caller's literal `TestId="x"` counts as existing).
+4. **The course check runs when it can find something** (Pkg 1.4, #392): when the course, a file a lesson quotes,
+   or the set of tracked files changed (the classifier's `course` output), failing open on an unknown diff.
+5. **FOUNDATION_RULES v3.1:** R116 and R117 retire (numbers never reused); R118 and R158 become `[review]`; R85,
+   R144, R149, R114 and R115 name their new mechanism; every number is kept for citation, and no gate parses the
+   file. The course-reconcile rule stays, as text, in CLAUDE.md's "Read before you act" and in the rules' coda.
+
+**The habit from here on:** a slip gets a test for the thing that slipped (the document that drifted, the code
+that misbehaved), never a rule about the rule or a gate on the process that let it through.
+*Consequences:* a doc map or checklist can drift without a red build, and is fixed when found; the course is
+reconciled once per milestone during packaging, not per commit. The apps take the same cut in their scissors port
+(jigger-jot and vuelto P.1), deleting their `RulesEnforcement.App.cs`.
+
+**ADR-034 — The platform ships as packages; a new app starts from a starter (supersedes ADR-019's downstream convention; adopts Backlog §10). (2026-10-13)**
+Apps have been clones of the platform, rebranded once and kept in step by porting every fix (ADR-019, its A2
+amendment: the ownership map, the stamp, the port tool). The ports work, and they measure the cost: before the
+2026-10-08 ports vuelto and jigger-jot differed from the platform in 142 and 144 platform files, after them in 4 and 2,
+none of them source — the copies were the same code carried twice. Every fix is a port per app, the cost grows with
+apps × fixes, and a missed port drifts silently. Delphos and further apps are coming. **Decided:**
+
+1. **Packages split by runtime target, not by domain.** `Perezosoft.Platform.Core`, `.Infrastructure` and `.Api`
+   (the server); `.Client` (the non-visual half of today's Shared.Ui: `AuthService`, the bearer handlers, the session
+   and OAuth seams, the persistences, the boot scripts), `.Web` and `.Maui` (the hosts' platform halves:
+   `AddPlatformWeb`, `UsePlatformMaui` / `UsePlatformShell`); `.Testing` (the harness, the architecture guards and the
+   inheritable gate suites); `.Build` (the solution's build props as `buildTransitive`). Beside them: a dotnet tool
+   (`dotnet platform <command>`: the port, the QA generators with their Python inside it), a reusable CI workflow
+   (`workflow_call`, the same billed minutes as ADR-031's shape) and `argamboad/.github` for the community files.
+   The domains — auth, tenancy, billing, jobs, files, GDPR, MFA, notifications, admin, public API, webhooks,
+   observability — are **namespaces inside those packages and options on `AddPlatform(o => …)`**, never packages of
+   their own: no app wants half the platform, and a package per domain multiplies versions for no consumer.
+   Platform types keep their `Vuelto.*` namespaces in every app; an app declares none (an inherited guard holds
+   it). vuelto and jigger-jot renamed `Vuelto.*` to their brand, so their conversion renames platform namespaces
+   back in app code, mechanically, by the stamp's brand map.
+2. **Three kinds of code, and the rule that decides them: "if a fix here must reach existing apps, it is
+   packaged."** **Referenced** — everything that rule catches, in the packages above. **Seed** — the UI (pages,
+   components, layout, CSS, strings, brand assets, the UI and browser tests that exercise them) is cloned once from
+   the starter and is then the app's, never synced either way: the platform seeds a UI, it never owns one. The
+   seeded UI stays as the runnable catalogue of the platform's capabilities, with a capabilities page on Home.
+   **Register** — the small set of files every app must hold and keep in step (the hosts' `Program.cs`, `MauiProgram`,
+   the two `index.html`, `AppComposition.cs`, `AppDbContext.App.cs`, project files, `global.json`, the CI caller,
+   the gates file, the stamp, `render.yaml`, the doc skeletons): cloned, pinned to a platform version, synced by
+   recipe.
+3. **The register's sync mechanism is the port tool**, scoped to the register: as each package replaces code, its
+   files leave the tool's scope and the ownership map's `platform` class shrinks to the register. The tool moves into
+   `dotnet platform port`; the manifest gate stays its check.
+4. **An app changes platform behaviour by extending it, in this order:** options → contribute an implementation →
+   replace a service through DI → decorate it → inherit from it. When none fits, the missing seam goes upstream as a
+   new platform seam (plans, permissions, the email brand, routes and policies are the first four). Never a local
+   modification of platform code.
+5. **Migrations: one context, the app owns every migration.** The app's `AppDbContext` derives from
+   `PlatformDbContext`. A platform model change ships in a package release; the app bumps the package and runs
+   `dotnet ef migrations add`, and EF emits only the platform's delta into the app's own linear history.
+   `PlatformSchemaTests` compares the migrated database with the `platform-schema.json` the package embeds (a bump
+   that was not migrated fails the app's PR), and the RLS migration gate covers any new policy. Platform model
+   changes are **additive** (expand; a contraction ships in a later release, after every app expanded); data steps
+   and RLS policies ship as callable steps (`ApplyPlatformStep(name)`, like `RlsDdl`) that the release note names.
+   *Rejected:* a separate platform DbContext with its own history table — no cross-context navigations, and two
+   histories per database.
+6. **"Household" stays the internal API noun** (amends ADR-032's consequence): the packaged controllers and routes
+   (`api/household`, `HouseholdController`, `HouseholdInvitationsController`) keep it in every app; an app whose tenant
+   is something else renames the seed — strings, pages, test ids, QA cases — and never the packaged API.
+7. **Release discipline.** Semantic versions from git tags through **MinVer**; prereleases on the way to 1.0
+   (`1.0.0-alpha.1` backend, `-alpha.2` client, `-alpha.3` tooling, `-beta.1` for the pilot). Packages publish to
+   **GitHub Packages** (the NuGet feed under `argamboad`), read with a token in every environment (laptop, codespace,
+   cloud session, CI), and only from the manual release workflow (ADR-031: no push trigger, no schedule). Every
+   release note says three things: **schema change** (yes/no; the steps to apply), **register change** (the files and
+   the recipe) and **breaking** (yes/no; what to do). On the laptop, `PlatformSource=<path>` turns the package
+   references into project references to a platform checkout, for work on platform and app together.
+
+*Consequences:* a fix reaches every app as a package bump; an app holds its own code, its seeded UI and about twenty
+register files, and runs no platform suites — only the inherited guards against its own code, a few composition
+smokes, its own tests and the browser journeys it keeps. ADR-019's identity (the `Vuelto.*` names, the frozen
+DataProtection purposes) stands; its downstream convention and Backlog §10's "defer hard" are superseded. The work
+is the *Platform packaging* project (platform milestones M2–M7): jigger-jot converts on the beta as the pilot (a
+clone restructured to references, compared side by side with its current tree), vuelto on 1.0, and new apps start
+from the starter (`dotnet new`). Until an app converts, it stays a clone kept in step by the port tool.
+
+*Amendment (2026-10-13, Pkg 2.5, #430) — what the publisher keeps, and what the brand map never renames.* The first
+port of M2 into jigger-jot (jigger-jot#192) showed two holes. (1) The release machinery — `release.yml`, the note
+template, `tools/release/**` (the dry-run package), its ci-logic cases and `platform-packages.props` — only makes sense
+in the publisher, yet the port forced it on the app, and removing it failed five gates. It is now a fifth ownership
+class, **`producer`**: the port tool never writes it downstream (an old copy is reported for removal), the manifest
+leaves it out, and the gates that read it run only in the platform (`PlatformOwnership.IsThePlatform`: the stamp's
+commit is null); `ProducerFiles_ExistInThePlatform_AndNowhereElseAreDemanded` keeps them demanded here. (2) The brand map
+renamed the platform's package ids (`Perezosoft.Platform.*` → `JiggerJot.Platform.*`) and the feed key — so, once an app
+referenced a platform package, its source mapping would have missed it (sending it to nuget.org's `*`: a
+dependency-confusion opening) and the source switch would never fire. `platform-ownership.json` now carries a
+**`keep`** list (`Perezosoft.Platform.`, `key="perezosoft"`) that the port tool reads from the platform commit it ports
+to and never rewrites; `PlatformOwnership.LocalPath` spells paths with the same list. The gate hashes the app's own text,
+where a kept token is already the platform's, so the list changes no hash — the tool and the gate agree by construction,
+and the port-tool test proves it on a real port. The ci-logic course cases now declare `requires` the course and skip
+in an app; `no-course-here` runs everywhere.

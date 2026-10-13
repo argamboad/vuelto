@@ -14,7 +14,8 @@ namespace Vuelto.Api.Tests.Architecture;
 /// </summary>
 public static class PlatformOwnership
 {
-    public enum Class { Platform, Adapts, App, Sample }
+    /// <summary><c>Producer</c> (Pkg 2.5): the publisher's alone — the release machinery. Never ported, never in a manifest.</summary>
+    public enum Class { Platform, Adapts, App, Sample, Producer }
 
     public sealed record Rule(string Glob, Class Class, Regex Pattern);
 
@@ -29,12 +30,28 @@ public static class PlatformOwnership
                 var cls = r.GetProperty("class").GetString() switch
                 {
                     "platform" => Class.Platform, "adapts" => Class.Adapts, "app" => Class.App, "sample" => Class.Sample,
+                    "producer" => Class.Producer,
                     var other => throw new InvalidOperationException($"platform-ownership.json: rule '{glob}' has unknown class '{other}'"),
                 };
                 return new Rule(glob, cls, GlobToRegex(glob));
             })
             .ToList();
     }
+
+    /// <summary>
+    /// The map's keep-list (Pkg 2.5): tokens the brand map never rewrites — the platform's package ids
+    /// (<c>Perezosoft.Platform.</c>) and its feed key keep their names in every app (ADR-034). The port tool reads the same
+    /// list from the platform commit it ports to; <see cref="LocalPath"/> honours it for paths. Absent = nothing kept.
+    /// </summary>
+    public static IReadOnlyList<string> ParseKeep(string json)
+    {
+        using var doc = JsonDocument.Parse(json, new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip });
+        return doc.RootElement.TryGetProperty("keep", out var keep) ? [.. keep.EnumerateArray().Select(k => k.GetString()!)] : [];
+    }
+
+    /// <summary>True in the platform itself (its stamp's commit is null); false in an app synced to a platform commit.</summary>
+    public static bool IsThePlatform(string repoRoot) =>
+        ParseStamp(File.ReadAllText(Path.Combine(repoRoot, "platform-stamp.json"))).Commit is null;
 
     /// <summary>First matching rule's class; null when no rule matches (the map is incomplete).</summary>
     public static Class? Classify(string path, IReadOnlyList<Rule> rules) =>
@@ -76,11 +93,24 @@ public static class PlatformOwnership
         return string.Join('\n', lines).TrimEnd('\n', ' ', '\t');
     }
 
-    /// <summary>A platform path spelled in this repo: each platform token replaced by the repo's (longest first).</summary>
-    public static string LocalPath(string platformPath, IReadOnlyDictionary<string, string> brand)
+    /// <summary>
+    /// A platform path spelled in this repo: each platform token replaced by the repo's (longest first), except inside a
+    /// <paramref name="keep"/> token, which stays as the platform spells it (the tool's Rebrand does the same).
+    /// </summary>
+    public static string LocalPath(string platformPath, IReadOnlyDictionary<string, string> brand, IReadOnlyList<string>? keep = null)
     {
+        // Guards are private-use characters the path does not contain (the tool's Rebrand picks them the same way).
+        var next = 0xE000;
+        var kept = new List<(string Token, string Guard)>();
+        foreach (var k in keep ?? [])
+        {
+            while (platformPath.Contains((char)next)) next++;
+            kept.Add((k, ((char)next++).ToString()));
+        }
+        foreach (var (token, guard) in kept) platformPath = platformPath.Replace(token, guard, StringComparison.Ordinal);
         foreach (var (from, to) in brand.OrderByDescending(kv => kv.Key.Length))
             platformPath = platformPath.Replace(from, to, StringComparison.Ordinal);
+        foreach (var (token, guard) in kept) platformPath = platformPath.Replace(guard, token, StringComparison.Ordinal);
         return platformPath;
     }
 
@@ -92,12 +122,15 @@ public static class PlatformOwnership
     /// The downstream gate as a function. <paramref name="readLocal"/> returns the repo's bytes for a local path, or null
     /// when the file is absent. Platform-class entries must hash equal, or be in <paramref name="divergences"/> with a
     /// reason (an entry whose file is equal again is itself a failure: the list cannot rot; an entry for a file the
-    /// manifest does not know is a failure too). Adapts-class drift is only reported. Sample and app entries are ignored.
+    /// manifest does not know is a failure too). Adapts-class drift is only reported. Sample, app and producer entries are
+    /// ignored (a producer file is the publisher's alone: an app never has it, and the tool never writes one to a manifest).
+    /// The hash is computed over the repo's own text (the app form, where a keep-list token is already the platform's), so
+    /// the keep-list changes no hash; it only spells the path (<see cref="LocalPath"/>).
     /// </summary>
     public static Verdict Evaluate(
         IReadOnlyList<ManifestEntry> manifest, string manifestCommit, string? stampCommit,
         IReadOnlyDictionary<string, string> divergences, IReadOnlyDictionary<string, string> brand,
-        Func<string, byte[]?> readLocal)
+        Func<string, byte[]?> readLocal, IReadOnlyList<string>? keep = null)
     {
         var failures = new List<string>();
         var drift = new List<string>();
@@ -108,7 +141,7 @@ public static class PlatformOwnership
         var checked_ = 0;
         foreach (var entry in manifest.Where(e => e.Class is Class.Platform or Class.Adapts))
         {
-            var local = LocalPath(entry.Path, brand);
+            var local = LocalPath(entry.Path, brand, keep);
             seen.Add(local);
             var bytes = readLocal(local);
             var same = bytes is not null && NormalizedHash(bytes, appTokens) == entry.Hash;

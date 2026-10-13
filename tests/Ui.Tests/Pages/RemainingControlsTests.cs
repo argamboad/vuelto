@@ -11,7 +11,7 @@ namespace Vuelto.Ui.Tests.Pages;
 /// <summary>
 /// v4 audit T59 (TB-DOC-5, R149): the controls whose <c>data-testid</c> no test referenced. An id nothing uses
 /// can be renamed or dropped without a single failure; the test-id contract gate
-/// (<c>TestIdContractTests</c>) requires every id to be used, and these are the tests that use the twelve
+/// (<c>TestIdContractTests</c>) once required every id to be used (retired in Pkg 1.3); these are the tests that use the twelve
 /// that were not — each drives the control, not just its presence.
 /// </summary>
 public class RemainingControlsTests : ComponentTestBase

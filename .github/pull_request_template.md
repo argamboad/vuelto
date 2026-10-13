@@ -1,36 +1,11 @@
 ## Summary
-<!-- what this PR does, in 1–3 sentences -->
-
-## Related
-- Story: <STORY-ID>
-- ADRs added/affected: <ADR numbers or "none">
-
-## Type
-- [ ] feat  [ ] fix  [ ] docs  [ ] refactor  [ ] test  [ ] chore  [ ] perf
-
-## Acceptance criteria
-- [ ] All Gherkin scenarios for the story pass
-- [ ] Edge / unhappy-path scenarios covered
+<!-- what this PR does, in 1–3 sentences; `Closes #N` per issue -->
 
 ## Checklist
-- [ ] Tests written first (TDD) — no production code without a failing test
-- [ ] Unit tests green (`Core.Tests`, `Api.Tests`)
-- [ ] E2E tests green (`E2E.Tests`) — happy + key unhappy paths covered
-- [ ] Vertical slice — app is in a working state
-- [ ] Tenant-scoping enforced (no cross-tenant leakage)
-- [ ] Core derived-rule logic unit-tested (if touched)
-- [ ] UI components added to Shared.Ui (not inline in Web)
-- [ ] No direct UI→DB access (goes through the API)
-- [ ] Latest stable deps; no preview packages
-- [ ] Docs updated (FEATURES / DATA_MODEL / DECISIONS) if behavior or decisions changed
-- [ ] Postman collection (`docs/postman/`) updated if API endpoints changed (route, verb,
-      params, request/response shape, auth, or error codes)
-- [ ] New `ITenantScoped` entity ships its **RLS policy in the same migration** (ADR-020 —
-      `RlsDdl.StatementsFor`; the scaffold emits none, the parity gate fails CI without it)
-- [ ] Coupled client + server change (a timeout against a grace window, a lifetime against a
-      claim) ships **one joint-invariant test reading both constants** (R144)
-- [ ] A deliberate exception to a numbered rule is **written into `FOUNDATION_RULES` (rule text +
-      pinning test) in this PR**, beside the ADR that argues it (R85)
+- [ ] Tests written first; the gates are green locally
+- [ ] Docs that describe what changed are updated in this PR — FEATURES / DATA_MODEL / DECISIONS,
+      the Postman collection for an API change, and the QA plan
+- [ ] App-exclusive or generic — the verdict is in the commit message
 
 ## Notes
 <!-- anything reviewers/future-you should know -->

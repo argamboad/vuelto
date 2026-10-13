@@ -179,6 +179,10 @@ add it until horizontal scale actually forces it. The outbox dispatcher's `SKIP 
 ---
 
 ## 10. Platform as NuGet packages — `PKG`
+> **ADOPTED 2026-10-13 by ADR-034** — the "defer hard" below is superseded. The decided shape (packages by runtime
+> target, the starter, the migration flow, release discipline) is ADR-034; the work is the *Platform packaging*
+> project (milestones M2–M7, https://github.com/users/argamboad/projects/4). The sketch is kept as written.
+
 **What:** ship `Vuelto.Core` / `Vuelto.Infrastructure` / `Vuelto.Shared.Ui` as versioned
 NuGet packages so downstream apps consume the platform by package reference instead of clone-and-rebrand.
 **Why:** only once several apps exist on different upgrade cadences and clone-merge starts hurting.

@@ -16,6 +16,8 @@
   <ItemGroup>
     <!-- App / API -->
     <PackageVersion Include="DotNetEnv" Version="3.2.0" />
+    <!-- The version of every packable project, from the git tag v<version> (Pkg 2.3, ADR-034; build-time only). -->
+    <PackageVersion Include="MinVer" Version="8.0.0" />
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.11" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.11" />
     <PackageVersion Include="OpenTelemetry.Exporter.Console" Version="1.16.0" />

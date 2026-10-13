@@ -4,3 +4,4 @@ exit 0
 +docs=true
 -=false
 +maui=true
++course=true

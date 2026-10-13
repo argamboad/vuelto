@@ -4,13 +4,12 @@ using System.Text.RegularExpressions;
 namespace Vuelto.Api.Tests;
 
 /// <summary>
-/// v3 audit T60 (Group L): the last three [machine] rules from FOUNDATION_RULES_v2 that had no
-/// standing gate — promoted here so every machine rule is enforced, not aspirational.
+/// Gates on the repo's build, CI and supply-chain surfaces, each guarding a behaviour of the tree.
 /// R61: one SDK pin source (global.json / Dockerfile tags / CI all agree — the DEP-4 drift that
 /// caused recurring red builds). R68: host parity (both index.html files load the identical RCL
 /// script set — a divergence ships a web-only or native-only breakage, NATIVE_PARITY rule).
-/// R75: doc-map + QA-count sync (every top-level docs/*.md is in the CLAUDE.md map; the "N cases"
-/// figure matches the QA plan — the drift T54 just hand-fixed, now machine-held).
+/// The gates about process (the rule-id manifest, the doc map, the PR template, the add-a-slice
+/// checklist, deploy wording) were retired by Pkg 1.1 (#389): a slip gets a test for the thing.
 /// </summary>
 public class EnforcementGateTests
 {
@@ -52,6 +51,31 @@ public class EnforcementGateTests
             foreach (Match m in Regex.Matches(text, @"aspnet:(10\.0\.\d+)"))
                 Assert.True(m.Groups[1].Value == runtimeTag, $"{doc} quotes aspnet:{m.Groups[1].Value}; the Dockerfile runs on aspnet:{runtimeTag}");
         }
+    }
+
+    [Fact]
+    public void Dockerfile_CopiesEveryRootBuildFile_BeforeTheRestore() // Pkg 2.4: PR #429's docker-build failed on build/PlatformSource.props
+    {
+        // The image copies the solution-wide build files by name before `dotnet restore`, then only src/. A file the root
+        // Directory.Build.props/.targets imports but the Dockerfile does not copy builds everywhere except the image:
+        // CI's build-test passed and docker-build failed with MSB4019 when the local source switch added build/. So every
+        // root build file and every file they import is copied before the restore.
+        var root = RepoRoot();
+        var dockerfile = File.ReadAllText(Path.Combine(root, "Dockerfile")).ReplaceLineEndings("\n");
+        var build = dockerfile[..dockerfile.IndexOf("RUN dotnet restore", StringComparison.Ordinal)];
+        var copied = Regex.Matches(build, @"(?m)^COPY (?!--)(.+)$")
+            .SelectMany(m => m.Groups[1].Value.Split(' ', StringSplitOptions.RemoveEmptyEntries).SkipLast(1)) // the last word is the destination
+            .Select(p => p.TrimEnd('/'))
+            .ToList();
+
+        var needed = new List<string> { "Directory.Build.props", "Directory.Packages.props" };
+        if (File.Exists(Path.Combine(root, "Directory.Build.targets"))) needed.Add("Directory.Build.targets");
+        foreach (var file in needed.ToList())
+            foreach (Match m in Regex.Matches(File.ReadAllText(Path.Combine(root, file)), @"<Import\s+Project=""\$\(MSBuildThisFileDirectory\)([^""]+)"""))
+                needed.Add(m.Groups[1].Value.Replace('\\', '/'));
+
+        var missing = needed.Where(n => !copied.Any(c => n == c || n.StartsWith(c + "/", StringComparison.Ordinal))).ToList();
+        Assert.True(missing.Count == 0, "the Dockerfile does not copy, before `dotnet restore`, build files the root props/targets need: " + string.Join(", ", missing));
     }
 
     [Fact]
@@ -483,25 +507,6 @@ public class EnforcementGateTests
                 p => docs.IsMatch(p));
     }
 
-    [Theory]
-    [InlineData(".github/workflows/ci.yml")]
-    public void TheTwoGatesThatCatchDocsMistakes_AreNeverCodeGated(string workflow) // LOCALCI-3
-    {
-        // Stated separately from the test above because it is the opposite failure: not "someone
-        // forgot the gate" but "someone added it where it does harm". A docs-only change is exactly
-        // when these two matter, so gating them on code would blind CI to the one class of mistake
-        // a docs commit can make.
-        var ci = File.ReadAllText(Path.Combine(RepoRoot(), workflow));
-
-        foreach (var job in new[] { "secret-scan", "qa-artifacts" })
-        {
-            var block = Regex.Match(ci, $@"(?ms)^  {Regex.Escape(job)}:\s*$.*?(?=^  [a-z][a-z0-9-]*:\s*$)");
-            Assert.True(block.Success, $"{job} not found in {workflow}");
-            Assert.DoesNotContain("needs.changes.outputs.code", block.Value, StringComparison.Ordinal);
-            Assert.DoesNotContain("needs.changes.outputs.web", block.Value, StringComparison.Ordinal);
-        }
-    }
-
     [Fact]
     public void EveryContainerImage_IsPinned_NotFloating() // v3 DEP-9, widened after the 2026-09-11 outage
     {
@@ -665,227 +670,6 @@ public class EnforcementGateTests
     }
 
     [Fact]
-    public void ClaudeMdDocMap_ListsEveryDoc() // R75 (doc-map half), widened to docs/** by R118
-    {
-        // The map is what makes a doc visible to every session (v3 TR-1). It used to check docs/*.md only, and
-        // what sat one folder down went unmapped: a live story file, the QA run logs, the entire course (v4 TR-24).
-        var root = RepoRoot();
-        var claudeMd = File.ReadAllText(Path.Combine(root, "CLAUDE.md"));
-
-        // Folders mapped as ONE row: their files come and go (a new run log, a new lesson) without a map edit.
-        string[] folderRows = [.. new[] { "docs/tutorial/", "docs/qa-runs/", "docs/postman/" }.Where(row => Directory.Exists(Path.Combine(root, row)))]; // a downstream app has no course
-        var missingRows = folderRows.Where(row => !claudeMd.Contains($"| `{row}` |", StringComparison.Ordinal)).ToList();
-        Assert.True(missingRows.Count == 0, $"CLAUDE.md doc map has no row for: {string.Join(", ", missingRows)}");
-
-        // Not mapped, on purpose: audit runs are reached through AUDIT_SUITE.md and the rules pointer; the
-        // example epic is a template, named by WAYS_OF_WORKING.md.
-        string[] unmapped = ["docs/audits/", "docs/stories/_EXAMPLE_"];
-
-        var docs = Directory.EnumerateFiles(Path.Combine(root, "docs"), "*.md", SearchOption.AllDirectories)
-            .Select(f => Path.GetRelativePath(root, f).Replace('\\', '/'))
-            .ToList();
-        Assert.True(docs.Count(d => d.Count(c => c == '/') > 1) >= 20, "probe: the walk found too few docs below docs/ — did the tree move?");
-
-        var missing = docs
-            .Where(rel => !unmapped.Any(u => rel.StartsWith(u, StringComparison.Ordinal)))
-            .Where(rel => !folderRows.Any(row => rel.StartsWith(row, StringComparison.Ordinal)))
-            .Where(rel => !claudeMd.Contains(rel, StringComparison.Ordinal))
-            .ToList();
-
-        Assert.True(missing.Count == 0,
-            "Docs missing from the CLAUDE.md doc map — add a row (or, for a folder whose files come and go, a "
-            + $"folder row in this gate): {string.Join(", ", missing)}");
-    }
-
-    [Fact]
-    public void ClaudeMd_CarriesTheCourseReconcileRule() // R118
-    {
-        // The course lives in perezosoft-platform; a downstream app has no docs/tutorial (its R114/R115/R118 say NotHere).
-        if (!Directory.Exists(Path.Combine(RepoRoot(), "docs", "tutorial"))) return;
-        // The habit that keeps the course true — a lesson is reconciled in the PR that changes the code it
-        // quotes — lived only in the maintainer's memory, so a clone lost it.
-        var claudeMd = File.ReadAllText(Path.Combine(RepoRoot(), "CLAUDE.md")).ReplaceLineEndings("\n");
-        var start = claudeMd.IndexOf("## Read before you act", StringComparison.Ordinal);
-        Assert.True(start >= 0, "CLAUDE.md no longer has a 'Read before you act' section");
-        var section = claudeMd[start..claudeMd.IndexOf("\n## ", start + 1, StringComparison.Ordinal)];
-        Assert.True(section.Contains("docs/tutorial/", StringComparison.Ordinal) && section.Contains("--check-quotes", StringComparison.Ordinal),
-            "CLAUDE.md 'Read before you act' must carry the course-reconcile rule: name docs/tutorial/ and the "
-            + "quote check (gen_coverage.py --check-quotes).");
-    }
-
-    [Fact]
-    public void ClaudeMdQaCaseCount_MatchesTheQaPlan() // R75, count half
-    {
-        var root = RepoRoot();
-        var actual = Regex.Matches(File.ReadAllText(Path.Combine(root, "docs", "QA_TEST_PLAN.md")),
-            @"(?m)^### QA-").Count;
-
-        var claimMatch = Regex.Match(File.ReadAllText(Path.Combine(root, "CLAUDE.md")), @"\((\d+) cases:");
-        Assert.True(claimMatch.Success, "CLAUDE.md no longer states the QA case count as '(N cases:' — update this gate with it.");
-        var claimed = int.Parse(claimMatch.Groups[1].Value);
-
-        Assert.True(claimed == actual,
-            $"CLAUDE.md claims {claimed} QA cases but QA_TEST_PLAN.md defines {actual} — update the doc-map row "
-            + "(the figure drifted twice before this gate existed: v3 TR-2, T54).");
-    }
-
-    [Fact]
-    public void EveryMachineRule_NamesAStandingCheck() // v4 audit T67, R116
-    {
-        // A rule labelled [machine] that nothing enforces is a rule on paper; the audit found v3 fixes marked done
-        // that never landed. RulesEnforcement.Manifest names, per machine rule, the test or CI step that holds it,
-        // or the tracker issue that still owes it. This gate holds the manifest to the rules file (every machine
-        // rule listed, nothing listed that is not a machine rule) and to the tree (every named check exists).
-        var root = RepoRoot();
-        var rules = File.ReadAllText(Path.Combine(root, "docs", "audits", "v4-2026-09", "FOUNDATION_RULES_v3.md")).ReplaceLineEndings("\n");
-        var machine = Regex.Matches(rules, @"^- \*\*(R\d+) \[(?:machine|review→machine)\]\*\*", RegexOptions.Multiline)
-            .Select(m => m.Groups[1].Value).ToHashSet();
-        Assert.True(machine.Count >= 60, $"probe: {machine.Count} machine rules parsed from v3.0 — the format changed");
-
-        var listed = RulesEnforcement.Manifest.Select(e => e.Rule).ToList();
-        Assert.True(listed.Count == listed.Distinct().Count(), "a rule appears twice in RulesEnforcement.Manifest");
-        var missing = machine.Except(listed).OrderBy(r => int.Parse(r[1..])).ToList();
-        Assert.True(missing.Count == 0, "machine rules with no manifest entry (name the check, or the issue that owes it): " + string.Join(", ", missing));
-        var stale = listed.Except(machine).ToList();
-        Assert.True(stale.Count == 0, "manifest entries for rules that are not [machine] in v3.0: " + string.Join(", ", stale));
-
-        // Every named check resolves: a test method or class under tests/, or a step in ci.yml.
-        var tests = Directory.EnumerateFiles(Path.Combine(root, "tests"), "*.cs", SearchOption.AllDirectories)
-            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}") && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}"))
-            .Select(File.ReadAllText).ToList();
-        var symbols = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var text in tests)
-        {
-            foreach (Match m in Regex.Matches(text, @"\b(?:Task|void)(?:<[^>]+>)?\s+([A-Za-z0-9_]+)\s*\(")) symbols.Add(m.Groups[1].Value);
-            foreach (Match m in Regex.Matches(text, @"\bclass\s+([A-Za-z0-9_]+)")) symbols.Add(m.Groups[1].Value);
-        }
-        var steps = Regex.Matches(File.ReadAllText(Path.Combine(root, ".github", "workflows", "ci.yml")), @"- name: ([^\r\n]+)")
-            .Select(m => m.Groups[1].Value.Trim()).ToHashSet();
-        var unresolved = new List<string>();
-        foreach (var entry in RulesEnforcement.Manifest)
-        {
-            // The app's half (RulesEnforcement.App.cs, Arch A1) may name its own pending issue, or say the rule's subject is not here.
-            RulesEnforcement.AppOverrides.TryGetValue(entry.Rule, out var over);
-            var pending = over?.Pending ?? entry.Pending;
-            var notHere = over?.NotHere ?? entry.NotHere;
-            Assert.True(entry.Checks.Length > 0 || pending is not null || !string.IsNullOrWhiteSpace(notHere),
-                $"{entry.Rule}: no check, no pending issue, and no reason it does not apply here");
-            if (pending is { } p) Assert.Matches(@"[\w.-]+#\d+", p); // the issue that owes it (repo#n), so it is visible
-            if (!string.IsNullOrWhiteSpace(over?.NotHere)) continue; // its subject is not in this repo, nor need its checks be
-            foreach (var check in entry.Checks)
-            {
-                var ok = check.StartsWith("ci:", StringComparison.Ordinal) ? steps.Contains(check[3..]) : symbols.Contains(check);
-                if (!ok) unresolved.Add($"{entry.Rule} -> {check}");
-            }
-        }
-        Assert.True(unresolved.Count == 0, "manifest names checks that do not exist (renamed? not in ci.yml?):\n" + string.Join("\n", unresolved));
-        var orphans = RulesEnforcement.AppOverrides.Keys.Except(listed).Order().ToList();
-        Assert.True(orphans.Count == 0, "RulesEnforcement.App.cs overrides rules the manifest does not list: " + string.Join(", ", orphans));
-    }
-
-    [Fact]
-    public void PrTemplate_CarriesTheRuleCheckboxes() // v4 audit T67: R144's PR line, R85's exception line
-    {
-        // Two rules enforce at review time through the PR template: a coupled client+server change ships one
-        // joint-invariant test reading both constants (R144), and a deliberate exception to a numbered rule is
-        // written into the rules file in the same PR as the ADR that argues it (R85). The template is the one place
-        // those are asked; a reformat that drops a line would drop the rule.
-        var template = File.ReadAllText(Path.Combine(RepoRoot(), ".github", "pull_request_template.md")).ReplaceLineEndings(" ");
-        Assert.Contains("joint-invariant test", template);
-        Assert.Contains("FOUNDATION_RULES", template);
-    }
-
-    [Fact]
-    public void RuleIds_CitedInTests_AreFinalRules() // v4 audit TR-15/C8 (T11), R116
-    {
-        // A test comment is where a reader starts when a gate fires; two of them cited Phase-1 candidate ids
-        // (R82/R86, R83) for what became R43 and R44, and nothing stopped the next test from citing a number that
-        // was renumbered, retired or never existed. The final range is what FOUNDATION_RULES_v3.md's header
-        // states — parsed from the file, so a future consolidation moves the gate with it — and candidate ids
-        // (`-cand`, a letter suffix) never appear outside the audit folder (R116).
-        var root = RepoRoot();
-        var header = File.ReadAllText(Path.Combine(root, "docs", "audits", "v4-2026-09", "FOUNDATION_RULES_v3.md")).ReplaceLineEndings("\n");
-        header = header[..header.IndexOf("\n## 1.", StringComparison.Ordinal)];
-        var final = new HashSet<int>();
-        foreach (Match m in Regex.Matches(header, @"R(\d+)–R(\d+)")) // every range the header states as carried or added
-            for (var i = int.Parse(m.Groups[1].Value); i <= int.Parse(m.Groups[2].Value); i++) final.Add(i);
-        foreach (Match m in Regex.Matches(header, @"R(\d+) \(v2\.0")) final.Add(int.Parse(m.Groups[1].Value)); // "+ R80 (v2.0, …)"
-        var retired = Regex.Match(header, @"with \*\*((?:R\d+, )*R\d+ and R\d+) retired\*\*").Groups[1].Value;
-        foreach (Match m in Regex.Matches(retired, @"R(\d+)")) final.Remove(int.Parse(m.Groups[1].Value));
-        Assert.True(final.Count > 100 && !final.Contains(77) && !final.Contains(94) && final.Contains(80) && final.Contains(158),
-            "the v3 header's range did not parse as expected — update the gate with the file");
-
-        var cited = new Dictionary<int, List<string>>();
-        var candidates = new List<string>();
-        foreach (var file in Directory.EnumerateFiles(Path.Combine(root, "tests"), "*.cs", SearchOption.AllDirectories)
-                     .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}") && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}")))
-        {
-            var rel = Path.GetRelativePath(root, file);
-            var lines = File.ReadAllLines(file);
-            for (var i = 0; i < lines.Length; i++)
-            {
-                foreach (Match m in Regex.Matches(lines[i], @"\bR(\d{1,3})(-cand|[a-z])?\b"))
-                {
-                    if (m.Groups[2].Success) { candidates.Add($"{rel}:{i + 1}: {m.Value}"); continue; }
-                    cited.TryAdd(int.Parse(m.Groups[1].Value), []);
-                    cited[int.Parse(m.Groups[1].Value)].Add($"{rel}:{i + 1}");
-                }
-            }
-        }
-        Assert.True(cited.Count >= 50, $"probe: only {cited.Count} distinct rule ids cited under tests/ — the scan broke");
-        Assert.True(candidates.Count == 0, "candidate rule ids (-cand / letter suffix) belong to the audit folder only:\n" + string.Join("\n", candidates));
-        var unknown = cited.Where(kv => !final.Contains(kv.Key)).Select(kv => $"R{kv.Key} at {string.Join(", ", kv.Value.Take(3))}").ToList();
-        Assert.True(unknown.Count == 0, "tests cite rule ids outside FOUNDATION_RULES v3.0's final range (renumbered or retired?):\n" + string.Join("\n", unknown));
-    }
-
-    [Fact]
-    public void AddASliceChecklist_NamesEveryArtifactAGateForces() // v4 audit ADV-P4-17 (T64), R158
-    {
-        // ADR-004 said "~6 touchpoints"; the v4 re-drill measured seven forced edits, two of them (the tenant-axis
-        // canary, the Postman folder) in neither the ADR nor the checklist, whose fixture-reset step had been dead
-        // since v2 TR-3. A slice author following the checklist hit gate failures it never warned about. So the
-        // checklist is held to the gates: every artifact a gate forces is a step that names its gate, each named
-        // gate exists, and the dead step is gone. ADR-004's amendment carries the same list.
-        var root = RepoRoot();
-        var wow = File.ReadAllText(Path.Combine(root, "docs", "WAYS_OF_WORKING.md")).ReplaceLineEndings("\n");
-        var start = wow.IndexOf("**Add-a-slice mechanical checklist**", StringComparison.Ordinal);
-        Assert.True(start >= 0, "WAYS_OF_WORKING.md lost its add-a-slice checklist");
-        var checklist = wow[start..wow.IndexOf("\n## ", start, StringComparison.Ordinal)];
-
-        // (artifact the step must name, the gate that forces it)
-        var forced = new (string Artifact, string Gate)[]
-        {
-            ("RlsDdl.StatementsFor", "RlsMigrationGateTests"),
-            ("docs/DATA_MODEL.md", "EveryEntity_IsDocumentedInDataModel"),
-            ("AppAllowlists", "EveryTenantOwnedEntity_IsWiredIntoTenantDissolution"),
-            ("AppComposition.cs", "OnlyAppComposition_ReferencesFeatureNamespaces_FromOutsideFeatures"),
-            ("EntityWriters", "EveryEntity_HasOneWritingSlice"),
-            ("docs/postman/Vuelto.postman_collection.json", "PostmanParityTests"),
-            (".env.example", "ConfigKeys_ReadInCode_AreDocumented"),
-            (".resx", "ResourceParityTests"),
-        };
-        var tests = Directory.EnumerateFiles(Path.Combine(root, "tests", "Api.Tests"), "*.cs", SearchOption.AllDirectories)
-            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}") && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}"))
-            .Select(File.ReadAllText).ToList();
-        foreach (var (artifact, gate) in forced)
-        {
-            Assert.True(checklist.Contains(artifact, StringComparison.Ordinal), $"the add-a-slice checklist must name {artifact}");
-            Assert.True(checklist.Contains(gate, StringComparison.Ordinal), $"the add-a-slice checklist step for {artifact} must name its gate {gate}");
-            Assert.True(tests.Any(t => t.Contains(gate, StringComparison.Ordinal)), $"the checklist names a gate that does not exist: {gate}");
-        }
-        Assert.DoesNotContain("Fixture reset", checklist); // dead since v2 TR-3: the fixture derives its tables from the model
-        Assert.DoesNotContain("in `Program.cs`", checklist); // Arch A1: Program.cs is the platform's; a slice never edits it
-        Assert.Contains("cannot declare\n   its own `Permission`", checklist); // ADV-P4-18: inherent, so the author is told
-
-        // ADR-004's amendment states the list, and the same gates, not a count.
-        var adr = File.ReadAllText(Path.Combine(root, "docs", "DECISIONS.md")).ReplaceLineEndings("\n");
-        var amendment = adr[adr.IndexOf("the contract is the measured list, not a\ncount", StringComparison.Ordinal)..];
-        amendment = amendment[..amendment.IndexOf("\n**ADR-005", StringComparison.Ordinal)];
-        foreach (var gate in new[] { "EveryEntity_IsDocumentedInDataModel", "EveryTenantOwnedEntity_IsWiredIntoTenantDissolution", "PostmanParityTests", "AddASliceChecklist_NamesEveryArtifactAGateForces" })
-            Assert.Contains(gate, amendment);
-    }
-
-    [Fact]
     public void PlatformMigrations_DoNotNameTheSample() // Arch A6 (#366), R9 as amended
     {
         // The sample's table used to be created by one platform migration and named by another (RlsTenancyBackstop's
@@ -929,7 +713,7 @@ public class EnforcementGateTests
         string[] composition =
         [
             "src/Api/Program.cs", "src/Infrastructure/Persistence/AppDbContext.cs", "src/Infrastructure/ServiceCollectionExtensions.cs",
-            "tests/Api.Tests/ArchitectureTests.cs", "tests/Api.Tests/DataProtectionIdentityTests.cs", "tests/Api.Tests/RulesEnforcement.cs",
+            "tests/Api.Tests/ArchitectureTests.cs", "tests/Api.Tests/DataProtectionIdentityTests.cs",
             "tests/Api.Tests/Infrastructure/ServiceHarness.cs", "tests/Api.Tests/Infrastructure/IntegrationTestFactory.cs",
             "tests/Ui.Tests/Infrastructure/TestHttpHandler.cs",
         ];
@@ -943,86 +727,6 @@ public class EnforcementGateTests
         Assert.True(offenders.Count == 0, "a platform composition file names the sample slice — the seam leaks (Arch A1): " + string.Join(", ", offenders));
         foreach (var f in composition) Assert.True(File.Exists(Path.Combine(root, f)), $"composition file moved: {f}");
         Assert.DoesNotContain("Features.", File.ReadAllText(Path.Combine(root, "src", "Api", "Program.cs")).Replace("MapTenantFeatureGroup", ""));
-    }
-
-    [Theory]
-    [InlineData(".github/workflows/ci.yml")]
-    public void CourseCoverageAndQuotes_AreCheckedBesideTheQaArtifacts(string workflow) // v4 audit TR-19/TR-12 (T61), R114/R115
-    {
-        // The course lives in perezosoft-platform; a downstream app has no docs/tutorial (its R114/R115/R118 say NotHere).
-        if (!Directory.Exists(Path.Combine(RepoRoot(), "docs", "tutorial"))) return;
-        // gen_coverage.py only ran when someone remembered to; the map claimed 901 files and 0 unmapped while the
-        // generator found 903 and 1, and lessons quoted code the repo no longer had. The qa-artifacts job — which
-        // never gates on the changes classifier, so a docs-only push runs it — checks both on every push.
-        var ci = File.ReadAllText(Path.Combine(RepoRoot(), workflow)).ReplaceLineEndings("\n");
-        var job = ci[ci.IndexOf("\n  qa-artifacts:", StringComparison.Ordinal)..];
-        job = job[..job.IndexOf("\n  license-scan:", StringComparison.Ordinal)];
-        Assert.Contains("python docs/tutorial/gen_coverage.py --check\n", job);
-        Assert.Contains("python docs/tutorial/gen_coverage.py --check-quotes\n", job);
-        // ...and the generator honours those flags (a renamed flag would silently check nothing).
-        var generator = File.ReadAllText(Path.Combine(RepoRoot(), "docs", "tutorial", "gen_coverage.py"));
-        Assert.Contains("\"--check\" in sys.argv", generator);
-        Assert.Contains("\"--check-quotes\" in sys.argv", generator);
-    }
-
-    [Fact]
-    public void DeployTriggerWording_AutoDeploysNamesTheForge() // v4 audit TR-13 (T60), R117
-    {
-        // Under ADR-028 nothing auto-deploys from this repo: staging deploys when someone runs the Forgejo
-        // workflow with deploy=staging (or on the Monday schedule). "Merge to develop auto-deploys staging" was
-        // true on GitHub and survived in nine docs after the move, so a tester waited for a staging build that
-        // never came. Any mention of auto-deploying must say WHOSE trigger it is — GitHub's pipeline, Forgejo's
-        // dispatch, or Render's own Auto-Deploy setting — on the same line, so the sentence cannot read as this
-        // repo's behaviour. The audit folder is history and exempt.
-        var root = RepoRoot();
-        var mention = new System.Text.RegularExpressions.Regex(@"\bauto-?deploy", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-        var qualified = new System.Text.RegularExpressions.Regex(@"GitHub|Forgejo|Render|ADR-028|autoDeploy|Auto-Deploy");
-        var files = Directory.EnumerateFiles(Path.Combine(root, "docs"), "*.md", SearchOption.AllDirectories)
-            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}audits{Path.DirectorySeparatorChar}"))
-            .Append(Path.Combine(root, "CLAUDE.md"))
-            .Append(Path.Combine(root, "README.md"));
-        var offenders = new List<string>();
-        var mentions = 0;
-        foreach (var file in files)
-        {
-            var lines = File.ReadAllLines(file);
-            for (var i = 0; i < lines.Length; i++)
-            {
-                if (!mention.IsMatch(lines[i])) continue;
-                mentions++;
-                if (!qualified.IsMatch(lines[i]))
-                    offenders.Add($"{Path.GetRelativePath(root, file)}:{i + 1}: {lines[i].Trim()}");
-            }
-        }
-        Assert.True(mentions > 0, "probe: DEPLOYMENT.md still mentions Render's Auto-Deploy setting");
-        Assert.True(offenders.Count == 0,
-            "An auto-deploy that does not say whose (GitHub pipeline / Forgejo dispatch / Render setting) reads as this repo's — it is not (ADR-028):\n" + string.Join("\n", offenders));
-    }
-
-    [Fact]
-    public void DeployTriggerWording_PostmanSyncNamesTheForge() // v4 audit TR-14 (H9), R117; ADR-030
-    {
-        // The per-merge postman-sync runs on the forge where develop moves on every merge. Under ADR-028 that
-        // was Forgejo, and the README sent operators to GitHub only, which left the sync skipping forever.
-        // Since ADR-030 GitHub is the forge again: the one-time setup leads with GitHub (the secret and the
-        // variable live there), and the operating manual names GitHub's develop as what drives the sync.
-        var root = RepoRoot();
-        var readme = File.ReadAllText(Path.Combine(root, "docs", "postman", "README.md")).ReplaceLineEndings("\n");
-        var start = readme.IndexOf("**One-time setup**", StringComparison.Ordinal);
-        Assert.True(start >= 0, "docs/postman/README.md lost its One-time setup section");
-        var setup = readme[start..readme.IndexOf("**Direction is one-way.**", start, StringComparison.Ordinal)];
-        var github = setup.IndexOf("GitHub", StringComparison.Ordinal);
-        Assert.True(github >= 0, "the Postman one-time setup must say where the GitHub secret and variable go");
-        var forgejo = setup.IndexOf("Forgejo", StringComparison.Ordinal);
-        Assert.True(forgejo < 0 || github < forgejo, "the Postman one-time setup must lead with GitHub, the forge (ADR-030)");
-
-        // The operating manual names the forge whose develop changes drive the sync.
-        Assert.Contains("on every GitHub `develop` change", File.ReadAllText(Path.Combine(root, "CLAUDE.md")).ReplaceLineEndings(" "),
-            StringComparison.Ordinal);
-
-        // The workflow hardcodes the collection path, so a rebrand that renames the files edits it.
-        var rebranding = File.ReadAllText(Path.Combine(root, "docs", "REBRANDING.md"));
-        Assert.Contains(".github/workflows/postman-sync.yml", rebranding, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1102,8 +806,15 @@ public class EnforcementGateTests
             Assert.True(targets.Any(t => t[0] == "block" && t[1] == block && t.Skip(2).Contains(file)),
                 $"{file} anchors `{block}` but tests/ci-logic/targets does not run it there");
 
+        // Downstream, a target over a producer-only file (the platform's release machinery, Pkg 2.5) has neither its file nor
+        // its cases; run.py skips it the same way. In the platform every target must have both.
+        var platform = Architecture.PlatformOwnership.IsThePlatform(root);
+        var rules = Architecture.PlatformOwnership.ParseRules(File.ReadAllText(Path.Combine(root, "platform-ownership.json")));
         foreach (var t in targets)
         {
+            if (!platform && t.Skip(2).All(f => !File.Exists(Path.Combine(root, f))
+                    && Architecture.PlatformOwnership.Classify(f, rules) == Architecture.PlatformOwnership.Class.Producer))
+                continue;
             var cases = Path.Combine(root, "tests", "ci-logic", "cases", t[1]);
             Assert.True(Directory.Exists(cases) && Directory.EnumerateDirectories(cases).Any(), $"target `{t[1]}` has no cases");
             foreach (var file in t.Skip(2))

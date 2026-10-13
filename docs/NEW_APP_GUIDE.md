@@ -105,7 +105,9 @@ brand map (`Vuelto` → your brand, `vuelto` → its lowercase); `platform-owner
 the platform's (`platform`: keep them identical, or list a divergence with a reason in
 `tests/Api.Tests/App/PlatformDivergences.json`), which you are expected to edit (`adapts`: the UI, the journeys, the
 config, the docs) and which are yours (`app`: `src/Api/Features/**`, `AppComposition.cs`, `AppDbContext.App.cs`,
-`tests/Api.Tests/App/**`, `RulesEnforcement.App.cs`). A folder of your own at the top of the repo (jigger-jot's `seed/`)
+`tests/Api.Tests/App/**`). Two more: `producer` files (the platform's release machinery and package map) never reach
+your repo, and the map's `keep` list (the package ids `Perezosoft.Platform.*`, the feed key `vuelto`) is never
+renamed by the brand map — the platform's packages keep their names in every app (ADR-034, Pkg 2.5). A folder of your own at the top of the repo (jigger-jot's `seed/`)
 is classed in `platform-ownership.App.json`, same shape, applied after the platform's rules. After the rebrand, run the port once against the platform
 checkout you cloned from, at that same commit, to write the manifest and the stamp:
 

@@ -106,7 +106,11 @@ public class CiWorkflowTests
         // actions/checkout stores the job token in the workspace's git config unless told not to, where anything the
         // job runs afterwards (a NuGet restore without a lockfile, npm, brew) could push with it. So no checkout, in
         // any workflow, keeps it.
-        foreach (var file in new[] { Ci, ".github/workflows/postman-sync.yml" })
+        var workflows = Directory.EnumerateFiles(Path.Combine(RepoRoot(), ".github", "workflows"), "*.yml")
+            .Select(f => ".github/workflows/" + Path.GetFileName(f)).ToList();
+        if (Architecture.PlatformOwnership.IsThePlatform(RepoRoot())) // release.yml is producer-only (Pkg 2.5): an app has none
+            Assert.Contains(".github/workflows/release.yml", workflows); // probe: the walk sees every workflow
+        foreach (var file in workflows)
         {
             var lines = Read(file).Split('\n');
             var checkouts = lines.Select((line, i) => (line, i)).Where(x => x.line.Contains("uses: actions/checkout@", StringComparison.Ordinal)).ToList();
@@ -177,6 +181,46 @@ public class CiWorkflowTests
         foreach (var path in new[] { "src/Api/Program.cs", "src/Core/Entities/Tenant.cs", "src/Infrastructure/Email/BrandedEmail.cs",
                                      "src/Web/Program.cs", "tests/Api.Tests/AuthTests.cs", "tests/E2E.Tests/Journeys.cs", "docs/notes/not-a-real-doc.md" })
             Assert.False(maui.IsMatch(path), $"{path} cannot affect the MAUI app (it references only Shared.Ui)");
+    }
+
+    [Fact]
+    public void Release_RunsOnlyOnDispatch_PacksWithMinVer_AndPublishesAfterTheChecks() // Pkg 2.3, ADR-034, ADR-031
+    {
+        // The packages leave this repo only from a manual "Run workflow": no push, no schedule (ADR-031), one job with a
+        // timeout, never cancelled halfway (a release half-pushed is worse than a slow one). The version is a tag MinVer
+        // reads, decided and checked by the release-plan block (its cases are in tests/ci-logic) before anything is packed;
+        // the tag is pushed only after the packages are, so a failed push leaves no orphan tag.
+        // MinVer gives every packable project its version from the tag; nothing is packable unless it says so. These props
+        // travel to every app (an app packs nothing, so they are inert there).
+        var props = Read("Directory.Build.props");
+        Assert.Contains("<IsPackable Condition=\"'$(IsPackable)' == ''\">false</IsPackable>", props, StringComparison.Ordinal);
+        Assert.Contains("<PackageReference Include=\"MinVer\"", props, StringComparison.Ordinal);
+        Assert.Contains("<MinVerTagPrefix>v</MinVerTagPrefix>", props, StringComparison.Ordinal);
+
+        // The workflow and its note template are producer-only (Pkg 2.5): held here, in the platform; an app has neither.
+        if (!Architecture.PlatformOwnership.IsThePlatform(RepoRoot())) return;
+        const string Release = ".github/workflows/release.yml";
+        var yml = Read(Release);
+        var on = yml[yml.IndexOf("\non:\n", StringComparison.Ordinal)..yml.IndexOf("\njobs:\n", StringComparison.Ordinal)];
+        Assert.Contains("  workflow_dispatch:", on, StringComparison.Ordinal);
+        Assert.DoesNotMatch(@"(?m)^  (push|pull_request|schedule):", on);
+        Assert.Contains("cancel-in-progress: false", on, StringComparison.Ordinal);
+
+        var job = Assert.Single(Jobs(yml)).Value;
+        Assert.Matches(@"(?m)^    timeout-minutes: \d+", job);
+        Assert.Contains("contents: write", job, StringComparison.Ordinal);
+        Assert.Contains("packages: write", job, StringComparison.Ordinal);
+
+        int At(string text) { var i = job.IndexOf(text, StringComparison.Ordinal); Assert.True(i >= 0, $"release.yml lost: {text}"); return i; }
+        var plan = At("# ci-logic begin: release-plan");
+        var pack = At("dotnet pack");
+        var push = At("dotnet nuget push");
+        var tag = At("push origin \"refs/tags/");
+        Assert.True(plan < pack && pack < push && push < tag, "release.yml must plan, then pack, then push the packages, then push the tag");
+
+        Assert.Contains(".github/release-note-template.md", job, StringComparison.Ordinal);
+        foreach (var section in new[] { "Schema change", "Register change", "Breaking" }) // ADR-034 §7
+            Assert.Contains(section, Read(".github/release-note-template.md"), StringComparison.Ordinal);
     }
 
     [Fact]
