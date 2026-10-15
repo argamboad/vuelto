@@ -24,9 +24,9 @@
          can never run on an older one). VersionOverride, not a central PackageVersion: the MAUI
          SDK also injects ILLink.Tasks, and a central entry fails its restore with NU1009.
          Bump these alongside the SDK playbook (CLAUDE.md). -->
-    <PackageReference Include="Microsoft.AspNetCore.App.Internal.Assets" VersionOverride="10.0.11" PrivateAssets="all" />
-    <PackageReference Include="Microsoft.NET.ILLink.Tasks" VersionOverride="10.0.11" PrivateAssets="all" />
-    <PackageReference Include="Microsoft.NET.Sdk.WebAssembly.Pack" VersionOverride="10.0.11" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.AspNetCore.App.Internal.Assets" VersionOverride="10.0.13" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.NET.ILLink.Tasks" VersionOverride="10.0.13" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.NET.Sdk.WebAssembly.Pack" VersionOverride="10.0.13" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>

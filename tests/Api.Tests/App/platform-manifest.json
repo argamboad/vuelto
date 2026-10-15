@@ -4,12 +4,12 @@
     "platform commit this repo is synced to. PlatformOwnershipTests compares this repo against it. Do not edit by hand."
   ],
   "platform": "argamboad/perezosoft-platform",
-  "commit": "c2542776057467a529d1fe2011615059e22fc41a",
+  "commit": "e7a2962fc83980174db6a03dc625bec9754d2dbb",
   "files": [
     {
       "path": ".config/dotnet-tools.json",
       "class": "platform",
-      "hash": "9b2a4a63b6a6b2ada713e7aa6729e213f78532808c2b4c4e8ba0840d707357a1"
+      "hash": "2922f10d08c84ae4d5f721bd2ba9c7cd787107e8f76a6b0014a3317119ba481e"
     },
     {
       "path": ".dockerignore",
@@ -49,7 +49,7 @@
     {
       "path": ".github/workflows/ci.yml",
       "class": "adapts",
-      "hash": "fdb955a4c0f14138dfd793c18241c5f99cc8c1784034e82e53f34f87c3777845"
+      "hash": "f98e80b9a2ddb0c4db91b6ee8ec7d767010dced23aadcbde7f8a1e328682a2ab"
     },
     {
       "path": ".github/workflows/postman-sync.yml",
@@ -84,7 +84,7 @@
     {
       "path": "CLAUDE.md",
       "class": "adapts",
-      "hash": "86dd445abd2007b389279374c557f54cd4cca1d645c3d2eb07098f619628b160"
+      "hash": "103f5d2f5d212933d71aa88d40f14fedda3e667db70e40194fc1516bb1c153cb"
     },
     {
       "path": "CONTRIBUTING.md",
@@ -104,7 +104,7 @@
     {
       "path": "Directory.Packages.props",
       "class": "adapts",
-      "hash": "3fc21e4236ef4c3b95640980585ac2249154c375012d3f76fce2cc45acd8efce"
+      "hash": "047401b21677a764d9472d8b9fb073fce0c840b0a5b5bffacebc9d45496b6cb6"
     },
     {
       "path": "docker-compose.yml",
@@ -119,7 +119,7 @@
     {
       "path": "Dockerfile",
       "class": "adapts",
-      "hash": "d86758da4739f29476caeba13d36aa0a86e41b993a8d764735822d3efcce5301"
+      "hash": "5db84c0303d76e4109dcf62ab947ad66a6f5fa3ad9765dca1ad26e9d57c8f2a9"
     },
     {
       "path": "docs/ARCHITECTURE.md",
@@ -544,7 +544,7 @@
     {
       "path": "docs/DEPLOYMENT.md",
       "class": "adapts",
-      "hash": "f84257045e2fb1b4379764456e97707b74a8cfac4fbfc7a89dc42d8923923d68"
+      "hash": "909a823547fc965f3a81c90619396612d5cf4310a210d4b0c373d71d2cc28184"
     },
     {
       "path": "docs/FEATURES.md",
@@ -799,7 +799,7 @@
     {
       "path": "docs/TECH_STACK.md",
       "class": "adapts",
-      "hash": "f37da01ed4eb5453f1b5fb379bfed278bcd56ed3946f54f49ce5e98ed4676d62"
+      "hash": "f018f6e7af37bf460dd7b2cc27838f69171b2a3e863c2f9a2941b71dcaf1281f"
     },
     {
       "path": "docs/tutorial/CONCEPTS.md",
@@ -1054,7 +1054,7 @@
     {
       "path": "docs/tutorial/lessons/1.1-solution-projects-and-supply-chain.md",
       "class": "adapts",
-      "hash": "52b777ab291a8234e0938c84b80b58d9922cc0f0c9b1e68d99855d76d5c0606b"
+      "hash": "6d3afe6d7beaa390086d3f4f8ea62939ee2e1ec46acf3fd2540d015ff85bd230"
     },
     {
       "path": "docs/tutorial/lessons/1.2-first-endpoint-first-test.md",
@@ -1264,7 +1264,7 @@
     {
       "path": "docs/tutorial/lessons/8.2-container-and-staging.md",
       "class": "adapts",
-      "hash": "a5c4590a8a1cf7105865ff796758797f16b462dc2ae36b3549bafc21ee5804e9"
+      "hash": "c4003756ad35413f3eee4ce4352a12c2faf4fcd450e9ddf232d63a826915432d"
     },
     {
       "path": "docs/tutorial/lessons/8.3-deploy-pipeline-and-release-readiness.md",
@@ -1624,7 +1624,7 @@
     {
       "path": "src/Api/packages.lock.json",
       "class": "adapts",
-      "hash": "df3b697901cce89f948c1a8d920ef1ea5c84b513de01fe8057538fe8367b91e9"
+      "hash": "7291e38569a4b204533f79b52c45fbf473df1730aa57a2e3f69a61f7241067b6"
     },
     {
       "path": "src/Api/Perezosoft.Api.csproj",
@@ -2339,12 +2339,12 @@
     {
       "path": "src/Infrastructure/packages.lock.json",
       "class": "adapts",
-      "hash": "2e07d39f333079d547e15662a534eaaf64f94059cb25cbbfb7967ec7482b5720"
+      "hash": "4591f6dbaef6a8dfb30346af23b190d2d51a53722ccb82b4cc63bce38c17649e"
     },
     {
       "path": "src/Infrastructure/Perezosoft.Infrastructure.csproj",
       "class": "adapts",
-      "hash": "c53660af8d53e7fb074dfd7aff72994427bf38ad8283baadd7cb7546c319adec"
+      "hash": "e6c1fd8756c8fabe854b72ffe220a1f0d60781d134475d027eaf063433c9ef20"
     },
     {
       "path": "src/Infrastructure/Persistence/AppDbContext.cs",
@@ -3439,7 +3439,7 @@
     {
       "path": "src/Shared.Ui/packages.lock.json",
       "class": "adapts",
-      "hash": "1a47acf893d9a6bb21bb8510e31ea7b5825331392f1e6d2582934b32fd6c470d"
+      "hash": "74834ce62a96ce06dfb391ba598851d95d0801596c16d51fb71e12d189a783fc"
     },
     {
       "path": "src/Shared.Ui/Pages/AdminConsole.razor",
@@ -3589,7 +3589,7 @@
     {
       "path": "src/Web/packages.lock.json",
       "class": "adapts",
-      "hash": "a2d5e0202b1701d78868f9d277a7507ba9fbdd021514d74b2c3dcb091076a27f"
+      "hash": "924efca28173e6a7fc6a4e605d51292add8d99d5ad10bde2b53abd9a62a30de1"
     },
     {
       "path": "src/Web/Perezosoft.Web.csproj",
@@ -4494,7 +4494,7 @@
     {
       "path": "tests/Api.Tests/packages.lock.json",
       "class": "adapts",
-      "hash": "9e5223b0163f2f832ceea0612c38899e73e1c3c5634db213d4caed1caef79351"
+      "hash": "f8f9186724688d5aab5a65d73d30d2d8440490038c6b948bdd366b5582fc5be2"
     },
     {
       "path": "tests/Api.Tests/PasswordlessConcurrencyTests.cs",
@@ -5539,7 +5539,7 @@
     {
       "path": "tests/Core.Tests/packages.lock.json",
       "class": "adapts",
-      "hash": "b6c83fa54f0089a02d871d095947d0cc2dd1c0a29830a8ed3875906b51164b33"
+      "hash": "7f36d2806a5664d7ed26eaf0ae8284806dbadd8aa6c771b091f4cca1af4fbe6b"
     },
     {
       "path": "tests/Core.Tests/Perezosoft.Core.Tests.csproj",
@@ -5834,7 +5834,7 @@
     {
       "path": "tests/Ui.Tests/packages.lock.json",
       "class": "adapts",
-      "hash": "da5852d569e094da9bf0c369c6c187ffcbc2e45f1dca30d8d8fa7598ef554be4"
+      "hash": "5b2f492b880c9ae725071c71e6be8c4a5e8f12fea808b615200cb78f9c559025"
     },
     {
       "path": "tests/Ui.Tests/Pages/AdminConsoleAndSmallPagesTests.cs",
