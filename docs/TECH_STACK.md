@@ -22,9 +22,9 @@
 > ⚠️ **RE-VERIFY at project start.** Versions move; search for current stable before committing.
 > Policy: **target the latest _stable_ release, never previews.**
 >
-> **Verified 2026-09-09 (SDK 10.0.401 bump — the 10.0.400 SDK left the machine with a tooling update; earlier 2026-08-25, 2026-06-17):** .NET SDK **pinned in `global.json` (10.0.401, rollForward disable)** — the single source of truth
+> **Verified 2026-10-15 (SDK 10.0.402 bump — the 10.0.401 SDK left the machine with a tooling update; earlier 2026-09-09, 2026-08-25, 2026-06-17):** .NET SDK **pinned in `global.json` (10.0.402, rollForward disable)** — the single source of truth
 > (CI `setup-dotnet` + both Dockerfile image tags follow it; v3 audit DEP-4) · ASP.NET Core / EF Core
-> **10.0.11** · Npgsql.EntityFrameworkCore.PostgreSQL **10.0.3** · PostgreSQL server **17**.
+> **10.0.13** (security bump, 2026-10-14) · Npgsql.EntityFrameworkCore.PostgreSQL **10.0.3** · PostgreSQL server **17**.
 > Note: `Guid.CreateVersion7()` (time-ordered UUIDv7) is supported in .NET 9+ — already used in
 > `Tenant.cs`. PostgreSQL 18 adds a native `uuidv7()` SQL function but is not required for this.
 
@@ -112,8 +112,8 @@ Port variables allow multiple projects to run simultaneously without conflicts.
 
 | Package | Version | Purpose |
 |---------|---------|---------|
-| `Microsoft.AspNetCore.Authentication.Google` | 10.0.11 | Google OAuth provider |
-| `Microsoft.AspNetCore.Authentication.MicrosoftAccount` | 10.0.11 | Microsoft OAuth provider |
+| `Microsoft.AspNetCore.Authentication.Google` | 10.0.13 | Google OAuth provider |
+| `Microsoft.AspNetCore.Authentication.MicrosoftAccount` | 10.0.13 | Microsoft OAuth provider |
 | `MailKit` | 4.17.0 | SMTP email sending (magic links, invitations) |
 
 **Adding a new OAuth provider:** install the provider package, add `.AddXxx(options => ...)` in

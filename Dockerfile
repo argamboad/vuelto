@@ -3,10 +3,10 @@
 # in Core/Infrastructure/Shared.Ui via ProjectReference); Maui is never built here.
 
 # ---- build ---------------------------------------------------------------------------------------
-# Pin the SDK to the single source of truth — global.json (10.0.401) — which generated the committed
+# Pin the SDK to the single source of truth — global.json (10.0.402) — which generated the committed
 # packages.lock.json files. The WASM SDK injects patch-sensitive implicit package refs, so a floating tag
 # breaks --locked-mode. Keep this tag == global.json's version (see the bump-together playbook in CLAUDE.md).
-FROM mcr.microsoft.com/dotnet/sdk:10.0.401 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0.402 AS build
 WORKDIR /src
 
 # Solution-wide build config (warnings-as-error) + Central Package Management + the committed lockfiles.
@@ -45,10 +45,10 @@ RUN dotnet publish src/Web/Vuelto.Web.csproj -c Release --no-restore -o /publish
  && echo '{}' > /publish/api/wwwroot/appsettings.json
 
 # ---- runtime -------------------------------------------------------------------------------------
-# Pin the runtime to the exact patch of the ASP.NET Core package line the app compiles against (10.0.11,
+# Pin the runtime to the exact patch of the ASP.NET Core package line the app compiles against (10.0.13,
 # enforced by the R61 gate against Directory.Packages.props), not the
 # floating :10.0 tag — a reproducible runtime layer, same discipline as the build stage (v3 audit DEP-11).
-FROM mcr.microsoft.com/dotnet/aspnet:10.0.11 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0.13 AS runtime
 WORKDIR /app
 
 # curl for the container/compose health probe. The .NET image already ships a non-root `app` user; run as it.

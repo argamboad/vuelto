@@ -118,7 +118,7 @@ jobs:
           ConnectionStrings__DefaultConnection: "Host=localhost;Port=5432;Database=ef_designtime;Username=ci;Password=ci"
         run: |
           # Tool version comes from the committed manifest .config/dotnet-tools.json (v3 audit T51/R63)
-          # — pinned to match the EF packages (10.0.11); an unpinned install would float and let the
+          # — pinned to match the EF packages (10.0.13); an unpinned install would float and let the
           # drift gate change verdict without a code change (DEP-9). Bump the manifest with the EF
           # PackageVersions in Directory.Packages.props.
           dotnet tool restore

@@ -31,6 +31,8 @@
     </PackageReference>
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
     <PackageReference Include="Stripe.net" />
+    <!-- Not used directly: lifts MimeKit's transitive Pkcs 10.0.0 to the patched 10.0.13 (#432; see Directory.Packages.props). -->
+    <PackageReference Include="System.Security.Cryptography.Pkcs" />
   </ItemGroup>
 
   <PropertyGroup>
