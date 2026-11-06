@@ -43,7 +43,7 @@ Ids are preserved, so every reference survives untouched.
 | `UserMfa`, `MfaRecoveryCodes`, `RefreshTokens`, `LoginTokens`, `Notifications`, `NotificationPreferences`, `InboxMessages` | per-server session/security state — re-enrol MFA on the target if you use it |
 
 A table the source database doesn't have yet (an older schema, e.g. staging before INCOME-1) is skipped with a
-`not in this database` comment, so the script also takes the pre-deploy backup in `docs/DEPLOYMENT.md` §9a.
+`not in this database` comment, so the script also takes the pre-deploy backup in the platform's [DEPLOYMENT](https://github.com/argamboad/perezosoft-platform/blob/develop/docs/DEPLOYMENT.md) §9a.
 
 The include/exclude list lives in the script header. `HouseholdSnapshotTests` fails the build if a new
 tenant-scoped table is ever added without being named there.
@@ -105,7 +105,7 @@ tenant-scoped table is ever added without being named there.
 
 ### Where else this is described
 
-- `docs/DEPLOYMENT.md` §9 — the same steps inside the staging/production bring-up.
+- the platform's [DEPLOYMENT](https://github.com/argamboad/perezosoft-platform/blob/develop/docs/DEPLOYMENT.md) §9 — the same steps inside the staging/production bring-up.
 - `CLAUDE.md` — the status block's one-line pointer, next to the local seed routine.
 
 ---
@@ -159,7 +159,7 @@ tenant table, so a query only ever sees the household it was told about. On stag
 as the database *owner*. Neon's owner is not a superuser, so the policies do apply to it, but an owner
 can still run DDL (create or drop tables) and is one `ALTER` away from bypassing RLS.
 
-The **two-role posture** (ADR-020, `docs/DEPLOYMENT.md` §7) splits that into:
+The **two-role posture** (ADR-020, the platform's [DEPLOYMENT](https://github.com/argamboad/perezosoft-platform/blob/develop/docs/DEPLOYMENT.md) §7) splits that into:
 
 | Role | Used for | Can it bypass RLS? |
 |---|---|---|
@@ -219,7 +219,7 @@ the fence. Production is a copy of this; staging is where you rehearse it.
 
 The phone and desktop apps are the same app as the website, built for a device. A **Release** build has
 the API address baked in, so "the app against staging" is one build and "the app against production" is
-another. This script makes both installables in one go. Full explanation: `docs/DEPLOYMENT.md` §9.
+another. This script makes both installables in one go. Full explanation: the platform's [DEPLOYMENT](https://github.com/argamboad/perezosoft-platform/blob/develop/docs/DEPLOYMENT.md) §9.
 
 ### Prerequisites
 
@@ -232,7 +232,7 @@ another. This script makes both installables in one go. Full explanation: `docs/
 1. From the repo root:
 
    ```powershell
-   pwsh tools/publish-native.ps1 -ApiBaseUrl https://vuelto-staging.onrender.com
+   dotnet platform publish-native -ApiBaseUrl https://vuelto-staging.onrender.com
    ```
 
    `-ApiBaseUrl` is **required** — a Release build compiles the host in, and there is no safe default.

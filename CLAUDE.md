@@ -14,8 +14,15 @@ refunds and savings envelopes. Full context in `docs/PROJECT_BRIEF.md`.
 **This app is a continuation port** (ADR-V001) of the donor repo `vuelto-legacy/phase2`
 (`C:\Users\argam\source\repos\Personal\vuelto-legacy`, frozen, read-only reference) onto this platform.
 Until parity: work the port plan slice by slice (P0–P11 — see the plan linked from ADR-V001), port
-the donor's tests as the spec, and **never modify platform code in this repo** — extend it through
-its seams; a generic gap goes upstream to `perezosoft-platform` first.
+the donor's tests as the spec.
+
+**The platform comes as packages** (`Perezosoft.Platform.*` at `PlatformPackagesVersion` in `Directory.Packages.props`,
+ADR-034; converted 2026-11, Pkg V.1–V.6): there is no platform code in this repo to modify. vuelto is the host
+(`src/Host`: `AppComposition.cs`, its slices under `Features/`, its entities, domain logic — `Budget/`, `Mail/`,
+`Vouchers/`, `ExchangeRate/` — and `Persistence/` with every migration), the UI seed (`src/Shared.Ui`, `src/Web`,
+`src/Maui`) and the tests of what it owns (`tests/Api.Tests/App/`, `tests/Ui.Tests`, `tests/E2E.Tests`). Extend the
+platform through its seams; a generic gap goes upstream to `perezosoft-platform` first, then arrives with a release
+(`dotnet platform port -To <version>`). The platform's tooling is `dotnet platform …` (`dotnet tool restore` first).
 
 ## Read before you act
 - **This app owns a dev PORT BLOCK, and it is not the platform's.** `perezosoft-platform` seeds every
@@ -30,24 +37,18 @@ its seams; a generic gap goes upstream to `perezosoft-platform` first.
 
   (Platform keeps 7008/5169 + 7160/5238; the next app takes 7208/5369 + 7360/5438.) The http API leg
   is the one the Android emulator reaches through `adb reverse tcp:5338 tcp:5338`, so **provider
-  redirect URIs must name `http://localhost:5338/signin-{provider}`** — see `docs/MOBILE_TESTING.md`.
-  `docs/audits/**` and `docs/qa-runs/**` still record the old ports on purpose: they are logs of what
-  a run actually used.
-- **CI is proportional to the change (LOCALCI-3, inherited from the platform 2026-09-11).** A job
-  called `changes` reads the diff once and publishes `code` / `native` / `docs`; every non-deploy job
-  gates on it, so a docs-only push does not pay for a build. **`secret-scan` and `qa-artifacts` never
-  gate on code** — a docs commit can still leak a credential, and editing `QA_TEST_PLAN.md` without
-  regenerating the PDFs is the only way to break the artifacts check, so gating it would blind CI to
-  exactly what it catches. Two tests in `EnforcementGateTests` hold both halves; add a new job with
-  `needs: changes` or the first of them fails. The gate **fails open** on an unreachable diff base.
-  ⚠️ **`native-smoke-apple` now runs weekly, not per push** — a green develop run is NOT a green Apple
-  smoke (QA §13c).
-- **GitHub is home (ADR-030, 2026-10-02; Forgejo retired).** `origin` is `argamboad/vuelto` (private).
+  redirect URIs must name `http://localhost:5338/signin-{provider}`** — see the platform's [MOBILE_TESTING](https://github.com/argamboad/perezosoft-platform/blob/develop/docs/MOBILE_TESTING.md).
+  `docs/qa-runs/**` still records the old ports on purpose: it logs what a run actually used.
+- **CI is the platform's reusable workflow** (`.github/workflows/ci.yml` calls
+  `argamboad/perezosoft-platform/.github/workflows/app-ci.yml@v<the platform version>`; bump the tag with
+  `PlatformPackagesVersion`). The gates, the change classifier, the device legs and the deploys are the platform's;
+  this repo adds one job of its own, `ui-js` (node over `tests/ui-js`). ⚠️ A green PR run is NOT a green Apple smoke.
+- **GitHub is home (ADR-030, 2026-10-02; Forgejo retired).** `origin` is `argamboad/vuelto` (public).
   Branches, PRs, merges and issues happen on GitHub. CI (ADR-031): a pull request runs the web gates only;
   the device legs (MAUI builds, native smokes) run from *Run workflow* → `devices`, and deploys from
-  *Run workflow* → `deploy` (staging from develop, prod from main) behind every web gate. Every Actions minute
-  is billed. Runbook: `docs/DEPLOYMENT.md` §6.
-- **Writing or modifying ANY code → `docs/audits/v4-2026-09/FOUNDATION_RULES_v3.md` (v3.1: R1–R35
+  *Run workflow* → `deploy` (staging from develop, prod from main) behind every web gate. The repo is public
+  (since 2026-10-09), so its Actions minutes are free; still say what a run costs before starting one. Runbook: the platform's [DEPLOYMENT](https://github.com/argamboad/perezosoft-platform/blob/develop/docs/DEPLOYMENT.md) §6.
+- **Writing or modifying ANY code → the platform's [`FOUNDATION_RULES_v3.md`](https://github.com/argamboad/perezosoft-platform/blob/develop/docs/audits/v4-2026-09/FOUNDATION_RULES_v3.md) (v3.1: R1–R35
   from v1.0, R36–R76 from v2.0, R81–R162 minus the retired R94, R116, R117, R138 and R156; R77–R80 retired) is
   binding.** It encodes the post-audit invariants (tenancy incl. the RLS backstop parity, second-factor/
   event replay, SSRF, fail-closed normalization, atomic quotas + single-use credentials, per-user AND
@@ -56,29 +57,28 @@ its seams; a generic gap goes upstream to `perezosoft-platform` first.
   Release-build guards) as machine-enforced arch tests + CI gates; each
   `[machine]` rule names the test that holds it. Gates guard behaviour and the truth of documents, never
   process (ADR-033): a slip gets a test for the thing that slipped. Comply; if a task
-  seems to require violating a rule, stop and surface it. The frozen quality bar lives in `CONTRIBUTING.md`
-  (v2.0 at `docs/audits/v3-2026-07/FOUNDATION_RULES_v2.md` and v1.0 at
-  `docs/audits/v2-2026-07/FOUNDATION_RULES.md` remain as the historical layers).
-- **Hardening the template (or a clone) → follow `docs/audits/AUDIT_SUITE.md`.** The single repeatable
+  seems to require violating a rule, stop and surface it. The frozen quality bar lives in the platform's [CONTRIBUTING](https://github.com/argamboad/perezosoft-platform/blob/develop/CONTRIBUTING.md)
+  (v2.0 and v1.0 remain in the platform's `docs/audits/` as the historical layers).
+- **Hardening the template → the platform's [`AUDIT_SUITE.md`](https://github.com/argamboad/perezosoft-platform/blob/develop/docs/audits/AUDIT_SUITE.md).** The single repeatable
   super-audit (5 diagnostic/gate phases + QA-paranoia + docs/course currency) that produced the `audits/v*`
   runs. It's **triggered, not routine** — run it on a structural core change, a new wave of epics, a major
   dependency bump, or before generating a production app (at minimum re-run its Phase 4 adversarial slice
   pass). Between triggers, keep the gates green instead of re-auditing.
 - Touching the schema or entities → read **`docs/DATA_MODEL.md`** first.
 - Implementing a screen or flow → read **`docs/FEATURES.md`** first.
-- Starting a build slice → read **`docs/WAYS_OF_WORKING.md`** (slices, story format, PR/commit
+- Starting a build slice → read **the platform's [WAYS_OF_WORKING](https://github.com/argamboad/perezosoft-platform/blob/develop/docs/WAYS_OF_WORKING.md)** (slices, story format, PR/commit
   conventions).
 - Adding an app feature → follow the **clean-platform + vertical-slice convention** in
-  `docs/WAYS_OF_WORKING.md` (and ADR-004). The platform's `Notes` sample slice was **deleted in the
-  rebrand PR** (this repo has no sample); the four-file anatomy in `WAYS_OF_WORKING.md` is the
-  reference, and `perezosoft-platform/src/Api/Features/Notes` can be consulted read-only.
+  the platform's [WAYS_OF_WORKING](https://github.com/argamboad/perezosoft-platform/blob/develop/docs/WAYS_OF_WORKING.md) (and ADR-004). The platform's `Notes` sample slice was **deleted in the
+  rebrand PR** (this repo has no sample); the four-file anatomy in the platform's [WAYS_OF_WORKING](https://github.com/argamboad/perezosoft-platform/blob/develop/docs/WAYS_OF_WORKING.md) is the
+  reference, and `perezosoft-platform/src/Host/Features/Notes` can be consulted read-only.
 - Wondering *why* something is the way it is → check **`docs/DECISIONS.md`** before changing it.
 - Changing a settled decision → add a new dated ADR in `docs/DECISIONS.md`; don't silently
   reverse it.
-- Rebranding (name, logo, colours, tagline) → follow **`docs/REBRANDING.md`** and complete every
-  item. It explicitly covers the **transactional email templates** (`src/Infrastructure/Email/` —
-  `BrandedEmail.cs` + `Assets/logo.png`), which are inline and easy to miss; a rebrand that skips
-  them is incomplete.
+- Rebranding (name, logo, colours, tagline) → follow **the platform's [REBRANDING](https://github.com/argamboad/perezosoft-platform/blob/develop/docs/REBRANDING.md)** and complete every
+  item. The **transactional emails** take vuelto's brand through `PlatformBrand` in
+  `src/Host/AppComposition.cs` (name, palette, tagline, `src/Host/Email/Assets/logo.png`, and
+  `src/Host/Email/EmailStrings*.resx` for the strings that name the app); a rebrand that skips them is incomplete.
 
 ## Golden rules — constant (do not violate)
 1. **Tenant-scoped, not user-scoped.** App data belongs to the tenant; never leak across tenants.
@@ -87,7 +87,7 @@ its seams; a generic gap goes upstream to `perezosoft-platform` first.
    filter (see ADR-003); genuinely cross-tenant/pre-auth reads use the sanctioned escape hatch
    `IRepository<T>.QueryAllTenants()`, and signature-/system-authenticated tenant-scoped writes
    (the billing webhook, admin impersonation) enter their tenant via `ITenantContext.EnterTenant`.
-   `IgnoreQueryFilters()` is **banned in `src/Api/Features/**`** (fails CI). Only preferences are
+   `IgnoreQueryFilters()` is **banned in `src/Host/Features/**`** (fails CI). Only preferences are
    per-user. **A Postgres RLS backstop (ADR-020) re-enforces this at the DB**: a new `ITenantScoped`
    entity must ship its policy in the same migration (`RlsDdl.StatementsFor` — the
    `RlsMigrationGateTests` parity gate fails CI otherwise), and set-based cross-tenant *writes*
@@ -98,14 +98,14 @@ its seams; a generic gap goes upstream to `perezosoft-platform` first.
 4. **Derived values are computed, never stored** as stale flags (confirm the app's specific
    derived rules in `docs/DATA_MODEL.md`).
 5. **Web-first for features.** The platform ships MAUI desktop + Android shells with auth wired
-   (see `docs/MOBILE_TESTING.md`); build each app feature on web first and extend the native
+   (see the platform's [MOBILE_TESTING](https://github.com/argamboad/perezosoft-platform/blob/develop/docs/MOBILE_TESTING.md)); build each app feature on web first and extend the native
    shells only once it works there.
 6. **Latest stable versions only, never previews.**
 7. **Test-Driven Development — always.** Write the failing test before the production code on
-   every slice. Unit tests (xUnit) in `Core.Tests` / `Api.Tests`; E2E tests (Playwright/NUnit)
+   every slice. Unit tests (xUnit) in `Api.Tests` (vuelto's under `App/`) / `Ui.Tests`; E2E tests (Playwright/NUnit)
    in `E2E.Tests`. No slice merges without tests that drove it; Gherkin scenarios map 1:1 to tests.
 8. **Work in vertical slices.** Each slice is end-to-end and leaves the app working; follow
-   `docs/WAYS_OF_WORKING.md` for slices, Gherkin stories, Conventional Commits, and the PR
+   the platform's [WAYS_OF_WORKING](https://github.com/argamboad/perezosoft-platform/blob/develop/docs/WAYS_OF_WORKING.md) for slices, Gherkin stories, Conventional Commits, and the PR
    template. Don't build sprawling multi-epic chunks — propose a split.
 
 ## Golden rules — app-specific
@@ -135,9 +135,13 @@ its seams; a generic gap goes upstream to `perezosoft-platform` first.
    English; display labels come from resx (ADR-V009).
 10. **Brand gold `#F2CB6E` is never a data/state color.** Green/red mean under/over budget.
 
-## Tech stack (see `docs/TECH_STACK.md`)
-- **Versions:** latest stable on the current .NET line — **.NET SDK 10.0.403 (pinned in `global.json`, the single source of truth, with `rollForward: disable` — the 2026-08 drift showed `latestPatch` let runners outrun both the lockfiles and the MCR image catalog), ASP.NET Core / EF Core packages 10.0.14 (security bump, 2026-11-04, GHSA-g27p-qf6j-c96c; `System.Security.Cryptography.Pkcs` pinned 10.0.14 under MimeKit), Npgsql.EF 10.0.3, PostgreSQL 17.** The SDK is **pinned, not floating** (v3 audit DEP-4): CI's `setup-dotnet` reads `global-json-file: global.json`, and both Dockerfile image tags (`sdk:10.0.403` build, `aspnet:10.0.14` runtime) match it — so a runner-image SDK patch can't outrun the committed `packages.lock.json` (the WASM SDK injects patch-sensitive implicit packages → NU1004 in locked-mode restore).
-  - **Bump-together playbook** (do all of these in ONE PR when moving the SDK): ① edit `global.json` `version`; ② `dotnet restore --locked-mode` on the new SDK, and regenerate (`dotnet restore --force-evaluate`) only the lockfiles that fail — a bump that changes no package graph needs none (platform PR perezosoft-platform#220 skipped them all with no harm; v4 DEP-24); ③ bump the two `Dockerfile` tags — build `sdk:X` and runtime `aspnet:Y` where Y = the ASP.NET **package** line in `Directory.Packages.props` (the `SdkPin_HasOneSource` gate checks exactly that; the SDK's bundled runtime may be newer, and the packages move on their own schedule — 2026-09-09: the 10.0.401 SDK bundled 10.0.12 while the packages and the runtime image stayed 10.0.11; since the 2026-10-14 security bump they are 10.0.13, and since 2026-10-15 the pinned 10.0.402 SDK bundles that same 10.0.13; since 2026-11-04 (GHSA-g27p-qf6j-c96c) both are 10.0.14 with the 10.0.403 SDK — the runtime image is what executes them, and the WASM build packs in `Web.csproj` follow the SDK's bundled line); ④ reconcile the version strings in this file + `docs/TECH_STACK.md` + `docs/DEPLOYMENT.md`; ⑤ re-check the Apple legs' Xcode requirement (the iOS/macCatalyst workload moves with the SDK; `ci.yml` pins the WORKLOAD SET to the image's default Xcode — non-default Xcodes on the runner images can be incomplete, so bump that pin only together with the image's default Xcode);
+## Tech stack (see the platform's [TECH_STACK](https://github.com/argamboad/perezosoft-platform/blob/develop/docs/TECH_STACK.md))
+- **Versions:** the platform's, through its packages — **.NET SDK 10.0.403** pinned in `global.json` (`rollForward:
+  disable`), the platform at `PlatformPackagesVersion` in `Directory.Packages.props`, which brings its own ASP.NET
+  Core / EF Core / Npgsql line; PostgreSQL 17. A platform release moves them together: `dotnet platform port` writes
+  the version, the stamp and the starter's files, and the platform's NEW_APP_GUIDE lists what follows (the lockfiles,
+  the Dockerfile tags, the Apple legs' Xcode). vuelto's own packages (QuestPDF, HtmlAgilityPack, PdfPig for the
+  tests) are pinned beside them; `docs/README.md` lists its stack beyond the platform's.
 - **Backend:** ASP.NET Core Web API behind a clean API boundary.
 - **Web frontend:** Blazor WebAssembly; UI components in a shared **RCL** (hard rule).
 - **DB:** PostgreSQL via **EF Core (Npgsql)**; schema/migrations generated from `docs/DATA_MODEL.md`.
@@ -166,8 +170,8 @@ its seams; a generic gap goes upstream to `perezosoft-platform` first.
   `PostmanParityTests` CI gate enforces the floor).** Any change to API
   endpoints (route, verb, path/query params, request/response shape, auth requirements, or error
   codes) must update **`docs/postman/Vuelto.postman_collection.json`** (+ the environment
-  files when config/env expectations change) in the same slice. Controllers in
-  `src/Api/Controllers/` and slices under `src/Api/Features/` are the source of truth; the
+  files when config/env expectations change) in the same slice. The platform's controllers (in the
+  Perezosoft.Platform.Api package) and the slices under `src/Host/Features/` are the source of truth; the
   collection documents them.
 - Keep its conventions: numbered folders per area; `{{baseUrl}}`/`{{accessToken}}` variables with
   collection-level Bearer auth; chaining test scripts that capture shown-once secrets; request
@@ -185,7 +189,7 @@ deferred items without an explicit decision.
 
 ## Conventions
 - Code term for the tenant is **tenant**; the reference implementation's app-facing label is
-  **Household** (`/api/household`, `HouseholdController`). Rename per app — see `docs/REBRANDING.md`.
+  **Household** (`/api/household`, `HouseholdController`). Rename per app — see the platform's [REBRANDING](https://github.com/argamboad/perezosoft-platform/blob/develop/docs/REBRANDING.md).
 - **Tenant label is "Household"** in the UI, routes (`/household`), and docs; "budget" data =
   everything a household owns. The display brand is *"¿Y el vuelto?"*; code, namespaces and DB keep
   `Vuelto` — this split is intentional, do not reconcile it.
@@ -203,7 +207,8 @@ deferred items without an explicit decision.
 - **Donor cross-references:** stories cite the donor story they port (`from US-015`); new stories
   continue from **US-057**; ADRs cite `donor ADR-00NN`.
 - **Pure domain services** (`WeekBoundaryService`, `CurrencyMath`, `DashboardSummaryService`, the
-  voucher parsing library) live in `src/Core` with no I/O and are tested in `Core.Tests`.
+  voucher parsing library) live in `src/Host/Budget/`, `src/Host/Vouchers/` with no I/O and are tested under
+  `tests/Api.Tests/App/` (`Budget/`, `Vouchers/` — Core.Tests folded in, 2026-11).
 - **Course material is platform-only.** `docs/tutorial/**` (the Perezosoft course, its lessons,
   diagrams, PDF and generators) is **excluded from downstream apps** and was removed in the first
   docs PR; `AUDIT_SUITE.md` Phase 7 ("course currency") therefore does not apply here. Do not
@@ -219,19 +224,19 @@ deferred items without an explicit decision.
 - **Carry the household to staging/prod (hidden operator tool):** `ops/snapshot-household.sql` — snapshot one
   household (identity + every budget table, ids preserved, FK order, idempotent) from the source DB as a
   SQL file and restore it once on the target as the owner role; inboxes are reconnected there (tokens are
-  key-ring bound). `docs/DEPLOYMENT.md` §9; `HouseholdSnapshotTests` = round-trip + table-list gate.
+  key-ring bound). the platform's [DEPLOYMENT](https://github.com/argamboad/perezosoft-platform/blob/develop/docs/DEPLOYMENT.md) §9; `HouseholdSnapshotTests` = round-trip + table-list gate.
 - **Two-role RLS posture on a hosted DB (hidden operator tool):** `ops/staging-rls.ps1 -OwnerUrl <neon url>
   -RuntimePassword <new>` — provisions `app_runtime` via the compose container's `psql`, proves read-OK /
   DDL-denied, prints the `DefaultConnection` / `Migrations` / `Rls__EnforceRuntimeRole` values for the host.
-  `docs/DEPLOYMENT.md` §7; click-by-click in `ops/README.md`.
-- **Installable phone/desktop builds against a host:** `tools/publish-native.ps1 -ApiBaseUrl <host> [-Out …]` (host required) — Release
+  the platform's [DEPLOYMENT](https://github.com/argamboad/perezosoft-platform/blob/develop/docs/DEPLOYMENT.md) §7; click-by-click in `ops/README.md`.
+- **Installable phone/desktop builds against a host:** `dotnet platform publish-native -ApiBaseUrl <host> [-Out …]` (host required) — Release
   Android APK (apksigner v2+v3 with the debug key, upgrades over a VS Code install) + Windows unpackaged exe, the API
-  base compiled in. Recipe + the signing/`RuntimeIdentifier`/callback-scheme gotchas: `docs/DEPLOYMENT.md` §9;
+  base compiled in. Recipe + the signing/`RuntimeIdentifier`/callback-scheme gotchas: the platform's [DEPLOYMENT](https://github.com/argamboad/perezosoft-platform/blob/develop/docs/DEPLOYMENT.md) §9;
   owner-level steps in `ops/README.md`.
 - **Port parity reached (P0–P10b merged, PRs #1–#17).** P11 closed the repo side 2026-09-04:
   localization sweep (566 keys, EN/ES parity, zero missing — `LocalizationKeyCoverageTests` gate),
   app-slice QA pass recorded in `docs/qa-runs/2026-09-run-log.md` (29/32 ✅; FX-01, EMAIL-02,
-  EMAIL-04 await the owner's credentials), `render.yaml` + `DEPLOYMENT.md` carry the app's keys
+  EMAIL-04 await the owner's credentials), `render.yaml` + the platform's [DEPLOYMENT](https://github.com/argamboad/perezosoft-platform/blob/develop/docs/DEPLOYMENT.md) carry the app's keys
   (`ExchangeRate__ApiKey`, Microsoft consent, the mail-consent callback URI). **Staging itself is the
   owner's external checklist** (Neon, Render blueprint, Brevo, OAuth apps, the deploy hook + base URL
   secrets) — until it is green the old Vercel/Railway/Supabase deployment stays up. Then the roadmap
@@ -246,28 +251,15 @@ deferred items without an explicit decision.
 | File | Purpose |
 |------|---------|
 | `CLAUDE.md` (root) | This file — operating manual, auto-loaded |
-| `_PLATFORM_PRIMER.md` (root) | Conceptualization primer — paste into a NEW project chat to pre-load the constant decisions and jump straight to what the app does |
-| `docs/NEW_APP_GUIDE.md` | **The onboarding spine** — every phase from idea to production, in order, linking the detailed doc per step |
-| `docs/OVERVIEW.md` | Friendly platform tour (PM/power-user/developer/architect) — no codebase knowledge assumed |
+| `docs/README.md` | **Index of this repo's documents + links to the platform's** (NEW_APP_GUIDE, WAYS_OF_WORKING, ARCHITECTURE, FLOWS, DEPLOYMENT, MOBILE_TESTING, LOCALIZATION, REBRANDING, TECH_STACK, DECISIONS, the foundation rules) — and vuelto's specifics: ports, staging, OAuth redirect URIs, mail consent, its settings, staging/prod RLS, the household snapshot and the data-copying deploy runbooks, its stack beyond the platform's |
 | `docs/PROJECT_BRIEF.md` | Why/what/scope (lean PRD) + OUT list |
 | `docs/FEATURES.md` | User flows & behavior |
 | `docs/DATA_MODEL.md` | Entities, relationships, derived rules |
-| `docs/TECH_STACK.md` | Stack choices + rationale |
-| `docs/DECISIONS.md` | ADR log (the "why") |
-| `docs/ARCHITECTURE.md` | Mermaid diagram layer — solution map, seams, per-subsystem class diagrams; drawn from the code, ADR-cross-linked |
-| `docs/FLOWS.md` | Sequence diagrams for the core call stacks (auth, tenancy, outbox, billing webhook, dissolve) + the OTP line-level walkthrough |
-| `docs/WAYS_OF_WORKING.md` | Slices, story format, commit/PR conventions |
-| `docs/audits/AUDIT_SUITE.md` | **The repeatable super-audit** — 5 diagnostic/gate phases + QA-paranoia + docs/course currency; triggered, not routine; `audits/v1..v3` are its worked runs |
-| `docs/REBRANDING.md` | Every brand touchpoint to replace per app — **incl. the email templates** |
-| `docs/LOCALIZATION.md` | i18n setup (EN/ES live) + how to add a language |
-| `docs/MOBILE_TESTING.md` | Run/sign-in on the Android emulator (adb reverse, OAuth) |
+| `docs/DECISIONS.md` | vuelto's decisions, `ADR-V…` (the "why"); the platform's `ADR-…` are in [its log](https://github.com/argamboad/perezosoft-platform/blob/develop/docs/DECISIONS.md) |
 | `docs/QA_TEST_PLAN.md` | Manual QA plan — step-by-step tests across web + all four native platforms (225 cases: smoke + regression + §14a v3-audit adversarial/tenant-isolation + §14c pre-launch gates + §14d v4-audit adversarial, deploy drills and regressions + §13c native release checklist) |
-| `docs/ROADMAP.md` | Sequenced plan — pillars done (JOBS/BILLING/OBS) + the next waves (RBAC, files, GDPR, MFA, …) |
 | `docs/UI_REDESIGN_PLAN.md` | **MERGED — PR #63 (2026-09-14): all 11 slices + the additive API fields + the fix set. Follow-ups merged the same day: budget lines carry no bank (PR #64), refund `case_number` column dropped (PR #66), native OAuth trailing-slash fix + Cancel while the browser is out (PR #65)** — the `UI Handout.pdf` presentation-layer redesign read against this codebase: epic `SKIN`, eleven app-side slices shipped as ONE PR with a commit each (11 conforms the fourteen screens the handout never drew), five stale claims in it (incl. three silent removals of shipped behaviour), what it costs in strings/tests/QA, the three design decisions (each with a proposal, each due at its own slice gate), the per-slice QA-plan impact map (§5b), and the show-then-green-light rule before every slice |
 | `docs/REPORTS_PDF_INCOME_PLAN.md` | **Plan (owner-confirmed 2026-09-16)** for the report PDF (REPORTS-7, built), "Email me this report" (REPORTS-8, built), income lines with a pay period (INCOME-1, built) and income by member (INCOME-2, built): decisions D1–D9, confirmed assumptions A1–A10, the data-safety rules for the income migration (additive only, parity query, restore point before merge; dropping the old columns is a later owner-gated INCOME-3), and the one-branch / one-commit-per-slice / one-PR working mode |
-| `docs/STATUS.md` | 2026-07-04 status snapshot + operator guides — native QA pass (✅ 2026-07-14), Apple first-run smoke (MacBook walkthrough), prod activation (⤵ downstream Phase-8 runbook, ADR-017 amendment); SaaS-readiness assessment |
-| `docs/PLATFORM_BACKLOG.md` | Per-item design sketches for the future foundation slices (the detail behind ROADMAP) |
-| `docs/stories/` | User stories per epic — generated at build time |
+| `docs/stories/` | vuelto's user stories per epic (the platform's epics are the platform's) |
 | `docs/stories/budget-settings.md` | epic `BUDGET` — app slice P1 (ADR-V001/V003): BUDGET-1 household budget settings (week start — the payday for weekly pay — and month anchor; the income defaults moved to INCOME-1; `/api/budget-settings`; `WeekBoundaryService` in Core) — from donor US-003 / US-015 |
 | `docs/stories/catalog.md` | epic `CATALOG` — app slice P2 (ADR-V008/V009): CATALOG-1 categories + CATALOG-2 banks (soft delete, case-insensitive uniqueness, 409 reactivation offer, seed once in the caller's locale; `/api/categories`, `/api/banks`; `SeedCatalog` in Core) — from donor US-010 / US-013 / US-019 / US-047; CATALOG-3/CARDS-1 the household's cards — brand + last four from the voucher, alias by the household, `VISA-1234` on first sight (`/api/cards`, `/cards`, optional `card_id` on transactions, ADR-V021); CARDS-4 a half-hidden number (`XXXXXXXXXXX8755X`) is asked about in Review and remembered (`CardPattern`, `card_id` / `skip_card` on confirm, ADR-V027, #210) |
 | `docs/stories/exchange-rate.md` | epic `FX` — app slice P3 (ADR-V006, ADR-V019): FX-1 the day's USD→CRC **buy/sell pair** (BCCR via the Finance Ministry mirror, no key; the one-rate world feed selectable) with the fallback chain (live → stale "as of" → last transaction → 503 `exchange_rate_unavailable`; `GET /api/exchange-rate` with `buy`/`sell`); the direction rule in Core `FxRates` (spend USD → sell, spend CRC → buy, income the mirror; a transaction freezes the side its currency selects); seams `IExchangeRateService` / `IExchangeRateResolver` / `IRecentRateSource`; badge + form prefill — from donor US-014 / US-034 |
@@ -279,30 +271,9 @@ deferred items without an explicit decision.
 | `docs/stories/reports.md` | epic `REPORTS` — app slice P8 (ADR-V004/V005/V006, platform ADR-010): REPORTS-1 category analysis by class for a month (anchor window, budgets decorated) or a date range (`GET /api/reports/category-analysis`, pure `CategoryAnalysisCalculator`); REPORTS-2 CSV export of a period stored via `IFileStorage` behind a 15-min signed link and delivered through `IFileDownloadLauncher` (`POST /api/reports/transactions/export`, `TransactionCsvWriter`, 4-dp rate); `/reports` + month-page Export button — from donor US-043 / US-044 / WU-4; REPORTS-3 charts (Table/Chart view, ₡/$ switch, inline-SVG `BarChart`/`DonutChart`, "Spend by class" + "Income vs spend" + "Income vs budget" donuts — on the shared `Core` `IncomeCalculator` / `BudgetTotals`, `income` + `budget_total` on the analysis response, null for a range / no rate); REPORTS-4 pace `LineChart` (`spend_by_day`, plan line, today marker), "Month by month" bars (`GET /api/reports/months-trend`, pure `MonthTrendCalculator`), "Spend by bank" / "Card vs account" donuts (`by_bank` / `by_method`, any period); REPORTS-7 the report as a PDF — `POST /api/reports/pdf` rendered by QuestPDF from the page's own figures (pure `ReportPdfModelBuilder`, own `PdfCharts` SVG builders, Nunito embedded) + a landscape appendix of the CSV's rows (`ReportHandler.ExportRowsAsync`), delivered through the CSV's signed link; PDF dialog on `/reports` (ADR-V022); REPORTS-8 "Email me" — `POST /api/reports/pdf/email` queues the same PDF as an attachment to the caller's own address (10/day per person, `ReportEmailRateLimit`); both PDF endpoints follow the language saved in the account; REPORTS-9 the appendix's columns are the reader's choice (`appendix_columns`: category, class, amount, rate, method, bank, source, card, notes — date and payee always; absent = all; the dialog ticks all each time) |
 | `docs/stories/email-ingestion.md` | epic `EMAIL` — port slices P9/P10 (ADR-V002/V010/V016): EMAIL-1 ✅ voucher parser library (`Vuelto.Core.Vouchers` + `Vuelto.Infrastructure.Vouchers`, BAC/BN extractors, routing-as-data, real fixtures); EMAIL-2 ✅ user-keyed `EmailConnection` + consent round-trip on the platform's OAuth apps with Data-Protection tokens/state (`/api/email/connections`, anonymous callback, `/email` page, `IUserDataContributor`); EMAIL-3 ✅ Graph + Gmail readers (`IEmailReader`, filters pushed into the provider query, refresh-once, paging/saturation, folder pickers); EMAIL-4 ✅ staging & dedup (`PendingVoucher` + `IngestedVoucher` tombstone with RLS, `VoucherFingerprint`, `VoucherStagingService` with the tenant hop + cursor rules, `EmailPollJob` on the platform scheduler, Sync now); EMAIL-5 ✅ merchant → category rules (`MerchantCategoryMapping` with RLS + unique lower-cased `PatternKey`, pure `MerchantMatcher` longest-wins shared with staging, `/api/merchant-mappings`, `/merchant-mappings` page, learn-on-confirm never overwrites); EMAIL-6 ✅ review queue (`/api/pending-vouchers` list/count/confirm/discard; confirm books through the Core `ITransactionService` contract implemented by the Ledger handler — R7 — inside one unit-of-work scope with a conditional flip, `source = email`; discard is a guarded flip; `/review` page with the nav count badge + dashboard banner; only category/class edited, parser blanks opened) — **epic COMPLETE**; EMAIL-7 clear the queue; EMAIL-8 a voucher keeps the rate of the day it arrived (live buy/sell pair frozen on the draft at staging, confirm books its side; ADR-V024); from donor US-025–030 |
 | `docs/stories/ui.md` | epic `UI` — UI-5 cards fold and stay folded per device (`CollapsibleCard`, #205); UI-6 no page scrolls sideways on a phone (`PhoneLayoutTests`, #209); ✅ the original four are a **retrospective** (v3 T59, closing v2 DOC-22): the four 2026-07 web-UI slices that shipped without a story file — UI-1 GDPR export/erasure UI, UI-2 MFA UI, UI-3 notification bell/prefs UI, UI-4 staff `/admin` console; defines what QA §2 + the traceability matrix cite |
-| `docs/stories/billing.md` | epic `BILLING` ✅ COMPLETE — entitlements + Checkout + webhook + Portal (1–4) + seat/usage quotas (5, `IQuotaService`) + trial/dunning (6, `IBillingNotifier` + lapse sweep via NOTIFY) + dissolve cleanup (7, `BillingDataContributor` cancels the provider sub + wipes the projection) + billing page (8, `GET /api/billing` summary + `/billing` UI, fake-provider E2E upgrade loop) + seat re-check at invitation accept (9, 2026-07-14: downgrade left stale invites joinable past the cap → 402 `seat_limit_reached` + `/join` "household full" state, self-heals on upgrade); ADR-006 |
-| `docs/stories/async-jobs.md` | epic `JOBS` ✅ COMPLETE — outbox+dispatcher, inbox, scheduler (ADR-007); JOBS-4 (2026-09-16, synced from platform #235) file attachments on `IEmailSender` (≤ 7 MiB raw total / 10 MiB on the wire, ≤ 20 parts, strict media type + safe name, validated before enqueue — pass the `CancellationToken` by name) |
-| `docs/stories/observability.md` | epic `OBS` ✅ COMPLETE — logging, OpenTelemetry, health, append-only audit log (ADR-008) |
-| `docs/stories/rbac.md` | epic `RBAC` ✅ COMPLETE — `admin` role + permission seam (RBAC-1) + owner-only role change (RBAC-2) + admin-aware roster UI (RBAC-3); ADR-009 |
-| `docs/stories/files.md` | epic `FILES` ✅ COMPLETE — `IFileStorage` local/S3, tenant-scoped keys, signed URLs (FILES-1 abstraction, FILES-2 download, FILES-3 S3); ADR-010 |
-| `docs/stories/gdpr.md` | epic `GDPR` ✅ COMPLETE — tenant data export + account erasure on the contributor/dissolve/file-storage machinery (GDPR-1 export, GDPR-2 erasure); ADR-011 |
-| `docs/stories/mfa.md` | epic `MFA` ✅ COMPLETE — authenticator TOTP; Otp.NET, secret encrypted, hashed recovery codes (MFA-1 enroll/manage, MFA-2 JSON-path step-up, MFA-3 OAuth/magic-link redirect step-up, MFA-4 native step-up — enforced on **every** sign-in path); ADR-012 |
-| `docs/stories/notify.md` | epic `NOTIFY` ✅ COMPLETE — per-user in-app notification center + delivery prefs, fan-out via the outbox (NOTIFY-1 center, NOTIFY-2 prefs+email); 2026-07-09: caller-scoped delete/clear (`DELETE /{id}`, bulk `?read=true`/all) + bell trash/clear-read/clear-all UI; ADR-013 |
-| `docs/stories/admin.md` | epic `ADMIN` ✅ COMPLETE — config-gated platform-staff surface: cross-tenant inspection + short-lived audited impersonation + staff announcements via NOTIFY fan-out (ADMIN-1 gate/inspect, ADMIN-2 impersonate, ADMIN-3 announce — audited in-tenant, per-user rows only); 2026-07-09 (ADR-021 — enumerated admin **writes**): announce `user_ids` targeting + platform-wide `announce-all` (202 → outbox fan-out) + subscription comp/revert (409 when Stripe-backed) w/ console UI; ADR-014 |
-| `docs/stories/pubapi.md` | epic `PUBAPI` — public API + tenant API keys, **config-gated default-off** (PUBAPI-1 ✅ — hash-only keys, API-key auth scheme → `tenant_id`-scoped principal, owner mgmt, scoped `/api/public`; PUBAPI-2 ✅ — per-key rate limit + anonymous public OpenAPI doc `/api/public/openapi.json`); ADR-015 |
-| `docs/stories/hooks.md` | epic `HOOKS` — outbound webhooks, **config-gated default-off** (HOOKS-1 ✅ — `WebhookSubscription` encrypted secret, `IWebhookPublisher` fan-out → outbox → HMAC-signed POST w/ retry, owner `/api/webhooks` + send-test; HOOKS-2 ✅ — delivery log + replay); ADR-016 |
-| `docs/stories/theme.md` | epic `THEME` ✅ COMPLETE — per-user dark mode (THEME-1): Light/Dark/System on Bootstrap `data-bs-theme`; pre-paint `theme.js` bootstrap in BOTH hosts' index.html (parity), `IThemePersistence`/localStorage (one impl serves web + MAUI — no Preferences bootstrap needed, unlike culture), header + login `ThemeSwitcher`, `User.Theme` + `PUT /api/auth/theme` + `theme` JWT claim + `MainLayout` reconcile; dark token block in `app.css`; E2E `ThemeJourneyTests` (suite 30→31), QA-SET-08/DSK-15/AND-14. **Amended by PREFS-1** ("system" now stored verbatim; reconcile on every sign-in) |
-| `docs/stories/prefs.md` | epic `PREFS` ✅ COMPLETE — per-user preference sync (PREFS-1, ADR-022): Settings → Preferences card (language + theme switchers, signed-in home); `AuthService.SignedIn` event → `MainLayout` reconciles on EVERY sign-in path (not just cold starts); two-way sync (server wins; never-set server value adopts the device choice — a pre-auth login-page pick becomes the account pref; never while impersonating); locale mismatch = persist + ONE reload (WASM satellite assemblies — reverts B7-3's in-process switch); "system" stored verbatim (null = never chose). Fixes QA-I18N-02 (was: locale unreachable from UI) + theme-after-OTP-sign-in instability; E2E `LocaleChoice_FollowsTheUser_AcrossBrowsers` (suite 31→32), QA-I18N-02 now ⚙️ automated |
-| `docs/stories/e2e.md` | epic `E2E` ✅ COMPLETE — Playwright journeys (suite 7→26 tests): E2E-1 RBAC roster; E2E-2 billing seat-quota 402 UX; E2E-3 notification bell/prefs (list/mark-read covered via ADMIN-3 announcements); E2E-4 magic-link sign-in (happy + single-use); E2E-5 membership lifecycle (transfer/leave/dissolve/delete-account); BILLING-8 added the fake-provider upgrade-loop journey. Health = DEPLOY-3 smoke, not a browser test |
-| `docs/stories/deploy.md` | epic `DEPLOY` ✅ COMPLETE — staging/prod on the free tier: DEPLOY-1 single-origin (API serves the WASM) + config-gated forwarded headers; DEPLOY-2 Dockerfile + compose parity + `render.yaml` + `docs/DEPLOYMENT.md` (staging live, all 4 sign-in paths verified); DEPLOY-3 CI deploy pipeline (develop→staging auto + version-gated smoke, main→prod gated) + QA §1.5; ADR-017 |
 | `ops/README.md` | **Operator tools runbook** (hidden — no page/route): `snapshot-household.sql` carries one household to another server (what comes across, prerequisites, step by step, dry run, troubleshooting); `staging-rls.ps1` switches a hosted database to the two-role RLS posture in one command (what the two roles are, prerequisites, step by step, troubleshooting) |
-| `docs/DEPLOYMENT.md` | Deployment runbook (DEPLOY-2/3) — Render + Neon + Brevo free-tier bring-up; `Dockerfile` + `render.yaml` reference; required env incl. the Production Stripe-key guard; §6 CI-gated deploys — a manual GitHub *Run workflow* (`deploy` = staging/prod) behind every web gate (ADR-031); §10 the retired Forgejo era (ADR-028 → ADR-030), a pointer only |
-| `docs/stories/gates.md` | epic `GATES` ✅ COMPLETE (ported from the platform 2026-09-14) — **pre-launch gates**, both deployment config, both cleared on launch day (ADR-027): GATES-1 `Billing:Enabled` default-off (billing controllers + provider webhook removed from the application model ⇒ 404; client hides the link and refuses `/billing`; everyone resolves Free; Free seats **3→5**; billing-off seat-limit/full-household copy) · GATES-2 signup green list (`Signup:AllowedEmails`/`AllowedDomains`, empty = open) — the list decides **who may found a household**; a valid pending invitation admits its addressee iff that invitation's tenant **owner** is green-listed. Gates **account creation only, never sign-in**, at `UserService.CreateUserWithTenantAsync`; deliberately does NOT fire at magic-link/OTP **issue** time (user-enumeration oracle) |
-| `docs/stories/test-toolchain.md` | epic `TOOLS` 📋 PLANNED (2026-10-04, v4 audit T65, ported from the platform) — keep the test projects on maintained packages: TOOLS-1 move `Api.Tests`/`Core.Tests`/`Ui.Tests` from `xunit` 2.9.3 (NuGet: Legacy) to `xunit.v3` (test projects become executables, `IAsyncLifetime` returns `ValueTask` — 10 fixtures in `Api.Tests`, new analyzers under `TreatWarningsAsErrors`; order Core → Ui → Api) · TOOLS-2 ✅ `NUnit3TestAdapter` 5.0.0 → 6.3.0, which dropped the deprecated transitive `Microsoft.ApplicationInsights` from `E2E.Tests` |
-| `docs/stories/apple-signin.md` | epic `APPLE` ⏸ DEFERRED (ADR-005) — Sign in with Apple as a third OAuth provider on the provider-agnostic stack; needs the paid Apple Developer Program, so it is picked up web-first when there is a business need; prerequisites and stories are written |
 | `docs/qa-runs/` | Filled QA run logs — `2026-08-run-log.md` (the platform's 2026-08 full pass, inherited) and `2026-09-run-log.md` (this app's slice pass) — plus `helpers/`, the small scripts a co-pilot run uses (mint a JWT, fetch links from Mailpit, MFA codes, the adversarial drills). A new pass adds a new dated log; the plan itself is `docs/QA_TEST_PLAN.md` |
-| `docs/stories/native.md` | epic `NATIVE` ✅ COMPLETE (2026-07-14 — NATIVE-6 device pass green; distribution moved downstream, ADR-024) — full MAUI parity (Android/Windows/iOS/macOS): NATIVE-1 ✅ CI build gate (all 4 TFMs; Apple legs on develop pushes — 10× macOS minutes; Maui lockfile excluded by design) + NATIVE-2 ✅ parity audit → gaps G1–G6 + NATIVE-4b ✅ join-by-invite-code on /join (G5 closed; E2E suite 26→28) + NATIVE-5 ✅ culture bootstrap (G6 closed: ICulturePersistence seam, MAUI Preferences + MauiProgram bootstrap; Windows-verified via WebView2 CDP) + NATIVE-3 ✅ downloads (G1 closed: Content-Disposition attachment + IFileDownloadLauncher — web same-tab download, native OS share sheet — a Save As dialog on Windows since NATIVE-13, #204; E2E suite 28→29); + NATIVE-4 ✅ (G2 refresh-on-resume AppResumeNotifier + G3 Android back handler) — Wave 2 COMPLETE, all six gaps closed; NATIVE-6 QA plan authored (117 cases: DSK-08..14, AND-07..13, iOS/mac first-run smoke, release checklist) + G7 Apple-boot fix (iOS/macCatalyst crashed at startup — WebAuthenticator initiator generalized + Info.plist schemes); **Apple column UNPINNED 2026-07-06** — §13b run on the maintainer's MacBook: QA-IOS-01/02/04 + QA-MAC-01/02 + OAuth PASS (two gaps fixed in PR #125: SMTP revocation knob + Catalyst Debug session store); NATIVE-7 ✅ COMPLETE smokes for all four platforms in CI (Windows WebView2-CDP + Android emulator playwright-core _android + iOS-simulator & Mac Catalyst boot-to-login canaries in one `native-smoke-apple` job — WKWebView has no CDP, so they assert process-alive + provider-probe-200, no UI driving; native-paths gate skips Apple/smoke legs on docs-only pushes; deploy-staging concurrency); **NATIVE-6 ✅ FULL PASS 2026-07-14** — the maintainer completed the entire manual QA process as the plan stood then (125 cases incl. the leftover §13b spot-checks), no open findings; post-pass additions (§14a re-runs + QA-AND-15) are the open device items; **NATIVE-8..11 (signing/installers/stores) ⤵ MOVED DOWNSTREAM (ADR-024)** — per-app work, checklist in `NEW_APP_GUIDE.md` Phase 9, Wave 4 kept as reference incl. the two signing-identity re-verify traps (packaged-MSIX SecureStorage + Apple keychain-access-groups); ADR-018 |
-| `docs/NATIVE_PARITY.md` | NATIVE-2 audit — WebView-vs-browser deltas × platform × screen (✅/⚠️/🔍 verdicts); gap register G1–G6 → Wave-2 slices; maintainer rules (index.html sync, emailed links land on web, forceLoad = leaves the app) |
 | `docs/postman/` | **Postman collection for the whole API** (collection + per-env environments: local, staging/Render + README) — chained OTP sign-in w/ Mailpit auto-fetch, token rotation, all surfaces incl. config-gated PUBAPI/HOOKS and the admin writes. **CI-mirrored to the Postman workspace** (`postman-sync` on develop; one-way, repo canonical); rename on rebrand (incl. the workflow's file path) |
 | `.env.example` | **Config catalog** — every configurable key + its default (CONFIGURATION REFERENCE block) + the compiled-in "not configurable" limits; CI-enforced source of truth (`ConfigKeys_ReadInCode_AreDocumented`) |
 | `.github/pull_request_template.md` | PR checklist (auto-loaded by GitHub) |
-| `src/Infrastructure/Persistence/Migrations/` | Concrete schema — EF Core migrations generated from DATA_MODEL.md |
+| `src/Host/Persistence/Migrations/` | Concrete schema — EF Core migrations generated from DATA_MODEL.md |

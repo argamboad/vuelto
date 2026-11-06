@@ -8,10 +8,12 @@ emails from BAC/BN become transactions after a one-click review.
 The name is Costa Rican slang — *"¿Y el vuelto?"*, "and the change?". The code, database and
 docs keep the name **`Vuelto`**; the display brand is *¿Y el vuelto?* — that split is intentional.
 
-Built on the [Perezosoft platform](https://github.com/argamboad/perezosoft-platform) (ASP.NET Core
-API + Blazor WASM + shared RCL + PostgreSQL/EF Core + custom JWT auth, with MAUI Blazor Hybrid
-shells). Multi-tenancy, auth, invitations, MFA, billing, jobs, notifications, GDPR and the deploy
-pipeline are inherited; this repo adds the budgeting domain as vertical slices. It is a
+Built on the [Perezosoft platform](https://github.com/argamboad/perezosoft-platform), taken as **packages**
+(`Perezosoft.Platform.*` from its GitHub Packages feed, ADR-034): ASP.NET Core API + Blazor WASM + shared RCL +
+PostgreSQL/EF Core + custom JWT auth, with MAUI Blazor Hybrid shells. Multi-tenancy, auth, invitations, MFA, billing,
+jobs, notifications, GDPR and the CI gates come from the packages; this repo is the host (`src/Host`: the budgeting
+domain as vertical slices under `Features/`, its entities, logic and migrations), the UI seed (`src/Shared.Ui`,
+`src/Web`, `src/Maui`) and the tests of what it owns. It is a
 **continuation port** of the donor repo `vuelto-legacy/phase2` — see `docs/DECISIONS.md` ADR-V001.
 
 ## Reading order
@@ -19,13 +21,13 @@ pipeline are inherited; this repo adds the budgeting domain as vertical slices. 
 1. [`docs/PROJECT_BRIEF.md`](docs/PROJECT_BRIEF.md) — what the app is, the core loop, the OUT list.
 2. [`docs/FEATURES.md`](docs/FEATURES.md) — every flow, with sequence diagrams for the two hot paths.
 3. [`docs/DATA_MODEL.md`](docs/DATA_MODEL.md) — entities, ER diagram, derived rules, lifecycles.
-4. [`docs/DECISIONS.md`](docs/DECISIONS.md) — the platform's ADRs (inherited) + the app's `ADR-V…` series.
-5. [`docs/WAYS_OF_WORKING.md`](docs/WAYS_OF_WORKING.md) — slices, Gherkin stories, TDD, PR conventions.
+4. [`docs/DECISIONS.md`](docs/DECISIONS.md) — the app's `ADR-V…` series (the platform's ADRs are the platform's log).
+5. [`docs/README.md`](docs/README.md) — the docs index: the platform's documents (WAYS_OF_WORKING: slices, stories, TDD,
+   PRs) and vuelto's specifics (ports, staging, OAuth, the operator runbooks).
 6. [`CLAUDE.md`](CLAUDE.md) — the operating manual (golden rules, conventions, doc map).
 
-Platform mechanics (architecture, flows, deployment, localization, QA plan) are documented in
-`docs/` as inherited from the platform; `docs/NEW_APP_GUIDE.md` is the phase-by-phase path this
-repo is following.
+The platform's own documents (architecture, flows, deployment, localization, the new-app guide) live in the platform
+repo; [`docs/README.md`](docs/README.md) links them.
 
 ## Run it locally
 
@@ -34,9 +36,10 @@ Operator tools (hidden — no page, no route), e.g. moving your household to ano
 
 
 ```bash
-cp .env.example .env            # then fill it — at minimum Jwt__Secret (any ≥32-char string)
+cp .env.example .env            # then fill it — at minimum Jwt__Secret (any ≥32-char string) and PLATFORM_PACKAGES_TOKEN
+dotnet tool restore             # the platform tool: `dotnet platform …` (ports, e2e, qa-guide, publish-native)
 docker compose up -d db mail    # Postgres 17 on :5434 + Mailpit on :1026 (SMTP) / :8026 (UI)
-dotnet run --project src/Api --launch-profile https    # API on https://localhost:7260
+dotnet run --project src/Host --launch-profile https   # API on https://localhost:7260
 dotnet run --project src/Web                           # web UI on https://localhost:7108
 ```
 
@@ -45,16 +48,17 @@ Sign in with **"Email me a 6-digit code"** and read the code from Mailpit at
 runs alongside the other two apps — see [Local ports](#local-ports).
 
 ```bash
-dotnet test tests/Core.Tests
 dotnet test tests/Api.Tests     # spins up a Postgres Testcontainer; Docker must be running
 dotnet test tests/Ui.Tests
+node --test tests/ui-js/*.test.js
+dotnet platform e2e             # the browser journeys against a local stack (-Gates for the gates-off lane)
 ```
 
 ## Local ports
 
 The three apps run side by side on one machine, each on its own block, so a stack never answers for another. This
 table is the same in all three repos. A repo states its block ONCE, in `local-ports.props`: code reads it through the
-generated `LocalPorts` class, `pwsh tools/ports.ps1 -Apply` writes it into the files that cannot read MSBuild (compose
+generated `LocalPorts` class, `dotnet platform ports -Apply` writes it into the files that cannot read MSBuild (compose
 defaults, launch profiles, appsettings, `.env.example`, the Postman environment, this row), and `LocalPortsTests` fails
 on any file that disagrees, on a port number in code, and if two apps share a port.
 API http is the port the Android emulator uses; the app container is `docker compose --profile app up`.

@@ -83,19 +83,6 @@ public class NativeShellGateTests
     }
 
     [Fact]
-    public void FirstReleaseDocs_VerifyWithApksigner_AndWarnAboutTheReverseUpgrade()
-    {
-        // jarsigner accepts a v1-only APK that Android 11+ refuses to install; apksigner is the check a phone
-        // agrees with. And a store-signed build cannot install over a debug-signed sideload: say so once.
-        var root = RepoRoot();
-        var guide = File.ReadAllText(Path.Combine(root, "docs", "NEW_APP_GUIDE.md"));
-        var deployment = File.ReadAllText(Path.Combine(root, "docs", "DEPLOYMENT.md"));
-        Assert.DoesNotContain("jarsigner -verify", guide);
-        Assert.Contains("apksigner verify", guide);
-        Assert.Contains("uninstall", deployment[deployment.IndexOf("## 9", StringComparison.Ordinal)..]);
-    }
-
-    [Fact]
     public void IconGround_IsOneColour_InTheCsprojTheIconAndTheAssetScript()
     {
         // The launcher icon's background is written in four places by hand. A rebrand that changes the token in

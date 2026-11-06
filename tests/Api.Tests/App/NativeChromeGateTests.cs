@@ -58,15 +58,6 @@ public class NativeChromeGateTests
         Assert.Matches(new Regex(@"SetInsets\(\s*WindowInsetsCompat\.Type\.StatusBars\(\)"), activity);
     }
 
-    [Fact]
-    public void Rebranding_NamesTheAndroidSystemBars()
-    {
-        var rebranding = File.ReadAllText(Path.Combine(RepoRoot(), "docs", "REBRANDING.md"));
-
-        Assert.Contains("Platforms/Android/Resources/values/colors.xml", rebranding);
-        Assert.Contains("SystemBarColors", rebranding);
-    }
-
     private static string Block(string css, string opener)
     {
         var m = Regex.Match(css, opener + @"([^}]*)\}");

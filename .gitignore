@@ -26,19 +26,11 @@ node_modules/
 # MAUI lockfile — excluded by design (NATIVE-1): platform-conditional restore makes it churn
 src/Maui/packages.lock.json
 
-# personal dev seed (owner-only, never committed)
-my-seed.sql
-
-# Azurite (local Azure Storage emulator) state files written at the repo root by the VS Code extension
-__azurite_db_*.json
-__blobstorage__/
-__queuestorage__/
-
-# Native installables (tools/publish-native.ps1 and DEPLOYMENT §9 both publish here)
-out/
-
 # VS Code: launch.json + tasks.json are shared (F5 API + Web, Android tasks); per-user preferences stay local
 .vscode/settings.json
+
+# Native installables (DEPLOYMENT §9 publishes to out/android and out/windows)
+out/
 
 # Signing material (v4 audit NAT-15, R104): a keystore or certificate IS the app's identity. Keep it
 # outside the repo; these patterns are the net under that habit.
@@ -46,3 +38,14 @@ out/
 *.keystore
 *.p12
 *.pfx
+
+# Python bytecode (the docs/ generator scripts)
+__pycache__/
+
+# vuelto's own
+# personal dev seed (owner-only, never committed)
+my-seed.sql
+# Azurite (local Azure Storage emulator) state files written at the repo root by the VS Code extension
+__azurite_db_*.json
+__blobstorage__/
+__queuestorage__/

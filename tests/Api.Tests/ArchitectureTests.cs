@@ -1,11 +1,9 @@
-using Vuelto.Host.Persistence;
 using System.Reflection;
 using Vuelto.Api.Tests.App;
 using Vuelto.Api.Tests.Infrastructure;
-using Perezosoft.Testing;
+using Vuelto.Host.Persistence;
 using Perezosoft.Infrastructure.Persistence;
 using Perezosoft.Testing.Suites;
-using Vuelto.Host;
 
 namespace Vuelto.Api.Tests;
 

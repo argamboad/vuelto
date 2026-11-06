@@ -37,7 +37,7 @@
 
 ```bash
 docker compose up -d                                   # Postgres + Mailpit
-dotnet run --project src/Api --launch-profile https    # binds https:7260 (web/desktop) AND http:5338 (android)
+dotnet run --project src/Host --launch-profile https    # binds https:7260 (web/desktop) AND http:5338 (android)
 ```
 
 - API health/liveness check: `curl -k https://localhost:7260/health` → **200** (`Healthy`);
@@ -53,7 +53,7 @@ dotnet run --project src/Api --launch-profile https    # binds https:7260 (web/d
   > - commenting out the `Email__Smtp__*` lines in `.env` (unset → defaults to Mailpit `localhost:1025`), **or**
   > - leaving `.env` untouched and overriding on the command line (command-line config beats `.env`):
   >   ```bash
-  >   dotnet run --project src/Api --launch-profile https -- \
+  >   dotnet run --project src/Host --launch-profile https -- \
   >     --Email:Smtp:Host=localhost --Email:Smtp:Port=1025 --Email:Smtp:Username= --Email:Smtp:Password=
   >   ```
   > Verify by triggering one OTP (QA-SMK-01) and confirming it appears in Mailpit before running the suite.
@@ -95,7 +95,7 @@ dotnet run --project src/Api --launch-profile https    # binds https:7260 (web/d
 - OAuth uses a **loopback browser flow** — your default system browser will open a tab during OAuth.
 
 ### 1.4 Android (MAUI) — additional setup
-Follow `docs/MOBILE_TESTING.md`. The essential bits:
+Follow the platform's [MOBILE_TESTING](https://github.com/argamboad/perezosoft-platform/blob/develop/docs/MOBILE_TESTING.md). The essential bits:
 - Emulator (AVD) or USB device running.
 - **`adb reverse tcp:5338 tcp:5338`** — **re-run every time the device/emulator restarts** (it does
   not persist). Verify with `adb reverse --list`.
@@ -143,7 +143,7 @@ checklist (§13c).
 
 **Out of scope (per `docs/PROJECT_BRIEF.md` OUT list & current state):** SMS OTP, OAuth providers
 beyond Google/Microsoft, FR/DE/PT languages (scaffolded but not translated — see
-`docs/LOCALIZATION.md`), and any app-specific domain features not yet built on this platform.
+the platform's [LOCALIZATION](https://github.com/argamboad/perezosoft-platform/blob/develop/docs/LOCALIZATION.md)), and any app-specific domain features not yet built on this platform.
 
 **Platform services with no client UI (API-/operational-level, not manually testable through the app
 yet):** the append-only audit log, OpenTelemetry telemetry, the health endpoints, the background
@@ -939,7 +939,7 @@ And entering a valid code completes sign-in
 
 ### QA-MFA-05 — Native (MAUI) sign-in enforces the step-up 🟠 (Desktop/Android)
 **Precondition:** an account with two-factor **On**; run the desktop/Android shell (see
-`docs/MOBILE_TESTING.md`). Native has no magic link — use **email OTP** or **OAuth**.
+the platform's [MOBILE_TESTING](https://github.com/argamboad/perezosoft-platform/blob/develop/docs/MOBILE_TESTING.md)). Native has no magic link — use **email OTP** or **OAuth**.
 **Gherkin**
 ```gherkin
 Given my account has two-factor enabled
@@ -2699,7 +2699,7 @@ auto-sign-in (secure storage cleared).
 **Walkthrough:** spot-check rename, invite (token revealed), and leave on desktop. **Expected:** same
 behavior as web (§7–8) — the UI is shared.
 
-> **NATIVE Wave 2 (ADR-018, `docs/NATIVE_PARITY.md`):** the cases below verify the parity fixes
+> **NATIVE Wave 2 (ADR-018, the platform's [NATIVE_PARITY](https://github.com/argamboad/perezosoft-platform/blob/develop/docs/NATIVE_PARITY.md)):** the cases below verify the parity fixes
 > per-feature on desktop — join-by-code (G5), culture persistence (G6), export share (G1), and the
 > billing return-trip (G2) — plus the feature areas the old plan never exercised natively.
 
@@ -2759,7 +2759,7 @@ Then the plan summary refreshes by itself — no re-navigation needed
 1. **Billing** → **Upgrade**. **Expected:** the **system browser** opens the hosted checkout; the
    app stays on Billing (it does not navigate away).
 2. Complete checkout with a test card. **Expected:** the browser lands on the **web** app's billing
-   page (by design — emailed/redirect links are web; `docs/NATIVE_PARITY.md` G2).
+   page (by design — emailed/redirect links are web; the platform's [NATIVE_PARITY](https://github.com/argamboad/perezosoft-platform/blob/develop/docs/NATIVE_PARITY.md) G2).
 3. Click back into the desktop app. **Expected:** the summary **refetches on focus** — the plan
    flips to **pro** without touching navigation. (Without Stripe keys the fake provider's checkout
    URL is a stub — then verify only: browser opened, app stayed, and refocusing refetches.)
@@ -2802,7 +2802,7 @@ light/dark setting live.
 ## 13. Android — MAUI 🟠
 
 > Prereq every run: **`adb reverse tcp:5338 tcp:5338`** + API on the https profile. See
-> `docs/MOBILE_TESTING.md`.
+> the platform's [MOBILE_TESTING](https://github.com/argamboad/perezosoft-platform/blob/develop/docs/MOBILE_TESTING.md).
 
 ### QA-AND-01 — OTP sign-in 🔴 (Android) ⚙️ Automated in CI
 **Gherkin**
@@ -2854,7 +2854,7 @@ padding), the menu flows inside the sheet rather than floating over it, and ever
 **Walkthrough:** spot-check language switch, invite (token revealed), and leave. **Expected:** parity
 with web.
 
-> **NATIVE Wave 2 (ADR-018, `docs/NATIVE_PARITY.md`):** the cases below verify the parity fixes on
+> **NATIVE Wave 2 (ADR-018, the platform's [NATIVE_PARITY](https://github.com/argamboad/perezosoft-platform/blob/develop/docs/NATIVE_PARITY.md)):** the cases below verify the parity fixes on
 > Android — including the two that only exist on this platform (hardware back, share sheet).
 
 ### QA-AND-07 — Hardware back navigates in-app history 🔴 (Android)
@@ -3626,7 +3626,7 @@ app fires no published events. (Published events via `IWebhookPublisher` also lo
 > who finds the URL cannot create an account. Hiding the deployment itself is explicitly out of scope.
 
 ### QA-GATE-01 — Billing off: the surface does not exist 🔴 (Web + curl) ⚙️ Automated in CI
-*Automated by `GateJourneyTests.BillingOff_TheSurfaceDoesNotExist_NoLink_NoPage_ApiAnswers404` in the gates-off E2E lane (`Billing__Enabled` unset, `Signup__AllowedDomains__0` = one listed domain; `pwsh tools/e2e.ps1 -Gates` locally). The manual walkthrough stays for a real deployment.*
+*Automated by `GateJourneyTests.BillingOff_TheSurfaceDoesNotExist_NoLink_NoPage_ApiAnswers404` in the gates-off E2E lane (`Billing__Enabled` unset, `Signup__AllowedDomains__0` = one listed domain; `dotnet platform e2e -Gates` locally). The manual walkthrough stays for a real deployment.*
 
 **Precondition:** `Billing__Enabled` unset in the repo-root `.env` (the shipped default); restart.
 **Gherkin**
@@ -3646,7 +3646,7 @@ Then there is no billing link, /billing does not render, and the API answers 404
 ---
 
 ### QA-GATE-02 — Billing off: nothing offers an upgrade 🟠 (Web) ⚙️ Automated in CI
-*Automated by `GateJourneyTests.BillingOff_AFullHousehold_SaysFull_AndNeverOffersAnUpgrade` in the gates-off E2E lane (`Billing__Enabled` unset, `Signup__AllowedDomains__0` = one listed domain; `pwsh tools/e2e.ps1 -Gates` locally). The manual walkthrough stays for a real deployment.*
+*Automated by `GateJourneyTests.BillingOff_AFullHousehold_SaysFull_AndNeverOffersAnUpgrade` in the gates-off E2E lane (`Billing__Enabled` unset, `Signup__AllowedDomains__0` = one listed domain; `dotnet platform e2e -Gates` locally). The manual walkthrough stays for a real deployment.*
 
 **Precondition:** QA-GATE-01's state, plus a household at its seat cap (see QA-HH-14).
 **Gherkin**
@@ -3680,7 +3680,7 @@ Then the billing link is back, /billing renders the plan summary, and the seat-l
 ---
 
 ### QA-GATE-04 — Green list: a stranger cannot create an account 🔴 (Web) ⚙️ Automated in CI
-*Automated by `GateJourneyTests.GreenList_AStrangerIsRefusedAtRedemption_WithTheRightWords` in the gates-off E2E lane (`Billing__Enabled` unset, `Signup__AllowedDomains__0` = one listed domain; `pwsh tools/e2e.ps1 -Gates` locally). The manual walkthrough stays for a real deployment.*
+*Automated by `GateJourneyTests.GreenList_AStrangerIsRefusedAtRedemption_WithTheRightWords` in the gates-off E2E lane (`Billing__Enabled` unset, `Signup__AllowedDomains__0` = one listed domain; `dotnet platform e2e -Gates` locally). The manual walkthrough stays for a real deployment.*
 
 **Precondition:** in `.env` set `Signup__AllowedEmails__0=` **your own address**; restart. Use a *second*
 address you control that is NOT listed and has **no account yet**.
@@ -3703,7 +3703,7 @@ Then I am told the app is in private testing and no account is created
 ---
 
 ### QA-GATE-05 — Green list: a listed person founds a household and can bring their family 🟠 (Web) ⚙️ Automated in CI
-*Automated by `GateJourneyTests.GreenList_AListedOwnerFoundsAHousehold_AndAnUnlistedInviteeMayJoinIt` in the gates-off E2E lane (`Billing__Enabled` unset, `Signup__AllowedDomains__0` = one listed domain; `pwsh tools/e2e.ps1 -Gates` locally). The manual walkthrough stays for a real deployment.*
+*Automated by `GateJourneyTests.GreenList_AListedOwnerFoundsAHousehold_AndAnUnlistedInviteeMayJoinIt` in the gates-off E2E lane (`Billing__Enabled` unset, `Signup__AllowedDomains__0` = one listed domain; `dotnet platform e2e -Gates` locally). The manual walkthrough stays for a real deployment.*
 
 **Precondition:** QA-GATE-04's state (your address listed, one unlisted address available).
 **Gherkin**
@@ -3956,15 +3956,15 @@ Then every web gate runs, and only when all pass the Render hook fires and the v
 | Catalog: categories + banks (app CATALOG-1/2) | CAT-01..04 | `GET/POST /api/categories`, `PUT /api/categories/{id}`, same under `/api/banks` (409 `*_exists` / `*_exists_inactive` + `existing_id` + `existing_name`; uniform 404) |
 | Exchange rate (app FX-1) | FX-01..02 + `Api.Tests` (`ExchangeRateApiClientTests`, `ExchangeRateResolverTests`) | `GET /api/exchange-rate` (200 `{rate, source: live\|cache\|transaction, as_of}`; 503 `exchange_rate_unavailable`; 401 anonymous) |
 | Envelopes (app ENV-1) | ENV-01..02 | `GET/POST /api/envelopes`, `PUT /api/envelopes/{id}` (400 `invalid_request`; 409 `envelope_exists` / `envelope_exists_inactive` + `existing_id` + `existing_name`; uniform 404) |
-| Income lines + month income rows + income by member (app INCOME-1/2 · ADR-V023) | INC-01..04 (04: `Core.Tests` `IncomeByMemberTests`, `Api.Tests` `ReportSliceTests` / `ReportPdfModelBuilderTests` / `ReportPdfRendererTests`, `Ui.Tests` `ReportsPageTests`) (01–02 ⚙️ E2E `IncomeJourneyTests`) + `Core.Tests` (`IncomeSnapshotTests`, `IncomeCalculatorTests`) + `Api.Tests` (`IncomeSliceTests`, `IncomeEndpointTests`, `IncomeMigrationTests` on real Postgres, `ArchitectureTests.LegacyIncomeColumns_AreReadOrWrittenByNothing`) + `Ui.Tests` (`IncomesPageTests`, `LedgerPagesTests`) | `GET/POST /api/incomes`, `PUT /api/incomes/{id}`, `PUT /api/incomes/order` (400 `invalid_request`; 409 `income_exists` / `income_exists_inactive` + `existing_id` + `existing_name`; uniform 404); `GET /api/months/{id}` → `income_rows`; `PUT /api/months/{id}/income` `{rows:[…]}`; `ops/check-income-parity.sql` |
+| Income lines + month income rows + income by member (app INCOME-1/2 · ADR-V023) | INC-01..04 (04: `Api.Tests` (App/) `IncomeByMemberTests`, `Api.Tests` `ReportSliceTests` / `ReportPdfModelBuilderTests` / `ReportPdfRendererTests`, `Ui.Tests` `ReportsPageTests`) (01–02 ⚙️ E2E `IncomeJourneyTests`) + `Api.Tests` (App/) (`IncomeSnapshotTests`, `IncomeCalculatorTests`) + `Api.Tests` (`IncomeSliceTests`, `IncomeEndpointTests`, `IncomeMigrationTests` on real Postgres, `ArchitectureTests.LegacyIncomeColumns_AreReadOrWrittenByNothing`) + `Ui.Tests` (`IncomesPageTests`, `LedgerPagesTests`) | `GET/POST /api/incomes`, `PUT /api/incomes/{id}`, `PUT /api/incomes/order` (400 `invalid_request`; 409 `income_exists` / `income_exists_inactive` + `existing_id` + `existing_name`; uniform 404); `GET /api/months/{id}` → `income_rows`; `PUT /api/months/{id}/income` `{rows:[…]}`; `ops/check-income-parity.sql` |
 | Months & transactions (app LEDGER-1/2) | LED-01..04 + `Api.Tests` (`LedgerSliceTests`) | `GET /api/months`, `GET /api/months/resolve?date=`, `GET /api/months/{id}`, `PUT /api/months/{id}/income`, `GET /api/months/{id}/transactions`; `POST /api/transactions`, `GET/PUT/DELETE /api/transactions/{id}` (400 `invalid_request` / `exchange_rate_unavailable` / `derived_transaction`; uniform 404) |
 | Expected refunds & realization (app LEDGER-3, LEDGER-5..8) | LED-05..06, LED-08..09 + `Api.Tests` (`RefundSliceTests`, incl. the two-context concurrency proof) | `refund_expected` / `refund_amount` on `POST/PUT /api/transactions` (409 `refund_status_conflict` on a received refund's purchase — ADR-V026); `GET /api/months/{id}/refunds` (`{ refunds, totals }`); `GET /api/refunds` (400 on a bad status/range); `PUT /api/refunds/{id}` (200; 400 `invalid_request`; 404; 409 `refund_status_conflict`) |
 | Budget lines: fixed + variable (app EXPENSES-1) | EXP-01..03 | `GET/POST /api/expenses/{fixed\|variable}`, `PUT …/{id}`, `PUT …/order` (400 `invalid_request`; 409 `expense_exists` / `expense_exists_inactive` + `existing_id` + `existing_name`; uniform 404) |
-| Dashboard (app DASH-1) | DASH-01..02 + `Core.Tests` (`DashboardSummaryServiceTests`, 45 donor cases) + `Api.Tests` (`DashboardSliceTests`) | `GET /api/months/{id}/summary` (200 `{month, exchange_rate, rate_source, rate_as_of, rate_unavailable, summary}`; 401 anonymous; uniform 404) |
-| Reports: category analysis + CSV export + PDF + email + appendix columns (app REPORTS-1/2/7/8/9) | REP-01..02, REP-05..07 + `Core.Tests` (`CategoryAnalysisCalculatorTests`, `TransactionCsvWriterTests`) + `Api.Tests` (`ReportSliceTests`, `ReportPdfChartsTests`, `ReportPdfModelBuilderTests`, `ReportPdfSliceTests`) + E2E `ReportPdfJourneyTests` | `GET /api/reports/category-analysis`, `POST /api/reports/transactions/export`, `POST /api/reports/pdf`, `POST /api/reports/pdf/email` (`month_id` \| `from`+`to`; 400 `period_required` / `period_ambiguous` / `period_incomplete` / `period_invalid`; uniform 404; export → signed `download_url` served by `GET /api/files/{token}`) |
+| Dashboard (app DASH-1) | DASH-01..02 + `Api.Tests` (App/) (`DashboardSummaryServiceTests`, 45 donor cases) + `Api.Tests` (`DashboardSliceTests`) | `GET /api/months/{id}/summary` (200 `{month, exchange_rate, rate_source, rate_as_of, rate_unavailable, summary}`; 401 anonymous; uniform 404) |
+| Reports: category analysis + CSV export + PDF + email + appendix columns (app REPORTS-1/2/7/8/9) | REP-01..02, REP-05..07 + `Api.Tests` (App/) (`CategoryAnalysisCalculatorTests`, `TransactionCsvWriterTests`) + `Api.Tests` (`ReportSliceTests`, `ReportPdfChartsTests`, `ReportPdfModelBuilderTests`, `ReportPdfSliceTests`) + E2E `ReportPdfJourneyTests` | `GET /api/reports/category-analysis`, `POST /api/reports/transactions/export`, `POST /api/reports/pdf`, `POST /api/reports/pdf/email` (`month_id` \| `from`+`to`; 400 `period_required` / `period_ambiguous` / `period_incomplete` / `period_invalid`; uniform 404; export → signed `download_url` served by `GET /api/files/{token}`) |
 | Email inboxes: connect + readers (app EMAIL-2/3) | EMAIL-01..03 + `Api.Tests` (`MailConsentServiceTests`, `EmailReaderTests`, `EmailConnectionSliceTests`) | `GET /api/email/connections` (+ `/{id}`, `/{id}/folders` 409 `needs_reconsent`), `GET …/authorize?provider=` (400 `invalid_provider` / `provider_not_configured`), anonymous `GET …/callback` (→ `/email?connected=` \| `?email_error=`), `GET …/suggested-filters`, `POST …` (400 `use_consent_flow`), `PUT /{id}` (400 `filters_required` / `invalid_interval`), `DELETE /{id}`; uniform 404 |
-| Email ingestion: staging + dedup (app EMAIL-4) | EMAIL-04 + `Core.Tests` (`VoucherFingerprintTests`) + `Api.Tests` (`VoucherStagingSliceTests` incl. the poll job) | `POST /api/email/connections/{id}/sync` (200 `{staged, duplicates, unrecognized}`; 409 `needs_reconsent`; uniform 404); the `email-poll` scheduled job |
-| Email ingestion: merchant suggestions (app EMAIL-5) | EMAIL-05 + `Core.Tests` (`MerchantMatcherTests`) + `Api.Tests` (`MerchantMappingSliceTests` incl. the race, `VoucherStagingSliceTests` suggestion case, `ReviewEndpointTests`) + `Ui.Tests` (`MerchantMappingsPageTests`) | `GET/POST /api/merchant-mappings`, `PUT/DELETE …/{id}` (400 `invalid_request`; 409 `mapping_exists`; uniform 404) |
+| Email ingestion: staging + dedup (app EMAIL-4) | EMAIL-04 + `Api.Tests` (App/) (`VoucherFingerprintTests`) + `Api.Tests` (`VoucherStagingSliceTests` incl. the poll job) | `POST /api/email/connections/{id}/sync` (200 `{staged, duplicates, unrecognized}`; 409 `needs_reconsent`; uniform 404); the `email-poll` scheduled job |
+| Email ingestion: merchant suggestions (app EMAIL-5) | EMAIL-05 + `Api.Tests` (App/) (`MerchantMatcherTests`) + `Api.Tests` (`MerchantMappingSliceTests` incl. the race, `VoucherStagingSliceTests` suggestion case, `ReviewEndpointTests`) + `Ui.Tests` (`MerchantMappingsPageTests`) | `GET/POST /api/merchant-mappings`, `PUT/DELETE …/{id}` (400 `invalid_request`; 409 `mapping_exists`; uniform 404) |
 | Email ingestion: review queue + confirm (app EMAIL-6) | EMAIL-06 + `Api.Tests` (`PendingVoucherSliceTests` incl. the two-context concurrency proof, `ReviewEndpointTests`) + `Ui.Tests` (`ReviewPageTests`, `ReviewBadgeTests`) | `GET /api/pending-vouchers` (+ `/count`), `POST …/{id}/confirm` (200 `{transaction_id, month_id, amount_crc, amount_usd, remembered}`; 400 `invalid_request` / `exchange_rate_unavailable`; 409 `not_pending`), `POST …/{id}/discard` (204; 409 `not_pending`); uniform 404 |
 | Emails / branding | MAIL-01..04, I18N-04 | (SMTP via Mailpit) |
 | Tenant isolation / auth guards | SEC-01..05 | (all `[Authorize]` endpoints; write-stamping + reuse detection are automated) |
@@ -3975,7 +3975,7 @@ Then every web gate runs, and only when all pass the Render hook fires and the v
 | Billing — trial/dunning (BILLING-6) | covered by `Api.Tests` (`BillingWebhookHandlerTests`, `SubscriptionLapseSweepJobTests`); manual via Stripe test triggers | webhook transition into `active`/`trialing` from nothing or a lapsed state → owner **"Subscription active"** notification (`billing.activated`, plan + renewal date) once — a renewal or a trial converting is silent; transition into `past_due`/`canceled` → owner **notification** (in-app bell + outbox email, NOTIFY) once; `SubscriptionLapseSweepJob` (6h) nudges the owner once when a paid period lapses without a webhook (`LapseNotifiedAt`). Verify with `stripe trigger invoice.payment_failed` (test mode) → owner sees a billing notification in the bell. |
 | Billing — dissolve cleanup (BILLING-7) | covered by `Api.Tests` (`BillingDissolveTests`) | on tenant dissolve, `BillingDataContributor` wipes the `Subscription` projection **and** enqueues a `"billing.cancel"` outbox message → `IBillingProvider.CancelSubscriptionAsync` (a deleted tenant stops being billed). `HasDataAsync`=false (billing never blocks leaving); export gains a `billing` section (plan/status/period, no Stripe ids). Manual (Stripe test mode): subscribe a throwaway tenant, delete the account, confirm the Stripe subscription is canceled. |
 | Public API + API keys (PUBAPI, **config-gated off**) | **QA-API-01..04** (curl/Postman) + `Api.Tests` (`ApiKeyServiceTests`, `RateLimitingTests`); boot-verified on/off | `PublicApi:Enabled` toggles it. Owner-only `/api/apikeys` (create → raw `pk_…` once, list, revoke; `Permission.ManageApiKeys`); API-key auth scheme mints a `tenant_id`-scoped principal; demo `/api/public/whoami` (read scope) + `/api/public/echo` (write scope) via `.RequireApiScope`. **PUBAPI-2:** per-key rate limit (60/min, isolated per key → 429) + a leak-free public OpenAPI doc at `/api/public/openapi.json` (only the public routes). **Off (default) ⇒ routes 404.** Manual: `PublicApi__Enabled=true`, mint a key, `curl -H "X-Api-Key: pk_…" /api/public/whoami`; fetch `/api/public/openapi.json`. |
-| Outbound webhooks (HOOKS, **config-gated off**) | **QA-API-01, 05, 06** (curl/webhook.site) + `Api.Tests` (`WebhookSubscriptionServiceTests`, `WebhookDeliveryTests`, `WebhookDeliveryLogTests`) + `Core.Tests` (`WebhookSignatureTests`); boot-verified on/off | `Webhooks:Enabled` toggles it. Owner-only `/api/webhooks` (register → signing secret `whsec_…` once, list, delete, **send test**; `Permission.ManageWebhooks`). `IWebhookPublisher.PublishAsync` fans out to matching active subs → one `"webhook"` **outbox** message each → signed POST (`X-Webhook-Signature`), retry/dead-letter via the outbox. **HOOKS-2:** a delivery log (`GET /api/webhooks/{id}/deliveries` — one row per attempt, success/status/error) + **replay** (`POST /api/webhooks/deliveries/{id}/replay` — re-enqueue the exact payload). **Off (default) ⇒ routes 404.** Manual: `Webhooks__Enabled=true`, register a receiver (e.g. a webhook.site URL), hit **send test**, view deliveries, replay one. |
+| Outbound webhooks (HOOKS, **config-gated off**) | **QA-API-01, 05, 06** (curl/webhook.site) + `Api.Tests` (`WebhookSubscriptionServiceTests`, `WebhookDeliveryTests`, `WebhookDeliveryLogTests`) + `Api.Tests` (App/) (`WebhookSignatureTests`); boot-verified on/off | `Webhooks:Enabled` toggles it. Owner-only `/api/webhooks` (register → signing secret `whsec_…` once, list, delete, **send test**; `Permission.ManageWebhooks`). `IWebhookPublisher.PublishAsync` fans out to matching active subs → one `"webhook"` **outbox** message each → signed POST (`X-Webhook-Signature`), retry/dead-letter via the outbox. **HOOKS-2:** a delivery log (`GET /api/webhooks/{id}/deliveries` — one row per attempt, success/status/error) + **replay** (`POST /api/webhooks/deliveries/{id}/replay` — re-enqueue the exact payload). **Off (default) ⇒ routes 404.** Manual: `Webhooks__Enabled=true`, register a receiver (e.g. a webhook.site URL), hit **send test**, view deliveries, replay one. |
 | Pre-launch gates (GATES, **both deployment config**) | **QA-GATE-01..06** (§14c) + `Api.Tests` (`BillingGateTests`, `SignupGateTests`, `SignupRefusalSurfacingTests`, `ConfigPostureTests`) + `Ui.Tests` (`BillingGateUiTests`, `SeatLimitCopyTests`, `SignupRefusedCopyTests`) | `Billing:Enabled` off (default) removes the billing controllers from the application model, so `GET /api/billing`, `POST …/checkout`, `…/portal` and `…/webhook` all **404** and every tenant resolves Free; the client reads `GET /api/features` (anonymous) to hide the link and refuse `/billing`, and the seat-limit copy drops the upgrade pitch. `Signup:AllowedEmails` / `Signup:AllowedDomains` (empty = open) gate account **creation** at `UserService.CreateUserWithTenantAsync` — refusal is **403** `signup_not_allowed` on `POST /api/auth/otp/verify` and `?error=signup_not_allowed` on the OAuth / magic-link redirects. An invitation admits its addressee only when that invitation's tenant **owner** is green-listed. ADR-027. |
 | v4 audit — adversarial (§14d) | **ADV-25..35** (all remediated in v4 B3–B7 — each names the task that fixed it) | accept-path dissolve, outbox erasure, logout/grace, impersonation expiry, webhook redirects + error codes, billing-off admin comp, expired-invite seats, native bearer scope, exported-log PII |
 | Audit log (API-only) | covered by `Api.Tests` (`AuditLogTests`) | append-only `IAuditLog` + interceptor |
@@ -4430,7 +4430,7 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   `AuthService.VerifyOtpAsync`/`SignInWithOAuthAsync` now return a `SignInResult` (Success / Failed /
   MfaRequired+challenge) and a new `VerifyMfaAsync` completes the step-up (tokens in the body, native
   transport); `Login.razor`'s native branches reuse the same code prompt. Client-only — no API change;
-  build-verified (native is E2E/manual per `MOBILE_TESTING.md`); **QA-MFA-05**. **MFA is now enforced on
+  build-verified (native is E2E/manual per the platform's [MOBILE_TESTING](https://github.com/argamboad/perezosoft-platform/blob/develop/docs/MOBILE_TESTING.md)); **QA-MFA-05**. **MFA is now enforced on
   every sign-in path, web and native — the epic is fully closed, no open gaps.**
 - **Updated 2026-07-01** — **BILLING-5 (quotas):** `IQuotaService` adds plan **seat** limits (members +
   pending invites vs `Plan.SeatLimit`, enforced on the invite path → **402 `seat_limit_reached`**, with an
@@ -4506,7 +4506,7 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   These stay in the manual plan for **Desktop/Android** (CI runs Web only) and area-change re-runs; human
   QA can spot-check them on Web rather than run them in full each cycle. `data-testid` hooks were added to
   `MfaCard` and `LanguageSwitcher` to keep the selectors stable.
-- **Updated 2026-07-03** for NATIVE Wave 2 (ADR-018, `docs/NATIVE_PARITY.md`): the parity audit's six
+- **Updated 2026-07-03** for NATIVE Wave 2 (ADR-018, the platform's [NATIVE_PARITY](https://github.com/argamboad/perezosoft-platform/blob/develop/docs/NATIVE_PARITY.md)): the parity audit's six
   gaps were fixed (join-by-code, culture persistence, export download/share, billing return-refresh,
   Android hardware back — plus **G7**, iOS/macCatalyst crashing at boot, found while writing this
   expansion) and this plan grew the per-feature native coverage that verifies them on hardware:
@@ -4528,7 +4528,7 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   needs the restricted `keychain-access-groups` entitlement (MissingEntitlement without it, SIGKILL at
   launch with it) → store entitlement added to `Entitlements.plist` for signed builds, Debug builds swap
   to `Entitlements.Debug.plist` (unsandboxed) + a `DebugFileSessionStore` fallback (`MACCATALYST && DEBUG`
-  only); SecureStorage must be re-verified under real signing at the downstream first native release (ADR-024; `NEW_APP_GUIDE.md` Phase 9).
+  only); SecureStorage must be re-verified under real signing at the downstream first native release (ADR-024; the platform's [NEW_APP_GUIDE](https://github.com/argamboad/perezosoft-platform/blob/develop/docs/NEW_APP_GUIDE.md) Phase 9).
 - **Updated 2026-07-09** — first findings + features from the manual QA pass (`bugfix/qa-manual-pass`):
   (1) **rate-limit split** — passwordless *verify* endpoints got their own per-IP budget (attempt cap +
   headroom, default 10/min) so the cumulative-lockout 401 (QA-AUTH-04) surfaces before the 429 can mask
@@ -4803,7 +4803,7 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
 - **Updated 2026-09-04** — **Household snapshot (hidden operator tool, owner request).**
   `ops/snapshot-household.sql` writes one household — the members' identity rows plus every budget
   table, ids preserved, FK order, `ON CONFLICT DO NOTHING` — as a restorable SQL file, so a household
-  built up locally moves to staging/production without starting over (`docs/DEPLOYMENT.md` §9). Inbox
+  built up locally moves to staging/production without starting over (the platform's [DEPLOYMENT](https://github.com/argamboad/perezosoft-platform/blob/develop/docs/DEPLOYMENT.md) §9). Inbox
   tokens are left out on purpose (key-ring bound: reconnect on the target); billing/ops tables too. No
   page, no route, no QA case: `HouseholdSnapshotTests` proves the round-trip on Postgres and gates the
   table list. Suite count unchanged (180).
@@ -4930,7 +4930,7 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   now returns the browser to `/billing/success` / `/billing/cancel` and both route to the Billing page with a
   banner (success refetches on its own until the webhook has flipped the plan) — found on this app's staging,
   where the first real test-mode checkout ended on the 404 page. QA-BILL-02 rewritten around the return;
-  `NotifyBillingTests.Billing_ReturnFromCheckout_*` pin it; `DEPLOYMENT.md` §3 gains the real-Stripe
+  `NotifyBillingTests.Billing_ReturnFromCheckout_*` pin it; the platform's [DEPLOYMENT](https://github.com/argamboad/perezosoft-platform/blob/develop/docs/DEPLOYMENT.md) §3 gains the real-Stripe
   walkthrough. Suite count unchanged (181).
   Also the lifecycle's good-news notice, `billing.activated` ("Subscription active", plan + renewal date) on a
   transition into a granting status — the owner had received the cancellation email but never a confirmation.
