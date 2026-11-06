@@ -63,6 +63,24 @@
         "resolved": "10.0.14",
         "contentHash": "kmmGbV2b97RTuBCVUUKB0wkaEuYn13O6TuCjqqe8+hrDxBkN1/yFTggSz7eqt70PsQbebsrHgUnirGzXsr0lzg=="
       },
+      "Perezosoft.Platform.Build": {
+        "type": "Direct",
+        "requested": "[1.0.0-beta.10, )",
+        "resolved": "1.0.0-beta.10",
+        "contentHash": "9adiXek4n4c0yyikGS7wknqCNH2TP2XT/bxwTCir7pwxhwAji0sq0KWH8gzdLUt/DAY7jHjkylO1XIcbr66U9A=="
+      },
+      "Perezosoft.Platform.Web": {
+        "type": "Direct",
+        "requested": "[1.0.0-beta.10, )",
+        "resolved": "1.0.0-beta.10",
+        "contentHash": "ojp8dNo9t9XkGJU6ug6xl8pHP5AoY45DLNyCogjDxN/ZlvGjv6z9hVGcyOSa1LzP7DtJnVr5+VQwKOJLqwh8sg==",
+        "dependencies": {
+          "Microsoft.AspNetCore.Components.WebAssembly": "10.0.14",
+          "Microsoft.Extensions.Http": "10.0.14",
+          "Microsoft.Extensions.Localization": "10.0.14",
+          "Perezosoft.Platform.Client": "1.0.0-beta.10"
+        }
+      },
       "Microsoft.AspNetCore.Authorization": {
         "type": "Transitive",
         "resolved": "10.0.14",
@@ -319,6 +337,7 @@
           "Microsoft.AspNetCore.Components.Authorization": "[10.0.14, )",
           "Microsoft.AspNetCore.Components.Web": "[10.0.14, )",
           "Microsoft.Extensions.Localization": "[10.0.14, )",
+          "Perezosoft.Platform.Client": "[1.0.0-beta.10, )",
           "System.IdentityModel.Tokens.Jwt": "[8.19.1, )"
         }
       },
@@ -345,6 +364,17 @@
           "Microsoft.Extensions.Localization.Abstractions": "10.0.14",
           "Microsoft.Extensions.Logging.Abstractions": "10.0.14",
           "Microsoft.Extensions.Options": "10.0.14"
+        }
+      },
+      "Perezosoft.Platform.Client": {
+        "type": "CentralTransitive",
+        "requested": "[1.0.0-beta.10, )",
+        "resolved": "1.0.0-beta.10",
+        "contentHash": "vbMYNaRvX1pENPUdJPxOrZI/WMwR938E2qk4phxO/Q8Kc7xoXZa02NFORVn5VX/SH0HHDpm1Qn4ivqTqnboWNQ==",
+        "dependencies": {
+          "Microsoft.AspNetCore.Components.Authorization": "10.0.14",
+          "Microsoft.AspNetCore.Components.Web": "10.0.14",
+          "System.IdentityModel.Tokens.Jwt": "8.19.1"
         }
       },
       "System.IdentityModel.Tokens.Jwt": {

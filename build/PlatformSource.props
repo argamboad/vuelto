@@ -20,4 +20,11 @@
     <!-- A -p: value is a global property and cannot be reassigned, so the normalized path is a property of its own. -->
     <_PlatformSourceDir>$([MSBuild]::EnsureTrailingSlash('$(PlatformSource)'))</_PlatformSourceDir>
   </PropertyGroup>
+
+  <!--
+    Perezosoft.Platform.Build switched to source (Pkg 5.2): the package's reference is dropped in part 2, so its props come
+    from the checkout here, unless the project already has them — the platform's own projects import them first.
+  -->
+  <Import Project="$(_PlatformSourceDir)src/Build/buildTransitive/Perezosoft.Platform.Build.props"
+          Condition="'$(PlatformSource)' != '' and '$(_PlatformBuildPropsImported)' == '' and Exists('$(_PlatformSourceDir)src/Build/buildTransitive/Perezosoft.Platform.Build.props')" />
 </Project>

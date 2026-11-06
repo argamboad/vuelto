@@ -1,0 +1,61 @@
+@using Vuelto.Shared.Ui.Capabilities
+@inject IStringLocalizer<AppStrings> Localizer
+@inject HttpClient Http
+
+@* What the platform gives this app (Pkg 6.3): every capability, the page that uses it, the endpoints that serve it.
+   The list is PlatformCapabilities; the API's own documents are linked below it. *@
+<section class="capabilities-card card shadow-sm" data-testid="capabilities">
+    <div class="card-body p-4">
+        <h2 class="h5 fw-bold mb-1">@Localizer["Home_CapabilitiesTitle"]</h2>
+        <p class="small text-muted mb-3">@Localizer["Home_CapabilitiesIntro"]</p>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-3">
+                <thead>
+                    <tr>
+                        <th scope="col">@Localizer["Home_CapabilityColumn"]</th>
+                        <th scope="col">@Localizer["Home_CapabilityWhere"]</th>
+                        <th scope="col">@Localizer["Home_CapabilityApi"]</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var capability in PlatformCapabilities.All)
+                    {
+                        <tr data-capability="@capability.Key">
+                            <td>
+                                <div class="fw-medium">@Localizer[$"Capability_{capability.Key}_Name"]</div>
+                                <div class="small text-muted">@Localizer[$"Capability_{capability.Key}_What"]</div>
+                            </td>
+                            <td class="text-nowrap">
+                                @if (capability.Pages.Count == 0)
+                                {
+                                    <span class="small text-muted">@Localizer["Home_CapabilityApiOnly"]</span>
+                                }
+                                @foreach (var route in capability.Pages)
+                                {
+                                    <a href="@route" class="d-block small">@route</a>
+                                }
+                            </td>
+                            <td>
+                                @foreach (var endpoint in capability.Endpoints)
+                                {
+                                    <code class="d-block small">@endpoint.Route</code>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <p class="small mb-0">
+            <a href="@($"{ApiBase}/api/features")" target="_blank" rel="noopener" data-testid="capabilities-features">@Localizer["Home_CapabilitiesFeatures"]</a>
+            <span class="text-muted mx-1">·</span>
+            <a href="@($"{ApiBase}/swagger")" target="_blank" rel="noopener" data-testid="capabilities-swagger">@Localizer["Home_CapabilitiesSwagger"]</a>
+            <span class="text-muted mx-1">·</span>
+            <span class="text-muted">@Localizer["Home_CapabilitiesPostman"]</span>
+        </p>
+    </div>
+</section>
+
+@code {
+    private string ApiBase => Http.BaseAddress?.ToString().TrimEnd('/') ?? string.Empty;
+}

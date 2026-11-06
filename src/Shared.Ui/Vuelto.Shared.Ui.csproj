@@ -1,17 +1,20 @@
 <Project Sdk="Microsoft.NET.Sdk.Razor">
 
+  <!--
+    Vuelto's UI: the pages, the components, the strings (EN/ES), the brand. A Razor class library, so the web host and
+    the MAUI app render the same pages. The platform's client half (the session, the persistences, the boot scripts)
+    comes from Perezosoft.Platform.Client.
+  -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
-
 
   <ItemGroup>
     <SupportedPlatform Include="browser" />
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Perezosoft.Platform.Client" />
     <PackageReference Include="Microsoft.AspNetCore.Components.Authorization" />
     <PackageReference Include="Microsoft.AspNetCore.Components.Web" />
     <PackageReference Include="Microsoft.Extensions.Localization" />

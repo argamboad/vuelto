@@ -918,4 +918,39 @@
   <data name="Reports_PdfColSource" xml:space="preserve"><value>Source</value></data>
   <data name="Card_Collapse" xml:space="preserve"><value>Collapse {0}</value></data>
   <data name="Card_Expand" xml:space="preserve"><value>Expand {0}</value></data>
+  <data name="Home_CapabilitiesTitle" xml:space="preserve"><value>What the platform gives this app</value></data>
+  <data name="Home_CapabilitiesIntro" xml:space="preserve"><value>Every capability that comes with the platform: where it shows up in the app, and the API that serves it.</value></data>
+  <data name="Home_CapabilityColumn" xml:space="preserve"><value>Capability</value></data>
+  <data name="Home_CapabilityWhere" xml:space="preserve"><value>Where</value></data>
+  <data name="Home_CapabilityApi" xml:space="preserve"><value>API</value></data>
+  <data name="Home_CapabilityApiOnly" xml:space="preserve"><value>API only</value></data>
+  <data name="Home_CapabilitiesFeatures" xml:space="preserve"><value>What this deployment has switched on (/api/features)</value></data>
+  <data name="Home_CapabilitiesSwagger" xml:space="preserve"><value>API reference (Swagger, in development)</value></data>
+  <data name="Home_CapabilitiesPostman" xml:space="preserve"><value>Every request, ready to send: the Postman collection in docs/postman.</value></data>
+  <data name="Capability_SignIn_Name" xml:space="preserve"><value>Sign-in and sessions</value></data>
+  <data name="Capability_SignIn_What" xml:space="preserve"><value>Passwordless sign-in by email link or code, Google and Microsoft, the native app, linked logins and refreshed sessions.</value></data>
+  <data name="Capability_Mfa_Name" xml:space="preserve"><value>Two-step verification</value></data>
+  <data name="Capability_Mfa_What" xml:space="preserve"><value>An authenticator app as a second step, with enrolment, verification and lockout.</value></data>
+  <data name="Capability_Household_Name" xml:space="preserve"><value>Household and invitations</value></data>
+  <data name="Capability_Household_What" xml:space="preserve"><value>The shared space: its members and their roles, invitation links, leaving and handing over ownership.</value></data>
+  <data name="Capability_Billing_Name" xml:space="preserve"><value>Billing</value></data>
+  <data name="Capability_Billing_What" xml:space="preserve"><value>Plans, Stripe checkout and the customer portal, quotas and seats. Off unless the deployment switches it on.</value></data>
+  <data name="Capability_Notifications_Name" xml:space="preserve"><value>Notifications</value></data>
+  <data name="Capability_Notifications_What" xml:space="preserve"><value>The bell in the header, announcements, and what each person wants to hear about.</value></data>
+  <data name="Capability_ApiKeys_Name" xml:space="preserve"><value>API keys</value></data>
+  <data name="Capability_ApiKeys_What" xml:space="preserve"><value>Keys a household issues for its own integrations, and the public API they call.</value></data>
+  <data name="Capability_Webhooks_Name" xml:space="preserve"><value>Webhooks</value></data>
+  <data name="Capability_Webhooks_What" xml:space="preserve"><value>Signed events sent to a household's endpoints, with test sends, delivery logs and replay.</value></data>
+  <data name="Capability_Files_Name" xml:space="preserve"><value>Files</value></data>
+  <data name="Capability_Files_What" xml:space="preserve"><value>Stored files handed out by short-lived signed links.</value></data>
+  <data name="Capability_Gdpr_Name" xml:space="preserve"><value>Data export and erasure</value></data>
+  <data name="Capability_Gdpr_What" xml:space="preserve"><value>A household's data as a download, and a person's account erased on request.</value></data>
+  <data name="Capability_Admin_Name" xml:space="preserve"><value>Admin console</value></data>
+  <data name="Capability_Admin_What" xml:space="preserve"><value>For the operator's staff: households, subscriptions, announcements, support sign-in and MFA resets.</value></data>
+  <data name="Capability_Theme_Name" xml:space="preserve"><value>Theme</value></data>
+  <data name="Capability_Theme_What" xml:space="preserve"><value>Light, dark or the device's own, remembered per person.</value></data>
+  <data name="Capability_Locale_Name" xml:space="preserve"><value>Language</value></data>
+  <data name="Capability_Locale_What" xml:space="preserve"><value>English and Spanish, remembered per person.</value></data>
+  <data name="Capability_Deployment_Name" xml:space="preserve"><value>This deployment</value></data>
+  <data name="Capability_Deployment_What" xml:space="preserve"><value>What is switched on, the running version, and health for the load balancer.</value></data>
 </root>

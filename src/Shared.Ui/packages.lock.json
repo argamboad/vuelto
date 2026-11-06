@@ -37,6 +37,23 @@
           "Microsoft.Extensions.Options": "10.0.14"
         }
       },
+      "Perezosoft.Platform.Build": {
+        "type": "Direct",
+        "requested": "[1.0.0-beta.10, )",
+        "resolved": "1.0.0-beta.10",
+        "contentHash": "9adiXek4n4c0yyikGS7wknqCNH2TP2XT/bxwTCir7pwxhwAji0sq0KWH8gzdLUt/DAY7jHjkylO1XIcbr66U9A=="
+      },
+      "Perezosoft.Platform.Client": {
+        "type": "Direct",
+        "requested": "[1.0.0-beta.10, )",
+        "resolved": "1.0.0-beta.10",
+        "contentHash": "vbMYNaRvX1pENPUdJPxOrZI/WMwR938E2qk4phxO/Q8Kc7xoXZa02NFORVn5VX/SH0HHDpm1Qn4ivqTqnboWNQ==",
+        "dependencies": {
+          "Microsoft.AspNetCore.Components.Authorization": "10.0.14",
+          "Microsoft.AspNetCore.Components.Web": "10.0.14",
+          "System.IdentityModel.Tokens.Jwt": "8.19.1"
+        }
+      },
       "System.IdentityModel.Tokens.Jwt": {
         "type": "Direct",
         "requested": "[8.19.1, )",

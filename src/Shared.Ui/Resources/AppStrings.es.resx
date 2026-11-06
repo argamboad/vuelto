@@ -918,4 +918,39 @@
   <data name="Reports_PdfColSource" xml:space="preserve"><value>Origen</value></data>
   <data name="Card_Collapse" xml:space="preserve"><value>Contraer {0}</value></data>
   <data name="Card_Expand" xml:space="preserve"><value>Expandir {0}</value></data>
+  <data name="Home_CapabilitiesTitle" xml:space="preserve"><value>Lo que la plataforma le da a esta app</value></data>
+  <data name="Home_CapabilitiesIntro" xml:space="preserve"><value>Cada capacidad que viene con la plataforma: dónde aparece en la app y qué API la sirve.</value></data>
+  <data name="Home_CapabilityColumn" xml:space="preserve"><value>Capacidad</value></data>
+  <data name="Home_CapabilityWhere" xml:space="preserve"><value>Dónde</value></data>
+  <data name="Home_CapabilityApi" xml:space="preserve"><value>API</value></data>
+  <data name="Home_CapabilityApiOnly" xml:space="preserve"><value>Solo API</value></data>
+  <data name="Home_CapabilitiesFeatures" xml:space="preserve"><value>Qué tiene activado esta instalación (/api/features)</value></data>
+  <data name="Home_CapabilitiesSwagger" xml:space="preserve"><value>Referencia de la API (Swagger, en desarrollo)</value></data>
+  <data name="Home_CapabilitiesPostman" xml:space="preserve"><value>Cada petición, lista para enviar: la colección de Postman en docs/postman.</value></data>
+  <data name="Capability_SignIn_Name" xml:space="preserve"><value>Inicio de sesión y sesiones</value></data>
+  <data name="Capability_SignIn_What" xml:space="preserve"><value>Inicio sin contraseña por enlace o código al correo, Google y Microsoft, la app nativa, cuentas vinculadas y sesiones renovadas.</value></data>
+  <data name="Capability_Mfa_Name" xml:space="preserve"><value>Verificación en dos pasos</value></data>
+  <data name="Capability_Mfa_What" xml:space="preserve"><value>Una app autenticadora como segundo paso, con registro, verificación y bloqueo.</value></data>
+  <data name="Capability_Household_Name" xml:space="preserve"><value>Hogar e invitaciones</value></data>
+  <data name="Capability_Household_What" xml:space="preserve"><value>El espacio compartido: sus miembros y sus roles, enlaces de invitación, salir y ceder la propiedad.</value></data>
+  <data name="Capability_Billing_Name" xml:space="preserve"><value>Facturación</value></data>
+  <data name="Capability_Billing_What" xml:space="preserve"><value>Planes, pago con Stripe y el portal del cliente, cuotas y puestos. Apagada salvo que la instalación la active.</value></data>
+  <data name="Capability_Notifications_Name" xml:space="preserve"><value>Notificaciones</value></data>
+  <data name="Capability_Notifications_What" xml:space="preserve"><value>La campana del encabezado, los anuncios y lo que cada persona quiere recibir.</value></data>
+  <data name="Capability_ApiKeys_Name" xml:space="preserve"><value>Claves de API</value></data>
+  <data name="Capability_ApiKeys_What" xml:space="preserve"><value>Claves que un hogar emite para sus propias integraciones, y la API pública que llaman.</value></data>
+  <data name="Capability_Webhooks_Name" xml:space="preserve"><value>Webhooks</value></data>
+  <data name="Capability_Webhooks_What" xml:space="preserve"><value>Eventos firmados enviados a los endpoints de un hogar, con envíos de prueba, registro de entregas y reenvío.</value></data>
+  <data name="Capability_Files_Name" xml:space="preserve"><value>Archivos</value></data>
+  <data name="Capability_Files_What" xml:space="preserve"><value>Archivos guardados que se entregan con enlaces firmados de corta duración.</value></data>
+  <data name="Capability_Gdpr_Name" xml:space="preserve"><value>Exportación y borrado de datos</value></data>
+  <data name="Capability_Gdpr_What" xml:space="preserve"><value>Los datos de un hogar como descarga, y la cuenta de una persona borrada cuando la pide.</value></data>
+  <data name="Capability_Admin_Name" xml:space="preserve"><value>Consola de administración</value></data>
+  <data name="Capability_Admin_What" xml:space="preserve"><value>Para el personal del operador: hogares, suscripciones, anuncios, acceso de soporte y reinicio de MFA.</value></data>
+  <data name="Capability_Theme_Name" xml:space="preserve"><value>Tema</value></data>
+  <data name="Capability_Theme_What" xml:space="preserve"><value>Claro, oscuro o el del dispositivo, recordado por persona.</value></data>
+  <data name="Capability_Locale_Name" xml:space="preserve"><value>Idioma</value></data>
+  <data name="Capability_Locale_What" xml:space="preserve"><value>Inglés y español, recordado por persona.</value></data>
+  <data name="Capability_Deployment_Name" xml:space="preserve"><value>Esta instalación</value></data>
+  <data name="Capability_Deployment_What" xml:space="preserve"><value>Qué está activado, la versión en marcha y la salud para el balanceador.</value></data>
 </root>
