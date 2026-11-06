@@ -1,17 +1,13 @@
+using Perezosoft.Testing;
+
 namespace Vuelto.Api.Tests.Infrastructure;
 
 /// <summary>
-/// Base for relational test classes that share the Postgres container. Truncates the database
-/// before EVERY test via <see cref="IAsyncLifetime.InitializeAsync"/>, so isolation is structural
-/// rather than by-convention: there is no per-test <c>ResetAsync()</c> to forget, and absolute-count
-/// assertions are safe by construction (B6-3). xUnit runs the members of a collection serially, so
-/// the shared database is never reset out from under a concurrent test.
+/// Base for this repo's relational test classes: the packaged one (<see cref="PlatformPostgresTestBase{TTestContext}"/>,
+/// Pkg 5.1b), which truncates the shared database before every test, over this repo's fixture.
 /// </summary>
-public abstract class PostgresTestBase(PostgresFixture fixture) : IAsyncLifetime
+public abstract class PostgresTestBase(PostgresFixture fixture) : PlatformPostgresTestBase<TestAppDbContext>(fixture)
 {
-    /// <summary>The shared container fixture — derived tests build contexts from it.</summary>
-    protected PostgresFixture Fixture { get; } = fixture;
-
-    public Task InitializeAsync() => Fixture.ResetAsync();
-    public Task DisposeAsync() => Task.CompletedTask;
+    /// <summary>The shared container fixture, typed as this repo's.</summary>
+    protected new PostgresFixture Fixture { get; } = fixture;
 }

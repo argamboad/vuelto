@@ -50,6 +50,24 @@
           "Microsoft.TestPlatform.TestHost": "17.14.1"
         }
       },
+      "Perezosoft.Platform.Build": {
+        "type": "Direct",
+        "requested": "[1.0.0-beta.10, )",
+        "resolved": "1.0.0-beta.10",
+        "contentHash": "9adiXek4n4c0yyikGS7wknqCNH2TP2XT/bxwTCir7pwxhwAji0sq0KWH8gzdLUt/DAY7jHjkylO1XIcbr66U9A=="
+      },
+      "Perezosoft.Platform.Testing.Ui": {
+        "type": "Direct",
+        "requested": "[1.0.0-beta.10, )",
+        "resolved": "1.0.0-beta.10",
+        "contentHash": "+JSv1OaOlMuI/mMenCia18KVOGKr+6NXPr8z+lLCwmEPTxN0VZ6F8/v6U3gbF7zAotAYdV79ogGr28SOVZh6XQ==",
+        "dependencies": {
+          "AngleSharp": "1.5.2",
+          "Microsoft.Extensions.TimeProvider.Testing": "10.7.0",
+          "Perezosoft.Platform.Client": "1.0.0-beta.10",
+          "bunit": "2.7.2"
+        }
+      },
       "xunit": {
         "type": "Direct",
         "requested": "[2.9.3, )",
@@ -397,11 +415,6 @@
         "resolved": "1.18.0",
         "contentHash": "OtFMHN8yqIcYP9wcVIgJrq01AfTxijjAqVDy/WeQVSyrDC1RzBWeQPztL49DN2syXRah8TYnfvk035s7L95EZQ=="
       },
-      "xunit.assert": {
-        "type": "Transitive",
-        "resolved": "2.9.3",
-        "contentHash": "/Kq28fCE7MjOV42YLVRAJzRF0WmEqsmflm0cfpMjGtzQ2lR5mYVj1/i0Y8uDAOLczkL3/jArrwehfMD0YogMAA=="
-      },
       "xunit.core": {
         "type": "Transitive",
         "resolved": "2.9.3",
@@ -409,14 +422,6 @@
         "dependencies": {
           "xunit.extensibility.core": "[2.9.3]",
           "xunit.extensibility.execution": "[2.9.3]"
-        }
-      },
-      "xunit.extensibility.core": {
-        "type": "Transitive",
-        "resolved": "2.9.3",
-        "contentHash": "kf3si0YTn2a8J8eZNb+zFpwfoyvIrQ7ivNk5ZYA5yuYk1bEtMe4DxJ2CF/qsRgmEnDr7MnW1mxylBaHTZ4qErA==",
-        "dependencies": {
-          "xunit.abstractions": "2.0.3"
         }
       },
       "xunit.extensibility.execution": {
@@ -433,6 +438,7 @@
           "Microsoft.AspNetCore.Components.Authorization": "[10.0.14, )",
           "Microsoft.AspNetCore.Components.Web": "[10.0.14, )",
           "Microsoft.Extensions.Localization": "[10.0.14, )",
+          "Perezosoft.Platform.Client": "[1.0.0-beta.10, )",
           "System.IdentityModel.Tokens.Jwt": "[8.19.1, )"
         }
       },
@@ -484,6 +490,17 @@
           "Microsoft.Extensions.Options": "10.0.14"
         }
       },
+      "Perezosoft.Platform.Client": {
+        "type": "CentralTransitive",
+        "requested": "[1.0.0-beta.10, )",
+        "resolved": "1.0.0-beta.10",
+        "contentHash": "vbMYNaRvX1pENPUdJPxOrZI/WMwR938E2qk4phxO/Q8Kc7xoXZa02NFORVn5VX/SH0HHDpm1Qn4ivqTqnboWNQ==",
+        "dependencies": {
+          "Microsoft.AspNetCore.Components.Authorization": "10.0.14",
+          "Microsoft.AspNetCore.Components.Web": "10.0.14",
+          "System.IdentityModel.Tokens.Jwt": "8.19.1"
+        }
+      },
       "System.IdentityModel.Tokens.Jwt": {
         "type": "CentralTransitive",
         "requested": "[8.19.1, )",
@@ -492,6 +509,21 @@
         "dependencies": {
           "Microsoft.IdentityModel.JsonWebTokens": "8.19.1",
           "Microsoft.IdentityModel.Tokens": "8.19.1"
+        }
+      },
+      "xunit.assert": {
+        "type": "CentralTransitive",
+        "requested": "[2.9.3, )",
+        "resolved": "2.9.3",
+        "contentHash": "/Kq28fCE7MjOV42YLVRAJzRF0WmEqsmflm0cfpMjGtzQ2lR5mYVj1/i0Y8uDAOLczkL3/jArrwehfMD0YogMAA=="
+      },
+      "xunit.extensibility.core": {
+        "type": "CentralTransitive",
+        "requested": "[2.9.3, )",
+        "resolved": "2.9.3",
+        "contentHash": "kf3si0YTn2a8J8eZNb+zFpwfoyvIrQ7ivNk5ZYA5yuYk1bEtMe4DxJ2CF/qsRgmEnDr7MnW1mxylBaHTZ4qErA==",
+        "dependencies": {
+          "xunit.abstractions": "2.0.3"
         }
       }
     }

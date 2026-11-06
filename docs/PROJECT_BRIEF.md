@@ -80,7 +80,7 @@ Everything the donor shipped (Slices 1–6 and 8 + hardening), re-homed as platf
 - Non-web clients (mobile + desktop) — shells build from day one; feature parity **after** the web
   port reaches donor parity. *(constant)*
 - **App signing, installers & store distribution — OUT for the platform, permanently (ADR-024).**
-  Per-app work via `NEW_APP_GUIDE.md` Phase 9. *(constant)*
+  Per-app work via the platform's [NEW_APP_GUIDE](https://github.com/argamboad/perezosoft-platform/blob/develop/docs/NEW_APP_GUIDE.md) Phase 9. *(constant)*
 - **Data-driven bank definitions** (donor Slice 7, US-048–052) — DB-backed extractor definitions so
   a new bank is a data row, not a deploy. Resumes as the first post-parity epic. Trigger: ~bank #4–5.
 - **LLM fallback for unknown voucher formats** — after data-driven definitions; never auto-inserts.
@@ -114,7 +114,7 @@ Everything the donor shipped (Slices 1–6 and 8 + hardening), re-homed as platf
 ## Related docs
 - `FEATURES.md` — concrete user flows and behavior.
 - `DATA_MODEL.md` — entities, relationships, derived rules.
-- `TECH_STACK.md` — stack & architecture (mostly constant).
+- the platform's [TECH_STACK](https://github.com/argamboad/perezosoft-platform/blob/develop/docs/TECH_STACK.md) — stack & architecture (mostly constant).
 - `DECISIONS.md` — ADR log (platform ADRs + the app's `ADR-V…` series).
 - `../CLAUDE.md` — operating manual for Claude Code (repo root).
 - Donor repo (`vuelto-legacy`, read-only reference): `docs/Vuelto_PRD_v2.0.md`, `docs/Vuelto_TDD_v2.0.md`,

@@ -70,11 +70,25 @@ async function waitForOtp(toEmail, timeoutMs) {
   throw new Error(`No OTP email for ${toEmail} within ${timeoutMs / 1000}s`);
 }
 
+// A promise that answers within ms, or an error naming what never answered. For the Playwright calls
+// that take no timeout of their own: nothing here may block without a deadline.
+function withDeadline(promise, ms, what) {
+  let timer;
+  const expired = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${what} gave no answer within ${ms / 1000}s`)), ms);
+  });
+  return Promise.race([promise, expired]).finally(() => clearTimeout(timer));
+}
+
 // Boot: attaching to the app's WebView proves the app process started (a G7-style crash dies
-// here), and the visible login box proves Blazor booted inside it.
-async function bootToLogin(device, attempt) {
-  const webView = await device.webView({ pkg: PKG }, { timeout: 60_000 });
-  const page = await webView.page();
+// here), and the visible login box proves Blazor booted inside it. The attach as a whole has a
+// deadline: webView.page() takes no timeout, and once it never answered (jigger-jot run 41934783558,
+// 25 min of silence after "device (attempt 1)" until the run was cancelled; #475). Expiring before
+// the login box shows is a failure the journey retry already covers: reconnect, relaunch, try again.
+async function bootToLogin(device, attempt, attachMs = 90_000) {
+  const page = await withDeadline(
+    device.webView({ pkg: PKG }, { timeout: 60_000 }).then(webView => webView.page()),
+    attachMs, 'the WebView attach');
   console.log(`connected (attempt ${attempt}): ${page.url()}`);
 
   // Unhandled .NET exceptions in the Blazor WebView only show up as console errors; without
@@ -227,7 +241,7 @@ async function main() {
 }
 
 // Exported so tests/js-logic/smoke.test.js can hold the retry policy and the navigation without a device.
-module.exports = { ATTEMPTS, looksLikeWebViewReplaced, navigateToHousehold, waitForOtp };
+module.exports = { ATTEMPTS, looksLikeWebViewReplaced, navigateToHousehold, waitForOtp, withDeadline, bootToLogin };
 
 if (require.main === module)
   main().catch(e => { console.error(`native smoke (android) FAILED: ${e.message}`); process.exit(1); });

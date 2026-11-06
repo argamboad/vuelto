@@ -1,1 +1,0 @@
-tests/E2E.Tests/README.md

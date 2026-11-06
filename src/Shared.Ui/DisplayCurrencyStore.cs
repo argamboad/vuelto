@@ -2,6 +2,7 @@ using System.Net.Http.Json;
 using System.Text.Json.Serialization;
 using Microsoft.JSInterop;
 using Vuelto.Shared.Ui.Auth;
+using Perezosoft.Client.Auth;
 using Vuelto.Shared.Ui.Components;
 
 namespace Vuelto.Shared.Ui;

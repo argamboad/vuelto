@@ -1,9 +1,10 @@
+using Vuelto.Shared.Ui.Pages;
 using System.Net;
 using Bunit;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
-using Vuelto.Shared.Ui.Pages;
 using Vuelto.Ui.Tests.Infrastructure;
+using Perezosoft.Testing.Ui;
 using Xunit;
 
 namespace Vuelto.Ui.Tests.Pages;

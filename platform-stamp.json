@@ -1,7 +1,14 @@
 {
+  "$comment": [
+    "Which platform this app runs on (Pkg 5.7). \"packages\": true — the app takes the platform as packages: the version is",
+    "\"commit\" (the release `dotnet new` wrote, and every bump after), and PlatformOwnershipSuite holds the register files to",
+    "the ones that package ships. \"brand\" maps the platform's tokens to this app's, so a register file compares equal",
+    "whether its brand was written into it or not."
+  ],
   "platform": "argamboad/perezosoft-platform",
-  "commit": "e7a2962fc83980174db6a03dc625bec9754d2dbb",
-  "date": "2026-10-15",
+  "commit": "1.0.0-beta.10",
+  "date": "2026-11-06",
+  "packages": true,
   "brand": {
     "Perezosoft": "Vuelto",
     "perezosoft": "vuelto"

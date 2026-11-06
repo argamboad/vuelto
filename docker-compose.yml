@@ -1,8 +1,9 @@
+# The compose project is "vuelto" (not the folder name): its containers and the dev volume are vuelto-*.
 name: vuelto
 
 services:
   db:
-    image: public.ecr.aws/docker/library/postgres:17.11
+    image: ghcr.io/argamboad/postgres:17.11
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${DB_NAME:-dev_db}
@@ -35,16 +36,16 @@ services:
       retries: 5
       start_period: 5s
 
-  # Production image, single-origin API+WASM (DEPLOY-2). Behind the "app" profile so the normal dev flow
-  # (`docker compose up -d`) still starts ONLY db + mail — this only runs with `--profile app`. It's the
-  # local parity check: "does the container that ships to Render actually boot + migrate + serve?".
-  # Loads your .env for the app secrets, then overrides the connection string + SMTP to reach the
-  # sibling containers by service name. Copy .env.example -> .env first.
+  # The production image, from one origin (ADR-017), behind the "app" profile: `docker compose up -d` still starts only
+  # db and mail, and `docker compose --profile app up -d --build` checks that the container that ships boots, migrates
+  # and serves. Its build reads the platform's feed with PLATFORM_PACKAGES_TOKEN from .env, as the BuildKit secret
+  # `nuget` (in no layer). It loads .env for the app's settings, then reaches the sibling containers by service name.
   app:
     profiles: ["app"]
     build:
       context: .
       dockerfile: Dockerfile
+      secrets: [nuget]
     restart: unless-stopped
     env_file:
       - .env
@@ -62,6 +63,10 @@ services:
         condition: service_healthy
       mail:
         condition: service_healthy
+
+secrets:
+  nuget:
+    environment: PLATFORM_PACKAGES_TOKEN
 
 volumes:
   db_data:

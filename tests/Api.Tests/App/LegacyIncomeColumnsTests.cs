@@ -17,8 +17,8 @@ public sealed class LegacyIncomeColumnsTests
         // entities, their EF configurations, the migrations and the one-time backfill may name them.
         var allowed = new[]
         {
-            Path.Combine("Core", "Entities", "BudgetSettings.cs"),
-            Path.Combine("Core", "Entities", "Month.cs"),
+            Path.Combine("Host", "Entities", "BudgetSettings.cs"),
+            Path.Combine("Host", "Entities", "Month.cs"),
             Path.Combine("Configurations", "BudgetSettingsConfiguration.cs"),
             Path.Combine("Configurations", "MonthConfiguration.cs"),
             Path.Combine("Persistence", "IncomeBackfill.cs"),
@@ -45,7 +45,7 @@ public sealed class LegacyIncomeColumnsTests
     private static string RepoRoot()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null && !Directory.Exists(Path.Combine(dir.FullName, "src", "Api", "Features")))
+        while (dir is not null && !Directory.Exists(Path.Combine(dir.FullName, "src", "Host", "Features")))
             dir = dir.Parent;
         return dir?.FullName ?? throw new InvalidOperationException("Could not locate the repo root from the test assembly.");
     }

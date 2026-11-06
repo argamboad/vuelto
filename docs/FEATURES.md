@@ -124,7 +124,7 @@ Notes:
   you out).
 - **Language:** the switcher (Settings → Preferences card; also on the login page for pre-auth
   picks) persists the user's locale via `PUT /api/auth/locale`; it lands in the JWT on the next
-  refresh and localizes the UI and outgoing emails. See `docs/LOCALIZATION.md`.
+  refresh and localizes the UI and outgoing emails. See the platform's [LOCALIZATION](https://github.com/argamboad/perezosoft-platform/blob/develop/docs/LOCALIZATION.md).
 - **Theme (THEME-1 + PREFS-1):** a Light/Dark/System switcher in the header, Settings →
   Preferences, and the login page. Applies live via Bootstrap's `data-bs-theme`; persists
   device-locally (`localStorage["app_theme"]`, applied pre-paint by `theme.js`) and — signed in —
@@ -463,7 +463,7 @@ The platform's locale preference (§6) drives the UI (English base, Spanish). Us
 
 ## Sequence diagrams — the two call stacks that matter
 
-Drawn to the same conventions as the platform's [`FLOWS.md`](FLOWS.md): one diagram per hot path,
+Drawn to the same conventions as the platform's the platform's [FLOWS](https://github.com/argamboad/perezosoft-platform/blob/develop/docs/FLOWS.md): one diagram per hot path,
 divergences listed under it. These are the **planned** stacks (donor behavior on platform seams);
 they are re-drawn from the code once the slices land.
 

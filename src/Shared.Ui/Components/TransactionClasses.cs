@@ -3,7 +3,7 @@ namespace Vuelto.Shared.Ui.Components;
 /// <summary>
 /// The five transaction classes as the API spells them, plus the one place that decides how each one looks
 /// and which resource names it. Shared.Ui has no reference to Core by design (the UI is a client of the API,
-/// golden rule 2), so these mirror <c>Vuelto.Core.Budget.TransactionTypes</c> rather than importing it — the
+/// golden rule 2), so these mirror <c>Vuelto.Host.Budget.TransactionTypes</c> rather than importing it — the
 /// same relationship every DTO in this project already has with its server-side shape.
 ///
 /// Before SKIN-2 the class-to-label switch was copied into MonthDetail, MerchantMappings and Review. Keeping

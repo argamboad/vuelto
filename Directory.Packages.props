@@ -27,13 +27,10 @@
     <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.16.0" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.18.0" />
     <PackageVersion Include="Otp.NET" Version="1.4.1" />
-    <!-- PDF report (REPORTS-7, ADR-V022). Community licence: free under USD 1M annual revenue; set in code. -->
-    <PackageVersion Include="QuestPDF" Version="2026.9.0" />
     <PackageVersion Include="Swashbuckle.AspNetCore" Version="7.2.0" />
 
     <!-- Infrastructure -->
     <PackageVersion Include="AWSSDK.S3" Version="4.0.100" />
-    <PackageVersion Include="HtmlAgilityPack" Version="1.12.4" /> <!-- voucher email parsing (EMAIL-1, MIT) -->
     <PackageVersion Include="MailKit" Version="4.17.0" />
     <!-- Security pin (#432, 2026-10-14): MimeKit (under MailKit, latest 4.18.1 included) depends on Pkcs 10.0.0, which has
          GHSA-846f-f764-76mx (high) and GHSA-2fmv-rv2c-59x7; 10.0.13 is the first patched release. Referenced directly by
@@ -43,6 +40,8 @@
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.MicrosoftAccount" Version="10.0.14" />
     <PackageVersion Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" Version="10.0.14" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+    <!-- Referenced directly by Infrastructure (and the tests), so the package declares the EF line it compiles against. -->
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.14" />
     <PackageVersion Include="Stripe.net" Version="52.1.0" />
 
     <!-- Web (Blazor WASM) -->
@@ -69,12 +68,9 @@
 
     <!-- Tests -->
     <PackageVersion Include="coverlet.collector" Version="6.0.4" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.14" />
     <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.14" />
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.14" />
     <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.7.0" />
-    <!-- Reads the generated PDF text back in the REPORTS-7 tests (Apache-2.0). -->
-    <PackageVersion Include="PdfPig" Version="0.1.16" />
     <PackageVersion Include="bunit" Version="2.7.2" /> <!-- RCL component tests (v3 TOOL-2) -->
     <!-- bUnit 2.7.2 pulls AngleSharp 1.4.0 transitively, which has GHSA-pgww-w46g-26qg (mXSS, moderate);
          pin the patched 1.5.2 directly so the "0 vulnerable packages" bar (NU1902 as error) stays green. -->
@@ -89,11 +85,43 @@
     <PackageVersion Include="Testcontainers.Minio" Version="4.12.0" />
     <PackageVersion Include="Testcontainers.PostgreSql" Version="4.12.0" />
     <PackageVersion Include="xunit" Version="2.9.3" />
+    <!-- The packaged harness (Perezosoft.Platform.Testing, Pkg 5.1a) needs xunit's extension points only (IAsyncLifetime),
+         not the test-project bundle; same version as xunit. -->
+    <PackageVersion Include="xunit.extensibility.core" Version="2.9.3" />
+    <!-- The inheritable suites (Pkg 5.1b) assert, so the package takes xunit's assertions too; same version. -->
+    <PackageVersion Include="xunit.assert" Version="2.9.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.4" />
     <PackageVersion Include="Microsoft.Playwright.NUnit" Version="1.60.0" />
     <PackageVersion Include="NUnit" Version="4.3.2" />
     <PackageVersion Include="NUnit.Analyzers" Version="4.7.0" />
     <PackageVersion Include="NUnit3TestAdapter" Version="6.3.0" />
+  </ItemGroup>
+
+  <!--
+    The platform, as packages (ADR-034). One version for all of them; `dotnet new` wrote the release this app started
+    from, and a platform bump is this one line. Perezosoft.Platform.Build brings every project's build settings (one
+    GlobalPackageReference); the local source switch (build/PlatformSource.*, PLATFORM_SOURCE in .env) turns them into a
+    platform checkout's projects.
+  -->
+  <PropertyGroup>
+    <PlatformPackagesVersion>1.0.0-beta.10</PlatformPackagesVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageVersion Include="Perezosoft.Platform.Api" Version="$(PlatformPackagesVersion)" />
+    <PackageVersion Include="Perezosoft.Platform.Client" Version="$(PlatformPackagesVersion)" />
+    <PackageVersion Include="Perezosoft.Platform.Maui" Version="$(PlatformPackagesVersion)" />
+    <PackageVersion Include="Perezosoft.Platform.Testing" Version="$(PlatformPackagesVersion)" />
+    <PackageVersion Include="Perezosoft.Platform.Testing.E2E" Version="$(PlatformPackagesVersion)" />
+    <PackageVersion Include="Perezosoft.Platform.Testing.Ui" Version="$(PlatformPackagesVersion)" />
+    <PackageVersion Include="Perezosoft.Platform.Web" Version="$(PlatformPackagesVersion)" />
+    <GlobalPackageReference Include="Perezosoft.Platform.Build" Version="$(PlatformPackagesVersion)" />
+  </ItemGroup>
+
+  <!-- vuelto's own packages (beyond the platform's). -->
+  <ItemGroup>
+    <PackageVersion Include="QuestPDF" Version="2026.9.0" />     <!-- the report PDFs (REPORTS-7) -->
+    <PackageVersion Include="HtmlAgilityPack" Version="1.12.4" /> <!-- voucher email parsing (EMAIL-1, MIT) -->
+    <PackageVersion Include="PdfPig" Version="0.1.16" />          <!-- the tests read the PDFs back (REPORTS-7) -->
   </ItemGroup>
 
 </Project>

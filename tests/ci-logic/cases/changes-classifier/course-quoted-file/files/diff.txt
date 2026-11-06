@@ -1,2 +1,0 @@
-src/Core/Entities/Tenant.cs
-src/Api/Program.cs

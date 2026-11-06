@@ -1,20 +1,21 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
+  <!--
+    Vuelto's journeys: Playwright drives the web host against a running API, db and Mailpit (`dotnet platform e2e`
+    starts them). The base, BlazorBoot, Mailpit and Totp come from Perezosoft.Platform.Testing.E2E.
+  -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <GenerateLocalPorts>true</GenerateLocalPorts> <!-- LocalPorts.* from local-ports.props (Arch A10) -->
+    <GenerateLocalPorts>true</GenerateLocalPorts>
     <LangVersion>latest</LangVersion>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Perezosoft.Platform.Testing.E2E" />
     <PackageReference Include="coverlet.collector" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="Microsoft.Playwright.NUnit" />
-    <!-- Compute TOTP codes from the enrollment secret for the MFA enroll+step-up journey. -->
-    <PackageReference Include="Otp.NET" />
     <PackageReference Include="NUnit" />
     <PackageReference Include="NUnit.Analyzers" />
     <PackageReference Include="NUnit3TestAdapter" />

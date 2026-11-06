@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using Microsoft.Playwright;
 using Vuelto.E2E.Tests.Pages;
+using Perezosoft.Testing.E2E;
 
 namespace Vuelto.E2E.Tests;
 

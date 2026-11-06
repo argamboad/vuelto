@@ -1,5 +1,6 @@
 using Microsoft.Playwright;
 using NUnit.Framework;
+using Perezosoft.Testing.E2E;
 
 namespace Vuelto.E2E.Tests;
 

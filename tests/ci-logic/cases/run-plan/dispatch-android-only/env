@@ -1,4 +1,0 @@
-EVENT=workflow_dispatch
-CODE=true
-DEPLOY=none
-DEVICES=android

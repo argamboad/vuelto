@@ -3,9 +3,9 @@ using Bunit;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 using Vuelto.Shared.Ui.Components;
-using Vuelto.Shared.Ui.Pages;
 using Vuelto.Ui.Tests.Infrastructure;
 using Xunit;
+using Vuelto.Shared.Ui.Pages;
 
 namespace Vuelto.Ui.Tests;
 

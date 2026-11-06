@@ -1,3 +1,4 @@
+using Perezosoft.Testing.Ui;
 namespace Vuelto.Ui.Tests.Infrastructure;
 
 /// <summary>

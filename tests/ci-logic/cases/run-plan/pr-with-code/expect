@@ -1,7 +1,0 @@
-exit 0
-+checks=true
-+web=true
-+android=false
-+windows=false
-+apple=false
-+buildmatrix=[]

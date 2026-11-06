@@ -16,7 +16,7 @@
   hatch **`IRepository<T>.QueryAllTenants()`** (audited; used by dissolve contributors), and a
   signature-/system-authenticated tenant-scoped write enters its tenant via
   **`ITenantContext.EnterTenant(tenantId)`** — `IgnoreQueryFilters()` is **banned in
-  `src/Api/Features/**`** (a build-time test enforces it). Never leak across tenants.
+  `src/Host/Features/**`** (a build-time test enforces it). Never leak across tenants.
 - "Tenant" is the code term for the household/org/team. The reference implementation labels it
   **Household**; rename per app.
 
@@ -428,8 +428,8 @@ erDiagram
 
 ### ER diagram — identity & auth foundation
 
-Drawn from the code (entities in `src/Core/Entities/`, constraints in
-`src/Infrastructure/Persistence/Configurations/`). **Solid lines are real FK constraints (there
+Drawn from the code (entities in `src/Host/Entities/`, constraints in
+`src/Host/Persistence/Configurations/`). **Solid lines are real FK constraints (there
 are only four in the whole model, all cascade); dotted lines are logical, application-enforced
 Guid references with no DB constraint.** Invariants are annotated on the columns they protect.
 Decision context: [ADR-002](DECISIONS.md) (custom JWT auth), [ADR-003](DECISIONS.md)
@@ -595,7 +595,7 @@ stateDiagram-v2
 > `HasDataAsync`/`WipeDataAsync` method to edit (adding a feature never means touching central code).
 
 - **`Subscription`** *(ADR-006 / `docs/stories/billing.md`)* — ✅ **BUILT (BILLING-1..7)**:
-  `src/Core/Entities/Subscription.cs`, migration `AddSubscription`. `ITenantScoped`, **unique per
+  `src/Host/Entities/Subscription.cs`, migration `AddSubscription`. `ITenantScoped`, **unique per
   tenant**; `plan_key`, `status`, `stripe_customer_id`/`stripe_subscription_id`, `current_period_end`,
   `lapse_notified_at` (nullable — set by the BILLING-6 lapse sweep so it nudges once per lapse),
   `last_event_at` (nullable — the timestamp of the most recently *applied* webhook event; the handler
@@ -605,25 +605,25 @@ stateDiagram-v2
   is code (`src/Core/Billing/PlanCatalog.cs`), not a table. Participates in dissolve via
   `BillingDataContributor` (cancels the provider sub + wipes the projection).
 - **`UsageCounter`** *(ADR-006 / `docs/stories/billing.md`)* — ✅ **BUILT (BILLING-5)**:
-  `src/Core/Entities/UsageCounter.cs`. `ITenantScoped`. A per-tenant, per-period metered-usage counter:
+  `src/Host/Entities/UsageCounter.cs`. `ITenantScoped`. A per-tenant, per-period metered-usage counter:
   `key` (the metered action, e.g. "export"), `period` (a calendar month `yyyy-MM`, UTC), `count`,
   `updated_at`. One row per (tenant, key, period) — the month-keyed period makes it **self-resetting
   with no reset job**. `IQuotaService.TryConsumeAsync` increments it and denies once the plan's monthly
   limit is reached.
 - **`ApiKey`** *(ADR-015 / `docs/stories/pubapi.md`)* — ✅ **BUILT (PUBAPI-1)**:
-  `src/Core/Entities/ApiKey.cs`. `ITenantScoped`. A tenant-scoped API key for programmatic access — only
+  `src/Host/Entities/ApiKey.cs`. `ITenantScoped`. A tenant-scoped API key for programmatic access — only
   the **hash** is stored: `name`, `key_hash` (deterministic hash for O(1) lookup), `prefix` (short
   non-secret display prefix), `scopes` (comma-separated), `created_by_user_id`, `created_at`,
   `last_used_at`, `expires_at` (nullable), `revoked_at` (nullable). The raw key is shown once at
   creation. A presented key authenticates as its tenant (mints a `tenant_id`-claim principal).
 - **`WebhookSubscription`** *(ADR-016 / `docs/stories/hooks.md`)* — ✅ **BUILT (HOOKS-1)**:
-  `src/Core/Entities/WebhookSubscription.cs`. `ITenantScoped`. A tenant's outbound webhook subscription:
+  `src/Host/Entities/WebhookSubscription.cs`. `ITenantScoped`. A tenant's outbound webhook subscription:
   `url`, `event_types` (comma-separated), `encrypted_secret` (the HMAC signing secret **encrypted** at
   rest via Data Protection — needed in plaintext to sign, so it can't be hashed; revealed once),
   `created_by_user_id`, `created_at`, `disabled_at` (nullable). Delivery goes through the outbox
   (ADR-007), so it's durable + retried.
 - **`WebhookDelivery`** *(ADR-016 / `docs/stories/hooks.md`)* — ✅ **BUILT (HOOKS-2)**:
-  `src/Core/Entities/WebhookDelivery.cs`. **NOT `ITenantScoped`** — like `OutboxMessage` it's written
+  `src/Host/Entities/WebhookDelivery.cs`. **NOT `ITenantScoped`** — like `OutboxMessage` it's written
   from the tenant-less outbox dispatcher, so `tenant_id` is a **plain filter column** the read side
   filters on, not a global-filter scoping key. A per-attempt delivery record (retries add rows):
   `subscription_id`, `event_type`, `event_id`, `body` (the exact JSON sent — retained so a delivery can
@@ -705,20 +705,20 @@ erDiagram
 
 ## Platform infra entities (built — not `ITenantScoped`)
 - **`OutboxMessage`** *(ADR-007 / `docs/stories/async-jobs.md`)* — ✅ **BUILT (JOBS-1)**:
-  `src/Core/Entities/OutboxMessage.cs`, migration `AddOutbox`. **NOT** `ITenantScoped` (platform infra;
+  `src/Host/Entities/OutboxMessage.cs`, migration `AddOutbox`. **NOT** `ITenantScoped` (platform infra;
   carries an optional `TenantId` for context). `type`, `payload` (text/JSON), `status`,
   `attempt_count`, `next_attempt_at`, `processed_at`, `last_error`. Written in the **same transaction**
   as the business change (atomic effects). A finished row (sent or dead) gets `processed_at` and its
   `payload` cleared to `{}` (unless its handler keeps it as a record — the platform broadcast); the
   `outbox-retention` job deletes finished rows after `Outbox:RetentionDays` (30). v4 audit H7.
 - **`InboxMessage`** *(ADR-007 / `docs/stories/async-jobs.md`)* — ✅ **BUILT (JOBS-2)**:
-  `src/Core/Entities/InboxMessage.cs`, migration `AddInbox`. **NOT** `ITenantScoped`. Dedup ledger for
+  `src/Host/Entities/InboxMessage.cs`, migration `AddInbox`. **NOT** `ITenantScoped`. Dedup ledger for
   idempotent inbound (webhook) deliveries: `id`, `source`, `idempotency_key`, `received_at`; **unique on
   `(source, idempotency_key)`**. `IInbox.TryClaimAsync` claims via `INSERT … ON CONFLICT DO NOTHING`
   inside the caller's transaction (claim + work commit together). Built as a separate ledger rather than
   an outbox `direction` column — see the ADR-007 amendment.
 - **`AuditEvent`** *(ADR-008 / `docs/stories/observability.md`)* — ✅ **BUILT (OBS-4)**:
-  `src/Core/Entities/AuditEvent.cs`, migration `AddAuditEvent`. `ITenantScoped`, **append-only**;
+  `src/Host/Entities/AuditEvent.cs`, migration `AddAuditEvent`. `ITenantScoped`, **append-only**;
   `actor_user_id`, `action`, `entity_type`, `entity_id`, `metadata` (jsonb), `created_at`. Written via
   explicit `IAuditLog.RecordAsync` (stages on the caller's unit of work); append-only enforced by
   `AuditAppendOnlyInterceptor` (throws on tracked update/delete). `AuditDataContributor` purges on
