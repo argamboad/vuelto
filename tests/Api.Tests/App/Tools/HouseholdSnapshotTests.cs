@@ -10,7 +10,7 @@ using Xunit;
 namespace Vuelto.Api.Tests.Tools;
 
 /// <summary>
-/// The operator tool <c>tools/snapshot-household.sql</c> (hidden — no UI, no route): snapshot one household
+/// The operator tool <c>ops/snapshot-household.sql</c> (hidden — no UI, no route): snapshot one household
 /// from a source database as a SQL file, restore it on a target. Proven as a round-trip on the fixture:
 /// seed → snapshot → wipe → restore → the same rows, ids and frozen rates. Plus a list gate: every
 /// tenant-scoped table in the model must be named in the script — included or explicitly excluded — so a
@@ -28,7 +28,7 @@ public class HouseholdSnapshotTests(PostgresFixture fixture) : PostgresTestBase(
         return dir?.FullName ?? throw new InvalidOperationException("Could not locate the repo root from the test assembly.");
     }
 
-    private static string ScriptText() => File.ReadAllText(Path.Combine(RepoRoot(), "tools", "snapshot-household.sql"));
+    private static string ScriptText() => File.ReadAllText(Path.Combine(RepoRoot(), "ops", "snapshot-household.sql"));
 
     [Fact]
     public void EveryTenantScopedTable_IsEitherIncludedOrExplicitlyExcluded()
@@ -46,7 +46,7 @@ public class HouseholdSnapshotTests(PostgresFixture fixture) : PostgresTestBase(
             .ToHashSet();
 
         var missing = tenantScopedTables.Where(t => !included.Contains(t) && !excluded.Contains(t)).Order().ToList();
-        Assert.True(missing.Count == 0, $"Tenant-scoped tables neither included nor explicitly excluded in tools/snapshot-household.sql: {string.Join(", ", missing)}");
+        Assert.True(missing.Count == 0, $"Tenant-scoped tables neither included nor explicitly excluded in ops/snapshot-household.sql: {string.Join(", ", missing)}");
         Assert.Contains("EmailConnections", excluded); // user-keyed, tokens bound to the source key ring
     }
 

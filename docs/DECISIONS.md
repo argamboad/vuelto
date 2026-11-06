@@ -2095,8 +2095,8 @@ settings card says so.
 `BudgetSettings` (5w = 4w → monthly; 5w/5 = 4w/4 → weekly at 4w/4; otherwise weekly at 4w/4 flagged `needs_review`, which
 any update clears; a zero slot makes no line) and one row per non-zero month slot with the stored amount copied
 **verbatim** into both `amount` and `planned_amount` — history is never re-derived. Deterministic ids and `NOT EXISTS`
-guards make it idempotent; the same SQL ships as `tools/backfill-income-lines.sql` (a test keeps them identical) for a
-pre-migration snapshot restored later, and `tools/check-income-parity.sql` compares old and new totals per month and
+guards make it idempotent; the same SQL ships as `ops/backfill-income-lines.sql` (a test keeps them identical) for a
+pre-migration snapshot restored later, and `ops/check-income-parity.sql` compares old and new totals per month and
 currency. The migration sets `app.rls_bypass` itself, because Neon's owner role is not a superuser and FORCE RLS would
 otherwise hide every row. `Down` drops only the new tables.
 **Kept, not dropped.** The six `BudgetSettings` and four `Month` income columns stay mapped and untouched — the rollback

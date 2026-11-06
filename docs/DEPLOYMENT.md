@@ -322,9 +322,9 @@ role the app connects as** — Postgres exempts superusers/`BYPASSRLS` roles ent
   owners to policies: **RLS is live on staging with no config change.** Migrations still work
   (owner does DDL).
 - **Prod (two roles — activate with production, `STATUS.md` §5; rehearse on staging first).**
-  One command does steps 1–2 and verifies them: `pwsh tools/staging-rls.ps1 -OwnerUrl <neon owner url>
+  One command does steps 1–2 and verifies them: `pwsh ops/staging-rls.ps1 -OwnerUrl <neon owner url>
   -RuntimePassword <new>` provisions the role through the local compose container's `psql`, proves
-  it can read but not run DDL, and prints the three values for steps 2–4 (`tools/README.md`
+  it can read but not run DDL, and prints the three values for steps 2–4 (`ops/README.md`
   "two-role RLS posture" has the click-by-click version). By hand:
   1. `psql` into the database **as the owner** and run
      `docker/db/provision-rls-runtime-role.sql` — **change the password literal first**.
@@ -382,13 +382,13 @@ widening trust. Leave `Proxy__Enabled=false` (the default) whenever there's no p
 You have been running the app locally for a while and the household is real: categories, banks, budget
 lines, months and weeks, transactions with their frozen rates, refunds, merchant rules, the review queue.
 When staging or production comes up you do not start over — you carry the household across with
-`tools/snapshot-household.sql`. No page, no menu, no API route: it is a psql script. **Full runbook —
-what comes across, the dry run, troubleshooting: [`tools/README.md`](../tools/README.md).**
+`ops/snapshot-household.sql`. No page, no menu, no API route: it is a psql script. **Full runbook —
+what comes across, the dry run, troubleshooting: [`ops/README.md`](../ops/README.md).**
 
 1. **Snapshot on the source** (the database that holds the household; `-Atq` keeps the output raw):
 
    ```bash
-   docker exec -i vuelto-db-1 psql -U dev -d dev_db -Atq -v email=you@example.com -f - < tools/snapshot-household.sql > my-household.sql
+   docker exec -i vuelto-db-1 psql -U dev -d dev_db -Atq -v email=you@example.com -f - < ops/snapshot-household.sql > my-household.sql
    ```
 
    The file is plain SQL: one `INSERT … SELECT * FROM json_populate_recordset(…)` per table, in
@@ -427,7 +427,7 @@ therefore gets a rehearsal and a restore point **before the PR is merged**, and 
    it: the migration runs. Then:
 
    ```bash
-   psql "<rehearsal branch owner connection>" -f tools/check-income-parity.sql
+   psql "<rehearsal branch owner connection>" -f ops/check-income-parity.sql
    ```
 
    **Expected:** `(0 rows)`. Open Settings → Manage income, three past months and their dashboards: the income is
@@ -436,7 +436,7 @@ therefore gets a rehearsal and a restore point **before the PR is merged**, and 
 4. **Check staging right after the deploy**, before anyone edits a month's income:
 
    ```bash
-   psql "<staging owner connection>" -f tools/check-income-parity.sql
+   psql "<staging owner connection>" -f ops/check-income-parity.sql
    ```
 
    Any row: roll the app back to the previous deploy on Render (the old income fields were never touched, so the
@@ -444,7 +444,7 @@ therefore gets a rehearsal and a restore point **before the PR is merged**, and 
 5. **Later, owner-gated (INCOME-3):** only after the numbers have been confirmed for a while does a separate PR drop
    the old income fields. That PR repeats steps 1–4.
 
-Details on both scripts: [`tools/README.md`](../tools/README.md).
+Details on both scripts: [`ops/README.md`](../ops/README.md).
 
 ## 9. Native clients — an installable build pointed at a host
 
@@ -539,7 +539,7 @@ lowercase app name). Without it, email-code sign-in still works and OAuth is ref
 Desktop uses a localhost loopback instead and needs nothing.
 
 **Shortcut:** `pwsh tools/publish-native.ps1 -ApiBaseUrl https://vuelto-staging.onrender.com` runs both
-publishes and verifies the APK signature (`tools/README.md`).
+publishes and verifies the APK signature (`ops/README.md`).
 
 **iOS / macCatalyst** need a Mac, an Apple developer identity and provisioning — out of scope for this guide.
 

@@ -2,7 +2,7 @@ namespace Vuelto.Host.Persistence;
 
 /// <summary>
 /// INCOME-1 (ADR-V023, plan §4a): copies the old two-income data into income lines and month income rows. Run once by
-/// the <c>AddIncomeLines</c> migration and shipped verbatim as <c>tools/backfill-income-lines.sql</c> for a household
+/// the <c>AddIncomeLines</c> migration and shipped verbatim as <c>ops/backfill-income-lines.sql</c> for a household
 /// restored from a snapshot taken before that migration (<c>IncomeBackfillSqlTests</c> keeps the two identical).
 /// <list type="bullet">
 /// <item><b>Additive.</b> Only INSERTs; the old columns are read, never changed.</item>

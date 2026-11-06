@@ -1618,7 +1618,7 @@ month id of another household → 404.
 ```gherkin
 Given a database copy taken before INCOME-1 (a Neon branch of staging, or the local database with old data)
 When the API starts and applies the AddIncomeLines migration
-Then tools/check-income-parity.sql returns no rows
+Then ops/check-income-parity.sql returns no rows
 And each household's old defaults appear as income lines ("Primary income", "Secondary income"), the irregular ones flagged "Check this"
 And every existing month shows the same income on its page and on the dashboard as before the migration
 And the old income columns still hold their values
@@ -1626,7 +1626,7 @@ And the old income columns still hold their values
 **Walkthrough:** before merging, create a Neon branch of staging (DEPLOYMENT §9) and take the household snapshot.
 Point a local API at the branch → it migrates on start. Run:
 ```sh
-psql "$BRANCH_URL" -f tools/check-income-parity.sql
+psql "$BRANCH_URL" -f ops/check-income-parity.sql
 ```
 **Expected:** `(0 rows)`. Open **Budget → Edit income** → **Expected:** "Primary income" / "Secondary income" with
 the pay period the old figures implied; a pair that fit no period shows a **Check this** badge (hover: why), which
@@ -3956,7 +3956,7 @@ Then every web gate runs, and only when all pass the Render hook fires and the v
 | Catalog: categories + banks (app CATALOG-1/2) | CAT-01..04 | `GET/POST /api/categories`, `PUT /api/categories/{id}`, same under `/api/banks` (409 `*_exists` / `*_exists_inactive` + `existing_id` + `existing_name`; uniform 404) |
 | Exchange rate (app FX-1) | FX-01..02 + `Api.Tests` (`ExchangeRateApiClientTests`, `ExchangeRateResolverTests`) | `GET /api/exchange-rate` (200 `{rate, source: live\|cache\|transaction, as_of}`; 503 `exchange_rate_unavailable`; 401 anonymous) |
 | Envelopes (app ENV-1) | ENV-01..02 | `GET/POST /api/envelopes`, `PUT /api/envelopes/{id}` (400 `invalid_request`; 409 `envelope_exists` / `envelope_exists_inactive` + `existing_id` + `existing_name`; uniform 404) |
-| Income lines + month income rows + income by member (app INCOME-1/2 · ADR-V023) | INC-01..04 (04: `Core.Tests` `IncomeByMemberTests`, `Api.Tests` `ReportSliceTests` / `ReportPdfModelBuilderTests` / `ReportPdfRendererTests`, `Ui.Tests` `ReportsPageTests`) (01–02 ⚙️ E2E `IncomeJourneyTests`) + `Core.Tests` (`IncomeSnapshotTests`, `IncomeCalculatorTests`) + `Api.Tests` (`IncomeSliceTests`, `IncomeEndpointTests`, `IncomeMigrationTests` on real Postgres, `ArchitectureTests.LegacyIncomeColumns_AreReadOrWrittenByNothing`) + `Ui.Tests` (`IncomesPageTests`, `LedgerPagesTests`) | `GET/POST /api/incomes`, `PUT /api/incomes/{id}`, `PUT /api/incomes/order` (400 `invalid_request`; 409 `income_exists` / `income_exists_inactive` + `existing_id` + `existing_name`; uniform 404); `GET /api/months/{id}` → `income_rows`; `PUT /api/months/{id}/income` `{rows:[…]}`; `tools/check-income-parity.sql` |
+| Income lines + month income rows + income by member (app INCOME-1/2 · ADR-V023) | INC-01..04 (04: `Core.Tests` `IncomeByMemberTests`, `Api.Tests` `ReportSliceTests` / `ReportPdfModelBuilderTests` / `ReportPdfRendererTests`, `Ui.Tests` `ReportsPageTests`) (01–02 ⚙️ E2E `IncomeJourneyTests`) + `Core.Tests` (`IncomeSnapshotTests`, `IncomeCalculatorTests`) + `Api.Tests` (`IncomeSliceTests`, `IncomeEndpointTests`, `IncomeMigrationTests` on real Postgres, `ArchitectureTests.LegacyIncomeColumns_AreReadOrWrittenByNothing`) + `Ui.Tests` (`IncomesPageTests`, `LedgerPagesTests`) | `GET/POST /api/incomes`, `PUT /api/incomes/{id}`, `PUT /api/incomes/order` (400 `invalid_request`; 409 `income_exists` / `income_exists_inactive` + `existing_id` + `existing_name`; uniform 404); `GET /api/months/{id}` → `income_rows`; `PUT /api/months/{id}/income` `{rows:[…]}`; `ops/check-income-parity.sql` |
 | Months & transactions (app LEDGER-1/2) | LED-01..04 + `Api.Tests` (`LedgerSliceTests`) | `GET /api/months`, `GET /api/months/resolve?date=`, `GET /api/months/{id}`, `PUT /api/months/{id}/income`, `GET /api/months/{id}/transactions`; `POST /api/transactions`, `GET/PUT/DELETE /api/transactions/{id}` (400 `invalid_request` / `exchange_rate_unavailable` / `derived_transaction`; uniform 404) |
 | Expected refunds & realization (app LEDGER-3, LEDGER-5..8) | LED-05..06, LED-08..09 + `Api.Tests` (`RefundSliceTests`, incl. the two-context concurrency proof) | `refund_expected` / `refund_amount` on `POST/PUT /api/transactions` (409 `refund_status_conflict` on a received refund's purchase — ADR-V026); `GET /api/months/{id}/refunds` (`{ refunds, totals }`); `GET /api/refunds` (400 on a bad status/range); `PUT /api/refunds/{id}` (200; 400 `invalid_request`; 404; 409 `refund_status_conflict`) |
 | Budget lines: fixed + variable (app EXPENSES-1) | EXP-01..03 | `GET/POST /api/expenses/{fixed\|variable}`, `PUT …/{id}`, `PUT …/order` (400 `invalid_request`; 409 `expense_exists` / `expense_exists_inactive` + `existing_id` + `existing_name`; uniform 404) |
@@ -4620,7 +4620,7 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   5-week defaults on the budget settings: **Budget → Edit income** keeps a list of lines (whose, currency,
   fixed/variable, weekly / twice a month / monthly, amount per payment), and each new month starts with one editable
   income row per line, derived by its pay period; a month can add a one-off or drop a row. The migration copied every
-  household's defaults into lines and every month's two incomes verbatim into rows (`tools/check-income-parity.sql`
+  household's defaults into lines and every month's two incomes verbatim into rows (`ops/check-income-parity.sql`
   proves it). New §10g2 with **QA-INC-01** and **QA-INC-02** (⚙️ — `IncomeJourneyTests`) and **QA-INC-03** (the
   migration rehearsal and post-deploy parity check); QA-BUD-01..03, QA-LED-01 and QA-LED-04 and QA-EXP-01 follow the
   new shape; Postman gains folder **25 · Income**. **Case count 199 → 202.**
@@ -4801,7 +4801,7 @@ Critical/High defects. 🟢 Edge cases triaged (Pass or accepted-known-issue).
   lines total carries the same over/under tone as its rows. QA-DASH-01 gains the line; the totals are
   asserted in `DashboardPageTests`. Suite count unchanged (180).
 - **Updated 2026-09-04** — **Household snapshot (hidden operator tool, owner request).**
-  `tools/snapshot-household.sql` writes one household — the members' identity rows plus every budget
+  `ops/snapshot-household.sql` writes one household — the members' identity rows plus every budget
   table, ids preserved, FK order, `ON CONFLICT DO NOTHING` — as a restorable SQL file, so a household
   built up locally moves to staging/production without starting over (`docs/DEPLOYMENT.md` §9). Inbox
   tokens are left out on purpose (key-ring bound: reconnect on the target); billing/ops tables too. No

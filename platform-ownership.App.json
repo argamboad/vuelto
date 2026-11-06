@@ -1,0 +1,17 @@
+{
+  "$comment": [
+    "This app's own folders, classed after the platform's rules (perezosoft-platform#375): its operator scripts (ops/: the",
+    "household snapshot, the income backfill and parity check, the staging two-role RLS posture) and the tests of its own",
+    "page script (ui.js), which node runs (tests/ui-js; the CI caller's ui-js job)."
+  ],
+  "rules": [
+    {
+      "glob": "ops/**",
+      "class": "app"
+    },
+    {
+      "glob": "tests/ui-js/**",
+      "class": "app"
+    }
+  ]
+}

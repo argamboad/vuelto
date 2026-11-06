@@ -1,3 +1,0 @@
-exit 1
-+parameterised journeys cannot be sharded by exact name: Kilo_Journey
--STUB dotnet test

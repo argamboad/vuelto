@@ -1,8 +1,9 @@
-# Keep the build context small + never leak local secrets/artifacts into the image.
+# Keep the build context small and never let a secret or a build artifact into the image.
 **/bin
 **/obj
 **/.vs
 **/.vscode
+**/node_modules
 .git
 .github
 .env
@@ -14,3 +15,5 @@ storage
 *.md
 **/*.user
 **/TestResults
+# The feed's token as Render hands it over: a secret file in the context root (the build mounts it, never copies it).
+nuget

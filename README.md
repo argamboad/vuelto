@@ -30,7 +30,7 @@ repo is following.
 ## Run it locally
 
 Operator tools (hidden — no page, no route), e.g. moving your household to another server:
-[`tools/README.md`](tools/README.md).
+[`ops/README.md`](ops/README.md).
 
 
 ```bash

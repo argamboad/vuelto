@@ -49,7 +49,7 @@ without typing four-week and five-week figures
   amount and currency **verbatim**. Deterministic ids and `NOT EXISTS` make it idempotent; the RLS bypass is set for
   the migration's own transaction (a non-superuser owner — Neon — would otherwise copy nothing). The old columns stay,
   untouched, as the rollback baseline (dropped later by the owner-gated INCOME-3). The same SQL ships as
-  `tools/backfill-income-lines.sql` for a pre-migration household snapshot restored afterwards.
+  `ops/backfill-income-lines.sql` for a pre-migration household snapshot restored afterwards.
 - **Erasure:** the per-user contributor clears `member_user_id` on lines and rows in every household; amounts stay.
 - **UI:** Settings → **Income** (`/incomes`): the ordered list with member, pay period and amount, an inline add/edit
   form like the envelopes page (name, member, currency, fixed/variable, pay period, amount, pay days for biweekly,

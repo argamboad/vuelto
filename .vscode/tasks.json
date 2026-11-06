@@ -1,6 +1,6 @@
 {
-  // The tasks behind the start profiles that tools/dev-profiles.ps1 writes into the gitignored .vscode/settings.json
-  // (run it once per clone; see docs/MOBILE_TESTING.md §3). Folder paths, not project names, so a rebrand leaves this
+  // The tasks behind the start profiles that `dotnet platform dev-profiles` writes into the gitignored .vscode/settings.json
+  // (run it once per clone; the platform's docs/MOBILE_TESTING.md §3). Folder paths, not project names, so a rebrand leaves this
   // file alone. Each profile builds only what it runs: the API's projects and the clients' share none, so its two
   // builds can run side by side. The Windows TFM matches src/Maui's csproj.
   "version": "2.0.0",
@@ -9,7 +9,7 @@
       "label": "build: api",
       "command": "dotnet",
       "type": "process",
-      "args": ["build", "${workspaceFolder}/src/Api", "-v", "q"],
+      "args": ["build", "${workspaceFolder}/src/Host", "-v", "q"],
       "problemMatcher": "$msCompile"
     },
     {
@@ -28,16 +28,16 @@
     },
     {
       "label": "android: phone emulator",
-      "command": "pwsh",
+      "command": "dotnet",
       "type": "process",
-      "args": ["-NoProfile", "-File", "${workspaceFolder}/tools/android-emulator.ps1", "-Avd", "phone", "-Port", "5554"],
+      "args": ["platform", "android-emulator", "-Avd", "phone", "-Port", "5554"],
       "problemMatcher": []
     },
     {
       "label": "android: tablet emulator",
-      "command": "pwsh",
+      "command": "dotnet",
       "type": "process",
-      "args": ["-NoProfile", "-File", "${workspaceFolder}/tools/android-emulator.ps1", "-Avd", "tablet", "-Port", "5556"],
+      "args": ["platform", "android-emulator", "-Avd", "tablet", "-Port", "5556"],
       "problemMatcher": []
     }
   ]

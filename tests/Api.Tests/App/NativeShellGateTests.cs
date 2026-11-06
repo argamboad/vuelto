@@ -64,7 +64,7 @@ public class NativeShellGateTests
         // -p:AndroidSigningKeyPass=<the password> is in the shell history, the process list and any binlog.
         // The .NET Android SDK reads env:NAME (and file:path) itself, so the command line names a variable.
         var root = RepoRoot();
-        var files = new[] { "docs", "tools", ".github" }
+        var files = new[] { "docs", "ops", ".github" }
             .SelectMany(d => Directory.EnumerateFiles(Path.Combine(root, d), "*", SearchOption.AllDirectories))
             .Where(f => Path.GetExtension(f) is ".md" or ".ps1" or ".sh" or ".yml" or ".yaml")
             .Where(f => !f.Replace('\\', '/').Contains("/docs/audits/")) // the audit quotes what it found
@@ -80,17 +80,6 @@ public class NativeShellGateTests
                     literals.Add($"{Path.GetRelativePath(root, file)}:{i + 1}");
         }
         Assert.True(literals.Count == 0, "a signing password is passed as a -p: literal (use env:NAME): " + string.Join(", ", literals));
-    }
-
-    [Fact]
-    public void PublishScript_SignsWithAStoreKey_WhosePasswordsComeFromTheEnvironment()
-    {
-        var script = File.ReadAllText(Path.Combine(RepoRoot(), "tools", "publish-native.ps1"));
-        Assert.Matches(@"\[string\]\s*\$KeyStore", script);
-        Assert.Matches(@"\[string\]\s*\$KeyAlias", script);
-        Assert.Contains("-p:AndroidSigningStorePass=env:ANDROID_SIGNING_STORE_PASS", script);
-        Assert.Contains("-p:AndroidSigningKeyPass=env:ANDROID_SIGNING_KEY_PASS", script);
-        Assert.DoesNotMatch(@"\$(?:Store|Key)Pass(?:word)?\b", script); // no password parameter to type one into
     }
 
     [Fact]

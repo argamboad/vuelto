@@ -14,7 +14,7 @@ namespace Vuelto.Api.Tests;
 /// INCOME-1 data safety (plan §4a) on a real database built by the real migrations: old-shape data is seeded at the
 /// migration BEFORE <c>AddIncomeLines</c>, then the migration runs and must (1) turn each household's 4w/5w defaults into
 /// the right lines, (2) copy every month's income verbatim — per currency, to the cent (the shipped
-/// <c>tools/check-income-parity.sql</c> returns no rows), (3) leave every old column exactly as it was, (4) add nothing
+/// <c>ops/check-income-parity.sql</c> returns no rows), (3) leave every old column exactly as it was, (4) add nothing
 /// when the shipped backfill runs again, (5) copy under row-level security only because it sets the bypass (a
 /// non-superuser runs it — Neon's owner is one), and (6) roll back leaving the old data intact.
 /// </summary>
@@ -43,7 +43,7 @@ public sealed class IncomeMigrationTests : IAsyncLifetime
         return dir?.FullName ?? throw new InvalidOperationException("repo root not found");
     }
 
-    private static string Tool(string name) => File.ReadAllText(Path.Combine(RepoRoot(), "tools", name));
+    private static string Tool(string name) => File.ReadAllText(Path.Combine(RepoRoot(), "ops", name));
 
     private async Task<List<T>> QueryAsync<T>(string sql, Func<NpgsqlDataReader, T> map, string? connectionString = null)
     {
