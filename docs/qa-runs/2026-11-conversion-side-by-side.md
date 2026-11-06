@@ -63,6 +63,9 @@ tool wires it (the converted stack through `dotnet platform`'s e2e script, point
 
 - **Postman results are identical request by request**: same sequence, same status code, same pass or fail on every
   assertion. All 117 JSON bodies have the same shape (keys and types; ids and times vary).
+- The converted pass was run twice. The first reached the baseline's host, still on the port after its own pass
+  (the converted host could not bind it and exited); that run was discarded. The second, recorded here, ran on the
+  converted host (its log: listening on 7260, `Vuelto.Host` serving).
 - The 12 Postman failures are the same on both: requests that need a value a person types or configures (a TOTP code,
   a staff address, a public-API key), an export token past its lifetime after the pauses, the report's two assertions
   that need a month with spending, and the mail-consent callback, whose redirect goes to a web client this run did not
