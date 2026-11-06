@@ -1,4 +1,5 @@
 using Microsoft.Playwright;
+using Perezosoft.Testing.E2E;
 
 namespace Vuelto.E2E.Tests;
 

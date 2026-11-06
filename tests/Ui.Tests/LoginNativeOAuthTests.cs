@@ -2,9 +2,11 @@ using Bunit;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Vuelto.Shared.Ui.Auth;
-using Vuelto.Shared.Ui.Pages;
+using Perezosoft.Client.Auth;
 using Vuelto.Ui.Tests.Infrastructure;
+using Perezosoft.Testing.Ui;
 using Xunit;
+using Vuelto.Shared.Ui.Pages;
 
 namespace Vuelto.Ui.Tests;
 

@@ -2,6 +2,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Playwright;
+using Perezosoft.Testing.E2E;
 
 namespace Vuelto.E2E.Tests;
 

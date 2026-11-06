@@ -54,11 +54,22 @@
           "Microsoft.Testing.Platform.MSBuild": "2.3.3"
         }
       },
-      "Otp.NET": {
+      "Perezosoft.Platform.Build": {
         "type": "Direct",
-        "requested": "[1.4.1, )",
-        "resolved": "1.4.1",
-        "contentHash": "UXjZ80T6BfVACJWmEcz4UFZ93hwX3STKojKvVpPk3qUhubjnLwIiZMsI4Hh91HhYxC0JlatNdNrVK2wkv4O9/Q=="
+        "requested": "[1.0.0-beta.10, )",
+        "resolved": "1.0.0-beta.10",
+        "contentHash": "9adiXek4n4c0yyikGS7wknqCNH2TP2XT/bxwTCir7pwxhwAji0sq0KWH8gzdLUt/DAY7jHjkylO1XIcbr66U9A=="
+      },
+      "Perezosoft.Platform.Testing.E2E": {
+        "type": "Direct",
+        "requested": "[1.0.0-beta.10, )",
+        "resolved": "1.0.0-beta.10",
+        "contentHash": "V88UPCnfoPiFqRhH1GAFdrZyHp3pmt7JrPHNYLh0h0/4Oh+kaiz+jW/EAcmcBydjO7eoSVdhoi8bMm24znvZzQ==",
+        "dependencies": {
+          "Microsoft.Playwright.NUnit": "1.60.0",
+          "NUnit": "4.3.2",
+          "Otp.NET": "1.4.1"
+        }
       },
       "Microsoft.ApplicationInsights": {
         "type": "Transitive",
@@ -162,6 +173,12 @@
         "type": "Transitive",
         "resolved": "5.0.0",
         "contentHash": "dMkqfy2el8A8/I76n2Hi1oBFEbG1SfxD2l5nhwXV3XjlnOmwxJlQbYpJH4W51odnU9sARCSAgv7S3CyAFMkpYg=="
+      },
+      "Otp.NET": {
+        "type": "CentralTransitive",
+        "requested": "[1.4.1, )",
+        "resolved": "1.4.1",
+        "contentHash": "UXjZ80T6BfVACJWmEcz4UFZ93hwX3STKojKvVpPk3qUhubjnLwIiZMsI4Hh91HhYxC0JlatNdNrVK2wkv4O9/Q=="
       }
     }
   }

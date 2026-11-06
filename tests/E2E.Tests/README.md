@@ -10,6 +10,7 @@ smoke path that doesn't need an external OAuth provider.
 pwsh tools/e2e.ps1                                   # the whole suite
 pwsh tools/e2e.ps1 -Filter "FullyQualifiedName~Billing"   # a slice
 pwsh tools/e2e.ps1 -Gates                            # the gates-off lane: billing off + a one-domain green list, GateJourneyTests only
+dotnet platform e2e -Gates                           # the same script through the tool (Pkg 5.3), in any repo on the platform
 ```
 
 `tools/e2e.ps1` starts this repo's `db` + `mail` containers, builds, installs Chromium, then runs the API and the web
@@ -32,7 +33,7 @@ the script does.
    it back for the test run** via command-line args (command-line config beats `.env`, and
    leaves `.env` untouched):
    ```sh
-   dotnet run --project src/Api --launch-profile https -- \
+   dotnet run --project src/Host --launch-profile https -- \
      --Email:Smtp:Host=localhost --Email:Smtp:Port=1026 --Email:Smtp:Username= --Email:Smtp:Password= \
      --Auth:RateLimit:PasswordlessPermitLimit=1000 \
      --Auth:RateLimit:RefreshPermitLimit=1000 \

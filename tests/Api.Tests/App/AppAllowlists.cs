@@ -1,5 +1,5 @@
-using Vuelto.Core.Entities;
-
+using Perezosoft.Core.Entities;
+using Vuelto.Host.Entities;
 namespace Vuelto.Api.Tests.App;
 
 /// <summary>
@@ -7,7 +7,7 @@ namespace Vuelto.Api.Tests.App;
 /// <c>ArchitectureTests</c> and <c>DataProtectionIdentityTests</c> are the platform's and stay identical across
 /// repos; what an app has to say to them — which contributor dissolves its entities, which of its files sends HTTP
 /// to a fixed host, which purpose strings it protects with — is said here, typed (<c>nameof</c>: a renamed entity
-/// fails to compile rather than silently dropping out of a canary). Vuelto's budgeting slices (ADR-V001).
+/// fails to compile rather than silently dropping out of a canary). These are vuelto's slices' entries.
 /// A gate that grows a new allowlist adds a set here, and the add-a-slice checklist names it.
 /// </summary>
 internal static partial class AppAllowlists
@@ -72,7 +72,7 @@ internal static partial class AppAllowlists
         "Vuelto.Mail.ConsentState.v1", // MailConsentService — time-limited OAuth consent state
     };
 
-    /// <summary>Which slice may WRITE each entity (Arch A8, R162): entity → the folder under <c>src/Api/Features/</c> that owns it.
+    /// <summary>Which slice may WRITE each entity (Arch A8, R162): entity → the folder under <c>src/Host/Features/</c> that owns it.
     /// Other slices read it, or go through a Core contract the owner implements (<c>EveryEntity_HasOneWritingSlice</c>).</summary>
     public static readonly IReadOnlyDictionary<string, string> EntityWriters = new Dictionary<string, string>
     {
@@ -109,7 +109,8 @@ internal static partial class AppAllowlists
     /// <summary>The app's resx files and their shipped translation (<c>ResourceParityTests</c>): neutral → translated.</summary>
     public static readonly IReadOnlyDictionary<string, string> ResxPairs = new Dictionary<string, string>
     {
-        ["src/Api/Features/Reports/Pdf/ReportPdfStrings.resx"] = "src/Api/Features/Reports/Pdf/ReportPdfStrings.es.resx",
+        ["src/Host/Features/Reports/Pdf/ReportPdfStrings.resx"] = "src/Host/Features/Reports/Pdf/ReportPdfStrings.es.resx",
+        ["src/Host/Email/EmailStrings.resx"] = "src/Host/Email/EmailStrings.es.resx", // the mail strings that name the app (PlatformBrand.Strings)
     };
 
     /// <summary>The app's own preference writes, each refused from an impersonation session

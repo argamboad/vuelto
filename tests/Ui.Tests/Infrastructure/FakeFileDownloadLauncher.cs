@@ -1,4 +1,6 @@
 using Vuelto.Shared.Ui;
+using Perezosoft.Client;
+using Perezosoft.Testing.Ui;
 
 namespace Vuelto.Ui.Tests.Infrastructure;
 

@@ -1,90 +1,22 @@
-using System.Text;
-using System.Text.Json;
 using Microsoft.Playwright;
-using Microsoft.Playwright.NUnit;
-using NUnit.Framework;
-using NUnit.Framework.Interfaces;
 using Vuelto.E2E.Tests.Pages;
+using Perezosoft.Testing.E2E;
 
 namespace Vuelto.E2E.Tests;
 
 /// <summary>
-/// Base for E2E tests. Drives a real browser against the running Web app.
-/// <para>
-/// Prereqs (see docs/WAYS_OF_WORKING.md): <c>docker compose up -d</c>, then start the API
-/// (https profile) and the Web app, then run. Base URL defaults to the Web app's https
-/// profile and is overridable via <c>PLAYWRIGHT_BASE_URL</c>.
-/// </para>
+/// Base for this repo's journeys: the packaged one (<see cref="PlatformE2ETestBase"/>, Pkg 5.1d — the browser, the
+/// hosts, the billing webhook, the console report) plus what knows this app's pages: sign-in, landing on the
+/// household, the invite-and-join round trip, over the page objects in <c>Pages/</c>.
 /// </summary>
-public abstract class E2ETestBase : PageTest
+public abstract class E2ETestBase : PlatformE2ETestBase
 {
-    // Resolution order: the runsettings TestRunParameter wins (so `-- TestRunParameters...` /
-    // playwright.runsettings actually take effect), then the environment variable, then the Web
-    // app's https launch profile (local-ports.props, through the generated LocalPorts).
-    protected static string BaseUrl =>
-        TestContext.Parameters.Get("PLAYWRIGHT_BASE_URL")
-        ?? Environment.GetEnvironmentVariable("PLAYWRIGHT_BASE_URL")
-        ?? LocalPorts.WebHttpsUrl;
-
-    // The API's own origin, for tests that simulate an external caller (e.g. the billing-provider
-    // webhook). Defaults to the API's https launch profile; CI overrides to its single-origin base.
-    protected static string ApiBaseUrl =>
-        TestContext.Parameters.Get("E2E_API_BASE_URL")
-        ?? Environment.GetEnvironmentVariable("E2E_API_BASE_URL")
-        ?? LocalPorts.ApiHttpsUrl;
-
     /// <summary>
     /// The Free plan's seat cap, as the journeys see it in the UI. The ONE copy in this project (v4 audit T47,
     /// R88) — the browser tests cannot reference the API's assemblies, so
     /// <c>CatalogNumbersTests</c> in Api.Tests reads this line and fails when it differs from <c>PlanCatalog</c>.
     /// </summary>
     protected const int FreePlanSeatLimit = 5;
-
-    /// <summary>HttpClient for API calls made by tests themselves (accepts the dev self-signed cert).</summary>
-    protected static HttpClient NewApiClient() => new(new HttpClientHandler
-    {
-        ServerCertificateCustomValidationCallback = (_, _, _, _) => true,
-    })
-    { BaseAddress = new Uri(ApiBaseUrl) };
-
-    /// <summary>
-    /// POSTs the billing-provider webhook exactly as Stripe would, accepted by the
-    /// FakeBillingProvider (the E2E API runs without a Stripe key — README): PascalCase body
-    /// (BillingWebhookEvent uses DEFAULT System.Text.Json options, so don't serialize camelCase)
-    /// + the fake's always-valid signature. Lets tests drive plan changes — upgrades AND
-    /// downgrades — with no Stripe. Pass a strictly-later <paramref name="occurredAt"/> for a
-    /// follow-up event: the projection applies only newer events (R29).
-    /// </summary>
-    protected static async Task PostBillingWebhookAsync(string tenantId, string status, string planKey = "pro",
-        DateTimeOffset? occurredAt = null)
-    {
-        using var api = NewApiClient();
-        var payload = JsonSerializer.Serialize(new
-        {
-            EventId = $"evt_e2e_{Guid.NewGuid():N}",
-            TenantId = tenantId,
-            PlanKey = planKey,
-            Status = status,
-            StripeCustomerId = "cus_e2e",
-            StripeSubscriptionId = "sub_e2e",
-            CurrentPeriodEnd = DateTimeOffset.UtcNow.AddDays(30),
-            OccurredAt = occurredAt ?? DateTimeOffset.UtcNow,
-        });
-        var webhook = new HttpRequestMessage(HttpMethod.Post, "/api/billing/webhook")
-        {
-            Content = new StringContent(payload, Encoding.UTF8, "application/json"),
-        };
-        webhook.Headers.Add("Stripe-Signature", "valid"); // FakeBillingProvider.ValidSignature
-        var response = await api.SendAsync(webhook);
-        Assert.That(response.IsSuccessStatusCode, Is.True, $"webhook returned {(int)response.StatusCode}");
-    }
-
-    // Dev runs on a self-signed cert, so ignore HTTPS errors for the test browser.
-    public override BrowserNewContextOptions ContextOptions() => new()
-    {
-        BaseURL = BaseUrl,
-        IgnoreHTTPSErrors = true,
-    };
 
     /// <summary>OTP sign-in on the given page/context and wait for the app shell.</summary>
     protected static async Task SignInAsync(IPage page, string email)
@@ -122,20 +54,4 @@ public abstract class E2ETestBase : PageTest
         await join.GotoWithTokenAsync(token);
         await Assertions.Expect(join.Success).ToBeVisibleAsync(new() { Timeout = 30_000 });
     }
-
-    /// <summary>Keep the browser console of the main page from its first line (BlazorBoot watches secondary
-    /// pages from their first navigation).</summary>
-    [SetUp]
-    public void WatchBrowserConsole() => BlazorBoot.Watch(Page);
-
-    /// <summary>A red journey prints what the browser saw — the only way to tell a dead Blazor boot from
-    /// a real regression after the fact.</summary>
-    [TearDown]
-    public void ReportBrowserConsoleOnFailure()
-    {
-        if (TestContext.CurrentContext.Result.Outcome.Status == TestStatus.Failed)
-            TestContext.Out.WriteLine($"Browser console of {Page.Url}:\n{BlazorBoot.ConsoleOf(Page)}");
-    }
-
-    protected static string UniqueEmail(string role) => $"e2e-{role}-{Guid.NewGuid():N}@example.com";
 }
