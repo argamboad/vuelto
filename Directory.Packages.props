@@ -104,7 +104,7 @@
     platform checkout's projects.
   -->
   <PropertyGroup>
-    <PlatformPackagesVersion>1.0.0-beta.10</PlatformPackagesVersion>
+    <PlatformPackagesVersion>1.0.0-beta.11</PlatformPackagesVersion>
   </PropertyGroup>
   <ItemGroup>
     <PackageVersion Include="Perezosoft.Platform.Api" Version="$(PlatformPackagesVersion)" />

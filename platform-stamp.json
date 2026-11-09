@@ -6,8 +6,8 @@
     "whether its brand was written into it or not."
   ],
   "platform": "argamboad/perezosoft-platform",
-  "commit": "1.0.0-beta.10",
-  "date": "2026-11-06",
+  "commit": "1.0.0-beta.11",
+  "date": "2026-11-09",
   "packages": true,
   "brand": {
     "Perezosoft": "Vuelto",

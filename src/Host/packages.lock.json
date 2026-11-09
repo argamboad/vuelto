@@ -27,9 +27,9 @@
       },
       "Perezosoft.Platform.Api": {
         "type": "Direct",
-        "requested": "[1.0.0-beta.10, )",
-        "resolved": "1.0.0-beta.10",
-        "contentHash": "ryRvnOICC4Tk0CWwqhFx4gEZps3LZI0nmGfMN5H8081Lm/vx2B9xma06WnD6UBJi0oMWN5EJO+riAuBnIlqsKA==",
+        "requested": "[1.0.0-beta.11, )",
+        "resolved": "1.0.0-beta.11",
+        "contentHash": "STIHTo5BD+dMw3rTiNTzOZAyir2Mc+avjxFsLN44qMxtvwtbpdRF/zMQBnSphb0wcHm/utSrO0TTXurmqjwJ2Q==",
         "dependencies": {
           "DotNetEnv": "3.2.0",
           "Microsoft.AspNetCore.Authentication.JwtBearer": "10.0.14",
@@ -41,16 +41,16 @@
           "OpenTelemetry.Instrumentation.Http": "1.16.0",
           "OpenTelemetry.Instrumentation.Runtime": "1.18.0",
           "Otp.NET": "1.4.1",
-          "Perezosoft.Platform.Core": "1.0.0-beta.10",
-          "Perezosoft.Platform.Infrastructure": "1.0.0-beta.10",
+          "Perezosoft.Platform.Core": "1.0.0-beta.11",
+          "Perezosoft.Platform.Infrastructure": "1.0.0-beta.11",
           "Swashbuckle.AspNetCore": "7.2.0"
         }
       },
       "Perezosoft.Platform.Build": {
         "type": "Direct",
-        "requested": "[1.0.0-beta.10, )",
-        "resolved": "1.0.0-beta.10",
-        "contentHash": "9adiXek4n4c0yyikGS7wknqCNH2TP2XT/bxwTCir7pwxhwAji0sq0KWH8gzdLUt/DAY7jHjkylO1XIcbr66U9A=="
+        "requested": "[1.0.0-beta.11, )",
+        "resolved": "1.0.0-beta.11",
+        "contentHash": "i8SryejiXKHDM123eFl9TL1KJiZKquDkUqKl3dY4MFjOfCB+1ruS/pEMKlJfJlNyb4xH4JwC4CIcCJTxJGKxrQ=="
       },
       "QuestPDF": {
         "type": "Direct",
@@ -284,13 +284,13 @@
       },
       "Perezosoft.Platform.Core": {
         "type": "Transitive",
-        "resolved": "1.0.0-beta.10",
-        "contentHash": "78q1a5ODEB9SGhfILFI0axudxZdtQ/Wfl5ob2+nY5h9/W0OFLCsZdplIvwPtarjLC0SpKJvcZAPVm88ykhnzjg=="
+        "resolved": "1.0.0-beta.11",
+        "contentHash": "6lxFz69IjO9wr9pbUfY2tyyJ9zuYIMLuWGUV2bSBzas0i7/u511CjEixGITvIa/m7OJEF5mYrXg8r6ZeinLZFQ=="
       },
       "Perezosoft.Platform.Infrastructure": {
         "type": "Transitive",
-        "resolved": "1.0.0-beta.10",
-        "contentHash": "youze8nu46tQDlU/bPGtoK4Q+vmO+7i9mo8EgjGYJxeAcvXSqX93dlleRNBSFWmFJpYSc7F5Yc6Ox4cMBu0X4A==",
+        "resolved": "1.0.0-beta.11",
+        "contentHash": "Fi+awaw/ul5EzqPdLjWpmwNeqmdVyMlnbMaedEL5ax8N3sTLaA4zRe9pf0Q/9Wu7N0tQZSKezXRSbiUyLEMs6A==",
         "dependencies": {
           "AWSSDK.S3": "4.0.100",
           "MailKit": "4.17.0",
@@ -299,7 +299,7 @@
           "Microsoft.AspNetCore.DataProtection.EntityFrameworkCore": "10.0.14",
           "Microsoft.EntityFrameworkCore.Relational": "10.0.14",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "10.0.3",
-          "Perezosoft.Platform.Core": "1.0.0-beta.10",
+          "Perezosoft.Platform.Core": "1.0.0-beta.11",
           "Stripe.net": "52.1.0",
           "System.Security.Cryptography.Pkcs": "10.0.14"
         }
