@@ -29,7 +29,7 @@ concurrency:
 
 jobs:
   ci:
-    uses: argamboad/perezosoft-platform/.github/workflows/app-ci.yml@v1.0.0-beta.10
+    uses: argamboad/perezosoft-platform/.github/workflows/app-ci.yml@v1.0.0-beta.11
     with:
       deploy: ${{ inputs.deploy || 'none' }}
       devices: ${{ inputs.devices || 'none' }}

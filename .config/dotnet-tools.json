@@ -13,7 +13,7 @@
       "rollForward": false
     },
     "perezosoft.platform.tool": {
-      "version": "1.0.0-beta.10",
+      "version": "1.0.0-beta.11",
       "commands": ["dotnet-platform"],
       "rollForward": false
     }

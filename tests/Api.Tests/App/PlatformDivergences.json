@@ -5,6 +5,6 @@
     "file is equal again."
   ],
   "divergences": {
-    ".config/dotnet-tools.json": "the platform tool at 1.0.0-beta.10, the release this app is on; the starter of that release still pins 1.0.0-alpha.3 (it does not bake the tool's version) — drop the entry when it does"
+    ".config/dotnet-tools.json": "the platform tool at 1.0.0-beta.11, the release this app is on; the starter of that release still pins 1.0.0-alpha.3 (it does not bake the tool's version) — drop the entry when it does"
   }
 }
